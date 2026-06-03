@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <RootNamespace>CodeMeridian.Indexer</RootNamespace>
+    <AssemblyName>CodeMeridian-index</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Sdk\CodeMeridian.Sdk.csproj" />
+
+    <!-- Roslyn — parses C# AST without needing a full build -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.*" />
+
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.*" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.*" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <RootNamespace>CodeMeridian.McpServer</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Application\CodeMeridian.Application.csproj" />
+    <ProjectReference Include="..\Infrastructure\CodeMeridian.Infrastructure.csproj" />
+    <ProjectReference Include="..\Sdk\CodeMeridian.Sdk.csproj" />
+
+    <!--
+      MCP SDK — exposes this service as a tool provider that GitHub Copilot
+      (or any MCP-compatible client) can call directly. No LLM API key needed.
+    -->
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.*" />
+  </ItemGroup>
+</Project>

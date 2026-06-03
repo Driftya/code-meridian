@@ -1,0 +1,50 @@
+﻿services:
+  neo4j:
+    image: neo4j:5.20
+    container_name: codemeridian-neo4j
+    ports:
+      - "${NEO4J_HTTP_PORT:-47474}:7474"
+      - "${NEO4J_BOLT_PORT:-47687}:7687"
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-CodeMeridian}
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+      NEO4J_dbms_memory_heap_initial__size: 512m
+      NEO4J_dbms_memory_heap_max__size: 2G
+      NEO4J_server_default__listen__address: 0.0.0.0
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:7474 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - codemeridian-network
+
+  codemeridian-mcp:
+    build:
+      context: .
+      dockerfile: src/McpServer/Dockerfile
+    container_name: codemeridian-mcp
+    ports:
+      # VS Code connects to this port via .vscode/mcp.json
+      - "${CODEMERIDIAN_PORT:-5100}:8080"
+    environment:
+      Neo4j__Uri: bolt://neo4j:7687
+      Neo4j__Username: neo4j
+      Neo4j__Password: ${NEO4J_PASSWORD:-CodeMeridian}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    networks:
+      - codemeridian-network
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+
+networks:
+  codemeridian-network:
+    driver: bridge
