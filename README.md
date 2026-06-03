@@ -77,35 +77,41 @@ Open `http://localhost:47474` in a browser. Login with `neo4j` / `CodeMeridian` 
 
 ## Register your first project (index a codebase)
 
-Run the Indexer CLI against any C# solution or folder:
+Run the combined Indexer CLI against any C# / TypeScript solution or folder. It scans the target directory first, then runs the C# indexer when `.cs` files exist and the TypeScript indexer when `.ts` or `.tsx` files exist.
 
 ```powershell
-dotnet run --project tools/Indexer -- <path-to-your-project>
+dotnet run --project tools/IndexerAll -- <path-to-your-project>
+```
+
+If you omit the path, it indexes the directory where you ran the command:
+
+```powershell
+dotnet run --project J:\Projects\driftya-solutions\code-meridian\tools\IndexerAll
 ```
 
 **Example — index itself:**
 ```powershell
-dotnet run --project tools/Indexer -- src
+dotnet run --project tools/IndexerAll -- .
 ```
 
 **Example — index another project on your machine:**
 ```powershell
-dotnet run --project tools/Indexer -- C:\Projects\MyApi
+dotnet run --project tools/IndexerAll -- C:\Projects\MyApi
 ```
 
 **Example - keep indexing while you work:**
 ```powershell
-dotnet run --project tools/Indexer -- C:\Projects\MyApi --watch
+dotnet run --project tools/IndexerAll -- C:\Projects\MyApi --watch
 ```
 
 **Options:**
 | Flag | Description |
 |------|-------------|
-| `--project <name>` | Short name for this codebase in the graph. Auto-detected from `.sln` / `.slnx` / `.code-workspace` or folder name if omitted |
-| `--CodeMeridian <url>` | MCP server URL. Default: `CodeMeridian_Url` from `.env`, or `http://localhost:5100` |
-| `--clear` | Wipe this project's existing graph data before indexing |
+| `--project <name>` | Short name for this codebase in the graph. Auto-detected from `package.json`, `.sln` / `.slnx` / `.code-workspace`, or folder name if omitted |
+| `--url <url>` / `--CodeMeridian <url>` | MCP server URL. Default: `CodeMeridian_Url` from `.env`, or `http://localhost:5100` |
+| `--clear` | Wipe this project's existing graph data before indexing. Applied once when both indexers run |
 | `--no-docs` | Skip README / documentation ingestion |
-| `--watch` | Stay running and re-index when `.cs` or `.md` files change |
+| `--watch` | Stay running and re-index. If both C# and TypeScript files exist, C# watch mode runs first |
 
 Re-run the Indexer whenever you make significant structural changes.
 
