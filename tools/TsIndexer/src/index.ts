@@ -1,8 +1,8 @@
 import path from 'path';
 import fs from 'fs';
 import { watch as chokidarWatch } from 'chokidar';
-import { walkTypeScript } from './walker';
-import { CodeMeridianClient } from './client';
+import { walkTypeScript } from './walker.js';
+import { CodeMeridianClient } from './client.js';
 
 // ── CLI args ──────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,9 @@ if (args.length === 0 || args.includes('-h') || args.includes('--help')) {
 
 const positional: string[] = [];
 let projectName: string | undefined;
-let serverUrl = 'http://localhost:5100';
+loadDotEnv();
+let serverUrl = process.env.CodeMeridian_Url ?? 'http://localhost:5100';
+const apiKey = process.env.CodeMeridian_Auth_ApiKey;
 let clear = false;
 let noDocs = false;
 let watch = false;
@@ -61,7 +63,7 @@ if (!projectName) {
 
 // ── Run ───────────────────────────────────────────────────────────────────────
 
-const client = new CodeMeridianClient(serverUrl);
+const client = new CodeMeridianClient(serverUrl, apiKey);
 
 if (clear) {
   process.stdout.write(`Clearing existing knowledge for '${projectName}'... `);
@@ -171,7 +173,7 @@ Options:
   --project <name>    Short identifier for this project in the graph.
                       If omitted, auto-detected from package.json "name",
                       .code-workspace filename, or the folder name.
-  --url <url>         CodeMeridian server URL  (default: http://localhost:5100)
+  --url <url>         CodeMeridian server URL  (default: CodeMeridian_Url or http://localhost:5100)
   --clear             Wipe this project's existing data before indexing
   --no-docs           Skip README ingestion
   --watch             Stay running; re-index when .ts, .tsx or .md files change
@@ -200,4 +202,47 @@ function resolveProjectName(dir: string): string {
 
   // 3. folder name
   return path.basename(dir);
+}
+
+function loadDotEnv(): void {
+  const envPath = findDotEnv(process.cwd());
+  if (!envPath) return;
+
+  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+  for (const rawLine of lines) {
+    let line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+
+    if (line.toLowerCase().startsWith('export ')) {
+      line = line.slice('export '.length).trimStart();
+    }
+
+    const separator = line.indexOf('=');
+    if (separator <= 0) continue;
+
+    const key = line.slice(0, separator).trim();
+    let value = line.slice(separator + 1).trim();
+    if (!key || process.env[key] !== undefined) continue;
+
+    if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+      value = value.slice(1, -1).replace(/\\"/g, '"');
+    } else if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    }
+
+    process.env[key] = value;
+  }
+}
+
+function findDotEnv(startDir: string): string | undefined {
+  let current = path.resolve(startDir);
+
+  while (true) {
+    const candidate = path.join(current, '.env');
+    if (fs.existsSync(candidate)) return candidate;
+
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
 }

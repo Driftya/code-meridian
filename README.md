@@ -5,7 +5,8 @@ A persistent code knowledge graph that gives GitHub Copilot a grounded, structur
 No LLM API key required. Copilot is the AI; CodeMeridian is the knowledge engine.
 
 **→ [See all features in FEATURES.md](FEATURES.md)**  
-**→ [Contributor & agent guide in AGENTS.md](AGENTS.md)**
+**→ [Contributor & agent guide in AGENTS.md](AGENTS.md)**  
+**→ [Ubuntu headless deployment guide](docs/ubuntu-headless-deploy.md)**
 
 ---
 
@@ -48,6 +49,14 @@ Copy-Item .env.example .env
 
 Edit `.env` if you want a custom Neo4j password (optional — the default works fine).
 
+For public access, set `CodeMeridian_Auth_ApiKey` in `.env`. When this value is set, CodeMeridian requires clients to send:
+
+```http
+Authorization: Bearer <your-api-key>
+```
+
+The C# and TypeScript indexers automatically read `.env` from this repository root, so local indexing commands use the same server URL and auth key as Docker Compose.
+
 ### 2. Start the containers
 
 ```powershell
@@ -71,26 +80,32 @@ Open `http://localhost:47474` in a browser. Login with `neo4j` / `CodeMeridian` 
 Run the Indexer CLI against any C# solution or folder:
 
 ```powershell
-dotnet run --project tools/Indexer -- <path-to-your-project> --project <YourProjectName>
+dotnet run --project tools/Indexer -- <path-to-your-project>
 ```
 
 **Example — index itself:**
 ```powershell
-dotnet run --project tools/Indexer -- src --project CodeMeridian
+dotnet run --project tools/Indexer -- src
 ```
 
 **Example — index another project on your machine:**
 ```powershell
-dotnet run --project tools/Indexer -- C:\Projects\MyApi --project MyApi
+dotnet run --project tools/Indexer -- C:\Projects\MyApi
+```
+
+**Example - keep indexing while you work:**
+```powershell
+dotnet run --project tools/Indexer -- C:\Projects\MyApi --watch
 ```
 
 **Options:**
 | Flag | Description |
 |------|-------------|
 | `--project <name>` | Short name for this codebase in the graph. Auto-detected from `.sln` / `.slnx` / `.code-workspace` or folder name if omitted |
-| `--CodeMeridian <url>` | MCP server URL. Default: `http://localhost:5100` |
+| `--CodeMeridian <url>` | MCP server URL. Default: `CodeMeridian_Url` from `.env`, or `http://localhost:5100` |
 | `--clear` | Wipe this project's existing graph data before indexing |
 | `--no-docs` | Skip README / documentation ingestion |
+| `--watch` | Stay running and re-index when `.cs` or `.md` files change |
 
 Re-run the Indexer whenever you make significant structural changes.
 
@@ -111,47 +126,53 @@ cd ../..
 
 **Run it:**
 ```powershell
-npx tsx tools/TsIndexer/src/index.ts <path-to-your-ts-project> --project <YourProjectName>
+npx tsx tools/TsIndexer/src/index.ts <path-to-your-ts-project>
 ```
 
 **Example — index a React app:**
 ```powershell
-npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-react-app --project MyReactApp
+npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-react-app
 ```
 
 **Example — index a Node API:**
 ```powershell
-npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-api --project MyApi
+npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-api
 ```
 
 **Example — index itself:**
 ```powershell
-npx tsx tools/TsIndexer/src/index.ts tools/TsIndexer/src --project TsIndexer
+npx tsx tools/TsIndexer/src/index.ts tools/TsIndexer/src
 ```
 
 **Example — index with a custom server URL:**
 ```powershell
-npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-api --project MyApi --url http://localhost:5100
+npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-api --url http://localhost:5100
 ```
 
 **Example — wipe and re-index:**
 ```powershell
-npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-api --project MyApi --clear
+npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-api --clear
+```
+
+**Example - keep indexing while you work:**
+```powershell
+npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-api --watch
 ```
 
 **Example — both C# backend and TS frontend in the same graph:**
 ```powershell
-dotnet run --project tools/Indexer -- C:\Projects\MyApp\Api --project MyApp.Api
-npx tsx tools/TsIndexer/src/index.ts C:\Projects\MyApp\web --project MyApp.Web
+dotnet run --project tools/Indexer -- C:\Projects\MyApp\Api
+npx tsx tools/TsIndexer/src/index.ts C:\Projects\MyApp\web
 ```
 
 **Options:**
 | Flag | Description |
 |------|-------------|
 | `--project <name>` | Short name for this codebase in the graph. Auto-detected from `package.json` name, `.code-workspace` filename, or folder name if omitted |
-| `--url <url>` | MCP server URL. Default: `http://localhost:5100` |
+| `--url <url>` | MCP server URL. Default: `CodeMeridian_Url` from `.env`, or `http://localhost:5100` |
 | `--clear` | Wipe this project's existing graph data before indexing |
 | `--no-docs` | Skip README ingestion |
+| `--watch` | Stay running and re-index when `.ts`, `.tsx`, or `.md` files change |
 
 **What it extracts:**
 | Node type | What it is |
@@ -177,12 +198,16 @@ npx tsx tools/TsIndexer/src/index.ts C:\Projects\MyApp\web --project MyApp.Web
 
 When you open this folder in VS Code, the file `.vscode/mcp.json` is picked up automatically by the GitHub Copilot extension:
 
-```json
+```jsonc
 {
   "servers": {
     "CodeMeridian": {
       "type": "sse",
-      "url": "http://localhost:5100/sse"
+      "url": "http://localhost:5100/sse",
+      // Required only when CodeMeridian_Auth_ApiKey is set in .env / your shell.
+      "headers": {
+        "Authorization": "Bearer ${env:CodeMeridian_Auth_ApiKey}"
+      }
     }
   }
 }

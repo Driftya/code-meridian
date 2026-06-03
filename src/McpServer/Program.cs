@@ -2,6 +2,8 @@
 using CodeMeridian.Infrastructure;
 using CodeMeridian.McpServer.Api;
 using CodeMeridian.McpServer.Tools;
+using System.Security.Cryptography;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +44,30 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
+var apiKey = builder.Configuration["CodeMeridian_Auth_ApiKey"]
+    ?? builder.Configuration["CodeMeridian:Auth:ApiKey"];
+
+if (!string.IsNullOrWhiteSpace(apiKey))
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments("/health"))
+        {
+            await next(context);
+            return;
+        }
+
+        if (!IsAuthorized(context.Request, apiKey))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsync("Missing or invalid CodeMeridian API key.");
+            return;
+        }
+
+        await next(context);
+    });
+}
+
 app.MapHealthChecks("/health");
 
 // REST API — used by the Indexer CLI and Sdk (not Copilot)
@@ -51,3 +77,27 @@ app.MapKnowledgeApi();
 app.MapMcp("/sse");
 
 app.Run();
+
+static bool IsAuthorized(HttpRequest request, string expectedApiKey)
+{
+    var providedApiKey = request.Headers.Authorization.ToString();
+
+    if (providedApiKey.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        providedApiKey = providedApiKey["Bearer ".Length..].Trim();
+    else
+        providedApiKey = request.Headers["X-CodeMeridian-ApiKey"].ToString();
+
+    return FixedTimeEquals(providedApiKey, expectedApiKey);
+}
+
+static bool FixedTimeEquals(string provided, string expected)
+{
+    if (string.IsNullOrEmpty(provided))
+        return false;
+
+    var providedBytes = Encoding.UTF8.GetBytes(provided);
+    var expectedBytes = Encoding.UTF8.GetBytes(expected);
+
+    return providedBytes.Length == expectedBytes.Length
+        && CryptographicOperations.FixedTimeEquals(providedBytes, expectedBytes);
+}

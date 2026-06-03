@@ -12,7 +12,9 @@ if (args.Length == 0 || args[0] is "-h" or "--help")
 
 var positional = new List<string>();
 string? project = null;
-string CodeMeridianUrl = "http://localhost:5100";
+LoadDotEnv();
+var CodeMeridianUrl = Environment.GetEnvironmentVariable("CodeMeridian_Url") ?? "http://localhost:5100";
+var apiKey = Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
 bool clear = false;
 bool docs = true;
 bool watch = false;
@@ -70,7 +72,7 @@ services.AddLogging(b => b
     .AddConsole()
     .SetMinimumLevel(LogLevel.Information));
 
-services.AddCodeMeridianClient(CodeMeridianUrl);
+services.AddCodeMeridianClient(CodeMeridianUrl, apiKey);
 services.AddTransient<CSharpIndexer>();
 services.AddTransient<DocumentIngester>();
 services.AddTransient<IndexerPipeline>();
@@ -138,7 +140,7 @@ static void PrintUsage()
         OPTIONS:
           --project  <name>    Project context name. If omitted, auto-detected from
                                .sln / .slnx / .code-workspace, or the folder name.
-          --CodeMeridian <url>     CodeMeridian base URL (default: http://localhost:5100)
+          --CodeMeridian <url>     CodeMeridian base URL (default: CodeMeridian_Url or http://localhost:5100)
           --clear              Remove existing knowledge before indexing
           --no-docs            Skip ingestion of .md/.txt files
           --watch              Stay running; re-index when .cs or .md files change
@@ -163,4 +165,50 @@ static string ResolveProjectName(DirectoryInfo root)
 
     // 4. folder name
     return root.Name;
+}
+
+static void LoadDotEnv()
+{
+    var envFile = FindDotEnv(new DirectoryInfo(Directory.GetCurrentDirectory()));
+    if (envFile is null)
+        return;
+
+    foreach (var rawLine in File.ReadLines(envFile.FullName))
+    {
+        var line = rawLine.Trim();
+        if (line.Length == 0 || line.StartsWith('#'))
+            continue;
+
+        if (line.StartsWith("export ", StringComparison.OrdinalIgnoreCase))
+            line = line["export ".Length..].TrimStart();
+
+        var separator = line.IndexOf('=');
+        if (separator <= 0)
+            continue;
+
+        var key = line[..separator].Trim();
+        var value = line[(separator + 1)..].Trim();
+
+        if (string.IsNullOrWhiteSpace(key) || Environment.GetEnvironmentVariable(key) is not null)
+            continue;
+
+        if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
+            value = value[1..^1].Replace("\\\"", "\"");
+        else if (value.Length >= 2 && value[0] == '\'' && value[^1] == '\'')
+            value = value[1..^1];
+
+        Environment.SetEnvironmentVariable(key, value);
+    }
+}
+
+static FileInfo? FindDotEnv(DirectoryInfo directory)
+{
+    for (var current = directory; current is not null; current = current.Parent)
+    {
+        var envFile = new FileInfo(Path.Combine(current.FullName, ".env"));
+        if (envFile.Exists)
+            return envFile;
+    }
+
+    return null;
 }

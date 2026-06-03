@@ -35,6 +35,7 @@
       Neo4j__Uri: bolt://neo4j:7687
       Neo4j__Username: neo4j
       Neo4j__Password: ${NEO4J_PASSWORD:-CodeMeridian}
+      CodeMeridian_Auth_ApiKey: ${CodeMeridian_Auth_ApiKey:-}
     depends_on:
       neo4j:
         condition: service_healthy

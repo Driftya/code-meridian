@@ -1,7 +1,10 @@
-import type { CodeNodeDto, CodeEdgeDto, DocumentDto } from './types';
+import type { CodeNodeDto, CodeEdgeDto, DocumentDto } from './types.js';
 
 export class CodeMeridianClient {
-  constructor(private readonly baseUrl: string) {}
+  constructor(
+    private readonly baseUrl: string,
+    private readonly apiKey?: string
+  ) {}
 
   async ingestNode(node: CodeNodeDto): Promise<void> {
     await this.post('/api/v1/knowledge/nodes', node);
@@ -18,7 +21,7 @@ export class CodeMeridianClient {
   async clearProject(projectContext: string): Promise<void> {
     const res = await fetch(
       `${this.baseUrl}/api/v1/knowledge/project/${encodeURIComponent(projectContext)}`,
-      { method: 'DELETE' }
+      { method: 'DELETE', headers: this.headers() }
     );
     if (!res.ok && res.status !== 404) {
       throw new Error(`Clear failed: ${res.status} ${await res.text()}`);
@@ -28,11 +31,16 @@ export class CodeMeridianClient {
   private async post(path: string, body: unknown): Promise<void> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     });
     if (!res.ok) {
       throw new Error(`POST ${path} failed (${res.status}): ${await res.text()}`);
     }
+  }
+
+  private headers(base: Record<string, string> = {}): Record<string, string> {
+    if (!this.apiKey) return base;
+    return { ...base, Authorization: `Bearer ${this.apiKey}` };
   }
 }

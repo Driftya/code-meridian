@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { Project, type SourceFile } from 'ts-morph';
-import type { CodeNodeDto, CodeEdgeDto } from './types';
+import type { CodeNodeDto, CodeEdgeDto } from './types.js';
 
 export interface WalkResult {
   nodes: CodeNodeDto[];
