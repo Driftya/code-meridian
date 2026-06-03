@@ -74,25 +74,8 @@ var clearNextIndexer = clear;
 
 if (hasCSharp)
 {
-    var csharpArgs = new List<string>
-    {
-        "run",
-        "--project",
-        Path.Combine(repoRoot.FullName, "tools", "Indexer"),
-        "--",
-        rootPath.FullName,
-        "--project",
-        project,
-    };
-
-    if (codeMeridianUrl is not null)
-        csharpArgs.AddRange(["--CodeMeridian", codeMeridianUrl]);
-    if (clearNextIndexer)
-        csharpArgs.Add("--clear");
-    if (!docs)
-        csharpArgs.Add("--no-docs");
-    if (watch)
-        csharpArgs.Add("--watch");
+    var csharpArgs = BuildCSharpIndexerArgs(repoRoot, rootPath, project);
+    AddSharedIndexerOptions(csharpArgs, codeMeridianUrl, "--CodeMeridian", clearNextIndexer, docs, watch);
 
     exitCode = await RunAsync(DotnetCommand(), csharpArgs, repoRoot);
     if (exitCode != 0 || watch)
@@ -107,22 +90,14 @@ if (hasTypeScript)
     var tsxCommand = ResolveTsxCommand(tsIndexerRoot);
     foreach (var typeScriptRoot in typeScriptRoots)
     {
-        var tsArgs = new List<string>
-        {
-            Path.Combine(repoRoot.FullName, "tools", "TsIndexer", "src", "index.ts"),
-            typeScriptRoot.FullName,
-            "--project",
-            project,
-        };
-
-        if (codeMeridianUrl is not null)
-            tsArgs.AddRange(["--url", codeMeridianUrl]);
-        if (clearNextIndexer)
-            tsArgs.Add("--clear");
-        if (!docs || hasCSharp || typeScriptRoots.Count > 1)
-            tsArgs.Add("--no-docs");
-        if (watch)
-            tsArgs.Add("--watch");
+        var tsArgs = BuildTypeScriptIndexerArgs(repoRoot, typeScriptRoot, project);
+        AddSharedIndexerOptions(
+            tsArgs,
+            codeMeridianUrl,
+            "--url",
+            clearNextIndexer,
+            docs && !hasCSharp && typeScriptRoots.Count == 1,
+            watch);
 
         if (tsxCommand.UseNpx)
             tsArgs.Insert(0, "tsx");
@@ -136,6 +111,49 @@ if (hasTypeScript)
 }
 
 return exitCode;
+
+static List<string> BuildCSharpIndexerArgs(DirectoryInfo repoRoot, DirectoryInfo rootPath, string project)
+{
+    return
+    [
+        "run",
+        "--project",
+        Path.Combine(repoRoot.FullName, "tools", "Indexer"),
+        "--",
+        rootPath.FullName,
+        "--project",
+        project,
+    ];
+}
+
+static List<string> BuildTypeScriptIndexerArgs(DirectoryInfo repoRoot, DirectoryInfo rootPath, string project)
+{
+    return
+    [
+        Path.Combine(repoRoot.FullName, "tools", "TsIndexer", "src", "index.ts"),
+        rootPath.FullName,
+        "--project",
+        project,
+    ];
+}
+
+static void AddSharedIndexerOptions(
+    List<string> arguments,
+    string? codeMeridianUrl,
+    string urlFlag,
+    bool clear,
+    bool docs,
+    bool watch)
+{
+    if (codeMeridianUrl is not null)
+        arguments.AddRange([urlFlag, codeMeridianUrl]);
+    if (clear)
+        arguments.Add("--clear");
+    if (!docs)
+        arguments.Add("--no-docs");
+    if (watch)
+        arguments.Add("--watch");
+}
 
 static async Task<int> RunAsync(string fileName, IReadOnlyList<string> arguments, DirectoryInfo workingDirectory)
 {

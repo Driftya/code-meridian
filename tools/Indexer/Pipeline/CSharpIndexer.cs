@@ -127,8 +127,18 @@ internal sealed class CSharpAstWalker(
     List<IngestNodeRequest> nodes,
     List<IngestEdgeRequest> edges) : CSharpSyntaxWalker
 {
+    private readonly string _fileId = $"{projectContext}::File::{filePath}";
     private string? _currentNamespace;
     private string? _currentTypeId;
+    private string? _currentMemberId;
+
+    public override void VisitCompilationUnit(CompilationUnitSyntax node)
+    {
+        nodes.Add(new IngestNodeRequest(_fileId, Path.GetFileName(filePath), "File",
+            null, filePath, 1, null, GetLineCount(node)));
+
+        base.VisitCompilationUnit(node);
+    }
 
     public override void VisitNamespaceDeclaration(NamespaceDeclarationSyntax node)
     {
@@ -217,35 +227,33 @@ internal sealed class CSharpAstWalker(
     {
         if (_currentTypeId is null) return;
 
-        var methodName = node.Identifier.Text;
-        var paramTypes = string.Join(",", node.ParameterList.Parameters
-            .Select(p => p.Type?.ToString() ?? "?"));
-        var signature = $"{methodName}({paramTypes})";
-        var fullName = FullName(signature);
-        var id = MakeId("Method", fullName);
-        var methodSpan = node.GetLocation().GetLineSpan();
-        var line = methodSpan.StartLinePosition.Line + 1;
-        var lineCount = methodSpan.EndLinePosition.Line - methodSpan.StartLinePosition.Line + 1;
-        var summary = ExtractXmlSummary(node);
+        var id = AddMethodNode(
+            node.Identifier.Text,
+            node.ParameterList.Parameters,
+            node,
+            _currentTypeId,
+            ExtractXmlSummary(node));
 
-        nodes.Add(new IngestNodeRequest(id, signature, "Method",
-            _currentNamespace, filePath, line, summary, lineCount));
+        var previousMemberId = _currentMemberId;
+        _currentMemberId = id;
+        base.VisitMethodDeclaration(node);
+        _currentMemberId = previousMemberId;
+    }
 
-        edges.Add(new IngestEdgeRequest(_currentTypeId, id, "Contains"));
+    public override void VisitLocalFunctionStatement(LocalFunctionStatementSyntax node)
+    {
+        var containerId = _currentMemberId ?? _currentTypeId ?? _fileId;
+        var id = AddMethodNode(
+            node.Identifier.Text,
+            node.ParameterList.Parameters,
+            node,
+            containerId,
+            summary: null);
 
-        // Extract method calls (invocation expressions)
-        var invocations = node.DescendantNodes()
-            .OfType<InvocationExpressionSyntax>()
-            .Select(i => ExtractCalleeName(i))
-            .Where(n => n is not null)
-            .Distinct();
-
-        foreach (var callee in invocations)
-        {
-            // We create a placeholder target node id; will be resolved on next index run
-            var calleeId = MakeId("Method", callee!);
-            edges.Add(new IngestEdgeRequest(id, calleeId, "Calls"));
-        }
+        var previousMemberId = _currentMemberId;
+        _currentMemberId = id;
+        base.VisitLocalFunctionStatement(node);
+        _currentMemberId = previousMemberId;
     }
 
     public override void VisitPropertyDeclaration(PropertyDeclarationSyntax node)
@@ -269,6 +277,56 @@ internal sealed class CSharpAstWalker(
 
     private string MakeId(string type, string name) =>
         $"{projectContext}::{type}::{name}";
+
+    private string AddMethodNode(
+        string methodName,
+        SeparatedSyntaxList<ParameterSyntax> parameters,
+        SyntaxNode node,
+        string containerId,
+        string? summary)
+    {
+        var signature = BuildSignature(methodName, parameters);
+        var fullName = FullName(signature);
+        var id = MakeId("Method", fullName);
+        var span = node.GetLocation().GetLineSpan();
+        var line = span.StartLinePosition.Line + 1;
+        var lineCount = span.EndLinePosition.Line - span.StartLinePosition.Line + 1;
+
+        nodes.Add(new IngestNodeRequest(id, signature, "Method",
+            _currentNamespace, filePath, line, summary, lineCount));
+
+        edges.Add(new IngestEdgeRequest(containerId, id, "Contains"));
+        AddInvocationEdges(node, id);
+
+        return id;
+    }
+
+    private void AddInvocationEdges(SyntaxNode node, string sourceId)
+    {
+        var invocations = node.DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .Select(ExtractCalleeName)
+            .Where(n => n is not null)
+            .Distinct();
+
+        foreach (var callee in invocations)
+        {
+            var calleeId = MakeId("Method", callee!);
+            edges.Add(new IngestEdgeRequest(sourceId, calleeId, "Calls"));
+        }
+    }
+
+    private static string BuildSignature(string methodName, SeparatedSyntaxList<ParameterSyntax> parameters)
+    {
+        var paramTypes = string.Join(",", parameters.Select(p => p.Type?.ToString() ?? "?"));
+        return $"{methodName}({paramTypes})";
+    }
+
+    private static int GetLineCount(SyntaxNode node)
+    {
+        var span = node.GetLocation().GetLineSpan();
+        return span.EndLinePosition.Line - span.StartLinePosition.Line + 1;
+    }
 
     private static string? ExtractXmlSummary(SyntaxNode node)
     {
