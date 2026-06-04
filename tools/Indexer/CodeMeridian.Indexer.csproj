@@ -16,6 +16,7 @@
     <Authors>CodeMeridian</Authors>
     <Description>Unified CodeMeridian indexer CLI for C#, TypeScript/TSX, and documentation.</Description>
     <PackageTags>codemeridian;indexer;mcp;neo4j;code-graph</PackageTags>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
@@ -27,6 +28,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="" />
     <None Include="..\..\README.md" Pack="true" PackagePath="" />
     <None Include="..\..\docs\assets\icon_128.png" Pack="true" PackagePath="icon.png" />
   </ItemGroup>

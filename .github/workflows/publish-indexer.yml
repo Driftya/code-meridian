@@ -29,11 +29,20 @@ env:
 jobs:
   pack:
     name: Build, test, pack, and publish
+    environment: nuget
     runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate NuGet API key
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace("${{ secrets.NUGET_API_KEY }}")) {
+            throw "NUGET_API_KEY is missing. If this is an environment secret, set jobs.pack.environment to the matching GitHub Environment name."
+          }
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -110,8 +119,23 @@ jobs:
 
       - name: Publish to NuGet.org
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
-        run: >
-          dotnet nuget push artifacts/packages/*.nupkg
-          --api-key "${{ secrets.NUGET_API_KEY }}"
-          --source https://api.nuget.org/v3/index.json
-          --skip-duplicate
+        shell: pwsh
+        run: |
+          $apiKey = "${{ secrets.NUGET_API_KEY }}"
+
+          if ([string]::IsNullOrWhiteSpace($apiKey)) {
+            throw "NUGET_API_KEY is missing. If this is an environment secret, set jobs.pack.environment to the matching GitHub Environment name."
+          }
+
+          $packages = Get-ChildItem -Path $env:PACKAGE_OUTPUT -Filter "*.nupkg" -File
+
+          if ($packages.Count -eq 0) {
+            throw "No NuGet packages were found in '$env:PACKAGE_OUTPUT'."
+          }
+
+          foreach ($package in $packages) {
+            dotnet nuget push $package.FullName `
+              --api-key $apiKey `
+              --source https://api.nuget.org/v3/index.json `
+              --skip-duplicate
+          }
