@@ -1,11 +1,20 @@
-﻿using CodeMeridian.Application;
+using CodeMeridian.Application;
 using CodeMeridian.Infrastructure;
 using CodeMeridian.McpServer.Api;
 using CodeMeridian.McpServer.Tools;
+using Microsoft.Extensions.Logging.Console;
 using System.Security.Cryptography;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
+    options.UseUtcTimestamp = true;
+});
 
 // ── Neo4j knowledge graph ────────────────────────────────────────────────────
 builder.Services.AddInfrastructure(builder.Configuration);
