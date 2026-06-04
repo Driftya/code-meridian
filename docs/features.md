@@ -199,6 +199,16 @@ Finds diagnostics in the same file as a code node, ordered by proximity to the n
 What diagnostics are near OrderService.ProcessAsync?
 ```
 
+### `find_stale_knowledge`
+
+Detects knowledge that may be out of date after renames, reindexing, or documentation drift. It looks for unresolved document mentions, orphaned external concepts, stale notes, and orphaned code nodes.
+
+Documents can optionally include weak `relatedNodeIds` metadata when ingested; CodeMeridian stores that as `Mentions` edges from the document to current code nodes.
+
+```text
+What CodeMeridian knowledge might be stale?
+```
+
 ## Ingestion
 
 ### `ingest_code_node`
@@ -212,6 +222,8 @@ Manually add an edge between nodes.
 ### `ingest_document`
 
 Ingest a documentation snippet so future sessions can find it with `search_documentation`.
+
+If you already know the code nodes a document should point to, pass weak mention metadata such as `relatedNodeIds` so CodeMeridian can create explicit `Mentions` links.
 
 ### `link_external_concept`
 

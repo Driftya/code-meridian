@@ -1,5 +1,7 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using CodeMeridian.Core.CodeGraph;
+using CodeMeridian.Core.Knowledge;
 
 namespace CodeMeridian.Application.Services;
 
@@ -475,6 +477,146 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
+    public async Task<string> FindStaleKnowledgeAsync(
+        string? projectContext = null,
+        int limit = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var documents = await vectorStore.ListAsync(projectContext, limit: 250, cancellationToken);
+        var externalConcepts = await codeGraph.QueryNodesAsync(
+            new CodeGraphQuery
+            {
+                ProjectContext = projectContext,
+                TypeFilter = CodeNodeType.ExternalConcept,
+                Limit = 200
+            },
+            cancellationToken);
+        var unreferenced = await codeGraph.FindUnreferencedAsync(projectContext, cancellationToken);
+        var mostRecentCodeUpdate = await codeGraph.GetMostRecentCodeUpdateAsync(projectContext, cancellationToken);
+
+        var unresolvedDocMentions = new List<(KnowledgeDocument Document, string Mention, string Reason)>();
+        var staleNotes = new List<(KnowledgeDocument Document, string Reason)>();
+        var orphanedConcepts = new List<CodeNode>();
+
+        foreach (var doc in documents)
+        {
+            var explicitMentions = ExtractMentionIds(doc.Metadata);
+            if (explicitMentions.Count > 0)
+            {
+                foreach (var mention in explicitMentions)
+                {
+                    var ctx = await codeGraph.GetContextForEditingAsync(mention, cancellationToken);
+                    if (ctx.Node is null)
+                    {
+                        unresolvedDocMentions.Add((doc, mention, "explicit metadata reference does not resolve to a current code node"));
+                        continue;
+                    }
+
+                    if (mostRecentCodeUpdate.HasValue
+                        && doc.UpdatedAt.HasValue
+                        && doc.UpdatedAt.Value < mostRecentCodeUpdate.Value
+                        && IsLikelyNote(doc))
+                    {
+                        staleNotes.Add((doc, "note is older than the latest code reindex"));
+                    }
+                }
+
+                continue;
+            }
+
+            foreach (var mention in ExtractSymbolMentions(doc.Content).Take(8))
+            {
+                var matches = await codeGraph.QueryNodesAsync(
+                    new CodeGraphQuery
+                    {
+                        ProjectContext = doc.ProjectContext ?? projectContext,
+                        SemanticQuery = mention,
+                        Limit = 5
+                    },
+                    cancellationToken);
+
+                if (matches.Count == 0 || !matches.Any(IsLikelyMatch))
+                {
+                    unresolvedDocMentions.Add((doc, mention, "documentation mentions code that no longer resolves cleanly"));
+                }
+            }
+
+            if (mostRecentCodeUpdate.HasValue
+                && doc.UpdatedAt.HasValue
+                && doc.UpdatedAt.Value < mostRecentCodeUpdate.Value
+                && IsLikelyNote(doc))
+            {
+                staleNotes.Add((doc, "note is older than the latest code reindex"));
+            }
+        }
+
+        foreach (var concept in externalConcepts)
+        {
+            var edges = await codeGraph.QueryEdgesAsync(concept.Id, depth: 1, cancellationToken);
+            if (edges.Count == 0)
+                orphanedConcepts.Add(concept);
+        }
+
+        var staleOrphans = unreferenced
+            .Where(node => node.Type is CodeNodeType.Method or CodeNodeType.Class)
+            .Take(limit)
+            .ToArray();
+
+        if (unresolvedDocMentions.Count == 0 && staleNotes.Count == 0 && orphanedConcepts.Count == 0 && staleOrphans.Length < 10)
+        {
+            return $"No obvious stale knowledge found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                   "Knowledge docs, external concepts, and code graph references appear consistent.";
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Stale Knowledge{(projectContext is not null ? $" â€” {projectContext}" : "")}");
+        sb.AppendLine("Possibly stale knowledge found in documents, external concepts, and orphaned code references:\n");
+
+        if (unresolvedDocMentions.Count > 0)
+        {
+            sb.AppendLine($"### Unresolved documentation references ({Math.Min(unresolvedDocMentions.Count, limit)})");
+            foreach (var finding in unresolvedDocMentions.Take(limit))
+            {
+                sb.AppendLine($"- `{finding.Document.Source ?? finding.Document.Id}` mentions `{finding.Mention}` â€” {finding.Reason}");
+            }
+            sb.AppendLine();
+        }
+
+        if (orphanedConcepts.Count > 0)
+        {
+            sb.AppendLine($"### Orphaned external concepts ({Math.Min(orphanedConcepts.Count, limit)})");
+            foreach (var concept in orphanedConcepts.Take(limit))
+            {
+                sb.AppendLine($"- `{concept.Name}` (`{concept.Id}`) has no live code links");
+            }
+            sb.AppendLine();
+        }
+
+        if (staleNotes.Count > 0)
+        {
+            sb.AppendLine($"### Old notes ({Math.Min(staleNotes.Count, limit)})");
+            foreach (var finding in staleNotes.Take(limit))
+            {
+                var source = finding.Document.Source ?? finding.Document.Id;
+                sb.AppendLine($"- `{source}` â€” {finding.Reason}");
+            }
+            sb.AppendLine();
+        }
+
+        if (staleOrphans.Length >= 10)
+        {
+            sb.AppendLine($"### Orphaned code nodes ({staleOrphans.Length})");
+            foreach (var node in staleOrphans.Take(limit))
+                sb.AppendLine($"- `{node.Name}` â€” `{node.FilePath ?? "â€”"}`");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("> Weak `Mentions` / `References` relationships from knowledge to code are preferred for explicit links. " +
+                      "When those are absent, CodeMeridian falls back to text-based detection and reports likely stale references instead of silently rewriting them.");
+
+        return sb.ToString();
+    }
+
     public async Task<string> FindDownstreamAsync(
         string nodeId,
         int depth = 5,
@@ -594,6 +736,61 @@ public partial class CodebaseQueryService
 
         return sb.ToString();
     }
+
+    private static bool IsLikelyNote(KnowledgeDocument document)
+    {
+        var source = document.Source ?? string.Empty;
+        var kind = GetMetadataValue(document.Metadata, "kind");
+
+        return source.Contains("adr", StringComparison.OrdinalIgnoreCase)
+               || source.Contains("note", StringComparison.OrdinalIgnoreCase)
+               || source.Contains("decision", StringComparison.OrdinalIgnoreCase)
+               || source.Contains("agent", StringComparison.OrdinalIgnoreCase)
+               || kind.Equals("agent-note", StringComparison.OrdinalIgnoreCase)
+               || kind.Equals("note", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetMetadataValue(IReadOnlyDictionary<string, string> metadata, string key) =>
+        metadata.TryGetValue(key, out var value) ? value : string.Empty;
+
+    private static List<string> ExtractMentionIds(IReadOnlyDictionary<string, string> metadata)
+    {
+        foreach (var key in new[] { "relatedNodeIds", "relatedNodes", "mentions" })
+        {
+            if (!metadata.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+                continue;
+
+            return raw
+                .Split(new[] { ',', ';', '|', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        return [];
+    }
+
+    private static IEnumerable<string> ExtractSymbolMentions(string content)
+    {
+        var dotted = DottedSymbolRegex().Matches(content)
+            .Select(match => match.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        var memberLike = MemberLikeRegex().Matches(content)
+            .Select(match => match.Value)
+            .Where(value => value.Length >= 6)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        return dotted.Concat(memberLike);
+    }
+
+    private static bool IsLikelyMatch(CodeNode node) =>
+        node.Type is CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.Method or CodeNodeType.ExternalConcept;
+
+    [GeneratedRegex(@"\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b", RegexOptions.Compiled)]
+    private static partial Regex DottedSymbolRegex();
+
+    [GeneratedRegex(@"\b[A-Z][A-Za-z0-9_]{2,}\b", RegexOptions.Compiled)]
+    private static partial Regex MemberLikeRegex();
 
     private static TimeSpan ParseWindow(string window) => window.ToLowerInvariant() switch
     {

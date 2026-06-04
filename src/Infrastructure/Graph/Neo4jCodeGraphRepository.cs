@@ -384,6 +384,32 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         return nodes;
     }
 
+    public async Task<DateTimeOffset?> GetMostRecentCodeUpdateAsync(
+        string? projectContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (n:CodeNode)
+            WHERE ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND n.updatedAt IS NOT NULL
+            RETURN max(n.updatedAt) AS updatedAt
+            """;
+
+        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var records = await cursor.ToListAsync();
+
+        if (records.Count == 0)
+            return null;
+
+        var raw = records[0]["updatedAt"];
+        if (raw is null || raw == DBNull.Value)
+            return null;
+
+        return DateTimeOffset.FromUnixTimeMilliseconds(raw.As<long>());
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private static async Task<IReadOnlyList<CodeNode>> FullTextSearchAsync(

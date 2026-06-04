@@ -127,14 +127,21 @@ public sealed class KnowledgeTools(
         string? projectContext = null,
         [Description("Optional stable ID — auto-generated if not provided")]
         string? id = null,
+        [Description("Optional comma-separated list of related code node IDs to create weak Mentions links from this document")]
+        string? relatedNodeIdsCsv = null,
         CancellationToken cancellationToken = default)
     {
+        var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(relatedNodeIdsCsv))
+            metadata["relatedNodeIds"] = relatedNodeIdsCsv;
+
         var document = new KnowledgeDocument
         {
             Id = id ?? Guid.NewGuid().ToString("N"),
             Content = content,
             Source = source,
-            ProjectContext = projectContext
+            ProjectContext = projectContext,
+            Metadata = metadata
         };
 
         await vectorStore.UpsertAsync(document, cancellationToken);

@@ -36,11 +36,12 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         string? source = null,
         string? projectContext = null,
         string? id = null,
+        string? relatedNodeIdsCsv = null,
         CancellationToken cancellationToken = default)
     {
         var response = await httpClient.PostAsJsonAsync(
             "/api/v1/knowledge/documents",
-            new { Id = id, Content = content, Source = source, ProjectContext = projectContext },
+            new { Id = id, Content = content, Source = source, ProjectContext = projectContext, RelatedNodeIdsCsv = relatedNodeIdsCsv },
             cancellationToken);
 
         response.EnsureSuccessStatusCode();

@@ -104,7 +104,8 @@ public static class KnowledgeApiEndpoints
             Id = req.Id ?? Guid.NewGuid().ToString("N"),
             Content = req.Content,
             Source = req.Source,
-            ProjectContext = req.ProjectContext
+            ProjectContext = req.ProjectContext,
+            Metadata = ParseMetadata(req.RelatedNodeIdsCsv)
         }, ct);
 
         return Results.Created("/api/v1/knowledge/documents", null);
@@ -160,6 +161,17 @@ public static class KnowledgeApiEndpoints
         $"{req.Type} {req.Name}" +
         (req.Summary is not null ? $" - {req.Summary}" : "") +
         (req.Namespace is not null ? $" in {req.Namespace}" : "");
+
+    private static Dictionary<string, string> ParseMetadata(string? relatedNodeIdsCsv)
+    {
+        if (string.IsNullOrWhiteSpace(relatedNodeIdsCsv))
+            return [];
+
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["relatedNodeIds"] = relatedNodeIdsCsv
+        };
+    }
 }
 
 public static class EmbeddingApiEndpoints
@@ -229,7 +241,8 @@ internal sealed record IngestDocumentRequest(
     string Content,
     string? Id = null,
     string? Source = null,
-    string? ProjectContext = null);
+    string? ProjectContext = null,
+    string? RelatedNodeIdsCsv = null);
 
 internal sealed record EmbeddingRequest(string Text);
 

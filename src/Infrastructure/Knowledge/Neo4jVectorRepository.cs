@@ -65,11 +65,17 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 
         const string cypher = """
             MERGE (d:KnowledgeDocument {id: $id})
+            ON CREATE SET d.createdAt = $now
             SET d.content        = $content,
                 d.source         = $source,
                 d.projectContext = $projectContext,
-                d.embedding      = $embedding
+                d.embedding      = $embedding,
+                d.metadata       = $metadata,
+                d.updatedAt      = $now
             """;
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var mentionIds = ExtractMentionIds(document.Metadata);
 
         await session.ExecuteWriteAsync(async tx =>
         {
@@ -79,10 +85,63 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                 content = document.Content,
                 source = document.Source,
                 projectContext = document.ProjectContext,
-                embedding = document.Embedding
+                embedding = document.Embedding,
+                metadata = document.Metadata,
+                now
             });
             await cursor.ConsumeAsync();
+
+            await (await tx.RunAsync(
+                """
+                MATCH (d:KnowledgeDocument {id: $id})-[r:Mentions]->()
+                DELETE r
+                """,
+                new { id = document.Id })).ConsumeAsync();
+
+            if (mentionIds.Count > 0)
+            {
+                await (await tx.RunAsync(
+                    """
+                    UNWIND $mentionIds AS targetId
+                    MATCH (d:KnowledgeDocument {id: $id})
+                    MATCH (n:CodeNode {id: targetId})
+                    MERGE (d)-[:Mentions]->(n)
+                    """,
+                    new
+                    {
+                        id = document.Id,
+                        mentionIds
+                    })).ConsumeAsync();
+            }
         });
+    }
+
+    public async Task<IReadOnlyList<KnowledgeDocument>> ListAsync(
+        string? projectContext = null,
+        int limit = 200,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (d:KnowledgeDocument)
+            WHERE ($projectContext IS NULL OR d.projectContext = $projectContext)
+            RETURN d
+            ORDER BY d.updatedAt DESC, d.id
+            LIMIT $limit
+            """;
+
+        var cursor = await session.RunAsync(cypher, new
+        {
+            projectContext = (object?)projectContext,
+            limit
+        });
+
+        var results = new List<KnowledgeDocument>();
+        await foreach (var record in cursor.WithCancellation(cancellationToken))
+            results.Add(MapToDocument(record["d"].As<INode>()));
+
+        return results;
     }
 
     public async Task<IReadOnlyList<KnowledgeDocument>> SearchAsync(
@@ -178,13 +237,59 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
     private static KnowledgeDocument MapToDocument(INode node)
     {
         var props = node.Properties;
+
+        DateTimeOffset? ReadTimestamp(string key)
+        {
+            if (!props.TryGetValue(key, out var raw) || raw is null) return null;
+            var ms = raw.As<long?>();
+            return ms.HasValue ? DateTimeOffset.FromUnixTimeMilliseconds(ms.Value) : null;
+        }
+
         return new KnowledgeDocument
         {
             Id = props["id"].As<string>(),
             Content = props["content"].As<string>(),
             Source = props.TryGetValue("source", out var src) ? src?.As<string>() : null,
-            ProjectContext = props.TryGetValue("projectContext", out var pc) ? pc?.As<string>() : null
+            ProjectContext = props.TryGetValue("projectContext", out var pc) ? pc?.As<string>() : null,
+            CreatedAt = ReadTimestamp("createdAt"),
+            UpdatedAt = ReadTimestamp("updatedAt"),
+            Metadata = ReadMetadata(props)
         };
+    }
+
+    private static Dictionary<string, string> ReadMetadata(IReadOnlyDictionary<string, object?> props)
+    {
+        if (!props.TryGetValue("metadata", out var raw) || raw is null)
+            return [];
+
+        var map = raw.As<IDictionary<string, object>>();
+        var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (key, value) in map)
+        {
+            if (value is null)
+                continue;
+
+            metadata[key] = value.ToString() ?? string.Empty;
+        }
+
+        return metadata;
+    }
+
+    private static List<string> ExtractMentionIds(IReadOnlyDictionary<string, string> metadata)
+    {
+        foreach (var key in new[] { "relatedNodeIds", "relatedNodes", "mentions" })
+        {
+            if (!metadata.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+                continue;
+
+            return raw
+                .Split(new[] { ',', ';', '|', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        return [];
     }
 
     public async ValueTask DisposeAsync() => await _driver.DisposeAsync();

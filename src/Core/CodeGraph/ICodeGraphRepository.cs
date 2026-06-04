@@ -87,4 +87,7 @@ public interface ICodeGraphRepository
 
     /// <summary>Returns diagnostics attached to the same file as the target node.</summary>
     Task<IReadOnlyList<CodeNode>> FindDiagnosticsForNodeAsync(string nodeId, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the most recent code-node update timestamp for a project, or null if no nodes exist.</summary>
+    Task<DateTimeOffset?> GetMostRecentCodeUpdateAsync(string? projectContext = null, CancellationToken cancellationToken = default);
 }

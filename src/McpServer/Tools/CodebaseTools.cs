@@ -87,4 +87,16 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindDiagnosticsForNodeAsync(nodeId, cancellationToken);
 
+    [McpServerTool(Name = "find_stale_knowledge")]
+    [Description(
+        "Detect potentially stale knowledge in ingested docs, external concept links, and orphaned graph references. " +
+        "Use this when persistent memory may be out of date after code renames, reindexing, or documentation drift.")]
+    public Task<string> FindStaleKnowledgeAsync(
+        [Description("Optional project name to scope the analysis.")]
+        string? projectContext = null,
+        [Description("Maximum number of findings to include in the report.")]
+        int limit = 25,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindStaleKnowledgeAsync(projectContext, limit, cancellationToken);
+
 }
