@@ -12,9 +12,11 @@ No LLM API key required. Copilot is the AI; CodeMeridian is the knowledge engine
 
 ## Why CodeMeridian?
 
+Copilot can still read files beyond what is already open, but it has to spend context to discover them and the relationships do not persist. CodeMeridian makes that discovery explicit, cheaper, and reusable.
+
 | Without CodeMeridian | With CodeMeridian |
 |---------------------|------------------|
-| Copilot reads files you happen to have open | Copilot queries a graph of your entire codebase |
+| Copilot loads files ad hoc as it searches for context | Copilot queries a graph of your entire codebase |
 | Context disappears between sessions | Knowledge persists in Neo4j |
 | "What calls this method?" requires manual searching | `find_impact` answers from the call graph |
 | Refactors can miss hidden callers | Blast radius is known before edits |

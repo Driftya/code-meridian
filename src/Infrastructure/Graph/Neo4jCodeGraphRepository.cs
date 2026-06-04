@@ -74,6 +74,10 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 "CREATE INDEX codenode_linecount IF NOT EXISTS FOR (n:CodeNode) ON (n.lineCount)")).ConsumeAsync();
             await (await tx.RunAsync(
                 "CREATE INDEX codenode_changecount IF NOT EXISTS FOR (n:CodeNode) ON (n.changeCount)")).ConsumeAsync();
+        });
+
+        await session.ExecuteWriteAsync(async tx =>
+        {
             await (await tx.RunAsync(
                 """
                 MATCH (n:CodeNode)
