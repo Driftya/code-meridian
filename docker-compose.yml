@@ -41,6 +41,7 @@
       Neo4j__Uri: bolt://neo4j:7687
       Neo4j__Username: neo4j
       Neo4j__Password: ${NEO4J_PASSWORD:-CodeMeridian}
+      Neo4j__EmbeddingDimensions: ${Neo4j__EmbeddingDimensions:-1536}
       CodeMeridian_Auth_ApiKey: ${CodeMeridian_Auth_ApiKey:-}
       Embedding__Enabled: ${Embedding__Enabled:-false}
       Embedding__Provider: ${Embedding__Provider:-Ollama}

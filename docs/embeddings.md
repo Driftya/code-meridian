@@ -6,6 +6,8 @@ CodeMeridian supports optional vector embeddings for code nodes. Embeddings enab
 
 Set the embedding variables on the **CodeMeridian backend** only. The C# and TypeScript indexers call the backend embedding endpoint; they do not talk to Ollama or OpenAI directly anymore.
 
+Make sure `Neo4j__EmbeddingDimensions` matches the embedding model you are using. For `nomic-embed-text:latest`, set it to `768`. For `text-embedding-3-small`, set it to `1536`.
+
 ## Quick Start
 
 ### Option 1: Enable Ollama on the backend host (recommended for local development)

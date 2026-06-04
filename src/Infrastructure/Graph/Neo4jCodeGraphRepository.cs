@@ -18,6 +18,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 {
     private readonly IDriver _driver;
     private readonly ILogger<Neo4jCodeGraphRepository> _logger;
+    private readonly int _embeddingDimensions;
 
     public Neo4jCodeGraphRepository(
         IOptions<Neo4jOptions> options,
@@ -25,6 +26,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
     {
         _logger = logger;
         var opts = options.Value;
+        _embeddingDimensions = opts.EmbeddingDimensions;
         _driver = GraphDatabase.Driver(
             opts.Uri,
             AuthTokens.Basic(opts.Username, opts.Password),
@@ -67,7 +69,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             await (await vectorSession.RunAsync(
                 "CREATE VECTOR INDEX codenode_embeddings IF NOT EXISTS " +
                 "FOR (n:CodeNode) ON (n.embedding) " +
-                "OPTIONS {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 'cosine'}}")).ConsumeAsync();
+                $"OPTIONS {{indexConfig: {{`vector.dimensions`: {_embeddingDimensions}, `vector.similarity_function`: 'cosine'}}}}")).ConsumeAsync();
         }
         catch (Exception ex)
         {
