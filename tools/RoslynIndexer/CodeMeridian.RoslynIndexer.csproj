@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\CodeMeridian.Core.csproj" />
     <ProjectReference Include="..\..\src\Sdk\CodeMeridian.Sdk.csproj" />
 
     <!-- Roslyn — parses C# AST without needing a full build -->
