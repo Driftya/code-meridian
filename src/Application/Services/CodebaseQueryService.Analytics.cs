@@ -191,7 +191,7 @@ public partial class CodebaseQueryService
             sb.AppendLine();
         }
 
-        sb.AppendLine("> Detection is heuristic: test namespaces are identified by containing 'Test'. " +
+        sb.AppendLine("> Detection is heuristic: test namespaces or file paths are identified by containing 'test'. " +
                       "DI entry points and abstract types may appear here.");
 
         return sb.ToString();
@@ -352,14 +352,27 @@ public partial class CodebaseQueryService
         if (ctx.Node is null)
             return $"Target `{target}` not found in the graph. Run query_codebase first to find the correct node ID.";
 
-        var impact = await codeGraph.FindImpactAsync(target, depth: 2, cancellationToken);
-        var downstream = await codeGraph.FindDownstreamAsync(target, depth: 2, cancellationToken);
+        var impact = await codeGraph.FindImpactAsync(ctx.Node.Id, depth: 2, cancellationToken);
+        var downstream = await codeGraph.FindDownstreamAsync(ctx.Node.Id, depth: 2, cancellationToken);
         var coverageGaps = includeTests
             ? await codeGraph.FindCoverageGapsAsync(ctx.Node.ProjectContext, cancellationToken)
+            : [];
+        var relatedTests = includeTests
+            ? await codeGraph.FindRelatedTestsAsync(ctx.Node.Id, ctx.Node.ProjectContext, cancellationToken)
             : [];
 
         var relatedCoverageGaps = coverageGaps
             .Where(n => SameFile(n, ctx.Node) || SameNamespace(n, ctx.Node) || n.Id == ctx.Node.Id)
+            .Take(10)
+            .ToArray();
+        var directRelatedTests = relatedTests
+            .Where(match => match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
+            .Select(match => match.Node)
+            .ToArray();
+        var heuristicRelatedTests = relatedTests
+            .Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
+            .Select(match => match.Node)
+            .Where(node => SameFile(node, ctx.Node) || SameNamespace(node, ctx.Node) || FileNameLooksRelated(node, ctx.Node) || NameLooksRelated(node.Name, ctx.Node.Name))
             .Take(10)
             .ToArray();
 
@@ -369,13 +382,22 @@ public partial class CodebaseQueryService
             .Concat(ctx.Interfaces)
             .Concat(impact.Select(i => i.Node))
             .Concat(downstream.Select(d => d.Node))
+            .Concat(directRelatedTests)
+            .Concat(heuristicRelatedTests)
             .Select(n => n.FilePath)
             .Where(f => !string.IsNullOrWhiteSpace(f))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(20)
             .ToArray();
 
-        var estimatedTokens = EstimateContextTokens(ctx, impact, downstream, relatedCoverageGaps, candidateFiles.Length, includeSourceSnippets);
+        var estimatedTokens = EstimateContextTokens(
+            ctx,
+            impact,
+            downstream,
+            relatedCoverageGaps,
+            directRelatedTests.Length + heuristicRelatedTests.Length,
+            candidateFiles.Length,
+            includeSourceSnippets);
         var sb = new StringBuilder();
 
         sb.AppendLine($"## Minimal Context Pack — `{ctx.Node.Name}`");
@@ -395,7 +417,10 @@ public partial class CodebaseQueryService
         AppendDistanceList(sb, "Near downstream", downstream, detailLevel, "dependencies within 2 hops");
 
         if (includeTests)
+        {
             AppendNodeList(sb, "Relevant coverage gaps", relatedCoverageGaps, detailLevel, "heuristic matches by same file/namespace/target");
+            AppendRelatedTestsList(sb, directRelatedTests, heuristicRelatedTests, detailLevel);
+        }
 
         if (candidateFiles.Length > 0)
         {
@@ -648,6 +673,51 @@ public partial class CodebaseQueryService
         sb.AppendLine();
     }
 
+    private static void AppendRelatedTestsList(
+        StringBuilder sb,
+        IReadOnlyCollection<CodeNode> directTests,
+        IReadOnlyCollection<CodeNode> heuristicTests,
+        ContextDetailLevel detailLevel)
+    {
+        var total = directTests.Count + heuristicTests.Count;
+        sb.AppendLine($"### Relevant tests ({total})");
+
+        if (total == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        if (detailLevel == ContextDetailLevel.Summary)
+        {
+            sb.AppendLine($"- {directTests.Count} direct test callers, {heuristicTests.Count} heuristic matches");
+            sb.AppendLine();
+            return;
+        }
+
+        if (directTests.Count > 0)
+        {
+            sb.AppendLine("Direct test callers:");
+            foreach (var node in directTests)
+                sb.AppendLine($"- **{node.Type}** `{node.Name}`{FormatLocation(node)}");
+        }
+
+        if (heuristicTests.Count > 0)
+        {
+            sb.AppendLine("Heuristic matches:");
+            foreach (var node in heuristicTests)
+                sb.AppendLine($"- **{node.Type}** `{node.Name}`{FormatLocation(node)} (heuristic)");
+        }
+
+        sb.AppendLine();
+    }
+
+    private static string FormatLocation(CodeNode node) =>
+        node.FilePath is not null
+            ? $" — `{node.FilePath}`{(node.LineNumber.HasValue ? $":{node.LineNumber}" : "")}"
+            : string.Empty;
+
     private static bool SameFile(CodeNode left, CodeNode right) =>
         !string.IsNullOrWhiteSpace(left.FilePath)
         && string.Equals(left.FilePath, right.FilePath, StringComparison.OrdinalIgnoreCase);
@@ -656,15 +726,33 @@ public partial class CodebaseQueryService
         !string.IsNullOrWhiteSpace(left.Namespace)
         && string.Equals(left.Namespace, right.Namespace, StringComparison.OrdinalIgnoreCase);
 
+    private static bool FileNameLooksRelated(CodeNode left, CodeNode right)
+    {
+        if (string.IsNullOrWhiteSpace(left.FilePath) || string.IsNullOrWhiteSpace(right.FilePath))
+            return false;
+
+        var leftName = Path.GetFileNameWithoutExtension(left.FilePath);
+        var rightName = Path.GetFileNameWithoutExtension(right.FilePath);
+
+        return NameLooksRelated(leftName, rightName)
+            || NameLooksRelated(leftName, right.Name)
+            || NameLooksRelated(rightName, left.Name);
+    }
+
+    private static bool NameLooksRelated(string left, string right) =>
+        left.Contains(right, StringComparison.OrdinalIgnoreCase)
+        || right.Contains(left, StringComparison.OrdinalIgnoreCase);
+
     private static int EstimateContextTokens(
         EditingContext ctx,
         IReadOnlyCollection<(CodeNode Node, int Distance)> impact,
         IReadOnlyCollection<(CodeNode Node, int Distance)> downstream,
         IReadOnlyCollection<CodeNode> coverageGaps,
+        int relatedTestCount,
         int fileCount,
         bool includeSourceSnippets)
     {
-        var nodeRows = 1 + ctx.Callers.Count + ctx.Callees.Count + ctx.Interfaces.Count + impact.Count + downstream.Count + coverageGaps.Count;
+        var nodeRows = 1 + ctx.Callers.Count + ctx.Callees.Count + ctx.Interfaces.Count + impact.Count + downstream.Count + coverageGaps.Count + relatedTestCount;
         var estimate = 120
             + nodeRows * 22
             + fileCount * 16

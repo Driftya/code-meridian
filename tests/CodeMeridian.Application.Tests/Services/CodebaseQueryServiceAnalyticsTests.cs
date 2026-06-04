@@ -881,4 +881,54 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("Method");
         result.Should().Contain("Class");
     }
+
+    [Fact]
+    public async Task BuildMinimalContextAsync_WithRelatedTests_RendersDirectAndHeuristicSections()
+    {
+        var (sut, graph) = Build();
+        var target = Node("m1", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24);
+        var directTest = Node("t1", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 20, "Shop");
+        var heuristicTest = Node("t2", "PlaceOrderTests", CodeNodeType.Class, "tests/Orders/PlaceOrderTests.cs", 8, "Shop");
+
+        graph.GetContextForEditingAsync("Method:Shop.Orders.OrderService.PlaceOrder", Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([(directTest, "direct"), (heuristicTest, "heuristic")]);
+
+        var result = await sut.BuildMinimalContextAsync(target: "Method:Shop.Orders.OrderService.PlaceOrder");
+
+        result.Should().Contain("### Relevant tests (2)");
+        result.Should().Contain("Direct test callers:");
+        result.Should().Contain("OrderServiceTests");
+        result.Should().Contain("Heuristic matches:");
+        result.Should().Contain("PlaceOrderTests");
+        result.Should().Contain("heuristic");
+    }
+
+    [Fact]
+    public async Task BuildMinimalContextAsync_WhenTestsDisabled_OmitsTestSections()
+    {
+        var (sut, graph) = Build();
+        var target = Node("m1", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24);
+
+        graph.GetContextForEditingAsync("Method:Shop.Orders.OrderService.PlaceOrder", Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+
+        var result = await sut.BuildMinimalContextAsync(
+            target: "Method:Shop.Orders.OrderService.PlaceOrder",
+            includeTests: false);
+
+        result.Should().NotContain("Relevant coverage gaps");
+        result.Should().NotContain("Relevant tests");
+    }
 }

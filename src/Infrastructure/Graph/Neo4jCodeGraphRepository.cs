@@ -49,7 +49,21 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             await (await tx.RunAsync(
                 "CREATE INDEX codenode_name IF NOT EXISTS FOR (n:CodeNode) ON (n.name)")).ConsumeAsync();
             await (await tx.RunAsync(
+                "CREATE INDEX codenode_name_normalized IF NOT EXISTS FOR (n:CodeNode) ON (n.nameNormalized)")).ConsumeAsync();
+            await (await tx.RunAsync(
+                "CREATE TEXT INDEX codenode_name_normalized_text IF NOT EXISTS FOR (n:CodeNode) ON (n.nameNormalized)")).ConsumeAsync();
+            await (await tx.RunAsync(
                 "CREATE INDEX codenode_project IF NOT EXISTS FOR (n:CodeNode) ON (n.projectContext)")).ConsumeAsync();
+            await (await tx.RunAsync(
+                "CREATE INDEX codenode_project_normalized IF NOT EXISTS FOR (n:CodeNode) ON (n.projectContextNormalized)")).ConsumeAsync();
+            await (await tx.RunAsync(
+                "CREATE INDEX codenode_namespace_normalized IF NOT EXISTS FOR (n:CodeNode) ON (n.namespaceNormalized)")).ConsumeAsync();
+            await (await tx.RunAsync(
+                "CREATE TEXT INDEX codenode_namespace_normalized_text IF NOT EXISTS FOR (n:CodeNode) ON (n.namespaceNormalized)")).ConsumeAsync();
+            await (await tx.RunAsync(
+                "CREATE INDEX codenode_filepath_normalized IF NOT EXISTS FOR (n:CodeNode) ON (n.filePathNormalized)")).ConsumeAsync();
+            await (await tx.RunAsync(
+                "CREATE TEXT INDEX codenode_filepath_normalized_text IF NOT EXISTS FOR (n:CodeNode) ON (n.filePathNormalized)")).ConsumeAsync();
             await (await tx.RunAsync(
                 "CREATE FULLTEXT INDEX codenode_fulltext IF NOT EXISTS FOR (n:CodeNode) ON EACH [n.name, n.summary]")).ConsumeAsync();
             await (await tx.RunAsync(
@@ -60,6 +74,19 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 "CREATE INDEX codenode_linecount IF NOT EXISTS FOR (n:CodeNode) ON (n.lineCount)")).ConsumeAsync();
             await (await tx.RunAsync(
                 "CREATE INDEX codenode_changecount IF NOT EXISTS FOR (n:CodeNode) ON (n.changeCount)")).ConsumeAsync();
+            await (await tx.RunAsync(
+                """
+                MATCH (n:CodeNode)
+                WHERE n.nameNormalized IS NULL
+                   OR (n.namespace IS NOT NULL AND n.namespaceNormalized IS NULL)
+                   OR (n.filePath IS NOT NULL AND n.filePathNormalized IS NULL)
+                   OR (n.projectContext IS NOT NULL AND n.projectContextNormalized IS NULL)
+                SET n.nameNormalized = toLower(n.name),
+                    n.namespaceNormalized = CASE WHEN n.namespace IS NULL THEN NULL ELSE toLower(n.namespace) END,
+                    n.filePathNormalized = CASE WHEN n.filePath IS NULL THEN NULL ELSE toLower(n.filePath) END,
+                    n.projectContextNormalized = CASE WHEN n.projectContext IS NULL THEN NULL ELSE toLower(n.projectContext) END
+                """
+            )).ConsumeAsync();
         });
 
         // Vector index must be created outside an explicit transaction in Neo4j 5.x
@@ -169,13 +196,17 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             MERGE (n:CodeNode {id: $id})
             ON CREATE SET n.createdAt = $now, n.changeCount = 0
             SET n.name           = $name,
+                n.nameNormalized = $nameNormalized,
                 n.type           = $type,
                 n.namespace      = $namespace,
+                n.namespaceNormalized = $namespaceNormalized,
                 n.filePath       = $filePath,
+                n.filePathNormalized = $filePathNormalized,
                 n.lineNumber     = $lineNumber,
                 n.lineCount      = $lineCount,
                 n.summary        = $summary,
                 n.projectContext = $projectContext,
+                n.projectContextNormalized = $projectContextNormalized,
                 n.changeCount    = coalesce(n.changeCount, 0) + 1,
                 n.updatedAt      = $now
             """;
@@ -188,13 +219,17 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             {
                 id = node.Id,
                 name = node.Name,
+                nameNormalized = Normalize(node.Name),
                 type = node.Type.ToString(),
                 @namespace = node.Namespace,
+                namespaceNormalized = Normalize(node.Namespace),
                 filePath = node.FilePath,
+                filePathNormalized = Normalize(node.FilePath),
                 lineNumber = (object?)node.LineNumber,
                 lineCount = (object?)node.LineCount,
                 summary = node.Summary,
                 projectContext = node.ProjectContext,
+                projectContextNormalized = Normalize(node.ProjectContext),
                 now
             });
             await cursor.ConsumeAsync();
@@ -301,7 +336,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             MATCH (n:CodeNode)
             WHERE n.type = 'Diagnostic'
               AND ($projectContext IS NULL OR n.projectContext = $projectContext)
-              AND ($severity IS NULL OR toLower(n.name) STARTS WITH toLower($severity))
+              AND ($severityNormalized IS NULL OR n.nameNormalized STARTS WITH $severityNormalized)
             RETURN n
             ORDER BY n.filePath, n.lineNumber, n.name
             LIMIT 200
@@ -310,7 +345,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         var cursor = await session.RunAsync(cypher, new
         {
             projectContext = (object?)projectContext,
-            severity = (object?)severity
+            severityNormalized = (object?)Normalize(severity)
         });
 
         var nodes = new List<CodeNode>();
@@ -383,7 +418,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
     {
         var conditions = new List<string>();
         if (query.ProjectContext is not null) conditions.Add("n.projectContext = $projectContext");
-        if (query.NameFilter is not null) conditions.Add("n.name CONTAINS $nameFilter");
+        if (query.NameFilter is not null) conditions.Add("n.nameNormalized CONTAINS $nameFilterNormalized");
         if (query.TypeFilter.HasValue) conditions.Add("n.type = $typeFilter");
 
         var where = conditions.Count > 0 ? $"WHERE {string.Join(" AND ", conditions)}" : string.Empty;
@@ -392,7 +427,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         var cursor = await session.RunAsync(cypher, new
         {
             projectContext = (object?)query.ProjectContext,
-            nameFilter = (object?)query.NameFilter,
+            nameFilterNormalized = (object?)Normalize(query.NameFilter),
             typeFilter = (object?)query.TypeFilter?.ToString(),
             limit = query.Limit
         });
@@ -431,6 +466,9 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             UpdatedAt = ReadTimestamp("updatedAt")
         };
     }
+
+    private static string? Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.ToLowerInvariant();
 
     private static CodeEdge MapToCodeEdge(IRelationship rel)
     {

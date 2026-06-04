@@ -29,6 +29,12 @@ public interface ICodeGraphRepository
     /// <summary>Returns production classes/methods that no test node has a Calls edge to.</summary>
     Task<IReadOnlyList<CodeNode>> FindCoverageGapsAsync(string? projectContext = null, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns tests related to a node via direct calls or heuristic proximity.</summary>
+    Task<IReadOnlyList<(CodeNode Node, string MatchType)>> FindRelatedTestsAsync(
+        string nodeId,
+        string? projectContext = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Returns nodes created or updated within the given window.</summary>
     Task<IReadOnlyList<(CodeNode Node, DateTimeOffset ChangedAt, string ChangeType)>> FindRecentlyChangedAsync(string? projectContext, TimeSpan window, CancellationToken cancellationToken = default);
 

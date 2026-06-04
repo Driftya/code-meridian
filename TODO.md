@@ -155,7 +155,7 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 **Value:** Medium to high  
 **Risk:** Low.
 
-## - [ ] P1 - Improve Test Discovery and Coverage Context
+## - [x] P1 - Improve Test Discovery and Coverage Context
 
 **Why:** `find_coverage_gaps` is useful, but `build_minimal_context` needs better test relevance. A context pack should identify tests that call the target, nearby tests by namespace/file, and missing tests.
 
@@ -169,6 +169,8 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 **Effort:** Medium  
 **Value:** High  
 **Risk:** Medium, because test relationships can be incomplete without better call resolution.
+
+**Implemented:** Added `FindRelatedTestsAsync` to the graph repository and included it in `build_minimal_context`. Context packs now show direct test callers separately from heuristic test matches, include test files in the likely-file list, and keep nearby coverage gaps for missing-test context. Heuristic matches use test namespace/file detection plus namespace, file-name, and node-name similarity, and are labeled explicitly. Neo4j now stores indexed normalized fields (`nameNormalized`, `namespaceNormalized`, `filePathNormalized`, `projectContextNormalized`) so case-insensitive test and diagnostic queries avoid per-row `toLower(...)` work.
 
 ## - [x] P1 - Index Compiler, Analyzer, TypeScript, and Lint Diagnostics
 

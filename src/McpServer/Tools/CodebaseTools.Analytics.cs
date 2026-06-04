@@ -64,7 +64,7 @@ public sealed partial class CodebaseTools
         "Find production classes and methods that no test calls — coverage gap candidates. " +
         "Use this before writing tests to identify the highest-priority untested areas, " +
         "or when doing a code review to flag missing test coverage. " +
-        "Detection is heuristic: test classes are identified by namespace containing 'Test'.")]
+        "Detection is heuristic: test classes are identified by namespace or file path containing 'test'.")]
     public Task<string> FindCoverageGapsAsync(
         [Description("Project name to scope the analysis. Omit to check all projects.")]
         string? projectContext = null,
@@ -125,7 +125,7 @@ public sealed partial class CodebaseTools
     [Description(
         "Build a bounded, task-specific context pack for editing or reviewing one code node. " +
         "Use this when you need the smallest useful set of callers, callees, impact, downstream dependencies, " +
-        "coverage hints, and likely files before making a change.")]
+        "direct test callers, heuristic test matches, coverage gaps, and likely files before making a change.")]
     public Task<string> BuildMinimalContextAsync(
         [Description("Target node ID to build context for, preferably the exact ID returned by query_codebase.")]
         string target,
@@ -133,7 +133,7 @@ public sealed partial class CodebaseTools
         string? goal = null,
         [Description("Maximum desired token budget for the returned context. Default 3000.")]
         int maxTokens = 3000,
-        [Description("Whether to include relevant test coverage gaps. Default true.")]
+        [Description("Whether to include direct test callers, heuristic test matches, and relevant coverage gaps. Default true.")]
         bool includeTests = true,
         [Description("Whether to include external-concept hints when graph data contains them. Default true.")]
         bool includeExternalConcepts = true,

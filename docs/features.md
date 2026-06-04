@@ -83,6 +83,8 @@ Finds production classes and methods that no test node calls.
 Which parts of MyApi have no test coverage?
 ```
 
+Test detection is heuristic: nodes are treated as tests when their namespace or file path contains `test`.
+
 ### `find_recently_changed`
 
 Finds nodes created or updated within a time window such as `24h`, `7d`, `2h`, or `30m`.
@@ -108,6 +110,22 @@ Before I edit OrderService.ProcessAsync, give me its context.
 ```
 
 Use this before `find_impact` for a quick local view. Use `find_impact` for full transitive analysis.
+
+### `build_minimal_context`
+
+Builds a bounded context pack for one target node. The pack combines local editing context, near impact, downstream dependencies, likely files, token estimate, and optional test context.
+
+When `includeTests` is enabled, test context includes:
+
+- Direct test callers when indexed `Calls` edges exist.
+- Heuristic test matches by namespace, file name, or node name similarity.
+- Relevant coverage gaps near the target by same file, namespace, or exact target.
+
+Heuristic matches are labeled explicitly so callers can distinguish them from proven call-graph relationships.
+
+```text
+Build a minimal context pack for OrderService.ProcessAsync with tests included.
+```
 
 ### `find_god_classes`
 

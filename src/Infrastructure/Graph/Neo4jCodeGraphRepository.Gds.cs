@@ -175,13 +175,13 @@ public sealed partial class Neo4jCodeGraphRepository
               AND source.type IN $nodeTypes
               AND coalesce(source.lineCount, 0) >= $minLineCount
               AND ($projectContext IS NULL OR source.projectContext = $projectContext)
-              AND ($namespaceFilter IS NULL OR coalesce(source.namespace, '') CONTAINS $namespaceFilter)
+              AND ($namespaceFilterNormalized IS NULL OR source.namespaceNormalized CONTAINS $namespaceFilterNormalized)
               AND (
                 $excludeTests = false OR
                 (
-                  toLower(coalesce(source.filePath, '')) NOT CONTAINS 'test' AND
-                  toLower(coalesce(source.name, '')) NOT CONTAINS 'test' AND
-                  toLower(coalesce(source.namespace, '')) NOT CONTAINS 'test'
+                  NOT coalesce(source.filePathNormalized CONTAINS 'test', false) AND
+                  NOT coalesce(source.nameNormalized CONTAINS 'test', false) AND
+                  NOT coalesce(source.namespaceNormalized CONTAINS 'test', false)
                 )
               )
             WITH source
@@ -194,13 +194,13 @@ public sealed partial class Neo4jCodeGraphRepository
               AND candidate.type = source.type
               AND coalesce(candidate.lineCount, 0) >= $minLineCount
               AND ($projectContext IS NULL OR candidate.projectContext = $projectContext)
-              AND ($namespaceFilter IS NULL OR coalesce(candidate.namespace, '') CONTAINS $namespaceFilter)
+              AND ($namespaceFilterNormalized IS NULL OR candidate.namespaceNormalized CONTAINS $namespaceFilterNormalized)
               AND (
                 $excludeTests = false OR
                 (
-                  toLower(coalesce(candidate.filePath, '')) NOT CONTAINS 'test' AND
-                  toLower(coalesce(candidate.name, '')) NOT CONTAINS 'test' AND
-                  toLower(coalesce(candidate.namespace, '')) NOT CONTAINS 'test'
+                  NOT coalesce(candidate.filePathNormalized CONTAINS 'test', false) AND
+                  NOT coalesce(candidate.nameNormalized CONTAINS 'test', false) AND
+                  NOT coalesce(candidate.namespaceNormalized CONTAINS 'test', false)
                 )
               )
             WITH source, candidate, vector.similarity.cosine(source.embedding, candidate.embedding) AS score
@@ -218,17 +218,17 @@ public sealed partial class Neo4jCodeGraphRepository
             CALL {
               WITH source
               OPTIONAL MATCH (test:CodeNode)-[:Calls]->(source)
-              WHERE toLower(coalesce(test.filePath, '')) CONTAINS 'test'
-                 OR toLower(coalesce(test.name, '')) CONTAINS 'test'
-                 OR toLower(coalesce(test.namespace, '')) CONTAINS 'test'
+              WHERE test.filePathNormalized CONTAINS 'test'
+                 OR test.nameNormalized CONTAINS 'test'
+                 OR test.namespaceNormalized CONTAINS 'test'
               RETURN count(test) > 0 AS sourceHasTestCoverage
             }
             CALL {
               WITH candidate
               OPTIONAL MATCH (test:CodeNode)-[:Calls]->(candidate)
-              WHERE toLower(coalesce(test.filePath, '')) CONTAINS 'test'
-                 OR toLower(coalesce(test.name, '')) CONTAINS 'test'
-                 OR toLower(coalesce(test.namespace, '')) CONTAINS 'test'
+              WHERE test.filePathNormalized CONTAINS 'test'
+                 OR test.nameNormalized CONTAINS 'test'
+                 OR test.namespaceNormalized CONTAINS 'test'
               RETURN count(test) > 0 AS candidateHasTestCoverage
             }
             RETURN source, candidate, score, sourceFanIn, candidateFanIn, sourceHasTestCoverage, candidateHasTestCoverage
@@ -245,7 +245,7 @@ public sealed partial class Neo4jCodeGraphRepository
             var cursor = await session.RunAsync(cypher, new
             {
                 projectContext = (object?)projectContext,
-                namespaceFilter = (object?)namespaceFilter,
+                namespaceFilterNormalized = (object?)Normalize(namespaceFilter),
                 nodeTypes,
                 minLineCount,
                 minSimilarity,

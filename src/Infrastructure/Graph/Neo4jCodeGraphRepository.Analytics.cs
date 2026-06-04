@@ -47,15 +47,17 @@ public sealed partial class Neo4jCodeGraphRepository
     {
         await using var session = _driver.AsyncSession();
 
-        // Test namespaces are identified heuristically by name containing "Test"
+        // Test nodes are identified heuristically by namespace or file path containing "test".
         const string cypher = """
             MATCH (prod:CodeNode)
             WHERE prod.type IN ['Class', 'Method']
               AND ($projectContext IS NULL OR prod.projectContext = $projectContext)
-              AND NOT prod.namespace CONTAINS 'Test'
+              AND NOT coalesce(prod.namespaceNormalized CONTAINS 'test', false)
+              AND NOT coalesce(prod.filePathNormalized CONTAINS 'test', false)
               AND NOT EXISTS {
                 MATCH (test:CodeNode)-[:Calls]->(prod)
-                WHERE test.namespace CONTAINS 'Test'
+                WHERE test.namespaceNormalized CONTAINS 'test'
+                   OR test.filePathNormalized CONTAINS 'test'
               }
             RETURN prod
             ORDER BY prod.type, prod.name
@@ -69,6 +71,72 @@ public sealed partial class Neo4jCodeGraphRepository
             results.Add(MapToCodeNode(record["prod"].As<INode>()));
 
         return results;
+    }
+
+    public async Task<IReadOnlyList<(CodeNode Node, string MatchType)>> FindRelatedTestsAsync(
+        string nodeId,
+        string? projectContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string directCypher = """
+            MATCH (test:CodeNode)-[:Calls]->(target:CodeNode {id: $nodeId})
+            WHERE (
+                test.namespaceNormalized CONTAINS 'test'
+                OR test.filePathNormalized CONTAINS 'test'
+              )
+              AND ($projectContext IS NULL OR test.projectContext = $projectContext)
+            RETURN test AS node, 'direct' AS matchType
+            ORDER BY test.name
+            LIMIT 25
+            """;
+
+        const string heuristicCypher = """
+            MATCH (target:CodeNode {id: $nodeId})
+            MATCH (test:CodeNode)
+            WHERE (
+                test.namespaceNormalized CONTAINS 'test'
+                OR test.filePathNormalized CONTAINS 'test'
+              )
+              AND ($projectContext IS NULL OR test.projectContext = $projectContext)
+              AND (
+                test.filePath = target.filePath
+                OR test.namespace = target.namespace
+                OR test.filePathNormalized CONTAINS target.nameNormalized
+                OR test.nameNormalized CONTAINS target.nameNormalized
+                OR target.nameNormalized CONTAINS test.nameNormalized
+              )
+              AND NOT EXISTS {
+                MATCH (test)-[:Calls]->(target)
+              }
+            RETURN test AS node, 'heuristic' AS matchType
+            ORDER BY test.name
+            LIMIT 25
+            """;
+
+        var matches = new List<(CodeNode Node, string MatchType)>();
+
+        foreach (var cypher in new[] { directCypher, heuristicCypher })
+        {
+            var cursor = await session.RunAsync(cypher, new
+            {
+                nodeId,
+                projectContext = (object?)projectContext
+            });
+
+            await foreach (var record in cursor.WithCancellation(cancellationToken))
+            {
+                matches.Add((
+                    MapToCodeNode(record["node"].As<INode>()),
+                    record["matchType"].As<string>()));
+            }
+        }
+
+        return matches
+            .GroupBy(match => match.Node.Id)
+            .Select(group => group.First())
+            .ToArray();
     }
 
     public async Task<IReadOnlyList<(CodeNode Node, DateTimeOffset ChangedAt, string ChangeType)>> FindRecentlyChangedAsync(
