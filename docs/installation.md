@@ -122,7 +122,21 @@ Node.js 18+ must be available on `PATH`.
 
 For public or shared deployments, set `CodeMeridian_Auth_ApiKey` in `.env`.
 
-The indexer reads `.env` from the current directory or a parent directory and sends the key as:
+The indexer reads `.env` from the current directory or a parent directory first, then falls back to `meridian.json` for non-secret settings like the server URL or project name.
+
+If you want to pin the project name without using `--project`, set `CodeMeridian_Project` in `.env`:
+
+```env
+CodeMeridian_Project=MyApi
+```
+
+Generate a project-local `meridian.json` with:
+
+```powershell
+codemeridian init .
+```
+
+The API key still comes from `.env` or your shell environment and is sent as:
 
 ```http
 Authorization: Bearer <your-api-key>

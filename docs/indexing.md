@@ -191,18 +191,40 @@ Diagnostics are stored as `Diagnostic` code nodes with severity/code, source too
 
 ## Authentication and Configuration
 
-The indexers read `.env` from the current directory or a parent directory.
+The indexers read `.env` from the current directory or a parent directory first. If no environment variable is set, they fall back to `meridian.json` in the target root or a parent directory.
+
+Precedence for non-secret settings:
+
+1. Explicit CLI flags such as `--project` and `--url`
+2. Shell environment variables
+3. Values loaded from `.env`
+4. Values in `meridian.json`
+5. Auto-detected defaults
+
+You can generate `meridian.json` with:
+
+```powershell
+codemeridian init .
+```
 
 Useful variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CodeMeridian_Url` | `http://localhost:5100` | CodeMeridian server URL used by indexers |
+| `CodeMeridian_Project` | auto-detected | Optional project context name used when `--project` is omitted |
 | `CodeMeridian_Auth_ApiKey` | empty | Optional bearer token sent by indexers and MCP clients |
 | `NEO4J__URI` | `bolt://codemeridian-neo4j:7687` | Neo4j URI inside Docker |
 | `NEO4J__USERNAME` | `neo4j` | Neo4j username |
 | `NEO4J__PASSWORD` | `CodeMeridian` | Neo4j password |
 | `CODEMERIDIAN_PORT` | `5100` | Host port for the MCP server |
+
+`meridian.json` currently supports:
+
+| Key | Description |
+|-----|-------------|
+| `project` | Optional project context name used by the indexer when `--project` is omitted |
+| `codeMeridianUrl` | Optional CodeMeridian server URL used when `CodeMeridian_Url` is not set |
 
 When `CodeMeridian_Auth_ApiKey` is set, clients must send:
 

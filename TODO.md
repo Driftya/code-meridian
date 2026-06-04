@@ -401,7 +401,7 @@ codemeridian index . --clear
 - [ ] Add token estimation to context output.
 - [x] Add diagnostics indexing for C#, TypeScript, and ESLint using project-native configs.
 - [x] Package the indexers for easier install and one-command usage.
-- [ ] Add optional embeddings to the indexers.
+- [x] Add optional embeddings to the indexers.
 - [x] Add duplicate-code candidate workflow on top of embeddings.
 - [ ] Improve cross-language HTTP endpoint linking.
 - [ ] Add static HTML / CSS / SCSS relationship indexing.

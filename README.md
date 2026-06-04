@@ -60,6 +60,12 @@ Or, after installing the indexer tool:
 codemeridian index . --clear
 ```
 
+To create a local project config for the indexer, run:
+
+```powershell
+codemeridian init .
+```
+
 Open this folder in VS Code. The MCP server is registered through `.vscode/mcp.json`, and Copilot can call CodeMeridian tools while you chat.
 
 ## Common Questions

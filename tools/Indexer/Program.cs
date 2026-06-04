@@ -13,7 +13,8 @@ var rawArgs = args.ToList();
 var command = "index";
 if (rawArgs.Count > 0
     && (rawArgs[0].Equals("index", StringComparison.OrdinalIgnoreCase)
-        || rawArgs[0].Equals("clear", StringComparison.OrdinalIgnoreCase)))
+        || rawArgs[0].Equals("clear", StringComparison.OrdinalIgnoreCase)
+        || rawArgs[0].Equals("init", StringComparison.OrdinalIgnoreCase)))
 {
     command = rawArgs[0].ToLowerInvariant();
     rawArgs.RemoveAt(0);
@@ -28,16 +29,19 @@ if (rawArgs.Count > 0 && rawArgs[0] is "-h" or "--help" or "help")
     return 0;
 }
 
-LoadDotEnv(new DirectoryInfo(Directory.GetCurrentDirectory()));
+var initialEnvironmentKeys = GetEnvironmentKeys();
+var loadedDotEnvKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+LoadDotEnv(new DirectoryInfo(Directory.GetCurrentDirectory()), initialEnvironmentKeys, loadedDotEnvKeys);
+var startupConfig = IndexerConfig.Load(new DirectoryInfo(Directory.GetCurrentDirectory()));
 
 if (command == "clear")
-    return await RunClearCommandAsync(rawArgs);
+    return await RunClearCommandAsync(rawArgs, startupConfig);
 
 var positional = new List<string>();
 string? project = null;
-var codeMeridianUrl = Environment.GetEnvironmentVariable("CodeMeridian_Url") ?? "http://localhost:5100";
-var apiKey = Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
+string? codeMeridianUrlOverride = null;
 var clear = false;
+var initForce = false;
 var includeDocs = true;
 var watch = false;
 var dryRun = false;
@@ -59,10 +63,13 @@ for (var i = 0; i < rawArgs.Count; i++)
             break;
         case "--CodeMeridian" when i + 1 < rawArgs.Count:
         case "--url" when i + 1 < rawArgs.Count:
-            codeMeridianUrl = rawArgs[++i];
+            codeMeridianUrlOverride = rawArgs[++i];
             break;
         case "--clear":
             clear = true;
+            break;
+        case "--force":
+            initForce = true;
             break;
         case "--no-docs":
         case "--skip-docs":
@@ -108,9 +115,15 @@ var rootPath = new DirectoryInfo(positional.Count > 0
     ? Path.GetFullPath(positional[0], Directory.GetCurrentDirectory())
     : Directory.GetCurrentDirectory());
 
-LoadDotEnv(rootPath);
-codeMeridianUrl = codeMeridianUrlFromEnvironment(codeMeridianUrl);
-apiKey ??= Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
+LoadDotEnv(rootPath, initialEnvironmentKeys, loadedDotEnvKeys, overwriteLoadedValues: true);
+
+var meridianConfig = IndexerConfig.Load(rootPath);
+var codeMeridianUrl = ResolveCodeMeridianUrl(codeMeridianUrlOverride, meridianConfig);
+var apiKey = Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
+var environmentProject = Environment.GetEnvironmentVariable("CodeMeridian_Project");
+
+if (command == "init")
+    return RunInitCommand(rootPath, project ?? environmentProject, codeMeridianUrl, initForce);
 
 if (!rootPath.Exists)
 {
@@ -118,7 +131,7 @@ if (!rootPath.Exists)
     return 1;
 }
 
-project ??= IndexerDiscovery.ResolveProjectName(rootPath);
+project ??= environmentProject ?? meridianConfig?.Project ?? IndexerDiscovery.ResolveProjectName(rootPath);
 
 var hasCSharp = !skipCSharp && IndexerDiscovery.ContainsFile(rootPath, ".cs");
 var typeScriptRoots = skipTypeScript ? [] : IndexerDiscovery.FindTypeScriptRoots(rootPath);
@@ -496,7 +509,11 @@ static DirectoryInfo? ResolveTypeScriptIndexerRoot()
     return File.Exists(Path.Combine(packagedRoot.FullName, "src", "index.ts")) ? packagedRoot : null;
 }
 
-static void LoadDotEnv(DirectoryInfo startDirectory)
+static void LoadDotEnv(
+    DirectoryInfo startDirectory,
+    IReadOnlySet<string> initiallyPresentKeys,
+    ISet<string> loadedDotEnvKeys,
+    bool overwriteLoadedValues = false)
 {
     var envFile = FindDotEnv(startDirectory);
     if (envFile is null)
@@ -518,7 +535,7 @@ static void LoadDotEnv(DirectoryInfo startDirectory)
         var key = line[..separator].Trim();
         var value = line[(separator + 1)..].Trim();
 
-        if (string.IsNullOrWhiteSpace(key) || Environment.GetEnvironmentVariable(key) is not null)
+        if (string.IsNullOrWhiteSpace(key))
             continue;
 
         if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
@@ -526,7 +543,18 @@ static void LoadDotEnv(DirectoryInfo startDirectory)
         else if (value.Length >= 2 && value[0] == '\'' && value[^1] == '\'')
             value = value[1..^1];
 
+        var currentValue = Environment.GetEnvironmentVariable(key);
+        if (currentValue is not null)
+        {
+            if (initiallyPresentKeys.Contains(key))
+                continue;
+
+            if (!overwriteLoadedValues)
+                continue;
+        }
+
         Environment.SetEnvironmentVariable(key, value);
+        loadedDotEnvKeys.Add(key);
     }
 }
 
@@ -586,9 +614,56 @@ static void PrintCapabilities()
     Console.WriteLine("  codemeridian index . --clear");
     Console.WriteLine("  codemeridian index . --project MyProject --watch");
     Console.WriteLine("  codemeridian index . --dry-run");
+    Console.WriteLine("  codemeridian init .");
     Console.WriteLine("  codemeridian clear --project MyProject");
     Console.WriteLine("  codemeridian clear --all-code-graph");
 }
+
+static int RunInitCommand(DirectoryInfo rootPath, string? projectOverride, string codeMeridianUrl, bool force)
+{
+    Directory.CreateDirectory(rootPath.FullName);
+
+    var project = projectOverride
+        ?? IndexerConfig.Load(rootPath)?.Project
+        ?? IndexerDiscovery.ResolveProjectName(rootPath);
+
+    try
+    {
+        IndexerConfig.Write(rootPath, project, codeMeridianUrl, overwrite: force);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"error: {ex.Message}");
+        return 1;
+    }
+
+    var configPath = Path.Combine(rootPath.FullName, "meridian.json");
+    Console.WriteLine("Initialized CodeMeridian indexer config:");
+    Console.WriteLine($"  Path    : {configPath}");
+    Console.WriteLine($"  Project : {project}");
+    Console.WriteLine($"  Server  : {codeMeridianUrl}");
+    Console.WriteLine();
+    Console.WriteLine("Next step:");
+    Console.WriteLine("  codemeridian index .");
+
+    return 0;
+}
+
+static string ResolveCodeMeridianUrl(string? overrideUrl, IndexerConfig? config) =>
+    !string.IsNullOrWhiteSpace(overrideUrl)
+        ? overrideUrl
+        : !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CodeMeridian_Url"))
+            ? Environment.GetEnvironmentVariable("CodeMeridian_Url")!
+            : !string.IsNullOrWhiteSpace(config?.CodeMeridianUrl)
+                ? config!.CodeMeridianUrl!
+                : "http://localhost:5100";
+
+static HashSet<string> GetEnvironmentKeys() =>
+    Environment.GetEnvironmentVariables()
+        .Keys
+        .Cast<object>()
+        .Select(key => key.ToString() ?? string.Empty)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 static string QuoteIfNeeded(string value)
 {
@@ -794,14 +869,13 @@ static string Hash(string value)
     return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
 }
 
-static string codeMeridianUrlFromEnvironment(string fallback) =>
-    Environment.GetEnvironmentVariable("CodeMeridian_Url") ?? fallback;
-
-static async Task<int> RunClearCommandAsync(IReadOnlyList<string> rawArgs)
+static async Task<int> RunClearCommandAsync(IReadOnlyList<string> rawArgs, IndexerConfig? config)
 {
     string? project = null;
     var clearAllCodeGraph = false;
-    var codeMeridianUrl = Environment.GetEnvironmentVariable("CodeMeridian_Url") ?? "http://localhost:5100";
+    var codeMeridianUrl = Environment.GetEnvironmentVariable("CodeMeridian_Url")
+        ?? config?.CodeMeridianUrl
+        ?? "http://localhost:5100";
     var apiKey = Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
 
     for (var i = 0; i < rawArgs.Count; i++)
@@ -867,11 +941,13 @@ static void PrintUsage()
 
         USAGE:
           codemeridian index [path] [--project <name>] [options]
+          codemeridian init [path] [--project <name>] [--url <url>] [--force]
           codemeridian clear --project <name>
           codemeridian clear --all-code-graph
 
         BACKWARD-COMPATIBLE SOURCE USAGE:
           dotnet run --project tools/Indexer -- [path] [--project <name>] [options]
+          dotnet run --project tools/Indexer -- init [path] [--project <name>] [--url <url>] [--force]
           dotnet run --project tools/Indexer -- clear --project <name>
 
         ARGUMENTS:
@@ -882,6 +958,7 @@ static void PrintUsage()
           --url <url>            CodeMeridian server URL. Alias for --CodeMeridian.
           --CodeMeridian <url>   CodeMeridian server URL.
           --clear                Remove existing knowledge before indexing. Applied only once.
+          --force                Overwrite meridian.json when running init.
           --skip-csharp          Skip C# indexing.
           --skip-typescript      Skip TypeScript/TSX indexing.
           --no-docs              Skip documentation ingestion. Alias: --skip-docs.
@@ -895,6 +972,7 @@ static void PrintUsage()
         EXAMPLES:
           codemeridian index . --clear
           codemeridian index C:\Projects\MyApi --project MyApi --clear
+          codemeridian init C:\Projects\MyApi
           codemeridian clear --project MyApi
           codemeridian clear --all-code-graph
           codemeridian index . --clear --watch
