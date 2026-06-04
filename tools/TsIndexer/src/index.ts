@@ -65,15 +65,6 @@ if (!projectName) {
 
 const client = new CodeMeridianClient(serverUrl, apiKey);
 
-let useEmbeddings = false;
-useEmbeddings = await client.isEmbeddingAvailable();
-if (!useEmbeddings) {
-  console.warn(
-    '⚠️  Backend embedding service is unavailable. Indexing without embeddings. ' +
-    'Ensure the CodeMeridian backend can reach its configured embedding provider.'
-  );
-}
-
 if (clear) {
   process.stdout.write(`Clearing existing knowledge for '${projectName}'... `);
   await client.clearProject(projectName);
@@ -84,22 +75,10 @@ console.log(`Walking TypeScript files in ${rootPath}...`);
 const { nodes, edges } = walkTypeScript(rootPath, projectName);
 console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
 
-// Ingest nodes with optional embeddings
 let nodeCount = 0;
 let nodeErrors = 0;
-const embeddableTypes = ['Class', 'Interface', 'Method', 'Enum'];
 for (const node of nodes) {
   try {
-    // Generate embedding for important node types
-    if (useEmbeddings && embeddableTypes.includes(node.type)) {
-      const embeddingText = `${node.type} ${node.name}${node.summary ? ` - ${node.summary}` : ''}${
-        node.namespace ? ` in ${node.namespace}` : ''
-      }`;
-      const embedding = await client.generateEmbedding(embeddingText);
-      if (embedding && embedding.length > 0) {
-        node.embeddingCsv = embedding.join(',');
-      }
-    }
     await client.ingestNode(node);
     nodeCount++;
   } catch (e) {
@@ -149,15 +128,6 @@ if (watch) {
       try {
         const result = walkTypeScript(rootPath, projectName!);
         for (const node of result.nodes) {
-          if (useEmbeddings && embeddableTypes.includes(node.type)) {
-            const embeddingText = `${node.type} ${node.name}${node.summary ? ` - ${node.summary}` : ''}${
-              node.namespace ? ` in ${node.namespace}` : ''
-            }`;
-            const embedding = await client.generateEmbedding(embeddingText);
-            if (embedding && embedding.length > 0) {
-              node.embeddingCsv = embedding.join(',');
-            }
-          }
           await client.ingestNode(node).catch(() => {});
         }
         for (const edge of result.edges) await client.ingestEdge(edge).catch(() => {});

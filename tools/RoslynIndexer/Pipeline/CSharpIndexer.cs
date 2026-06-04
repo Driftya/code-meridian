@@ -74,14 +74,6 @@ public sealed class CSharpIndexer(
         const int batchSize = 50;
         var batches = nodes.Chunk(batchSize).ToArray();
 
-        var useEmbeddings = await client.IsEmbeddingAvailableAsync(cancellationToken);
-
-        if (!useEmbeddings)
-        {
-            logger.LogWarning(
-                "Backend embedding service is unavailable. Continuing without embeddings.");
-        }
-
         for (var i = 0; i < batches.Length; i++)
         {
             logger.LogInformation(
@@ -89,18 +81,6 @@ public sealed class CSharpIndexer(
 
             var tasks = batches[i].Select(async n =>
             {
-                // Generate embedding for important node types
-                string? embeddingCsv = null;
-                if (useEmbeddings && IsEmbeddableType(n.Type))
-                {
-                    var embeddingText = GenerateEmbeddingText(n);
-                    var embedding = await client.GenerateEmbeddingAsync(embeddingText, cancellationToken);
-                    if (embedding is not null)
-                    {
-                        embeddingCsv = string.Join(",", embedding);
-                    }
-                }
-
                 return client.IngestCodeNodeAsync(
                     n.Id, n.Name, n.Type,
                     namespacePath: n.Namespace,
@@ -109,21 +89,12 @@ public sealed class CSharpIndexer(
                     lineCount: n.LineCount,
                     summary: n.Summary,
                     projectContext: projectContext,
-                    embeddingCsv: embeddingCsv,
                     cancellationToken: cancellationToken);
             });
 
             await Task.WhenAll(tasks);
         }
     }
-
-    private static bool IsEmbeddableType(string nodeType) =>
-        nodeType is "Class" or "Interface" or "Method" or "Enum";
-
-    private static string GenerateEmbeddingText(IngestNodeRequest node) =>
-        $"{node.Type} {node.Name}" +
-        (node.Summary is not null ? $" - {node.Summary}" : "") +
-        (node.Namespace is not null ? $" in {node.Namespace}" : "");
 
     private async Task BatchIngestEdgesAsync(
         List<IngestEdgeRequest> edges,

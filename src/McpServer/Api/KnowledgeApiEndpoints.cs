@@ -27,10 +27,26 @@ public static class KnowledgeApiEndpoints
     private static async Task<IResult> IngestNode(
         IngestNodeRequest req,
         ICodeGraphRepository repo,
+        IEmbeddingProvider embeddingProvider,
         CancellationToken ct)
     {
         if (!Enum.TryParse<CodeNodeType>(req.Type, ignoreCase: true, out var nodeType))
             return Results.BadRequest($"Unknown type '{req.Type}'");
+
+        float[]? embedding;
+        try
+        {
+            embedding = ParseEmbedding(req.EmbeddingCsv);
+        }
+        catch (FormatException)
+        {
+            return Results.BadRequest("Invalid embeddingCsv format. Expected comma-separated floats.");
+        }
+
+        if (embedding is null && IsEmbeddableType(nodeType) && await embeddingProvider.IsAvailableAsync(ct))
+        {
+            embedding = await embeddingProvider.GenerateEmbeddingAsync(GenerateEmbeddingText(req), ct);
+        }
 
         await repo.UpsertNodeAsync(new CodeNode
         {
@@ -43,7 +59,7 @@ public static class KnowledgeApiEndpoints
             LineCount = req.LineCount,
             Summary = req.Summary,
             ProjectContext = req.ProjectContext,
-            Embedding = ParseEmbedding(req.EmbeddingCsv)
+            Embedding = embedding
         }, ct);
 
         return Results.Created($"/api/v1/knowledge/nodes/{Uri.EscapeDataString(req.Id)}", req.Id);
@@ -116,6 +132,14 @@ public static class KnowledgeApiEndpoints
 
         return values.Length > 0 ? values : null;
     }
+
+    private static bool IsEmbeddableType(CodeNodeType nodeType) =>
+        nodeType is CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.Method or CodeNodeType.Enum;
+
+    private static string GenerateEmbeddingText(IngestNodeRequest req) =>
+        $"{req.Type} {req.Name}" +
+        (req.Summary is not null ? $" - {req.Summary}" : "") +
+        (req.Namespace is not null ? $" in {req.Namespace}" : "");
 }
 
 public static class EmbeddingApiEndpoints
