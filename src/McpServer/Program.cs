@@ -7,14 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-
-builder.Logging.ClearProviders();
-builder.Logging.AddJsonConsole(options =>
-{
-    options.IncludeScopes = true;
-    options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
-    options.UseUtcTimestamp = true;
-});
+builder.Logging.AddJsonConsole();
 
 // ── Neo4j knowledge graph ────────────────────────────────────────────────────
 builder.Services.AddInfrastructure(builder.Configuration);
