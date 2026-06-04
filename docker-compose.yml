@@ -42,6 +42,13 @@
       Neo4j__Username: neo4j
       Neo4j__Password: ${NEO4J_PASSWORD:-CodeMeridian}
       CodeMeridian_Auth_ApiKey: ${CodeMeridian_Auth_ApiKey:-}
+      Embedding__Enabled: ${Embedding__Enabled:-false}
+      Embedding__Provider: ${Embedding__Provider:-Ollama}
+      Embedding__OllamaBaseUrl: ${Embedding__OllamaBaseUrl:-http://host.docker.internal:11434}
+      Embedding__OllamaModel: ${Embedding__OllamaModel:-nomic-embed-text}
+      Embedding__OpenAiApiKey: ${Embedding__OpenAiApiKey:-}
+      Embedding__OpenAiModel: ${Embedding__OpenAiModel:-text-embedding-3-small}
+      Embedding__BatchSize: ${Embedding__BatchSize:-50}
     depends_on:
       neo4j:
         condition: service_healthy
