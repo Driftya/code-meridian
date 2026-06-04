@@ -1,4 +1,5 @@
-﻿using CodeMeridian.Core.CodeGraph;
+using System.Globalization;
+using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
 
 namespace CodeMeridian.McpServer.Api;
@@ -41,7 +42,8 @@ public static class KnowledgeApiEndpoints
             LineNumber = req.LineNumber,
             LineCount = req.LineCount,
             Summary = req.Summary,
-            ProjectContext = req.ProjectContext
+            ProjectContext = req.ProjectContext,
+            Embedding = ParseEmbedding(req.EmbeddingCsv)
         }, ct);
 
         return Results.Created($"/api/v1/knowledge/nodes/{Uri.EscapeDataString(req.Id)}", req.Id);
@@ -101,6 +103,19 @@ public static class KnowledgeApiEndpoints
         await codeGraph.DeleteAllAsync(ct);
         return Results.NoContent();
     }
+
+    private static float[]? ParseEmbedding(string? embeddingCsv)
+    {
+        if (string.IsNullOrWhiteSpace(embeddingCsv))
+            return null;
+
+        var values = embeddingCsv
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => float.Parse(value, CultureInfo.InvariantCulture))
+            .ToArray();
+
+        return values.Length > 0 ? values : null;
+    }
 }
 
 public static class EmbeddingApiEndpoints
@@ -149,8 +164,6 @@ public static class EmbeddingApiEndpoints
     }
 }
 
-// ── Request DTOs ──────────────────────────────────────────────────────────────
-
 internal sealed record IngestNodeRequest(
     string Id,
     string Name,
@@ -160,7 +173,8 @@ internal sealed record IngestNodeRequest(
     int? LineNumber = null,
     int? LineCount = null,
     string? Summary = null,
-    string? ProjectContext = null);
+    string? ProjectContext = null,
+    string? EmbeddingCsv = null);
 
 internal sealed record IngestEdgeRequest(
     string SourceId,
