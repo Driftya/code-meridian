@@ -35,7 +35,7 @@ public sealed class CSharpIndexer(CodeMeridianClient client, ILogger<CSharpIndex
             }
         }
 
-        // Batch ingest — parallelism capped to avoid overwhelming the server
+        // Batch ingest - parallelism capped to avoid overwhelming the server
         await BatchIngestNodesAsync(nodes, projectContext, cancellationToken);
         await BatchIngestEdgesAsync(edges, cancellationToken);
 
@@ -243,12 +243,14 @@ internal sealed class CSharpAstWalker(
     public override void VisitLocalFunctionStatement(LocalFunctionStatementSyntax node)
     {
         var containerId = _currentMemberId ?? _currentTypeId ?? _fileId;
+        var qualifier = LocalFunctionQualifier(containerId);
         var id = AddMethodNode(
             node.Identifier.Text,
             node.ParameterList.Parameters,
             node,
             containerId,
-            summary: null);
+            summary: null,
+            nameQualifier: qualifier);
 
         var previousMemberId = _currentMemberId;
         _currentMemberId = id;
@@ -283,10 +285,13 @@ internal sealed class CSharpAstWalker(
         SeparatedSyntaxList<ParameterSyntax> parameters,
         SyntaxNode node,
         string containerId,
-        string? summary)
+        string? summary,
+        string? nameQualifier = null)
     {
         var signature = BuildSignature(methodName, parameters);
-        var fullName = FullName(signature);
+        var fullName = nameQualifier is not null
+            ? $"{nameQualifier}::{signature}"
+            : FullName(signature);
         var id = MakeId("Method", fullName);
         var span = node.GetLocation().GetLineSpan();
         var line = span.StartLinePosition.Line + 1;
@@ -299,6 +304,14 @@ internal sealed class CSharpAstWalker(
         AddInvocationEdges(node, id);
 
         return id;
+    }
+
+    private string LocalFunctionQualifier(string containerId)
+    {
+        var projectPrefix = $"{projectContext}::";
+        return containerId.StartsWith(projectPrefix, StringComparison.Ordinal)
+            ? containerId[projectPrefix.Length..]
+            : containerId;
     }
 
     private void AddInvocationEdges(SyntaxNode node, string sourceId)

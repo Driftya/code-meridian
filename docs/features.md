@@ -194,6 +194,12 @@ Supported relationship types include:
 
 Wipes all graph and documentation data for a project context.
 
+### `clear_code_graph`
+
+Wipes all indexed code graph nodes and relationships across every project. Documentation nodes are preserved.
+
+Use this after broad indexer ID/path changes or if the Neo4j graph contains stale code nodes from older indexer versions.
+
 ## Extension Agents
 
 ### `register_project_agent` / `unregister_project_agent` / `list_project_agents`
@@ -209,8 +215,8 @@ Sends a question directly to a registered extension agent.
 C# and TypeScript / TSX indexers write into the same Neo4j graph. Future language indexers can do the same by emitting the shared CodeMeridian node and edge model.
 
 ```powershell
-codemeridian index C:\Projects\MyApp\Api --project MyApp.Api
-codemeridian index C:\Projects\MyApp\web --project MyApp.Web
+codemeridian index C:\Projects\MyApp\Api --project MyApp.Api --clear
+codemeridian index C:\Projects\MyApp\web --project MyApp.Web --clear
 ```
 
 This enables workflows like:
@@ -230,7 +236,7 @@ Timestamps on nodes enable queries such as `find_recently_changed`.
 CodeMeridian can index itself:
 
 ```powershell
-codemeridian index . --project CodeMeridian
+codemeridian index . --project CodeMeridian --clear
 ```
 
 Then ask:

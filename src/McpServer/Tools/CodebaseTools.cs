@@ -60,7 +60,9 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         string nodeId,
         [Description("How many hops to traverse. Default 5, max practical is 8.")]
         int depth = 5,
+        [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default) =>
-        queryService.FindImpactAsync(nodeId, depth, cancellationToken);
+        queryService.FindImpactAsync(nodeId, depth, detailLevel, cancellationToken);
 
 }

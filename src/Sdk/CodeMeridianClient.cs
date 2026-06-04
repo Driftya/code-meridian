@@ -79,4 +79,13 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
 
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task ClearCodeGraphAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.DeleteAsync(
+            "/api/v1/knowledge/code-graph",
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+    }
 }

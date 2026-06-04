@@ -75,4 +75,6 @@ That turns context selection from "paste files and hope" into targeted graph ret
 
 All graph data is stored in Neo4j. Closing VS Code or restarting Docker does not erase the code graph unless you explicitly clear it.
 
-Use `clear_project_knowledge` or `codemeridian index --clear` when you want to wipe and rebuild a project's graph.
+Use `clear_project_knowledge` or `codemeridian index --clear` when you want to wipe and rebuild a project's graph. Prefer `--clear` for normal re-indexing so moved or renamed files do not leave stale graph nodes behind.
+
+Use `clear_code_graph` or `codemeridian clear --all-code-graph` for a hard reset of all indexed `CodeNode` graph data across every project. This preserves documentation knowledge.

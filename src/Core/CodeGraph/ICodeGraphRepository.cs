@@ -8,6 +8,7 @@ public interface ICodeGraphRepository
     Task UpsertNodeAsync(CodeNode node, CancellationToken cancellationToken = default);
     Task UpsertEdgeAsync(CodeEdge edge, CancellationToken cancellationToken = default);
     Task DeleteProjectAsync(string projectContext, CancellationToken cancellationToken = default);
+    Task DeleteAllAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Returns nodes that transitively depend on <paramref name="nodeId"/> up to <paramref name="depth"/> hops.</summary>
     Task<IReadOnlyList<(CodeNode Node, int Distance)>> FindImpactAsync(string nodeId, int depth = 5, CancellationToken cancellationToken = default);

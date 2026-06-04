@@ -17,6 +17,7 @@ public static class KnowledgeApiEndpoints
         group.MapPost("/nodes", IngestNode);
         group.MapPost("/nodes/edges", IngestEdge);
         group.MapPost("/documents", IngestDocument);
+        group.MapDelete("/code-graph", DeleteCodeGraph);
         group.MapDelete("/project/{projectContext}", DeleteProject);
 
         return app;
@@ -90,6 +91,14 @@ public static class KnowledgeApiEndpoints
             codeGraph.DeleteProjectAsync(projectContext, ct),
             vectorStore.DeleteProjectAsync(projectContext, ct));
 
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> DeleteCodeGraph(
+        ICodeGraphRepository codeGraph,
+        CancellationToken ct)
+    {
+        await codeGraph.DeleteAllAsync(ct);
         return Results.NoContent();
     }
 }

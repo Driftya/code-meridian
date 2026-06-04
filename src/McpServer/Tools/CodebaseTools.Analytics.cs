@@ -32,8 +32,10 @@ public sealed partial class CodebaseTools
         string fromId,
         [Description("ID of the destination node, e.g. 'MyNamespace.PaymentGateway.ChargeAsync(decimal,CancellationToken)'")]
         string toId,
+        [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default) =>
-        queryService.FindConnectionAsync(fromId, toId, cancellationToken);
+        queryService.FindConnectionAsync(fromId, toId, detailLevel, cancellationToken);
 
     [McpServerTool(Name = "find_unreferenced")]
     [Description(
@@ -66,8 +68,10 @@ public sealed partial class CodebaseTools
     public Task<string> FindCoverageGapsAsync(
         [Description("Project name to scope the analysis. Omit to check all projects.")]
         string? projectContext = null,
+        [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default) =>
-        queryService.FindCoverageGapsAsync(projectContext, cancellationToken);
+        queryService.FindCoverageGapsAsync(projectContext, detailLevel, cancellationToken);
 
     [McpServerTool(Name = "find_recently_changed")]
     [Description(
@@ -97,8 +101,10 @@ public sealed partial class CodebaseTools
         int classThreshold = 400,
         [Description("Methods with more lines than this are flagged. Default 40.")]
         int methodThreshold = 40,
+        [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default) =>
-        queryService.FindLargeNodesAsync(projectContext, classThreshold, methodThreshold, cancellationToken);
+        queryService.FindLargeNodesAsync(projectContext, classThreshold, methodThreshold, detailLevel, cancellationToken);
 
     [McpServerTool(Name = "get_context_for_editing")]
     [Description(
@@ -110,8 +116,41 @@ public sealed partial class CodebaseTools
     public Task<string> GetContextForEditingAsync(
         [Description("ID of the node to get context for, e.g. 'MyNamespace.UserService.SaveAsync(User,CancellationToken)'")]
         string nodeId,
+        [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default) =>
-        queryService.GetContextForEditingAsync(nodeId, cancellationToken);
+        queryService.GetContextForEditingAsync(nodeId, detailLevel, cancellationToken);
+
+    [McpServerTool(Name = "build_minimal_context")]
+    [Description(
+        "Build a bounded, task-specific context pack for editing or reviewing one code node. " +
+        "Use this when you need the smallest useful set of callers, callees, impact, downstream dependencies, " +
+        "coverage hints, and likely files before making a change.")]
+    public Task<string> BuildMinimalContextAsync(
+        [Description("Target node ID to build context for, preferably the exact ID returned by query_codebase.")]
+        string target,
+        [Description("Optional plain-language goal for the change, used to label the context pack.")]
+        string? goal = null,
+        [Description("Maximum desired token budget for the returned context. Default 3000.")]
+        int maxTokens = 3000,
+        [Description("Whether to include relevant test coverage gaps. Default true.")]
+        bool includeTests = true,
+        [Description("Whether to include external-concept hints when graph data contains them. Default true.")]
+        bool includeExternalConcepts = true,
+        [Description("Whether to request source snippets. Source extraction is currently reported as guidance. Default false.")]
+        bool includeSourceSnippets = false,
+        [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
+        CancellationToken cancellationToken = default) =>
+        queryService.BuildMinimalContextAsync(
+            target,
+            goal,
+            maxTokens,
+            includeTests,
+            includeExternalConcepts,
+            includeSourceSnippets,
+            detailLevel,
+            cancellationToken);
 
     [McpServerTool(Name = "find_god_classes")]
     [Description(
@@ -136,8 +175,10 @@ public sealed partial class CodebaseTools
         string nodeId,
         [Description("How many hops to traverse. Default 5, max practical is 8.")]
         int depth = 5,
+        [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default) =>
-        queryService.FindDownstreamAsync(nodeId, depth, cancellationToken);
+        queryService.FindDownstreamAsync(nodeId, depth, detailLevel, cancellationToken);
 
     [McpServerTool(Name = "find_cycles")]
     [Description(

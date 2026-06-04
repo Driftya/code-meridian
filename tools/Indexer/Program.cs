@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using CodeMeridian.Indexer.Cli;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
@@ -6,16 +7,28 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 var rawArgs = args.ToList();
-if (rawArgs.Count > 0 && rawArgs[0].Equals("index", StringComparison.OrdinalIgnoreCase))
+var command = "index";
+if (rawArgs.Count > 0
+    && (rawArgs[0].Equals("index", StringComparison.OrdinalIgnoreCase)
+        || rawArgs[0].Equals("clear", StringComparison.OrdinalIgnoreCase)))
+{
+    command = rawArgs[0].ToLowerInvariant();
     rawArgs.RemoveAt(0);
+}
 
 if (rawArgs.Count > 0 && rawArgs[0] is "-h" or "--help" or "help")
 {
-    PrintUsage();
+    if (command == "clear")
+        PrintClearUsage();
+    else
+        PrintUsage();
     return 0;
 }
 
 LoadDotEnv(new DirectoryInfo(Directory.GetCurrentDirectory()));
+
+if (command == "clear")
+    return await RunClearCommandAsync(rawArgs);
 
 var positional = new List<string>();
 string? project = null;
@@ -455,9 +468,11 @@ static void PrintCapabilities()
     Console.WriteLine("  Diagnostics      planned - not implemented yet");
     Console.WriteLine();
     Console.WriteLine("Commands:");
-    Console.WriteLine("  codemeridian index .");
+    Console.WriteLine("  codemeridian index . --clear");
     Console.WriteLine("  codemeridian index . --project MyProject --watch");
     Console.WriteLine("  codemeridian index . --dry-run");
+    Console.WriteLine("  codemeridian clear --project MyProject");
+    Console.WriteLine("  codemeridian clear --all-code-graph");
 }
 
 static string QuoteIfNeeded(string value)
@@ -512,6 +527,69 @@ static (string FileName, bool UseNpx) ResolveTsxCommand(DirectoryInfo tsIndexerR
 static string codeMeridianUrlFromEnvironment(string fallback) =>
     Environment.GetEnvironmentVariable("CodeMeridian_Url") ?? fallback;
 
+static async Task<int> RunClearCommandAsync(IReadOnlyList<string> rawArgs)
+{
+    string? project = null;
+    var clearAllCodeGraph = false;
+    var codeMeridianUrl = Environment.GetEnvironmentVariable("CodeMeridian_Url") ?? "http://localhost:5100";
+    var apiKey = Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
+
+    for (var i = 0; i < rawArgs.Count; i++)
+    {
+        switch (rawArgs[i])
+        {
+            case "-h":
+            case "--help":
+                PrintClearUsage();
+                return 0;
+            case "--project" when i + 1 < rawArgs.Count:
+                project = rawArgs[++i];
+                break;
+            case "--CodeMeridian" when i + 1 < rawArgs.Count:
+            case "--url" when i + 1 < rawArgs.Count:
+                codeMeridianUrl = rawArgs[++i];
+                break;
+            case "--all-code-graph":
+                clearAllCodeGraph = true;
+                break;
+            default:
+                Console.Error.WriteLine($"warn: unknown option ignored: {rawArgs[i]}");
+                break;
+        }
+    }
+
+    if (!clearAllCodeGraph && string.IsNullOrWhiteSpace(project))
+    {
+        Console.Error.WriteLine("error: specify --project <name> or --all-code-graph.");
+        PrintClearUsage();
+        return 1;
+    }
+
+    using var httpClient = new HttpClient
+    {
+        BaseAddress = new Uri(codeMeridianUrl),
+        Timeout = TimeSpan.FromSeconds(120)
+    };
+    httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+    if (!string.IsNullOrWhiteSpace(apiKey))
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+    var client = new CodeMeridianClient(httpClient);
+
+    if (clearAllCodeGraph)
+    {
+        Console.WriteLine($"Clearing all indexed code graph nodes at {codeMeridianUrl}...");
+        await client.ClearCodeGraphAsync();
+        Console.WriteLine("Code graph cleared. Documentation knowledge was preserved.");
+        return 0;
+    }
+
+    Console.WriteLine($"Clearing project '{project}' at {codeMeridianUrl}...");
+    await client.ClearProjectKnowledgeAsync(project!);
+    Console.WriteLine("Project knowledge cleared.");
+    return 0;
+}
+
 static void PrintUsage()
 {
     Console.WriteLine("""
@@ -519,9 +597,12 @@ static void PrintUsage()
 
         USAGE:
           codemeridian index [path] [--project <name>] [options]
+          codemeridian clear --project <name>
+          codemeridian clear --all-code-graph
 
         BACKWARD-COMPATIBLE SOURCE USAGE:
           dotnet run --project tools/Indexer -- [path] [--project <name>] [options]
+          dotnet run --project tools/Indexer -- clear --project <name>
 
         ARGUMENTS:
           [path]                 Root directory to scan. Defaults to the shell's current directory.
@@ -542,9 +623,33 @@ static void PrintUsage()
           -h, --help             Show this help.
 
         EXAMPLES:
-          codemeridian index .
-          codemeridian index C:\Projects\MyApi --project MyApi
+          codemeridian index . --clear
+          codemeridian index C:\Projects\MyApi --project MyApi --clear
+          codemeridian clear --project MyApi
+          codemeridian clear --all-code-graph
           codemeridian index . --clear --watch
           codemeridian index . --dry-run
+        """);
+}
+
+static void PrintClearUsage()
+{
+    Console.WriteLine("""
+        CodeMeridian Clear - remove indexed knowledge from Neo4j.
+
+        USAGE:
+          codemeridian clear --project <name> [--url <url>]
+          codemeridian clear --all-code-graph [--url <url>]
+
+        SOURCE USAGE:
+          dotnet run --project tools/Indexer -- clear --project <name>
+          dotnet run --project tools/Indexer -- clear --all-code-graph
+
+        OPTIONS:
+          --project <name>       Remove code graph nodes and documents for one project.
+          --all-code-graph       Remove all CodeNode graph data for every project. Documents are preserved.
+          --url <url>            CodeMeridian server URL. Alias for --CodeMeridian.
+          --CodeMeridian <url>   CodeMeridian server URL.
+          -h, --help             Show this help.
         """);
 }

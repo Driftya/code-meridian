@@ -156,4 +156,21 @@ public sealed class KnowledgeTools(
 
         return $"All knowledge for project '{projectContext}' removed from Neo4j.";
     }
+
+    [McpServerTool(Name = "clear_code_graph")]
+    [Description(
+        "Remove all indexed code graph nodes and relationships across every project. " +
+        "This deletes CodeNode data only; documentation KnowledgeDocument nodes are preserved. " +
+        "Use this after major indexer ID/path changes or when the graph contains stale indexed code.")]
+    public async Task<string> ClearCodeGraphAsync(
+        [Description("Must be true to confirm this destructive all-project code graph cleanup.")]
+        bool confirm = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (!confirm)
+            return "Refusing to clear the code graph without confirm=true. This removes all CodeNode nodes across every project.";
+
+        await codeGraph.DeleteAllAsync(cancellationToken);
+        return "All indexed code graph nodes and relationships were removed from Neo4j. Documentation nodes were preserved.";
+    }
 }

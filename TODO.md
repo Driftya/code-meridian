@@ -4,7 +4,7 @@ This roadmap prioritizes the next best investments for CodeMeridian based on the
 
 ## Best Next Investment
 
-### - [ ] P0 - Add `build_minimal_context`
+### - [x] P0 - Add `build_minimal_context`
 
 **Why:** This is the strongest product fit for CodeMeridian. Existing tools already expose the raw ingredients: `get_context_for_editing`, `find_impact`, `find_connection`, `find_coverage_gaps`, `search_documentation`, and `link_external_concept`. A dedicated context-pack builder turns those into the primary value proposition: give Copilot the smallest useful context slice instead of dumping files.
 
@@ -39,7 +39,7 @@ This roadmap prioritizes the next best investments for CodeMeridian based on the
 **Value:** Very high  
 **Risk:** Low, because it can compose existing repository/service methods first.
 
-## - [ ] P0 - Add Context Detail Levels
+## - [x] P0 - Add Context Detail Levels
 
 **Why:** Token savings only work if every tool avoids returning too much by default. The default should be compact, with expansion available when explicitly requested.
 
@@ -90,7 +90,7 @@ public enum ContextDetailLevel
 **Value:** High  
 **Risk:** Medium, mostly around model/provider configuration and indexing speed.
 
-## - [ ] P0 - Fix Stable IDs for Top-Level Local Functions
+## - [x] P0 - Fix Stable IDs for Top-Level Local Functions
 
 **Why:** Top-level local functions in different `Program.cs` files can collide because the generated method ID only uses the signature when no namespace/type exists. This caused duplicate `IsAuthorized(HttpRequest,string)` functions to collapse into one graph node.
 
@@ -389,9 +389,9 @@ codemeridian index . --clear --include-diagnostics
 
 ## Suggested Implementation Order
 
-- [ ] Fix local-function node ID collisions.
-- [ ] Add `ContextDetailLevel` and compact output conventions.
-- [ ] Implement `build_minimal_context` by composing existing repository/service queries.
+- [x] Fix local-function node ID collisions.
+- [x] Add `ContextDetailLevel` and compact output conventions.
+- [x] Implement `build_minimal_context` by composing existing repository/service queries.
 - [ ] Add token estimation to context output.
 - [ ] Add diagnostics indexing for C#, TypeScript, and ESLint using project-native configs.
 - [x] Package the indexers for easier install and one-command usage.

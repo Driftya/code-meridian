@@ -256,6 +256,22 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         });
     }
 
+    public async Task DeleteAllAsync(CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (n:CodeNode)
+            DETACH DELETE n
+            """;
+
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            var cursor = await tx.RunAsync(cypher);
+            await cursor.ConsumeAsync();
+        });
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private static async Task<IReadOnlyList<CodeNode>> FullTextSearchAsync(

@@ -13,6 +13,7 @@ public partial class CodebaseQueryService
     public async Task<string> FindImpactAsync(
         string nodeId,
         int depth = 5,
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
         var results = await codeGraph.FindImpactAsync(nodeId, depth, cancellationToken);
@@ -20,6 +21,10 @@ public partial class CodebaseQueryService
         if (results.Count == 0)
             return $"No callers found for `{nodeId}` within {depth} hops. " +
                    "The node may not exist in the graph or has no inbound dependencies.";
+
+        if (detailLevel == ContextDetailLevel.Summary)
+            return $"Impact summary for `{nodeId}`: {results.Count} affected code elements within {depth} hops. " +
+                   $"Nearest distance: {results.Min(r => r.Distance)}. Farthest distance: {results.Max(r => r.Distance)}.";
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Impact Analysis — `{nodeId}`");
@@ -65,6 +70,7 @@ public partial class CodebaseQueryService
     public async Task<string> FindConnectionAsync(
         string fromId,
         string toId,
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
         var path = await codeGraph.FindConnectionAsync(fromId, toId, cancellationToken);
@@ -72,6 +78,10 @@ public partial class CodebaseQueryService
         if (path.Count == 0)
             return $"No path found between `{fromId}` and `{toId}` within 10 hops. " +
                    "They may be in unconnected parts of the graph.";
+
+        if (detailLevel == ContextDetailLevel.Summary)
+            return $"Connection summary: `{fromId}` reaches `{toId}` in {path.Count - 1} hops through " +
+                   $"{path.Count} code nodes.";
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Connection — `{fromId}` → `{toId}`");
@@ -149,6 +159,7 @@ public partial class CodebaseQueryService
 
     public async Task<string> FindCoverageGapsAsync(
         string? projectContext = null,
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
         var results = await codeGraph.FindCoverageGapsAsync(projectContext, cancellationToken);
@@ -157,7 +168,11 @@ public partial class CodebaseQueryService
             return $"No coverage gaps found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
                    "All production classes and methods appear to be called from test namespaces.";
 
-        var grouped = results.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString());
+        var grouped = results.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString()).ToArray();
+
+        if (detailLevel == ContextDetailLevel.Summary)
+            return $"Coverage gap summary{(projectContext is not null ? $" for '{projectContext}'" : "")}: " +
+                   string.Join(", ", grouped.Select(g => $"{g.Count()} {g.Key}"));
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Test Coverage Gaps{(projectContext is not null ? $" — {projectContext}" : "")}");
@@ -218,6 +233,7 @@ public partial class CodebaseQueryService
         string? projectContext = null,
         int classThreshold = 400,
         int methodThreshold = 40,
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
         var results = await codeGraph.FindLargeNodesAsync(projectContext, classThreshold, methodThreshold, cancellationToken);
@@ -227,7 +243,12 @@ public partial class CodebaseQueryService
                    $"{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
                    "Re-index with an up-to-date indexer to populate line counts.";
 
-        var grouped = results.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString());
+        var grouped = results.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString()).ToArray();
+
+        if (detailLevel == ContextDetailLevel.Summary)
+            return $"Large node summary{(projectContext is not null ? $" for '{projectContext}'" : "")}: " +
+                   string.Join(", ", grouped.Select(g => $"{g.Count()} {g.Key}")) +
+                   $". Largest element: `{results.OrderByDescending(n => n.LineCount).First().Name}`.";
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Large Node Analysis{(projectContext is not null ? $" — {projectContext}" : "")}");
@@ -255,12 +276,18 @@ public partial class CodebaseQueryService
 
     public async Task<string> GetContextForEditingAsync(
         string nodeId,
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
         var ctx = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
 
         if (ctx.Node is null)
             return $"Node `{nodeId}` not found in the graph. Run query_codebase to find the correct ID.";
+
+        if (detailLevel == ContextDetailLevel.Summary)
+            return $"Edit context summary for `{ctx.Node.Name}`: " +
+                   $"{ctx.Callers.Count} direct callers, {ctx.Callees.Count} direct callees, {ctx.Interfaces.Count} interfaces. " +
+                   $"File: `{ctx.Node.FilePath ?? "—"}`.";
 
         var sb = new StringBuilder();
         var sizeHint = ctx.Node.LineCount.HasValue ? $" ({ctx.Node.LineCount} lines)" : string.Empty;
@@ -310,6 +337,85 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
+    public async Task<string> BuildMinimalContextAsync(
+        string target,
+        string? goal = null,
+        int maxTokens = 3000,
+        bool includeTests = true,
+        bool includeExternalConcepts = true,
+        bool includeSourceSnippets = false,
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await codeGraph.GetContextForEditingAsync(target, cancellationToken);
+
+        if (ctx.Node is null)
+            return $"Target `{target}` not found in the graph. Run query_codebase first to find the correct node ID.";
+
+        var impact = await codeGraph.FindImpactAsync(target, depth: 2, cancellationToken);
+        var downstream = await codeGraph.FindDownstreamAsync(target, depth: 2, cancellationToken);
+        var coverageGaps = includeTests
+            ? await codeGraph.FindCoverageGapsAsync(ctx.Node.ProjectContext, cancellationToken)
+            : [];
+
+        var relatedCoverageGaps = coverageGaps
+            .Where(n => SameFile(n, ctx.Node) || SameNamespace(n, ctx.Node) || n.Id == ctx.Node.Id)
+            .Take(10)
+            .ToArray();
+
+        var candidateFiles = new[] { ctx.Node }
+            .Concat(ctx.Callers)
+            .Concat(ctx.Callees)
+            .Concat(ctx.Interfaces)
+            .Concat(impact.Select(i => i.Node))
+            .Concat(downstream.Select(d => d.Node))
+            .Select(n => n.FilePath)
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(20)
+            .ToArray();
+
+        var estimatedTokens = EstimateContextTokens(ctx, impact, downstream, relatedCoverageGaps, candidateFiles.Length, includeSourceSnippets);
+        var sb = new StringBuilder();
+
+        sb.AppendLine($"## Minimal Context Pack — `{ctx.Node.Name}`");
+        if (!string.IsNullOrWhiteSpace(goal))
+            sb.AppendLine($"**Goal:** {goal}");
+        sb.AppendLine($"**Budget:** {maxTokens} tokens | **Estimated:** {estimatedTokens} tokens | **Detail:** {detailLevel}");
+        sb.AppendLine($"**Target:** {ctx.Node.Type} `{ctx.Node.Name}`");
+        sb.AppendLine($"**File:** `{ctx.Node.FilePath ?? "—"}`{(ctx.Node.LineNumber.HasValue ? $":{ctx.Node.LineNumber}" : "")}{(ctx.Node.LineCount.HasValue ? $" ({ctx.Node.LineCount} lines)" : "")}");
+        if (!string.IsNullOrWhiteSpace(ctx.Node.Summary))
+            sb.AppendLine($"**Summary:** {ctx.Node.Summary}");
+        sb.AppendLine();
+
+        AppendNodeList(sb, "Direct callers", ctx.Callers, detailLevel, "who will be affected by signature or behavior changes");
+        AppendNodeList(sb, "Direct callees", ctx.Callees, detailLevel, "dependencies this target relies on");
+        AppendNodeList(sb, "Interfaces", ctx.Interfaces, detailLevel, "contracts related to this target");
+        AppendDistanceList(sb, "Near impact", impact, detailLevel, "transitive callers within 2 hops");
+        AppendDistanceList(sb, "Near downstream", downstream, detailLevel, "dependencies within 2 hops");
+
+        if (includeTests)
+            AppendNodeList(sb, "Relevant coverage gaps", relatedCoverageGaps, detailLevel, "heuristic matches by same file/namespace/target");
+
+        if (candidateFiles.Length > 0)
+        {
+            sb.AppendLine("### Files likely needed");
+            foreach (var file in candidateFiles)
+                sb.AppendLine($"- `{file}`");
+            sb.AppendLine();
+        }
+
+        if (includeExternalConcepts)
+            sb.AppendLine("> External concepts are included when present in callers/callees/impact/downstream graph results.");
+
+        if (includeSourceSnippets)
+            sb.AppendLine("> Source snippets requested, but source extraction is not implemented yet. Use the listed files and target line number.");
+
+        sb.AppendLine($"> Token estimate is approximate. {(estimatedTokens > maxTokens ? "Consider Summary detail or a larger context budget." : "Current pack fits the requested budget.")}");
+
+        return sb.ToString();
+    }
+
     public async Task<string> FindGodClassesAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
@@ -347,6 +453,7 @@ public partial class CodebaseQueryService
     public async Task<string> FindDownstreamAsync(
         string nodeId,
         int depth = 5,
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
         var results = await codeGraph.FindDownstreamAsync(nodeId, depth, cancellationToken);
@@ -354,6 +461,10 @@ public partial class CodebaseQueryService
         if (results.Count == 0)
             return $"No downstream dependencies found for `{nodeId}` within {depth} hops. " +
                    "The node may not exist or has no outbound Calls/Uses/DependsOn edges.";
+
+        if (detailLevel == ContextDetailLevel.Summary)
+            return $"Downstream summary for `{nodeId}`: {results.Count} dependencies within {depth} hops. " +
+                   $"Nearest distance: {results.Min(r => r.Distance)}. Farthest distance: {results.Max(r => r.Distance)}.";
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Downstream Blast Radius — `{nodeId}`");
@@ -466,4 +577,102 @@ public partial class CodebaseQueryService
         var w when w.EndsWith('m') && int.TryParse(w[..^1], out var m) => TimeSpan.FromMinutes(m),
         _ => TimeSpan.FromHours(24)
     };
+
+    private static void AppendNodeList(
+        StringBuilder sb,
+        string title,
+        IReadOnlyCollection<CodeNode> nodes,
+        ContextDetailLevel detailLevel,
+        string note)
+    {
+        sb.AppendLine($"### {title} ({nodes.Count})");
+        if (nodes.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        if (detailLevel == ContextDetailLevel.Summary)
+        {
+            sb.AppendLine($"- {nodes.Count} nodes ({note})");
+            sb.AppendLine();
+            return;
+        }
+
+        foreach (var node in nodes.Take(detailLevel == ContextDetailLevel.Full ? 50 : 10))
+        {
+            var loc = node.FilePath is not null
+                ? $" — `{node.FilePath}`{(node.LineNumber.HasValue ? $":{node.LineNumber}" : "")}"
+                : string.Empty;
+            sb.AppendLine($"- **{node.Type}** `{node.Name}`{loc}");
+        }
+
+        if (detailLevel != ContextDetailLevel.Full && nodes.Count > 10)
+            sb.AppendLine($"- ...{nodes.Count - 10} more");
+
+        sb.AppendLine();
+    }
+
+    private static void AppendDistanceList(
+        StringBuilder sb,
+        string title,
+        IReadOnlyCollection<(CodeNode Node, int Distance)> nodes,
+        ContextDetailLevel detailLevel,
+        string note)
+    {
+        sb.AppendLine($"### {title} ({nodes.Count})");
+        if (nodes.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        if (detailLevel == ContextDetailLevel.Summary)
+        {
+            sb.AppendLine($"- {nodes.Count} nodes ({note})");
+            sb.AppendLine();
+            return;
+        }
+
+        foreach (var (node, distance) in nodes.Take(detailLevel == ContextDetailLevel.Full ? 50 : 10))
+        {
+            var loc = node.FilePath is not null ? $" — `{node.FilePath}`" : string.Empty;
+            sb.AppendLine($"- d{distance}: **{node.Type}** `{node.Name}`{loc}");
+        }
+
+        if (detailLevel != ContextDetailLevel.Full && nodes.Count > 10)
+            sb.AppendLine($"- ...{nodes.Count - 10} more");
+
+        sb.AppendLine();
+    }
+
+    private static bool SameFile(CodeNode left, CodeNode right) =>
+        !string.IsNullOrWhiteSpace(left.FilePath)
+        && string.Equals(left.FilePath, right.FilePath, StringComparison.OrdinalIgnoreCase);
+
+    private static bool SameNamespace(CodeNode left, CodeNode right) =>
+        !string.IsNullOrWhiteSpace(left.Namespace)
+        && string.Equals(left.Namespace, right.Namespace, StringComparison.OrdinalIgnoreCase);
+
+    private static int EstimateContextTokens(
+        EditingContext ctx,
+        IReadOnlyCollection<(CodeNode Node, int Distance)> impact,
+        IReadOnlyCollection<(CodeNode Node, int Distance)> downstream,
+        IReadOnlyCollection<CodeNode> coverageGaps,
+        int fileCount,
+        bool includeSourceSnippets)
+    {
+        var nodeRows = 1 + ctx.Callers.Count + ctx.Callees.Count + ctx.Interfaces.Count + impact.Count + downstream.Count + coverageGaps.Count;
+        var estimate = 120
+            + nodeRows * 22
+            + fileCount * 16
+            + (string.IsNullOrWhiteSpace(ctx.Node?.Summary) ? 0 : 80);
+
+        if (includeSourceSnippets)
+            estimate += Math.Min(ctx.Node?.LineCount ?? 20, 80) * 12;
+
+        return estimate;
+    }
 }

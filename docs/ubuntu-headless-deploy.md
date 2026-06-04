@@ -141,19 +141,19 @@ The indexer automatically reads `.env`, so you do not need to pass the server UR
 Index a C# or TypeScript / TSX project into the remote server:
 
 ```powershell
-codemeridian index C:\Projects\MyApi
+codemeridian index C:\Projects\MyApi --clear
 ```
 
 Watch a project:
 
 ```powershell
-codemeridian index C:\Projects\MyApi --watch
+codemeridian index C:\Projects\MyApi --clear --watch
 ```
 
 From a source checkout, use:
 
 ```powershell
-dotnet run --project tools/Indexer -- C:\Projects\MyApi
+dotnet run --project tools/Indexer -- C:\Projects\MyApi --clear
 ```
 
 See [Installation](installation.md) and [Indexing Projects](indexing.md) for package installation and CLI options.

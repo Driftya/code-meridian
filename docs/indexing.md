@@ -40,6 +40,7 @@ After install:
 codemeridian --list-capabilities
 codemeridian index . --dry-run
 codemeridian index . --clear
+codemeridian clear --project CodeMeridian
 ```
 
 ## Source Checkout Usage
@@ -47,7 +48,7 @@ codemeridian index . --clear
 You can also run the unified indexer directly from this repository:
 
 ```powershell
-dotnet run --project tools/Indexer -- .
+dotnet run --project tools/Indexer -- . --clear
 ```
 
 ## Common Commands
@@ -55,25 +56,36 @@ dotnet run --project tools/Indexer -- .
 Index the current directory:
 
 ```powershell
-codemeridian index
+codemeridian index . --clear
 ```
 
 Index another project:
 
 ```powershell
-codemeridian index C:\Projects\MyApi
+codemeridian index C:\Projects\MyApi --clear
 ```
 
 Set an explicit project context:
 
 ```powershell
-codemeridian index C:\Projects\MyApi --project MyApi
+codemeridian index C:\Projects\MyApi --project MyApi --clear
 ```
 
 Clear existing graph data before indexing:
 
 ```powershell
 codemeridian index . --clear
+```
+
+Clear without indexing:
+
+```powershell
+# Remove one project's code graph and documentation.
+codemeridian clear --project MyApi
+
+# Remove all indexed CodeNode graph data across every project.
+# Documentation KnowledgeDocument nodes are preserved.
+codemeridian clear --all-code-graph
 ```
 
 Keep indexing while you work:
@@ -102,6 +114,14 @@ codemeridian index . --dry-run
 | `--list-capabilities` | Show available indexers on the current machine |
 | `--include-diagnostics` | Reserved for future diagnostics indexing |
 | `--watch` | Stay running and re-index when files change |
+
+## Clear Commands
+
+Use `codemeridian index --clear` for normal rebuilds. It clears the selected project once before indexing, which avoids stale nodes after file moves, renames, or indexer ID changes.
+
+Use `codemeridian clear --project <name>` when you want to remove one project's indexed code graph and documentation without immediately re-indexing.
+
+Use `codemeridian clear --all-code-graph` only for a hard reset of indexed code nodes across every project. It removes `CodeNode` nodes and relationships but preserves documentation nodes.
 
 ## C# Indexing
 

@@ -73,13 +73,13 @@ dotnet tool update CodeMeridian.Indexer --global --add-source artifacts/packages
 Index the current directory:
 
 ```powershell
-codemeridian index .
+codemeridian index . --clear
 ```
 
 Index another project:
 
 ```powershell
-codemeridian index C:\Projects\MyApi --project MyApi
+codemeridian index C:\Projects\MyApi --project MyApi --clear
 ```
 
 Preview what will be indexed:
@@ -100,6 +100,12 @@ You can run the indexer without installing the tool:
 
 ```powershell
 dotnet run --project tools/Indexer -- .
+```
+
+For rebuilds from a source checkout, prefer:
+
+```powershell
+dotnet run --project tools/Indexer -- . --clear
 ```
 
 The installed tool is the recommended path for regular use.
@@ -126,6 +132,20 @@ You can also set the server URL explicitly:
 
 ```powershell
 codemeridian index . --url http://localhost:5100
+```
+
+## Clear Indexed Data
+
+Clear one project without indexing:
+
+```powershell
+codemeridian clear --project MyApi
+```
+
+Clear all indexed code graph nodes across every project while preserving documentation:
+
+```powershell
+codemeridian clear --all-code-graph
 ```
 
 ## Uninstall

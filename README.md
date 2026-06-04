@@ -50,13 +50,13 @@ docker compose up -d
 Index this repository:
 
 ```powershell
-dotnet run --project tools/Indexer -- .
+dotnet run --project tools/Indexer -- . --clear
 ```
 
 Or, after installing the indexer tool:
 
 ```powershell
-codemeridian index .
+codemeridian index . --clear
 ```
 
 Open this folder in VS Code. The MCP server is registered through `.vscode/mcp.json`, and Copilot can call CodeMeridian tools while you chat.
@@ -93,6 +93,8 @@ How is this TypeScript component connected to the backend?
 | `find_unreferenced` | Dead-code candidates |
 | `find_coverage_gaps` | Production code not called by tests |
 | `search_documentation` | Search indexed README/ADR/documentation content |
+| `clear_project_knowledge` | Clear one project's indexed graph and docs before rebuilding |
+| `clear_code_graph` | Clear all indexed code graph nodes while preserving docs |
 
 ## Documentation
 
