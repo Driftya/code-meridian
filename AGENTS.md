@@ -265,7 +265,7 @@ All Cypher queries live in `Neo4jCodeGraphRepository.cs` as `const string` or ve
    - Happy path (correct markdown output)
    - Any edge cases
 
-6. **Update** [README.md](README.md) tools table and [FEATURES.md](FEATURES.md).
+6. **Update** [README.md](README.md) and [docs/features.md](docs/features.md).
 
 ---
 

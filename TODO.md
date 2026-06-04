@@ -236,7 +236,7 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 **Value:** Medium  
 **Risk:** Medium, because source extraction must stay predictable.
 
-## - [ ] P1 - Package the Indexers for Easier Use
+## - [x] P1 - Package the Indexers for Easier Use
 
 **Why:** The current indexer commands work for contributors, but they are not yet a polished user experience. Users should not need to know whether to run `tools/Indexer`, `tools/TsIndexer`, or `tools/IndexerAll`; they should install one thing and run one command against a repo.
 
@@ -394,7 +394,7 @@ codemeridian index . --clear --include-diagnostics
 - [ ] Implement `build_minimal_context` by composing existing repository/service queries.
 - [ ] Add token estimation to context output.
 - [ ] Add diagnostics indexing for C#, TypeScript, and ESLint using project-native configs.
-- [ ] Package the indexers for easier install and one-command usage.
+- [x] Package the indexers for easier install and one-command usage.
 - [ ] Add optional embeddings to the indexers.
 - [ ] Add duplicate-code candidate workflow on top of embeddings.
 - [ ] Improve cross-language HTTP endpoint linking.
