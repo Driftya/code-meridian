@@ -28,8 +28,9 @@ CodeMeridian currently supports:
 - C# via a Roslyn indexer
 - TypeScript / TSX via a ts-morph indexer
 - README and documentation files
+- **Optional vector embeddings** for semantic code similarity (find duplicate patterns, refactoring opportunities)
 
-The indexer is designed as a language-agnostic pipeline: future language indexers can write into the same graph model and be queried through the same MCP tools.
+The indexer is designed as a language-agnostic pipeline: future language indexers can write into the same graph model and be queried through the same MCP tools. Embeddings are **opt-in** (disabled by default) and work with local Ollama (free) or OpenAI (paid).
 
 ## Quick Start
 
@@ -92,6 +93,7 @@ How is this TypeScript component connected to the backend?
 | `find_connection` | Shortest path between two code elements |
 | `find_unreferenced` | Dead-code candidates |
 | `find_coverage_gaps` | Production code not called by tests |
+| `find_similar_nodes` | Find duplicate code patterns (requires embeddings enabled) |
 | `search_documentation` | Search indexed README/ADR/documentation content |
 | `clear_project_knowledge` | Clear one project's indexed graph and docs before rebuilding |
 | `clear_code_graph` | Clear all indexed code graph nodes while preserving docs |
@@ -102,6 +104,7 @@ How is this TypeScript component connected to the backend?
 - [How CodeMeridian works](docs/how-it-works.md)
 - [Indexing projects](docs/indexing.md)
 - [Feature reference](docs/features.md)
+- [Code embeddings and semantic search](docs/embeddings.md)
 - [Publishing the indexer tool](docs/publishing.md)
 - [Ubuntu headless deployment](docs/ubuntu-headless-deploy.md)
 - [Contributor and agent guide](AGENTS.md)
