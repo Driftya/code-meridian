@@ -4,11 +4,11 @@
 
 # CodeMeridian
 
-CodeMeridian is a persistent code knowledge graph for AI coding tools. It indexes your codebase into Neo4j and exposes that structure through MCP, so GitHub Copilot can ask precise questions before editing instead of guessing from open files.
+CodeMeridian is a persistent code knowledge graph for AI coding tools. It indexes your codebase into Neo4j and exposes that structure through MCP, so GitHub Copilot, Codex, Claude Code, and other MCP-compatible clients can ask precise questions before editing instead of guessing from open files.
 
 It is built to be the deterministic context layer for large codebases: callers, dependencies, tests, documentation, hotspots, dead code, and cross-project relationships stay available across sessions.
 
-No LLM API key required. Copilot is the AI; CodeMeridian is the knowledge engine.
+No LLM API key required. The assistant is the AI; CodeMeridian is the knowledge engine.
 
 ## Why CodeMeridian?
 
@@ -68,7 +68,7 @@ To create a local project config for the indexer, run:
 codemeridian init .
 ```
 
-Open this folder in VS Code. The MCP server is registered through `.vscode/mcp.json`, and Copilot can call CodeMeridian tools while you chat.
+Open this folder in VS Code or any MCP-capable client. The MCP server is registered through `.vscode/mcp.json`, and MCP-compatible clients can call CodeMeridian tools while you chat.
 
 ## Common Questions
 
@@ -146,4 +146,4 @@ docs/
 
 ## Status
 
-CodeMeridian is early but usable. It already indexes C# and TypeScript/TSX projects, persists the graph in Neo4j, and exposes MCP tools for Copilot. The roadmap is tracked in [TODO.md](TODO.md).
+CodeMeridian is early but usable. It already indexes C# and TypeScript/TSX projects, persists the graph in Neo4j, and exposes MCP tools for Copilot, Codex, and other compatible clients. The roadmap is tracked in [TODO.md](TODO.md).

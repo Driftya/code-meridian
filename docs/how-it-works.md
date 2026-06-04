@@ -10,7 +10,7 @@ Your codebase
                                            |
                                     [MCP Server :5100]
                                            |
-                                  <--- SSE --- VS Code Copilot
+                                  <--- SSE --- MCP Client
 ```
 
 ## Components
@@ -25,10 +25,10 @@ Your codebase
    Stores code nodes, relationships, documentation, timestamps, and optional embeddings. The graph persists across sessions and container restarts.
 
 4. **MCP server**
-   Exposes query and analytics tools over MCP so Copilot can request architectural facts when needed.
+   Exposes query and analytics tools over MCP so clients such as Copilot, Codex, or Claude Code can request architectural facts when needed.
 
-5. **VS Code / Copilot**
-   Connects to the MCP server through `.vscode/mcp.json`. Copilot remains the reasoning layer; CodeMeridian returns deterministic facts.
+5. **MCP client**
+   Connects to the MCP server through a client-specific MCP configuration. The client remains the reasoning layer; CodeMeridian returns deterministic facts.
 
 ## What Goes Into the Graph
 

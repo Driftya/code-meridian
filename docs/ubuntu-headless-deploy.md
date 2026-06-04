@@ -189,6 +189,8 @@ tool_timeout_sec = 60
 
 Make sure `CodeMeridian_Auth_ApiKey` is available in the environment of the MCP client.
 
+For Claude Code or another MCP-compatible client, use the same SSE URL and bearer token settings if the client supports custom MCP servers. The exact config file path and schema depend on that client.
+
 ## Operations
 
 Update and rebuild:
