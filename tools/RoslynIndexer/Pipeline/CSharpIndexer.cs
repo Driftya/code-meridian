@@ -16,8 +16,7 @@ namespace CodeMeridian.RoslynIndexer.Pipeline;
 /// </summary>
 public sealed class CSharpIndexer(
     CodeMeridianClient client,
-    ILogger<CSharpIndexer> logger,
-    IEmbeddingProvider? embeddingProvider = null)
+    ILogger<CSharpIndexer> logger)
 {
     public async Task<IndexStats> IndexAsync(
         FileInfo[] files,
@@ -75,15 +74,12 @@ public sealed class CSharpIndexer(
         const int batchSize = 50;
         var batches = nodes.Chunk(batchSize).ToArray();
 
-        // Check if embeddings are available
-        var useEmbeddings = embeddingProvider is not null 
-            && await embeddingProvider.IsAvailableAsync(cancellationToken);
-        
-        if (embeddingProvider is not null && !useEmbeddings)
+        var useEmbeddings = await client.IsEmbeddingAvailableAsync(cancellationToken);
+
+        if (!useEmbeddings)
         {
-            logger.LogWarning(embeddingProvider is NoOpEmbeddingProvider
-                ? "Embeddings are disabled. Set Embedding__Enabled=true to enable find_similar_nodes."
-                : "Embedding provider is unavailable. Continuing without embeddings.");
+            logger.LogWarning(
+                "Backend embedding service is unavailable. Continuing without embeddings.");
         }
 
         for (var i = 0; i < batches.Length; i++)
@@ -98,7 +94,7 @@ public sealed class CSharpIndexer(
                 if (useEmbeddings && IsEmbeddableType(n.Type))
                 {
                     var embeddingText = GenerateEmbeddingText(n);
-                    var embedding = await embeddingProvider!.GenerateEmbeddingAsync(embeddingText, cancellationToken);
+                    var embedding = await client.GenerateEmbeddingAsync(embeddingText, cancellationToken);
                     if (embedding is not null)
                     {
                         embeddingCsv = string.Join(",", embedding);

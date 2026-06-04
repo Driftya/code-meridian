@@ -3,7 +3,6 @@ import fs from 'fs';
 import { watch as chokidarWatch } from 'chokidar';
 import { walkTypeScript } from './walker.js';
 import { CodeMeridianClient } from './client.js';
-import { getEmbeddingProvider } from './embedding.js';
 
 // ── CLI args ──────────────────────────────────────────────────────────────────
 
@@ -65,21 +64,14 @@ if (!projectName) {
 // ── Run ───────────────────────────────────────────────────────────────────────
 
 const client = new CodeMeridianClient(serverUrl, apiKey);
-const embeddingProvider = getEmbeddingProvider();
 
-// Check if embeddings are available
 let useEmbeddings = false;
-if (embeddingProvider.providerName !== 'None') {
-  useEmbeddings = await embeddingProvider.isAvailable();
-  if (!useEmbeddings) {
-    console.warn(
-      `⚠️  Embedding provider '${embeddingProvider.providerName}' is unavailable. ` +
-      `Indexing without embeddings. ` +
-      (embeddingProvider.providerName === 'Ollama'
-        ? 'Ensure Ollama is running: ollama serve'
-        : 'Provide valid credentials and set Embedding__Enabled=true to enable find_similar_nodes.')
-    );
-  }
+useEmbeddings = await client.isEmbeddingAvailable();
+if (!useEmbeddings) {
+  console.warn(
+    '⚠️  Backend embedding service is unavailable. Indexing without embeddings. ' +
+    'Ensure the CodeMeridian backend can reach its configured embedding provider.'
+  );
 }
 
 if (clear) {
@@ -103,7 +95,7 @@ for (const node of nodes) {
       const embeddingText = `${node.type} ${node.name}${node.summary ? ` - ${node.summary}` : ''}${
         node.namespace ? ` in ${node.namespace}` : ''
       }`;
-      const embedding = await embeddingProvider.generateEmbedding(embeddingText);
+      const embedding = await client.generateEmbedding(embeddingText);
       if (embedding && embedding.length > 0) {
         node.embeddingCsv = embedding.join(',');
       }
@@ -161,7 +153,7 @@ if (watch) {
             const embeddingText = `${node.type} ${node.name}${node.summary ? ` - ${node.summary}` : ''}${
               node.namespace ? ` in ${node.namespace}` : ''
             }`;
-            const embedding = await embeddingProvider.generateEmbedding(embeddingText);
+            const embedding = await client.generateEmbedding(embeddingText);
             if (embedding && embedding.length > 0) {
               node.embeddingCsv = embedding.join(',');
             }

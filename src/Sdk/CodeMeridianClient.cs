@@ -9,6 +9,28 @@ namespace CodeMeridian.Sdk;
 /// </summary>
 public sealed class CodeMeridianClient(HttpClient httpClient)
 {
+    public async Task<float[]?> GenerateEmbeddingAsync(
+        string text,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.PostAsJsonAsync(
+            "/api/v1/embeddings",
+            new { Text = text },
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var payload = await response.Content.ReadFromJsonAsync<EmbeddingResponse>(cancellationToken: cancellationToken);
+        return payload?.Embedding;
+    }
+
+    public async Task<bool> IsEmbeddingAvailableAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.GetAsync("/api/v1/embeddings/availability", cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task IngestDocumentAsync(
         string content,
         string? source = null,
@@ -90,4 +112,6 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
 
         response.EnsureSuccessStatusCode();
     }
+
+    private sealed record EmbeddingResponse(float[] Embedding, string ProviderName, int Dimensions);
 }

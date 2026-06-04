@@ -72,6 +72,7 @@ app.MapHealthChecks("/health");
 
 // REST API — used by the Indexer CLI and Sdk (not Copilot)
 app.MapKnowledgeApi();
+app.MapEmbeddingApi();
 
 // MCP SSE endpoint — VS Code connects to http://localhost:5100/sse
 app.MapMcp("/sse");

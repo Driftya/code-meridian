@@ -103,6 +103,52 @@ public static class KnowledgeApiEndpoints
     }
 }
 
+public static class EmbeddingApiEndpoints
+{
+    public static IEndpointRouteBuilder MapEmbeddingApi(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/v1/embeddings").WithTags("Embeddings");
+
+        group.MapGet("/availability", GetAvailability);
+        group.MapPost(string.Empty, GenerateEmbedding);
+
+        return app;
+    }
+
+    private static async Task<IResult> GetAvailability(
+        IEmbeddingProvider embeddingProvider,
+        CancellationToken ct)
+    {
+        if (!await embeddingProvider.IsAvailableAsync(ct))
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+        return Results.Ok(new EmbeddingAvailabilityResponse(
+            embeddingProvider.ProviderName,
+            embeddingProvider.Dimensions));
+    }
+
+    private static async Task<IResult> GenerateEmbedding(
+        EmbeddingRequest req,
+        IEmbeddingProvider embeddingProvider,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Text))
+            return Results.BadRequest("Text is required.");
+
+        if (!await embeddingProvider.IsAvailableAsync(ct))
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+        var embedding = await embeddingProvider.GenerateEmbeddingAsync(req.Text, ct);
+        if (embedding is null || embedding.Length == 0)
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+        return Results.Ok(new EmbeddingResponse(
+            embedding,
+            embeddingProvider.ProviderName,
+            embeddingProvider.Dimensions));
+    }
+}
+
 // ── Request DTOs ──────────────────────────────────────────────────────────────
 
 internal sealed record IngestNodeRequest(
@@ -126,3 +172,14 @@ internal sealed record IngestDocumentRequest(
     string? Id = null,
     string? Source = null,
     string? ProjectContext = null);
+
+internal sealed record EmbeddingRequest(string Text);
+
+internal sealed record EmbeddingResponse(
+    float[] Embedding,
+    string ProviderName,
+    int Dimensions);
+
+internal sealed record EmbeddingAvailabilityResponse(
+    string ProviderName,
+    int Dimensions);

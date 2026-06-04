@@ -18,6 +18,29 @@ export class CodeMeridianClient {
     await this.post('/api/v1/knowledge/documents', doc);
   }
 
+  async generateEmbedding(text: string): Promise<number[] | null> {
+    const res = await fetch(`${this.baseUrl}/api/v1/embeddings`, {
+      method: 'POST',
+      headers: this.headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ text }),
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const payload = await res.json() as { embedding?: number[] };
+    return payload.embedding ?? null;
+  }
+
+  async isEmbeddingAvailable(): Promise<boolean> {
+    const res = await fetch(`${this.baseUrl}/api/v1/embeddings/availability`, {
+      method: 'GET',
+      headers: this.headers(),
+    });
+    return res.ok;
+  }
+
   async clearProject(projectContext: string): Promise<void> {
     const res = await fetch(
       `${this.baseUrl}/api/v1/knowledge/project/${encodeURIComponent(projectContext)}`,
