@@ -28,6 +28,8 @@
       context: .
       dockerfile: src/McpServer/Dockerfile
     container_name: codemeridian-mcp
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       # VS Code connects to this port via .vscode/mcp.json
       - "${CODEMERIDIAN_PORT:-5100}:8080"
