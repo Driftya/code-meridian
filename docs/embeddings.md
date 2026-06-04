@@ -20,7 +20,7 @@ Ollama is local, free, and requires no API keys. Perfect for development and CI/
 3. **Enable embeddings in CodeMeridian**:
    ```bash
    export Embedding__Enabled=true
-   # Default provider is Ollama, default model is llama2-uncased
+   # Default provider is Ollama, default model is nomic-embed-text
    ```
 
 4. **Re-index your codebase**:
@@ -67,7 +67,7 @@ All settings are read from environment variables or `appsettings.json`:
 | `Embedding__Enabled` | `false` | Enable embedding generation — **default is OFF** (no cost) |
 | `Embedding__Provider` | `Ollama` | Provider type: `Ollama` (default when enabled), `OpenAI`, `Stub`, `None` |
 | `Embedding__OllamaBaseUrl` | `http://localhost:11434` | Ollama server URL |
-| `Embedding__OllamaModel` | `llama2-uncased` | Ollama model (384 dimensions) |
+| `Embedding__OllamaModel` | `nomic-embed-text` | Ollama embedding model (768 dimensions) — recommended for best balance of speed and quality |
 | `Embedding__OpenAiApiKey` | — | OpenAI API key (required for `Provider=OpenAI`) |
 | `Embedding__OpenAiModel` | `text-embedding-3-small` | OpenAI model (1536 dimensions) |
 | `Embedding__BatchSize` | `50` | Max nodes per embedding batch |
@@ -79,11 +79,10 @@ All settings are read from environment variables or `appsettings.json`:
 export Embedding__Enabled=true
 # Embedding__Provider=Ollama is the default
 
-# Custom Ollama URL and model
+# Custom Ollama URL (nomic-embed-text is the default model)
 export Embedding__Enabled=true
 export Embedding__Provider=Ollama
 export Embedding__OllamaBaseUrl=http://192.168.1.100:11434
-export Embedding__OllamaModel=nomic-embed-text
 
 # OpenAI (cloud, paid)
 export Embedding__Enabled=true
@@ -104,7 +103,7 @@ export Embedding__Provider=Stub
     "Enabled": true,
     "Provider": "Ollama",
     "OllamaBaseUrl": "http://localhost:11434",
-    "OllamaModel": "llama2-uncased",
+    "OllamaModel": "nomic-embed-text",
     "BatchSize": 50
   }
 }
@@ -114,20 +113,22 @@ export Embedding__Provider=Stub
 
 ### Ollama (recommended for local development)
 
-**Models** (popular options):
+**Recommended models** (for code embeddings):
 
-| Model | Dimensions | Speed | Quality | Setup |
-|-------|-----------|-------|---------|-------|
-| `llama2-uncased` | 384 | Fast | Good | `ollama pull llama2-uncased` |
-| `nomic-embed-text` | 768 | Medium | Excellent | `ollama pull nomic-embed-text` |
-| `mistral:7b` | 384 | Fast | Good | `ollama pull mistral:7b` |
+| Model | Dimensions | Speed | Quality | Best For | Setup |
+|-------|-----------|-------|---------|----------|-------|
+| `nomic-embed-text` | 768 | Medium | Excellent | **Best default** — good balance of speed and quality | `ollama pull nomic-embed-text` |
+| `all-minilm` | 384 | Very Fast | Good | Fastest option for CI/dev | `ollama pull all-minilm` |
+| `mxbai-embed-large` | 1024 | Slow | Excellent | Best quality, slower | `ollama pull mxbai-embed-large` |
 
 **Setup:**
 ```bash
-ollama serve          # Start server
-ollama pull llama2-uncased  # Download model
+ollama serve                  # Start server
+ollama pull nomic-embed-text  # Download the recommended model
 # Server runs at http://localhost:11434
 ```
+
+**Note**: Avoid chat/instruct models like `mistral:7b` for embeddings — use embedding models specifically designed for semantic vector generation.
 
 **Cost**: Free (local)  
 **Speed**: Varies by model and hardware (typically 10–100 nodes/second)  

@@ -32,11 +32,11 @@ public sealed class EmbeddingOptions
 
     /// <summary>
     /// Ollama model to use for embeddings.
-    /// Recommended models: "llama2-uncased" (384 dims), "nomic-embed-text" (768 dims)
+    /// Recommended models: "nomic-embed-text" (768 dims, best balance), "all-minilm" (384 dims, fastest)
     /// Environment variable: Embedding__OllamaModel
-    /// Default: "llama2-uncased"
+    /// Default: "nomic-embed-text" (recommended for best quality/speed balance)
     /// </summary>
-    public string? OllamaModel { get; set; } = "llama2-uncased";
+    public string? OllamaModel { get; set; } = "nomic-embed-text";
 
     /// <summary>
     /// OpenAI API key (for Provider="OpenAI").
