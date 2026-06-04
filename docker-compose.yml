@@ -28,6 +28,10 @@
       context: .
       dockerfile: src/McpServer/Dockerfile
     container_name: codemeridian-mcp
+    labels:
+      logging: "enabled"
+      app: "codemeridian-mcp"
+      environment: "prod"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -43,6 +47,7 @@
         condition: service_healthy
     networks:
       - codemeridian-network
+      - observability-net
 
 volumes:
   neo4j_data:
@@ -51,3 +56,5 @@ volumes:
 networks:
   codemeridian-network:
     driver: bridge
+  observability-net:
+    external: true
