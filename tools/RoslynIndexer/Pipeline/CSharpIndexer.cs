@@ -1,11 +1,11 @@
-﻿using CodeMeridian.Sdk;
+using CodeMeridian.Sdk;
 using CodeMeridian.Sdk.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
 
-namespace CodeMeridian.Indexer.Pipeline;
+namespace CodeMeridian.RoslynIndexer.Pipeline;
 
 /// <summary>
 /// Walks each .cs file using Roslyn's syntax tree (no compilation needed)
@@ -35,14 +35,14 @@ public sealed class CSharpIndexer(CodeMeridianClient client, ILogger<CSharpIndex
             }
         }
 
-        // Batch ingest — parallelism capped to avoid overwhelming the server
+        // Batch ingest � parallelism capped to avoid overwhelming the server
         await BatchIngestNodesAsync(nodes, projectContext, cancellationToken);
         await BatchIngestEdgesAsync(edges, cancellationToken);
 
         return new IndexStats(nodes.Count, edges.Count);
     }
 
-    // ── Extraction ────────────────────────────────────────────────────────────
+    // -- Extraction ------------------------------------------------------------
 
     private static void ExtractFromFile(
         FileInfo file,
@@ -60,7 +60,7 @@ public sealed class CSharpIndexer(CodeMeridianClient client, ILogger<CSharpIndex
         walker.Visit(root);
     }
 
-    // ── Batch ingestion ───────────────────────────────────────────────────────
+    // -- Batch ingestion -------------------------------------------------------
 
     private async Task BatchIngestNodesAsync(
         List<IngestNodeRequest> nodes,
@@ -110,7 +110,7 @@ public sealed class CSharpIndexer(CodeMeridianClient client, ILogger<CSharpIndex
     }
 }
 
-// ── Records ───────────────────────────────────────────────────────────────────
+// -- Records -------------------------------------------------------------------
 
 internal sealed record IngestNodeRequest(
     string Id, string Name, string Type,
@@ -119,7 +119,7 @@ internal sealed record IngestNodeRequest(
 internal sealed record IngestEdgeRequest(
     string SourceId, string TargetId, string RelationshipType);
 
-// ── Roslyn AST walker ─────────────────────────────────────────────────────────
+// -- Roslyn AST walker ---------------------------------------------------------
 
 internal sealed class CSharpAstWalker(
     string filePath,
@@ -270,7 +270,7 @@ internal sealed class CSharpAstWalker(
         edges.Add(new IngestEdgeRequest(_currentTypeId, id, "Contains"));
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // -- Helpers ---------------------------------------------------------------
 
     private string FullName(string localName) =>
         _currentNamespace is not null ? $"{_currentNamespace}.{localName}" : localName;

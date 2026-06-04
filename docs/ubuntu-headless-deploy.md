@@ -17,7 +17,8 @@ Ubuntu server 192.168.10.70
 
 Your workstation
   - This repository
-  - C# Indexer: tools/Indexer
+  - Unified Indexer: tools/Indexer
+  - C# Roslyn Indexer: tools/RoslynIndexer
   - TypeScript Indexer: tools/TsIndexer
   - VS Code / Codex / Copilot MCP client
 ```
@@ -126,40 +127,36 @@ sudo iptables -S
 
 If this server is reachable from the public internet, put the MCP server behind HTTPS and a reverse proxy or VPN. Do not expose Neo4j directly to the internet.
 
-## Use The Indexer From This Repo
+## Use The Indexer
 
-On your workstation, keep using this repository for indexing. Put the same API key in your local `.env`:
+On your workstation, install the `codemeridian` indexer tool or run it from this repository. Put the same API key in your local `.env`:
 
 ```env
 CodeMeridian_Url=http://192.168.10.70:5100
 CodeMeridian_Auth_ApiKey=replace-with-a-long-random-token
 ```
 
-The indexers automatically read `.env`, so you do not need to pass the server URL or export the auth variable manually.
+The indexer automatically reads `.env`, so you do not need to pass the server URL or export the auth variable manually.
 
-Index a C# project into the remote server:
+Index a C# or TypeScript / TSX project into the remote server:
+
+```powershell
+codemeridian index C:\Projects\MyApi
+```
+
+Watch a project:
+
+```powershell
+codemeridian index C:\Projects\MyApi --watch
+```
+
+From a source checkout, use:
 
 ```powershell
 dotnet run --project tools/Indexer -- C:\Projects\MyApi
 ```
 
-Watch a C# project:
-
-```powershell
-dotnet run --project tools/Indexer -- C:\Projects\MyApi --watch
-```
-
-Index a TypeScript project:
-
-```powershell
-npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-app
-```
-
-Watch a TypeScript project:
-
-```powershell
-npx tsx tools/TsIndexer/src/index.ts C:\Projects\my-app --watch
-```
+See [Installation](installation.md) and [Indexing Projects](indexing.md) for package installation and CLI options.
 
 ## Configure MCP Clients
 

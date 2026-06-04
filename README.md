@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/icon_512.png" alt="CodeMeridian logo" width="160">
+</p>
+
 # CodeMeridian
 
 CodeMeridian is a persistent code knowledge graph for AI coding tools. It indexes your codebase into Neo4j and exposes that structure through MCP, so GitHub Copilot can ask precise questions before editing instead of guessing from open files.
@@ -46,7 +50,7 @@ docker compose up -d
 Index this repository:
 
 ```powershell
-dotnet run --project tools/IndexerAll -- .
+dotnet run --project tools/Indexer -- .
 ```
 
 Or, after installing the indexer tool:
@@ -92,9 +96,11 @@ How is this TypeScript component connected to the backend?
 
 ## Documentation
 
+- [Installation](docs/installation.md)
 - [How CodeMeridian works](docs/how-it-works.md)
 - [Indexing projects](docs/indexing.md)
 - [Feature reference](docs/features.md)
+- [Publishing the indexer tool](docs/publishing.md)
 - [Ubuntu headless deployment](docs/ubuntu-headless-deploy.md)
 - [Contributor and agent guide](AGENTS.md)
 
@@ -108,13 +114,15 @@ src/
   McpServer/        MCP server and REST ingestion API
   Sdk/              Client library for ingestion
 tools/
-  Indexer/          C# Roslyn indexer
-  IndexerAll/       Unified indexer CLI
+  Indexer/          Unified indexer CLI
+  RoslynIndexer/    C# Roslyn indexer
   TsIndexer/        TypeScript / TSX indexer
 docs/
   features.md
   how-it-works.md
+  installation.md
   indexing.md
+  publishing.md
 ```
 
 ## Status

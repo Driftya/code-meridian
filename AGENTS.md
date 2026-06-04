@@ -276,7 +276,7 @@ All Cypher queries live in `Neo4jCodeGraphRepository.cs` as `const string` or ve
 docker compose up -d
 
 # Index this repo (C#)
-dotnet run --project tools/Indexer -- src --project CodeMeridian
+dotnet run --project tools/Indexer -- . --project CodeMeridian
 
 # Run all tests
 dotnet test

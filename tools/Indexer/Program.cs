@@ -1,96 +1,235 @@
-﻿using CodeMeridian.Indexer.Pipeline;
+using System.Diagnostics;
+using CodeMeridian.Indexer.Cli;
+using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-// ── Parse args ────────────────────────────────────────────────────────────────
-if (args.Length == 0 || args[0] is "-h" or "--help")
+var rawArgs = args.ToList();
+if (rawArgs.Count > 0 && rawArgs[0].Equals("index", StringComparison.OrdinalIgnoreCase))
+    rawArgs.RemoveAt(0);
+
+if (rawArgs.Count > 0 && rawArgs[0] is "-h" or "--help" or "help")
 {
     PrintUsage();
     return 0;
 }
 
+LoadDotEnv(new DirectoryInfo(Directory.GetCurrentDirectory()));
+
 var positional = new List<string>();
 string? project = null;
-LoadDotEnv();
-var CodeMeridianUrl = Environment.GetEnvironmentVariable("CodeMeridian_Url") ?? "http://localhost:5100";
+var codeMeridianUrl = Environment.GetEnvironmentVariable("CodeMeridian_Url") ?? "http://localhost:5100";
 var apiKey = Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
-bool clear = false;
-bool docs = true;
-bool watch = false;
+var clear = false;
+var includeDocs = true;
+var watch = false;
+var dryRun = false;
+var listCapabilities = false;
+var skipCSharp = false;
+var skipTypeScript = false;
+var skipDiagnostics = true;
 
-for (int i = 0; i < args.Length; i++)
+for (var i = 0; i < rawArgs.Count; i++)
 {
-    switch (args[i])
+    switch (rawArgs[i])
     {
-        case "--project" when i + 1 < args.Length:
-            project = args[++i];
+        case "-h":
+        case "--help":
+            PrintUsage();
+            return 0;
+        case "--project" when i + 1 < rawArgs.Count:
+            project = rawArgs[++i];
             break;
-        case "--CodeMeridian" when i + 1 < args.Length:
-            CodeMeridianUrl = args[++i];
+        case "--CodeMeridian" when i + 1 < rawArgs.Count:
+        case "--url" when i + 1 < rawArgs.Count:
+            codeMeridianUrl = rawArgs[++i];
             break;
         case "--clear":
             clear = true;
             break;
         case "--no-docs":
-            docs = false;
+        case "--skip-docs":
+            includeDocs = false;
             break;
         case "--watch":
             watch = true;
             break;
+        case "--dry-run":
+            dryRun = true;
+            break;
+        case "--list-capabilities":
+            listCapabilities = true;
+            break;
+        case "--skip-csharp":
+            skipCSharp = true;
+            break;
+        case "--skip-typescript":
+            skipTypeScript = true;
+            break;
+        case "--include-diagnostics":
+            skipDiagnostics = false;
+            break;
+        case "--skip-diagnostics":
+            skipDiagnostics = true;
+            break;
         default:
-            if (!args[i].StartsWith("--"))
-                positional.Add(args[i]);
+            if (!rawArgs[i].StartsWith("-", StringComparison.Ordinal))
+                positional.Add(rawArgs[i]);
+            else
+                Console.Error.WriteLine($"warn: unknown option ignored: {rawArgs[i]}");
             break;
     }
 }
 
-if (positional.Count == 0)
+if (listCapabilities)
 {
-    Console.Error.WriteLine("error: <path> argument is required.");
-    PrintUsage();
-    return 1;
+    PrintCapabilities();
+    return 0;
 }
 
-var rootPath = new DirectoryInfo(positional[0]);
+var rootPath = new DirectoryInfo(positional.Count > 0
+    ? Path.GetFullPath(positional[0], Directory.GetCurrentDirectory())
+    : Directory.GetCurrentDirectory());
+
+LoadDotEnv(rootPath);
+codeMeridianUrl = codeMeridianUrlFromEnvironment(codeMeridianUrl);
+apiKey ??= Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
+
 if (!rootPath.Exists)
 {
     Console.Error.WriteLine($"error: directory not found: {rootPath.FullName}");
     return 1;
 }
 
-if (project is null)
+project ??= IndexerDiscovery.ResolveProjectName(rootPath);
+
+var hasCSharp = !skipCSharp && IndexerDiscovery.ContainsFile(rootPath, ".cs");
+var typeScriptRoots = skipTypeScript ? [] : IndexerDiscovery.FindTypeScriptRoots(rootPath);
+var hasTypeScript = typeScriptRoots.Count > 0;
+
+Console.WriteLine("CodeMeridian index");
+Console.WriteLine($"  Root    : {rootPath.FullName}");
+Console.WriteLine($"  Project : {project}");
+Console.WriteLine($"  Server  : {codeMeridianUrl}");
+
+if (!hasCSharp && !hasTypeScript)
 {
-    project = ResolveProjectName(rootPath);
-    Console.WriteLine($"info: --project not specified, resolved to '{project}'");
+    Console.WriteLine("No enabled indexers found matching this project.");
+    Console.WriteLine("Use --list-capabilities to inspect available indexers.");
+    return 0;
 }
 
-// ── DI setup ─────────────────────────────────────────────────────────────────
-var services = new ServiceCollection();
-
-services.AddLogging(b => b
-    .AddConsole()
-    .SetMinimumLevel(LogLevel.Information));
-
-services.AddCodeMeridianClient(CodeMeridianUrl, apiKey);
-services.AddTransient<CSharpIndexer>();
-services.AddTransient<DocumentIngester>();
-services.AddTransient<IndexerPipeline>();
-
-await using var provider = services.BuildServiceProvider();
-var pipeline = provider.GetRequiredService<IndexerPipeline>();
-
-await pipeline.RunAsync(rootPath, project, clear, docs);
-
-if (watch)
+if (!skipDiagnostics)
 {
-    var logger = provider.GetRequiredService<ILogger<IndexerPipeline>>();
-    logger.LogInformation("Watch mode active — monitoring {Path} for .cs and .md changes. Press Ctrl+C to exit.", rootPath.FullName);
+    Console.WriteLine("warn: diagnostics indexing is not implemented yet; continuing with code/docs indexing.");
+}
 
-    // Debounce: collect changes for 2 s of quiet before re-indexing
-    var debounceTimer = (System.Timers.Timer?)null;
+if (dryRun)
+{
+    PrintDryRun(rootPath, project, hasCSharp, typeScriptRoots, includeDocs, clear, watch, skipDiagnostics);
+    return 0;
+}
+
+var exitCode = 0;
+var clearNextIndexer = clear;
+
+if (hasCSharp)
+{
+    exitCode = await RunCSharpIndexerAsync(
+        rootPath,
+        project,
+        codeMeridianUrl,
+        apiKey,
+        clearNextIndexer,
+        includeDocs,
+        watch);
+
+    if (exitCode != 0 || watch)
+        return exitCode;
+
+    clearNextIndexer = false;
+}
+
+if (hasTypeScript)
+{
+    var tsIndexerRoot = ResolveTypeScriptIndexerRoot();
+    if (tsIndexerRoot is null)
+    {
+        Console.Error.WriteLine("error: TypeScript indexer assets were not found.");
+        Console.Error.WriteLine("Reinstall the CodeMeridian indexer tool or run from a source checkout.");
+        return 1;
+    }
+
+    exitCode = await EnsureTypeScriptIndexerDependenciesAsync(tsIndexerRoot);
+    if (exitCode != 0)
+        return exitCode;
+
+    var tsxCommand = ResolveTsxCommand(tsIndexerRoot);
+    foreach (var typeScriptRoot in typeScriptRoots)
+    {
+        var tsArgs = BuildTypeScriptIndexerArgs(tsIndexerRoot, typeScriptRoot, project);
+        AddTypeScriptIndexerOptions(
+            tsArgs,
+            codeMeridianUrl,
+            clearNextIndexer,
+            includeDocs && !hasCSharp && typeScriptRoots.Count == 1,
+            watch);
+
+        if (tsxCommand.UseNpx)
+            tsArgs.Insert(0, "tsx");
+
+        exitCode = await RunAsync(tsxCommand.FileName, tsArgs, tsIndexerRoot);
+        if (exitCode != 0 || watch)
+            return exitCode;
+
+        clearNextIndexer = false;
+    }
+}
+
+return exitCode;
+
+static async Task<int> RunCSharpIndexerAsync(
+    DirectoryInfo rootPath,
+    string project,
+    string codeMeridianUrl,
+    string? apiKey,
+    bool clear,
+    bool includeDocs,
+    bool watch)
+{
+    var services = new ServiceCollection();
+
+    services.AddLogging(builder => builder
+        .AddConsole()
+        .SetMinimumLevel(LogLevel.Information));
+
+    services.AddCodeMeridianClient(codeMeridianUrl, apiKey);
+    services.AddTransient<CSharpIndexer>();
+    services.AddTransient<DocumentIngester>();
+    services.AddTransient<IndexerPipeline>();
+
+    await using var provider = services.BuildServiceProvider();
+    var pipeline = provider.GetRequiredService<IndexerPipeline>();
+
+    await pipeline.RunAsync(rootPath, project, clear, includeDocs);
+
+    if (!watch)
+        return 0;
+
+    var logger = provider.GetRequiredService<ILogger<IndexerPipeline>>();
+    logger.LogInformation(
+        "Watch mode active - monitoring {Path} for .cs and documentation changes. Press Ctrl+C to exit.",
+        rootPath.FullName);
+
     var cts = new CancellationTokenSource();
-    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+    Console.CancelKeyPress += (_, e) =>
+    {
+        e.Cancel = true;
+        cts.Cancel();
+    };
+
+    System.Timers.Timer? debounceTimer = null;
 
     void ScheduleReindex()
     {
@@ -99,77 +238,139 @@ if (watch)
         debounceTimer = new System.Timers.Timer(2_000) { AutoReset = false };
         debounceTimer.Elapsed += async (_, _) =>
         {
-            logger.LogInformation("[watch] Change detected — re-indexing...");
-            try { await pipeline.RunAsync(rootPath, project, clear: false, docs, cts.Token); }
-            catch (Exception ex) { logger.LogError(ex, "[watch] Re-index failed."); }
+            logger.LogInformation("[watch] Change detected - re-indexing...");
+            try
+            {
+                await pipeline.RunAsync(rootPath, project, clear: false, includeDocs, cts.Token);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[watch] Re-index failed.");
+            }
         };
         debounceTimer.Start();
     }
 
-    using var fsWatcher = new FileSystemWatcher(rootPath.FullName)
+    using var watcher = new FileSystemWatcher(rootPath.FullName)
     {
         IncludeSubdirectories = true,
         NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
         EnableRaisingEvents = true,
     };
-    fsWatcher.Filters.Add("*.cs");
-    fsWatcher.Filters.Add("*.md");
-    fsWatcher.Changed += (_, _) => ScheduleReindex();
-    fsWatcher.Created += (_, _) => ScheduleReindex();
-    fsWatcher.Deleted += (_, _) => ScheduleReindex();
-    fsWatcher.Renamed += (_, _) => ScheduleReindex();
 
-    try { await Task.Delay(Timeout.Infinite, cts.Token); } catch (OperationCanceledException) { }
+    watcher.Filters.Add("*.cs");
+    watcher.Filters.Add("*.md");
+    watcher.Filters.Add("*.txt");
+    watcher.Changed += (_, _) => ScheduleReindex();
+    watcher.Created += (_, _) => ScheduleReindex();
+    watcher.Deleted += (_, _) => ScheduleReindex();
+    watcher.Renamed += (_, _) => ScheduleReindex();
+
+    try
+    {
+        await Task.Delay(Timeout.Infinite, cts.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        // Expected when the user stops watch mode.
+    }
+
     logger.LogInformation("Watch mode stopped.");
+    return 0;
 }
 
-return 0;
-
-// ── Help ─────────────────────────────────────────────────────────────────────
-static void PrintUsage()
+static List<string> BuildTypeScriptIndexerArgs(DirectoryInfo tsIndexerRoot, DirectoryInfo rootPath, string project)
 {
-    Console.WriteLine("""
-        CodeMeridian Indexer — populates the code knowledge graph from a C# codebase
-
-        USAGE:
-          CodeMeridian-index <path> [--project <name>] [options]
-
-        ARGUMENTS:
-          <path>               Root directory of the project to index
-
-        OPTIONS:
-          --project  <name>    Project context name. If omitted, auto-detected from
-                               .sln / .slnx / .code-workspace, or the folder name.
-          --CodeMeridian <url>     CodeMeridian base URL (default: CodeMeridian_Url or http://localhost:5100)
-          --clear              Remove existing knowledge before indexing
-          --no-docs            Skip ingestion of .md/.txt files
-          --watch              Stay running; re-index when .cs or .md files change
-          -h, --help           Show this help
-        """);
+    return
+    [
+        Path.Combine(tsIndexerRoot.FullName, "src", "index.ts"),
+        rootPath.FullName,
+        "--project",
+        project,
+    ];
 }
 
-// ── Project name resolution ───────────────────────────────────────────────────
-static string ResolveProjectName(DirectoryInfo root)
+static void AddTypeScriptIndexerOptions(
+    List<string> arguments,
+    string codeMeridianUrl,
+    bool clear,
+    bool includeDocs,
+    bool watch)
 {
-    // 1. .sln
-    var sln = root.GetFiles("*.sln").FirstOrDefault();
-    if (sln is not null) return Path.GetFileNameWithoutExtension(sln.Name);
-
-    // 2. .slnx
-    var slnx = root.GetFiles("*.slnx").FirstOrDefault();
-    if (slnx is not null) return Path.GetFileNameWithoutExtension(slnx.Name);
-
-    // 3. .code-workspace
-    var workspace = root.GetFiles("*.code-workspace").FirstOrDefault();
-    if (workspace is not null) return Path.GetFileNameWithoutExtension(workspace.Name);
-
-    // 4. folder name
-    return root.Name;
+    arguments.AddRange(["--url", codeMeridianUrl]);
+    if (clear)
+        arguments.Add("--clear");
+    if (!includeDocs)
+        arguments.Add("--no-docs");
+    if (watch)
+        arguments.Add("--watch");
 }
 
-static void LoadDotEnv()
+static async Task<int> EnsureTypeScriptIndexerDependenciesAsync(DirectoryInfo tsIndexerRoot)
 {
-    var envFile = FindDotEnv(new DirectoryInfo(Directory.GetCurrentDirectory()));
+    var localTsx = Path.Combine(
+        tsIndexerRoot.FullName,
+        "node_modules",
+        ".bin",
+        OperatingSystem.IsWindows() ? "tsx.cmd" : "tsx");
+
+    if (File.Exists(localTsx))
+        return 0;
+
+    if (!File.Exists(Path.Combine(tsIndexerRoot.FullName, "package.json")))
+        return 0;
+
+    Console.WriteLine();
+    Console.WriteLine("TypeScript indexer dependencies not found. Restoring npm packages...");
+
+    var packageLock = Path.Combine(tsIndexerRoot.FullName, "package-lock.json");
+    var arguments = File.Exists(packageLock)
+        ? new[] { "ci", "--silent" }
+        : ["install", "--silent"];
+
+    return await RunAsync(NpmCommand(), arguments, tsIndexerRoot);
+}
+
+static async Task<int> RunAsync(string fileName, IReadOnlyList<string> arguments, DirectoryInfo workingDirectory)
+{
+    Console.WriteLine();
+    Console.WriteLine($"> {fileName} {string.Join(' ', arguments.Select(QuoteIfNeeded))}");
+
+    using var process = new Process();
+    process.StartInfo = new ProcessStartInfo
+    {
+        FileName = fileName,
+        WorkingDirectory = workingDirectory.FullName,
+        UseShellExecute = false,
+    };
+
+    foreach (var argument in arguments)
+        process.StartInfo.ArgumentList.Add(argument);
+
+    process.Start();
+    await process.WaitForExitAsync();
+    return process.ExitCode;
+}
+
+static DirectoryInfo? ResolveTypeScriptIndexerRoot()
+{
+    var repositoryRoot = IndexerDiscovery.FindRepositoryRoot(new DirectoryInfo(Directory.GetCurrentDirectory()))
+        ?? IndexerDiscovery.FindRepositoryRoot(new DirectoryInfo(AppContext.BaseDirectory));
+
+    if (repositoryRoot is not null)
+    {
+        var sourceRoot = new DirectoryInfo(Path.Combine(repositoryRoot.FullName, "tools", "TsIndexer"));
+        if (File.Exists(Path.Combine(sourceRoot.FullName, "src", "index.ts")))
+            return sourceRoot;
+    }
+
+    var packagedRoot = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "tools", "TsIndexer"));
+    return File.Exists(Path.Combine(packagedRoot.FullName, "src", "index.ts")) ? packagedRoot : null;
+}
+
+static void LoadDotEnv(DirectoryInfo startDirectory)
+{
+    var envFile = FindDotEnv(startDirectory);
     if (envFile is null)
         return;
 
@@ -211,4 +412,139 @@ static FileInfo? FindDotEnv(DirectoryInfo directory)
     }
 
     return null;
+}
+
+static void PrintDryRun(
+    DirectoryInfo rootPath,
+    string project,
+    bool hasCSharp,
+    IReadOnlyList<DirectoryInfo> typeScriptRoots,
+    bool includeDocs,
+    bool clear,
+    bool watch,
+    bool skipDiagnostics)
+{
+    Console.WriteLine();
+    Console.WriteLine("Dry run:");
+    Console.WriteLine($"  Clear first       : {clear}");
+    Console.WriteLine($"  Include docs      : {includeDocs}");
+    Console.WriteLine($"  Watch mode        : {watch}");
+    Console.WriteLine($"  Diagnostics       : {(skipDiagnostics ? "skipped" : "requested (not implemented)")}");
+    Console.WriteLine($"  C# indexer        : {(hasCSharp ? "enabled" : "not applicable")}");
+    Console.WriteLine($"  TypeScript roots  : {(typeScriptRoots.Count == 0 ? "none" : typeScriptRoots.Count)}");
+
+    foreach (var typeScriptRoot in typeScriptRoots)
+        Console.WriteLine($"    - {Path.GetRelativePath(rootPath.FullName, typeScriptRoot.FullName)}");
+
+    Console.WriteLine($"  Project context   : {project}");
+}
+
+static void PrintCapabilities()
+{
+    var tsIndexerRoot = ResolveTypeScriptIndexerRoot();
+
+    Console.WriteLine("""
+        CodeMeridian indexer capabilities
+
+        Available:
+          C# / Roslyn      yes
+          Documentation    yes
+        """);
+
+    Console.WriteLine($"  TypeScript/TSX   {(tsIndexerRoot is null ? "no - assets not found" : "yes")}");
+    Console.WriteLine("  Diagnostics      planned - not implemented yet");
+    Console.WriteLine();
+    Console.WriteLine("Commands:");
+    Console.WriteLine("  codemeridian index .");
+    Console.WriteLine("  codemeridian index . --project MyProject --watch");
+    Console.WriteLine("  codemeridian index . --dry-run");
+}
+
+static string QuoteIfNeeded(string value)
+{
+    return value.Any(char.IsWhiteSpace) ? $"\"{value}\"" : value;
+}
+
+static string NpxCommand() => ResolveCommandFromPath(OperatingSystem.IsWindows() ? "npx.cmd" : "npx");
+
+static string NpmCommand() => ResolveCommandFromPath(OperatingSystem.IsWindows() ? "npm.cmd" : "npm");
+
+static string ResolveCommandFromPath(string command)
+{
+    if (Path.IsPathRooted(command))
+        return command;
+
+    var path = Environment.GetEnvironmentVariable("PATH");
+    if (string.IsNullOrWhiteSpace(path))
+        return command;
+
+    foreach (var directory in path.Split(Path.PathSeparator))
+    {
+        if (string.IsNullOrWhiteSpace(directory))
+            continue;
+
+        try
+        {
+            var candidate = Path.Combine(directory.Trim('"'), command);
+            if (File.Exists(candidate))
+                return candidate;
+        }
+        catch
+        {
+            // Ignore malformed PATH entries.
+        }
+    }
+
+    return command;
+}
+
+static (string FileName, bool UseNpx) ResolveTsxCommand(DirectoryInfo tsIndexerRoot)
+{
+    var localTsx = Path.Combine(
+        tsIndexerRoot.FullName,
+        "node_modules",
+        ".bin",
+        OperatingSystem.IsWindows() ? "tsx.cmd" : "tsx");
+
+    return File.Exists(localTsx) ? (localTsx, false) : (NpxCommand(), true);
+}
+
+static string codeMeridianUrlFromEnvironment(string fallback) =>
+    Environment.GetEnvironmentVariable("CodeMeridian_Url") ?? fallback;
+
+static void PrintUsage()
+{
+    Console.WriteLine("""
+        CodeMeridian Indexer - unified CLI for indexing codebases into CodeMeridian.
+
+        USAGE:
+          codemeridian index [path] [--project <name>] [options]
+
+        BACKWARD-COMPATIBLE SOURCE USAGE:
+          dotnet run --project tools/Indexer -- [path] [--project <name>] [options]
+
+        ARGUMENTS:
+          [path]                 Root directory to scan. Defaults to the shell's current directory.
+
+        OPTIONS:
+          --project <name>       Project context name. If omitted, auto-detected from the target root.
+          --url <url>            CodeMeridian server URL. Alias for --CodeMeridian.
+          --CodeMeridian <url>   CodeMeridian server URL.
+          --clear                Remove existing knowledge before indexing. Applied only once.
+          --skip-csharp          Skip C# indexing.
+          --skip-typescript      Skip TypeScript/TSX indexing.
+          --no-docs              Skip documentation ingestion. Alias: --skip-docs.
+          --include-diagnostics  Reserved for diagnostics indexing; currently prints a warning.
+          --skip-diagnostics     Skip diagnostics indexing. This is the current default.
+          --dry-run              Show what would be indexed without ingesting anything.
+          --list-capabilities    Show available indexers on this machine.
+          --watch                Watch mode. If both languages are present, C# watch runs first.
+          -h, --help             Show this help.
+
+        EXAMPLES:
+          codemeridian index .
+          codemeridian index C:\Projects\MyApi --project MyApi
+          codemeridian index . --clear --watch
+          codemeridian index . --dry-run
+        """);
 }

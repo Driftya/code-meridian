@@ -1,14 +1,14 @@
-﻿using CodeMeridian.Indexer.Pipeline;
+using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
 using Microsoft.Extensions.Logging;
 
-namespace CodeMeridian.Indexer.Pipeline;
+namespace CodeMeridian.RoslynIndexer.Pipeline;
 
 /// <summary>
 /// Orchestrates the full index run:
 ///   1. Optionally clear existing project knowledge
-///   2. Walk .cs files → Roslyn AST → code nodes + edges
-///   3. Walk doc files → text documents
+///   2. Walk .cs files ? Roslyn AST ? code nodes + edges
+///   3. Walk doc files ? text documents
 /// </summary>
 public sealed class IndexerPipeline(
     CSharpIndexer csharpIndexer,
@@ -40,7 +40,7 @@ public sealed class IndexerPipeline(
             logger.LogInformation("Cleared.");
         }
 
-        // ── Phase 1: C# code graph ────────────────────────────────────────────
+        // -- Phase 1: C# code graph --------------------------------------------
         var csFiles = root
             .EnumerateFiles("*.cs", SearchOption.AllDirectories)
             .Where(f => !IsGenerated(f.FullName))
@@ -54,7 +54,7 @@ public sealed class IndexerPipeline(
             "Code graph: {Nodes} nodes, {Edges} edges ingested.",
             stats.Nodes, stats.Edges);
 
-        // ── Phase 2: Documentation ────────────────────────────────────────────
+        // -- Phase 2: Documentation --------------------------------------------
         if (includeDocs)
         {
             var docFiles = root

@@ -238,7 +238,7 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 
 ## - [x] P1 - Package the Indexers for Easier Use
 
-**Why:** The current indexer commands work for contributors, but they are not yet a polished user experience. Users should not need to know whether to run `tools/Indexer`, `tools/TsIndexer`, or `tools/IndexerAll`; they should install one thing and run one command against a repo.
+**Why:** The old language-specific indexer commands worked for contributors, but they were not a polished user experience. Users should not need to know whether to run `tools/RoslynIndexer`, `tools/TsIndexer`, or another future language indexer; they should install one thing and run one command against a repo.
 
 **Best target experience:**
 
@@ -250,9 +250,9 @@ codemeridian index . --clear --include-diagnostics
 
 **Packaging options:**
 
-- Publish `IndexerAll` as a .NET global tool: `dotnet tool install -g CodeMeridian.Indexer`.
+- Publish `tools/Indexer` as a .NET global tool: `dotnet tool install -g CodeMeridian.Indexer`.
 - Publish the TypeScript indexer as an npm package for JS-only environments.
-- Keep `IndexerAll` as the recommended unified CLI that dispatches to C#, TypeScript, docs, diagnostics, and future indexers.
+- Keep `tools/Indexer` as the recommended unified CLI that dispatches to C#, TypeScript, docs, diagnostics, and future indexers.
 - Add a Docker-based indexing option for CI or machines without local SDK setup.
 
 **CLI improvements:**

@@ -17,12 +17,22 @@ This starts:
 
 ## Install the Indexer Tool
 
+For complete installation options, see [Installation](installation.md).
+
+After `CodeMeridian.Indexer` is published to NuGet.org or another configured NuGet feed, install it as a .NET global tool:
+
+```powershell
+dotnet tool install --global CodeMeridian.Indexer
+```
+
 Until the package is published, build and install it from this checkout:
 
 ```powershell
-dotnet pack tools/IndexerAll -o artifacts/packages
+dotnet pack tools/Indexer -o artifacts/packages
 dotnet tool install CodeMeridian.Indexer --global --add-source artifacts/packages
 ```
+
+See [Publishing the Indexer Tool](publishing.md) for package publishing steps.
 
 After install:
 
@@ -37,7 +47,7 @@ codemeridian index . --clear
 You can also run the unified indexer directly from this repository:
 
 ```powershell
-dotnet run --project tools/IndexerAll -- .
+dotnet run --project tools/Indexer -- .
 ```
 
 ## Common Commands

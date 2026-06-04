@@ -1,7 +1,7 @@
-﻿using CodeMeridian.Sdk;
+using CodeMeridian.Sdk;
 using Microsoft.Extensions.Logging;
 
-namespace CodeMeridian.Indexer.Pipeline;
+namespace CodeMeridian.RoslynIndexer.Pipeline;
 
 /// <summary>
 /// Ingests markdown, text, and JSON files into CodeMeridian's document store
@@ -32,7 +32,7 @@ public sealed class DocumentIngester(CodeMeridianClient client, ILogger<Document
                 var chunks = SplitIntoChunks(content, MaxChunkChars);
 
                 logger.LogInformation(
-                    "  {File} → {Chunks} chunk(s)", relPath, chunks.Count);
+                    "  {File} ? {Chunks} chunk(s)", relPath, chunks.Count);
 
                 for (var i = 0; i < chunks.Count; i++)
                 {

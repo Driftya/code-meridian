@@ -1,0 +1,117 @@
+name: Publish Indexer Tool
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "v*.*.*-*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version to build, for example 1.0.1 or 1.1.0-preview.1"
+        required: true
+        default: "1.0.0"
+      publish:
+        description: "Publish to NuGet.org"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  PACKAGE_PROJECT: tools/Indexer/CodeMeridian.Indexer.csproj
+  PACKAGE_OUTPUT: artifacts/packages
+
+jobs:
+  pack:
+    name: Build, test, pack, and publish
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Resolve package version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "push" -and "${{ github.ref_type }}" -eq "tag") {
+            $version = "${{ github.ref_name }}" -replace '^v', ''
+          } else {
+            $version = "${{ inputs.version }}"
+          }
+
+          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+            throw "Invalid package version '$version'. Expected SemVer like 1.0.1 or 1.1.0-preview.1."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "Package version: $version"
+
+      - name: Restore
+        run: dotnet restore CodeMeridian.sln
+
+      - name: Build
+        run: dotnet build CodeMeridian.sln -c Release --no-restore /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Test
+        run: dotnet test CodeMeridian.sln -c Release --no-build
+
+      - name: Pack indexer tool
+        run: dotnet pack $env:PACKAGE_PROJECT -c Release --no-build -o $env:PACKAGE_OUTPUT /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Smoke-test tool package
+        shell: pwsh
+        run: |
+          $toolPath = Join-Path $env:RUNNER_TEMP "codemeridian-tooltest"
+          if (Test-Path $toolPath) {
+            Remove-Item -LiteralPath $toolPath -Recurse -Force
+          }
+
+          dotnet tool install CodeMeridian.Indexer `
+            --version "${{ steps.version.outputs.version }}" `
+            --tool-path $toolPath `
+            --add-source $env:PACKAGE_OUTPUT
+
+          $sample = Join-Path $env:RUNNER_TEMP "codemeridian-ts-smoke"
+          if (Test-Path $sample) {
+            Remove-Item -LiteralPath $sample -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Path $sample | Out-Null
+          Set-Content -Path (Join-Path $sample "package.json") -Value '{"name":"codemeridian-ts-smoke","type":"module"}'
+          Set-Content -Path (Join-Path $sample "tsconfig.json") -Value '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}'
+          Set-Content -Path (Join-Path $sample "index.ts") -Value 'export function hello(name: string): string { return `hello ${name}`; }'
+
+          Push-Location $sample
+          try {
+            & (Join-Path $toolPath "codemeridian.exe") --list-capabilities
+            & (Join-Path $toolPath "codemeridian.exe") index $sample --dry-run --skip-csharp --skip-docs --project CodeMeridianPackageSmoke
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodeMeridian.Indexer.${{ steps.version.outputs.version }}
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+
+      - name: Publish to NuGet.org
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
+        run: >
+          dotnet nuget push artifacts/packages/*.nupkg
+          --api-key "${{ secrets.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
