@@ -37,5 +37,6 @@ public enum CodeNodeType
     DatabaseTable,
     ApiEndpoint,
     MessageTopic,
-    ExternalService
+    ExternalService,
+    Diagnostic
 }

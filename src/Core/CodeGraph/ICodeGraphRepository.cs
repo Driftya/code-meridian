@@ -8,6 +8,7 @@ public interface ICodeGraphRepository
     Task UpsertNodeAsync(CodeNode node, CancellationToken cancellationToken = default);
     Task UpsertEdgeAsync(CodeEdge edge, CancellationToken cancellationToken = default);
     Task DeleteProjectAsync(string projectContext, CancellationToken cancellationToken = default);
+    Task DeleteDiagnosticsAsync(string projectContext, CancellationToken cancellationToken = default);
     Task DeleteAllAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Returns nodes that transitively depend on <paramref name="nodeId"/> up to <paramref name="depth"/> hops.</summary>
@@ -63,4 +64,10 @@ public interface ICodeGraphRepository
 
     /// <summary>Native vector similarity — find nodes semantically similar to the given node using stored embeddings.</summary>
     Task<IReadOnlyList<(CodeNode Node, double Score)>> FindSimilarToNodeAsync(string nodeId, string? projectContext = null, int topK = 10, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns indexed diagnostics for a project, optionally filtered by severity.</summary>
+    Task<IReadOnlyList<CodeNode>> FindDiagnosticsAsync(string? projectContext = null, string? severity = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns diagnostics attached to the same file as the target node.</summary>
+    Task<IReadOnlyList<CodeNode>> FindDiagnosticsForNodeAsync(string nodeId, CancellationToken cancellationToken = default);
 }

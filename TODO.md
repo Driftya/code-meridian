@@ -170,7 +170,7 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 **Value:** High  
 **Risk:** Medium, because test relationships can be incomplete without better call resolution.
 
-## - [ ] P1 - Index Compiler, Analyzer, TypeScript, and Lint Diagnostics
+## - [x] P1 - Index Compiler, Analyzer, TypeScript, and Lint Diagnostics
 
 **Why:** Build errors, compiler warnings, analyzer findings, TypeScript diagnostics, and lint warnings are some of the highest-signal context an AI coding tool can receive. They tell the assistant what is already broken, what code style rules matter in the project, and which files need attention before a change is safe.
 
@@ -219,6 +219,8 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 **Effort:** Medium to high  
 **Value:** High  
 **Risk:** Medium, because command execution differs across repositories and ESLint config discovery can be messy.
+
+**Implemented first slice:** Diagnostics are indexed as `Diagnostic` code nodes via `codemeridian index --include-diagnostics`, using `dotnet build --no-restore --nologo`, local `tsc --noEmit --pretty false`, and project lint scripts or local ESLint when available. Query tools `find_diagnostics` and `find_diagnostics_for_node` expose the results.
 
 ## - [ ] P1 - Add Source Snippet Support With Strict Budgets
 
@@ -393,7 +395,7 @@ codemeridian index . --clear --include-diagnostics
 - [x] Add `ContextDetailLevel` and compact output conventions.
 - [x] Implement `build_minimal_context` by composing existing repository/service queries.
 - [ ] Add token estimation to context output.
-- [ ] Add diagnostics indexing for C#, TypeScript, and ESLint using project-native configs.
+- [x] Add diagnostics indexing for C#, TypeScript, and ESLint using project-native configs.
 - [x] Package the indexers for easier install and one-command usage.
 - [ ] Add optional embeddings to the indexers.
 - [ ] Add duplicate-code candidate workflow on top of embeddings.

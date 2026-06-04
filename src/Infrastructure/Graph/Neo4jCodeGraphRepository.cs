@@ -258,6 +258,22 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         });
     }
 
+    public async Task DeleteDiagnosticsAsync(string projectContext, CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (n:CodeNode {projectContext: $projectContext, type: 'Diagnostic'})
+            DETACH DELETE n
+            """;
+
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            var cursor = await tx.RunAsync(cypher, new { projectContext });
+            await cursor.ConsumeAsync();
+        });
+    }
+
     public async Task DeleteAllAsync(CancellationToken cancellationToken = default)
     {
         await using var session = _driver.AsyncSession();
@@ -272,6 +288,61 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             var cursor = await tx.RunAsync(cypher);
             await cursor.ConsumeAsync();
         });
+    }
+
+    public async Task<IReadOnlyList<CodeNode>> FindDiagnosticsAsync(
+        string? projectContext = null,
+        string? severity = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (n:CodeNode)
+            WHERE n.type = 'Diagnostic'
+              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND ($severity IS NULL OR toLower(n.name) STARTS WITH toLower($severity))
+            RETURN n
+            ORDER BY n.filePath, n.lineNumber, n.name
+            LIMIT 200
+            """;
+
+        var cursor = await session.RunAsync(cypher, new
+        {
+            projectContext = (object?)projectContext,
+            severity = (object?)severity
+        });
+
+        var nodes = new List<CodeNode>();
+        await foreach (var record in cursor.WithCancellation(cancellationToken))
+            nodes.Add(MapToCodeNode(record["n"].As<INode>()));
+
+        return nodes;
+    }
+
+    public async Task<IReadOnlyList<CodeNode>> FindDiagnosticsForNodeAsync(
+        string nodeId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (target:CodeNode {id: $nodeId})
+            MATCH (diag:CodeNode)
+            WHERE diag.type = 'Diagnostic'
+              AND diag.projectContext = target.projectContext
+              AND diag.filePath = target.filePath
+            RETURN diag AS n
+            ORDER BY abs(coalesce(diag.lineNumber, 0) - coalesce(target.lineNumber, 0)), diag.lineNumber
+            LIMIT 50
+            """;
+
+        var cursor = await session.RunAsync(cypher, new { nodeId });
+        var nodes = new List<CodeNode>();
+        await foreach (var record in cursor.WithCancellation(cancellationToken))
+            nodes.Add(MapToCodeNode(record["n"].As<INode>()));
+
+        return nodes;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

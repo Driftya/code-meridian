@@ -112,7 +112,7 @@ codemeridian index . --dry-run
 | `--no-docs` / `--skip-docs` | Skip documentation ingestion |
 | `--dry-run` | Show what would be indexed without ingesting anything |
 | `--list-capabilities` | Show available indexers on the current machine |
-| `--include-diagnostics` | Reserved for future diagnostics indexing |
+| `--include-diagnostics` | Run project-native compiler, TypeScript, and lint diagnostics indexing |
 | `--watch` | Stay running and re-index when files change |
 
 ## Clear Commands
@@ -163,6 +163,24 @@ Node.js 18+ is required for TypeScript / TSX indexing.
 The indexer ingests README and documentation files unless disabled with `--no-docs` or `--skip-docs`.
 
 Documentation becomes searchable through `search_documentation`.
+
+## Diagnostics Indexing
+
+Diagnostics indexing is disabled by default because build, type-check, and lint commands can be slow or require restored dependencies.
+
+Enable it explicitly:
+
+```powershell
+codemeridian index . --include-diagnostics
+```
+
+The unified indexer refreshes diagnostic nodes for the project, then runs available project-native checks:
+
+- `dotnet build --no-restore --nologo` for C# compiler and analyzer diagnostics
+- local `tsc --noEmit --pretty false` when `tsconfig.json` and `node_modules/.bin/tsc` are present
+- `npm run lint` when `package.json` defines a lint script, otherwise local `eslint .` when available
+
+Diagnostics are stored as `Diagnostic` code nodes with severity/code, source tool, message, file, and line. When backend embeddings are enabled, diagnostic messages are embedded during ingestion for semantic discovery. Diagnostics can be queried with `find_diagnostics` and `find_diagnostics_for_node`.
 
 ## Authentication and Configuration
 

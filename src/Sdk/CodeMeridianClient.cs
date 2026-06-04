@@ -104,6 +104,17 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task ClearProjectDiagnosticsAsync(
+        string projectContext,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.DeleteAsync(
+            $"/api/v1/knowledge/project/{Uri.EscapeDataString(projectContext)}/diagnostics",
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task ClearCodeGraphAsync(CancellationToken cancellationToken = default)
     {
         var response = await httpClient.DeleteAsync(

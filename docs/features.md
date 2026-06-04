@@ -157,6 +157,22 @@ Finds semantically similar code nodes using Neo4j vector search. Requires code-n
 Find code similar to PaymentGateway.ChargeAsync.
 ```
 
+### `find_diagnostics`
+
+Finds indexed compiler, analyzer, TypeScript, and lint diagnostics for a project. Run the indexer with `--include-diagnostics` first.
+
+```text
+What diagnostics exist in MyApi?
+```
+
+### `find_diagnostics_for_node`
+
+Finds diagnostics in the same file as a code node, ordered by proximity to the node line.
+
+```text
+What diagnostics are near OrderService.ProcessAsync?
+```
+
 ## Ingestion
 
 ### `ingest_code_node`

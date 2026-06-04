@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using CodeMeridian.Indexer.Cli;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
@@ -133,11 +136,6 @@ if (!hasCSharp && !hasTypeScript)
     return 0;
 }
 
-if (!skipDiagnostics)
-{
-    Console.WriteLine("warn: diagnostics indexing is not implemented yet; continuing with code/docs indexing.");
-}
-
 if (dryRun)
 {
     PrintDryRun(rootPath, project, hasCSharp, typeScriptRoots, includeDocs, clear, watch, skipDiagnostics);
@@ -198,6 +196,13 @@ if (hasTypeScript)
 
         clearNextIndexer = false;
     }
+}
+
+if (!skipDiagnostics)
+{
+    exitCode = await RunDiagnosticsAsync(rootPath, project, codeMeridianUrl, apiKey);
+    if (exitCode != 0)
+        return exitCode;
 }
 
 return exitCode;
@@ -365,6 +370,111 @@ static async Task<int> RunAsync(string fileName, IReadOnlyList<string> arguments
     return process.ExitCode;
 }
 
+static async Task<int> RunDiagnosticsAsync(
+    DirectoryInfo rootPath,
+    string project,
+    string codeMeridianUrl,
+    string? apiKey)
+{
+    Console.WriteLine();
+    Console.WriteLine("Indexing diagnostics...");
+
+    using var httpClient = new HttpClient
+    {
+        BaseAddress = new Uri(codeMeridianUrl),
+        Timeout = TimeSpan.FromMinutes(10)
+    };
+    httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+    if (!string.IsNullOrWhiteSpace(apiKey))
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+    var client = new CodeMeridianClient(httpClient);
+    await client.ClearProjectDiagnosticsAsync(project);
+
+    var findings = new List<DiagnosticFinding>();
+
+    if (IndexerDiscovery.ContainsFile(rootPath, ".cs"))
+    {
+        var build = await RunCaptureAsync("dotnet", ["build", "--no-restore", "--nologo"], rootPath);
+        findings.AddRange(ParseDotnetDiagnostics(build.Output, rootPath, project));
+    }
+
+    if (File.Exists(Path.Combine(rootPath.FullName, "tsconfig.json")))
+    {
+        var tsc = ResolveLocalNodeBinary(rootPath, "tsc");
+        if (tsc is not null)
+        {
+            var result = await RunCaptureAsync(tsc, ["--noEmit", "--pretty", "false"], rootPath);
+            findings.AddRange(ParseTypeScriptDiagnostics(result.Output, rootPath, project));
+        }
+        else
+        {
+            Console.WriteLine("  TypeScript diagnostics unavailable: local tsc not found.");
+        }
+    }
+
+    var lintCommand = ResolveLintCommand(rootPath);
+    if (lintCommand is not null)
+    {
+        var result = await RunCaptureAsync(lintCommand.Value.FileName, lintCommand.Value.Arguments, rootPath);
+        findings.AddRange(ParseLintDiagnostics(result.Output, rootPath, project));
+    }
+
+    var distinct = findings
+        .GroupBy(f => f.Id, StringComparer.Ordinal)
+        .Select(g => g.First())
+        .ToArray();
+
+    foreach (var finding in distinct)
+    {
+        await client.IngestCodeNodeAsync(
+            finding.Id,
+            $"{finding.Severity} {finding.Code}",
+            "Diagnostic",
+            namespacePath: finding.Source,
+            filePath: finding.FilePath,
+            lineNumber: finding.Line,
+            summary: finding.Message,
+            projectContext: project);
+
+        if (!string.IsNullOrWhiteSpace(finding.FilePath))
+        {
+            await client.IngestRelationshipAsync(
+                $"{project}::File::{finding.FilePath}",
+                finding.Id,
+                "Contains");
+        }
+    }
+
+    Console.WriteLine($"  Indexed {distinct.Length} diagnostics.");
+    return 0;
+}
+
+static async Task<(int ExitCode, string Output)> RunCaptureAsync(
+    string fileName,
+    IReadOnlyList<string> arguments,
+    DirectoryInfo workingDirectory)
+{
+    using var process = new Process();
+    process.StartInfo = new ProcessStartInfo
+    {
+        FileName = fileName,
+        WorkingDirectory = workingDirectory.FullName,
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+    };
+
+    foreach (var argument in arguments)
+        process.StartInfo.ArgumentList.Add(argument);
+
+    process.Start();
+    var stdout = await process.StandardOutput.ReadToEndAsync();
+    var stderr = await process.StandardError.ReadToEndAsync();
+    await process.WaitForExitAsync();
+    return (process.ExitCode, stdout + Environment.NewLine + stderr);
+}
+
 static DirectoryInfo? ResolveTypeScriptIndexerRoot()
 {
     var repositoryRoot = IndexerDiscovery.FindRepositoryRoot(new DirectoryInfo(Directory.GetCurrentDirectory()))
@@ -524,6 +634,161 @@ static (string FileName, bool UseNpx) ResolveTsxCommand(DirectoryInfo tsIndexerR
     return File.Exists(localTsx) ? (localTsx, false) : (NpxCommand(), true);
 }
 
+static IReadOnlyList<DiagnosticFinding> ParseDotnetDiagnostics(
+    string output,
+    DirectoryInfo rootPath,
+    string project)
+{
+    const string pattern = @"^(?<file>.+?)\((?<line>\d+),(?<column>\d+)\):\s(?<severity>warning|error)\s(?<code>[A-Z]+\d+):\s(?<message>.+?)(?:\s\[(?<project>.+?)\])?$";
+    return ParseDiagnostics(output, rootPath, project, "dotnet", pattern);
+}
+
+static IReadOnlyList<DiagnosticFinding> ParseTypeScriptDiagnostics(
+    string output,
+    DirectoryInfo rootPath,
+    string project)
+{
+    const string pattern = @"^(?<file>.+?)\((?<line>\d+),(?<column>\d+)\):\s(?<severity>error)\s(?<code>TS\d+):\s(?<message>.+)$";
+    return ParseDiagnostics(output, rootPath, project, "tsc", pattern);
+}
+
+static IReadOnlyList<DiagnosticFinding> ParseLintDiagnostics(
+    string output,
+    DirectoryInfo rootPath,
+    string project)
+{
+    const string pattern = @"^\s*(?<line>\d+):(?<column>\d+)\s+(?<severity>error|warning|warn)\s+(?<message>.+?)\s+(?<code>[@\w/-]+)$";
+    var findings = new List<DiagnosticFinding>();
+    string? currentFile = null;
+
+    foreach (var rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+    {
+        var line = rawLine.TrimEnd();
+        if (!line.StartsWith(' ') && LooksLikePath(line))
+        {
+            currentFile = NormalizePath(line, rootPath);
+            continue;
+        }
+
+        if (currentFile is null)
+            continue;
+
+        var match = Regex.Match(line, pattern, RegexOptions.IgnoreCase);
+        if (!match.Success)
+            continue;
+
+        findings.Add(CreateDiagnostic(
+            project,
+            "eslint",
+            match.Groups["severity"].Value is "warn" ? "warning" : match.Groups["severity"].Value,
+            match.Groups["code"].Value,
+            match.Groups["message"].Value.Trim(),
+            currentFile,
+            ParseInt(match.Groups["line"].Value),
+            ParseInt(match.Groups["column"].Value)));
+    }
+
+    return findings;
+}
+
+static IReadOnlyList<DiagnosticFinding> ParseDiagnostics(
+    string output,
+    DirectoryInfo rootPath,
+    string project,
+    string source,
+    string pattern)
+{
+    var findings = new List<DiagnosticFinding>();
+
+    foreach (var rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+    {
+        var match = Regex.Match(rawLine.TrimEnd(), pattern, RegexOptions.IgnoreCase);
+        if (!match.Success)
+            continue;
+
+        findings.Add(CreateDiagnostic(
+            project,
+            source,
+            match.Groups["severity"].Value,
+            match.Groups["code"].Value,
+            match.Groups["message"].Value.Trim(),
+            NormalizePath(match.Groups["file"].Value, rootPath),
+            ParseInt(match.Groups["line"].Value),
+            ParseInt(match.Groups["column"].Value)));
+    }
+
+    return findings;
+}
+
+static DiagnosticFinding CreateDiagnostic(
+    string project,
+    string source,
+    string severity,
+    string code,
+    string message,
+    string filePath,
+    int? line,
+    int? column)
+{
+    var normalizedSeverity = severity.Equals("warn", StringComparison.OrdinalIgnoreCase)
+        ? "warning"
+        : severity.ToLowerInvariant();
+    var hashInput = $"{project}|{source}|{normalizedSeverity}|{code}|{filePath}|{line}|{column}|{message}";
+    var id = $"{project}::Diagnostic::{Hash(hashInput)}";
+    return new DiagnosticFinding(id, normalizedSeverity, code, message, filePath, line, column, source);
+}
+
+static string? ResolveLocalNodeBinary(DirectoryInfo rootPath, string name)
+{
+    var executable = OperatingSystem.IsWindows() ? $"{name}.cmd" : name;
+    for (var current = rootPath; current is not null; current = current.Parent)
+    {
+        var candidate = Path.Combine(current.FullName, "node_modules", ".bin", executable);
+        if (File.Exists(candidate))
+            return candidate;
+    }
+
+    return null;
+}
+
+static (string FileName, string[] Arguments)? ResolveLintCommand(DirectoryInfo rootPath)
+{
+    var packageJson = new FileInfo(Path.Combine(rootPath.FullName, "package.json"));
+    if (packageJson.Exists)
+    {
+        var content = File.ReadAllText(packageJson.FullName);
+        if (content.Contains("\"lint\"", StringComparison.OrdinalIgnoreCase))
+            return (NpmCommand(), ["run", "lint"]);
+    }
+
+    var eslint = ResolveLocalNodeBinary(rootPath, "eslint");
+    return eslint is null ? null : (eslint, ["."]);
+}
+
+static string NormalizePath(string path, DirectoryInfo rootPath)
+{
+    var trimmed = path.Trim().Trim('"');
+    var fullPath = Path.IsPathRooted(trimmed)
+        ? trimmed
+        : Path.GetFullPath(trimmed, rootPath.FullName);
+
+    return Path.GetRelativePath(rootPath.FullName, fullPath).Replace('\\', '/');
+}
+
+static bool LooksLikePath(string value) =>
+    value.Contains('/') || value.Contains('\\') || value.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) ||
+    value.EndsWith(".tsx", StringComparison.OrdinalIgnoreCase) || value.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+    value.EndsWith(".jsx", StringComparison.OrdinalIgnoreCase);
+
+static int? ParseInt(string value) =>
+    int.TryParse(value, out var parsed) ? parsed : null;
+
+static string Hash(string value)
+{
+    var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+    return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
+}
+
 static string codeMeridianUrlFromEnvironment(string fallback) =>
     Environment.GetEnvironmentVariable("CodeMeridian_Url") ?? fallback;
 
@@ -615,7 +880,7 @@ static void PrintUsage()
           --skip-csharp          Skip C# indexing.
           --skip-typescript      Skip TypeScript/TSX indexing.
           --no-docs              Skip documentation ingestion. Alias: --skip-docs.
-          --include-diagnostics  Reserved for diagnostics indexing; currently prints a warning.
+          --include-diagnostics  Run project-native compiler, TypeScript, and lint diagnostics indexing.
           --skip-diagnostics     Skip diagnostics indexing. This is the current default.
           --dry-run              Show what would be indexed without ingesting anything.
           --list-capabilities    Show available indexers on this machine.
@@ -653,3 +918,13 @@ static void PrintClearUsage()
           -h, --help             Show this help.
         """);
 }
+
+internal sealed record DiagnosticFinding(
+    string Id,
+    string Severity,
+    string Code,
+    string Message,
+    string FilePath,
+    int? Line,
+    int? Column,
+    string Source);

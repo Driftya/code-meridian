@@ -26,4 +26,6 @@ public interface ICodebaseQueryService
     Task<string> GetBetweennessAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindNaturalModulesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindSimilarToNodeAsync(string nodeId, string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<string> FindDiagnosticsAsync(string? projectContext = null, string? severity = null, CancellationToken cancellationToken = default);
+    Task<string> FindDiagnosticsForNodeAsync(string nodeId, CancellationToken cancellationToken = default);
 }

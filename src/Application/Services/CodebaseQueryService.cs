@@ -113,6 +113,49 @@ public sealed partial class CodebaseQueryService(
 
         return sb.ToString();
     }
+
+    public async Task<string> FindDiagnosticsAsync(
+        string? projectContext = null,
+        string? severity = null,
+        CancellationToken cancellationToken = default)
+    {
+        var diagnostics = await codeGraph.FindDiagnosticsAsync(projectContext, severity, cancellationToken);
+        return FormatDiagnostics(
+            diagnostics,
+            $"Diagnostics{(projectContext is not null ? $" — {projectContext}" : "")}");
+    }
+
+    public async Task<string> FindDiagnosticsForNodeAsync(
+        string nodeId,
+        CancellationToken cancellationToken = default)
+    {
+        var diagnostics = await codeGraph.FindDiagnosticsForNodeAsync(nodeId, cancellationToken);
+        return FormatDiagnostics(diagnostics, $"Diagnostics Near `{nodeId}`");
+    }
+
+    private static string FormatDiagnostics(IReadOnlyList<CodeNode> diagnostics, string title)
+    {
+        if (diagnostics.Count == 0)
+            return "No indexed diagnostics found. Run the indexer with `--include-diagnostics`.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## {title}");
+        sb.AppendLine();
+        sb.AppendLine($"**{diagnostics.Count}** diagnostics indexed:\n");
+        sb.AppendLine("| Severity/Code | Source | File | Line | Message |");
+        sb.AppendLine("|---|---|---|---:|---|");
+
+        foreach (var diagnostic in diagnostics.Take(50))
+        {
+            sb.AppendLine(
+                $"| `{diagnostic.Name}` | `{diagnostic.Namespace ?? "unknown"}` | `{diagnostic.FilePath ?? ""}` | {diagnostic.LineNumber?.ToString(CultureInfo.InvariantCulture) ?? ""} | {EscapeTableCell(diagnostic.Summary ?? "")} |");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string EscapeTableCell(string value) =>
+        value.Replace("|", "\\|", StringComparison.Ordinal);
 }
 
 // Tuple deconstruction helper to run three tasks in parallel without nesting

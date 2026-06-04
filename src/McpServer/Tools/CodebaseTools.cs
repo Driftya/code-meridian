@@ -65,4 +65,26 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindImpactAsync(nodeId, depth, detailLevel, cancellationToken);
 
+    [McpServerTool(Name = "find_diagnostics")]
+    [Description(
+        "Find indexed compiler, analyzer, TypeScript, or lint diagnostics for a project. " +
+        "Use this to understand current build/type/lint failures before editing.")]
+    public Task<string> FindDiagnosticsAsync(
+        [Description("Optional project name to scope diagnostics.")]
+        string? projectContext = null,
+        [Description("Optional severity filter, e.g. 'error', 'warning', or 'info'.")]
+        string? severity = null,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindDiagnosticsAsync(projectContext, severity, cancellationToken);
+
+    [McpServerTool(Name = "find_diagnostics_for_node")]
+    [Description(
+        "Find indexed diagnostics in the same file as a code node, ordered by proximity to the node line. " +
+        "Use this before editing a method or class to see nearby compiler/type/lint problems.")]
+    public Task<string> FindDiagnosticsForNodeAsync(
+        [Description("ID of the node to inspect for nearby diagnostics.")]
+        string nodeId,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindDiagnosticsForNodeAsync(nodeId, cancellationToken);
+
 }

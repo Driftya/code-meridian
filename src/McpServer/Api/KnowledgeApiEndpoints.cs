@@ -18,6 +18,7 @@ public static class KnowledgeApiEndpoints
         group.MapPost("/nodes", IngestNode);
         group.MapPost("/nodes/edges", IngestEdge);
         group.MapPost("/documents", IngestDocument);
+        group.MapDelete("/project/{projectContext}/diagnostics", DeleteDiagnostics);
         group.MapDelete("/code-graph", DeleteCodeGraph);
         group.MapDelete("/project/{projectContext}", DeleteProject);
 
@@ -130,6 +131,15 @@ public static class KnowledgeApiEndpoints
         return Results.NoContent();
     }
 
+    private static async Task<IResult> DeleteDiagnostics(
+        string projectContext,
+        ICodeGraphRepository codeGraph,
+        CancellationToken ct)
+    {
+        await codeGraph.DeleteDiagnosticsAsync(projectContext, ct);
+        return Results.NoContent();
+    }
+
     private static float[]? ParseEmbedding(string? embeddingCsv)
     {
         if (string.IsNullOrWhiteSpace(embeddingCsv))
@@ -144,7 +154,7 @@ public static class KnowledgeApiEndpoints
     }
 
     private static bool IsEmbeddableType(CodeNodeType nodeType) =>
-        nodeType is CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.Method or CodeNodeType.Enum;
+        nodeType is CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.Method or CodeNodeType.Enum or CodeNodeType.Diagnostic;
 
     private static string GenerateEmbeddingText(IngestNodeRequest req) =>
         $"{req.Type} {req.Name}" +
