@@ -180,4 +180,101 @@ public partial class CodebaseQueryService
 
         return sb.ToString();
     }
+
+    public async Task<string> FindDuplicateCandidatesAsync(
+        string? projectContext = null,
+        string? namespaceFilter = null,
+        string? nodeType = null,
+        int minLineCount = 5,
+        double minSimilarity = 0.88,
+        bool excludeTests = true,
+        CancellationToken cancellationToken = default)
+    {
+        CodeNodeType? parsedType = null;
+        if (!string.IsNullOrWhiteSpace(nodeType))
+        {
+            if (!Enum.TryParse<CodeNodeType>(nodeType, ignoreCase: true, out var value) ||
+                value is not (CodeNodeType.Method or CodeNodeType.Class))
+            {
+                return $"Unknown duplicate candidate node type `{nodeType}`. Valid values: `Method`, `Class`.";
+            }
+
+            parsedType = value;
+        }
+
+        minLineCount = Math.Max(0, minLineCount);
+        minSimilarity = Math.Clamp(minSimilarity, 0.0, 1.0);
+
+        var results = await codeGraph.FindDuplicateCandidatesAsync(
+            projectContext,
+            namespaceFilter,
+            parsedType,
+            minLineCount,
+            minSimilarity,
+            excludeTests,
+            limit: 20,
+            cancellationToken);
+
+        if (results.Count == 0)
+        {
+            return "No duplicate-code candidates found. " +
+                   "Embeddings must be stored on method/class nodes, and the current filters may be too strict. " +
+                   "Try lowering `minSimilarity`, lowering `minLineCount`, or re-indexing with backend embeddings enabled.";
+        }
+
+        var grouped = results
+            .GroupBy(candidate => candidate.Source.Id)
+            .OrderByDescending(group => group.Max(candidate => candidate.Score))
+            .ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Duplicate-Code Candidates{(projectContext is not null ? $" - {projectContext}" : "")}");
+        sb.AppendLine($"**{results.Count}** similar method/class pairs across **{grouped.Count}** source groups.\n");
+        sb.AppendLine("| Similarity | Type | Source | Candidate | Size | Refactor Risk | Coverage |");
+        sb.AppendLine("|-----------|------|--------|-----------|------|---------------|----------|");
+
+        foreach (var candidate in results)
+        {
+            var source = FormatDuplicateNode(candidate.Source);
+            var duplicate = FormatDuplicateNode(candidate.Candidate);
+            var size = $"{candidate.Source.LineCount ?? 0}/{candidate.Candidate.LineCount ?? 0} lines";
+            var risk = FormatDuplicateRisk(candidate.SourceFanIn + candidate.CandidateFanIn);
+            var coverage = FormatCoverage(candidate.SourceHasTestCoverage, candidate.CandidateHasTestCoverage);
+
+            sb.AppendLine(
+                $"| {(candidate.Score * 100).ToString("F1", CultureInfo.InvariantCulture)}% | " +
+                $"{candidate.Source.Type} | {source} | {duplicate} | {size} | {risk} | {coverage} |");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("> Review these as candidates, not proof of duplication. Prioritise high-similarity pairs with low fan-in and some test coverage.");
+
+        return sb.ToString();
+    }
+
+    private static string FormatDuplicateNode(CodeNode node)
+    {
+        var location = node.FilePath is null
+            ? ""
+            : $"<br>`{node.FilePath}{(node.LineNumber is not null ? $":{node.LineNumber}" : "")}`";
+
+        return $"`{node.Name}`{location}";
+    }
+
+    private static string FormatDuplicateRisk(int fanIn) =>
+        fanIn switch
+        {
+            >= 10 => $"High ({fanIn} callers)",
+            >= 3 => $"Medium ({fanIn} callers)",
+            _ => $"Low ({fanIn} callers)"
+        };
+
+    private static string FormatCoverage(bool sourceCovered, bool candidateCovered) =>
+        (sourceCovered, candidateCovered) switch
+        {
+            (true, true) => "both covered",
+            (true, false) => "source only",
+            (false, true) => "candidate only",
+            _ => "no direct test callers"
+        };
 }

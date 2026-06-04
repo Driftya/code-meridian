@@ -350,7 +350,7 @@ codemeridian index . --clear
 **Value:** Medium  
 **Risk:** Low.
 
-## - [ ] P2 - Add Duplicate-Code Workflow
+## - [x] P2 - Add Duplicate-Code Workflow
 
 **Why:** Once embeddings work, CodeMeridian can turn `find_similar_nodes` into a practical duplicate-code review flow.
 
@@ -365,6 +365,8 @@ codemeridian index . --clear
 **Effort:** Medium  
 **Value:** Medium  
 **Risk:** Medium.
+
+**Implemented:** Added `find_duplicate_candidates` for embedded method/class nodes. It filters by project, namespace, node type, minimum line count, similarity threshold, and excludes tests by default. Results include grouped duplicate candidates with similarity, size, fan-in refactor risk, and direct test-caller coverage signals.
 
 ## - [ ] P3 - Add More External Concept Indexers
 
@@ -398,7 +400,7 @@ codemeridian index . --clear
 - [x] Add diagnostics indexing for C#, TypeScript, and ESLint using project-native configs.
 - [x] Package the indexers for easier install and one-command usage.
 - [ ] Add optional embeddings to the indexers.
-- [ ] Add duplicate-code candidate workflow on top of embeddings.
+- [x] Add duplicate-code candidate workflow on top of embeddings.
 - [ ] Improve cross-language HTTP endpoint linking.
 - [ ] Add static HTML / CSS / SCSS relationship indexing.
 

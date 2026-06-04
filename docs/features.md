@@ -157,6 +157,14 @@ Finds semantically similar code nodes using Neo4j vector search. Requires code-n
 Find code similar to PaymentGateway.ChargeAsync.
 ```
 
+### `find_duplicate_candidates`
+
+Finds duplicate-code review candidates by comparing embedded method/class nodes. Supports project, namespace, node type, size, similarity, and test-exclusion filters. Results include similarity, size, fan-in risk, and direct test coverage signals.
+
+```text
+Find duplicate candidates in MyApi excluding tests.
+```
+
 ### `find_diagnostics`
 
 Finds indexed compiler, analyzer, TypeScript, and lint diagnostics for a project. Diagnostics are indexed by default unless `--skip-diagnostics` is used.

@@ -65,6 +65,17 @@ public interface ICodeGraphRepository
     /// <summary>Native vector similarity — find nodes semantically similar to the given node using stored embeddings.</summary>
     Task<IReadOnlyList<(CodeNode Node, double Score)>> FindSimilarToNodeAsync(string nodeId, string? projectContext = null, int topK = 10, CancellationToken cancellationToken = default);
 
+    /// <summary>Find semantically similar method/class pairs that are candidates for duplicate-code review.</summary>
+    Task<IReadOnlyList<DuplicateCandidate>> FindDuplicateCandidatesAsync(
+        string? projectContext = null,
+        string? namespaceFilter = null,
+        CodeNodeType? nodeType = null,
+        int minLineCount = 5,
+        double minSimilarity = 0.88,
+        bool excludeTests = true,
+        int limit = 20,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Returns indexed diagnostics for a project, optionally filtered by severity.</summary>
     Task<IReadOnlyList<CodeNode>> FindDiagnosticsAsync(string? projectContext = null, string? severity = null, CancellationToken cancellationToken = default);
 

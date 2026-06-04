@@ -153,6 +153,135 @@ public sealed partial class Neo4jCodeGraphRepository
     /// Projects a named in-memory graph, streams algorithm results, then drops the projection.
     /// The <paramref name="parameters"/> object must contain a <c>graphName</c> property.
     /// </summary>
+    // Duplicate-code workflow query.
+    /// <summary>
+    /// Find semantically similar method/class pairs for duplicate-code review.
+    /// </summary>
+    public async Task<IReadOnlyList<DuplicateCandidate>> FindDuplicateCandidatesAsync(
+        string? projectContext = null,
+        string? namespaceFilter = null,
+        CodeNodeType? nodeType = null,
+        int minLineCount = 5,
+        double minSimilarity = 0.88,
+        bool excludeTests = true,
+        int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (source:CodeNode)
+            WHERE source.embedding IS NOT NULL
+              AND source.type IN $nodeTypes
+              AND coalesce(source.lineCount, 0) >= $minLineCount
+              AND ($projectContext IS NULL OR source.projectContext = $projectContext)
+              AND ($namespaceFilter IS NULL OR coalesce(source.namespace, '') CONTAINS $namespaceFilter)
+              AND (
+                $excludeTests = false OR
+                (
+                  toLower(coalesce(source.filePath, '')) NOT CONTAINS 'test' AND
+                  toLower(coalesce(source.name, '')) NOT CONTAINS 'test' AND
+                  toLower(coalesce(source.namespace, '')) NOT CONTAINS 'test'
+                )
+              )
+            WITH source
+            ORDER BY coalesce(source.lineCount, 0) DESC
+            LIMIT $candidatePool
+
+            MATCH (candidate:CodeNode)
+            WHERE candidate.embedding IS NOT NULL
+              AND candidate.id > source.id
+              AND candidate.type = source.type
+              AND coalesce(candidate.lineCount, 0) >= $minLineCount
+              AND ($projectContext IS NULL OR candidate.projectContext = $projectContext)
+              AND ($namespaceFilter IS NULL OR coalesce(candidate.namespace, '') CONTAINS $namespaceFilter)
+              AND (
+                $excludeTests = false OR
+                (
+                  toLower(coalesce(candidate.filePath, '')) NOT CONTAINS 'test' AND
+                  toLower(coalesce(candidate.name, '')) NOT CONTAINS 'test' AND
+                  toLower(coalesce(candidate.namespace, '')) NOT CONTAINS 'test'
+                )
+              )
+            WITH source, candidate, vector.similarity.cosine(source.embedding, candidate.embedding) AS score
+            WHERE score >= $minSimilarity
+            CALL {
+              WITH source
+              MATCH (source)<-[r:Calls|Uses]-(:CodeNode)
+              RETURN count(r) AS sourceFanIn
+            }
+            CALL {
+              WITH candidate
+              MATCH (candidate)<-[r:Calls|Uses]-(:CodeNode)
+              RETURN count(r) AS candidateFanIn
+            }
+            CALL {
+              WITH source
+              OPTIONAL MATCH (test:CodeNode)-[:Calls]->(source)
+              WHERE toLower(coalesce(test.filePath, '')) CONTAINS 'test'
+                 OR toLower(coalesce(test.name, '')) CONTAINS 'test'
+                 OR toLower(coalesce(test.namespace, '')) CONTAINS 'test'
+              RETURN count(test) > 0 AS sourceHasTestCoverage
+            }
+            CALL {
+              WITH candidate
+              OPTIONAL MATCH (test:CodeNode)-[:Calls]->(candidate)
+              WHERE toLower(coalesce(test.filePath, '')) CONTAINS 'test'
+                 OR toLower(coalesce(test.name, '')) CONTAINS 'test'
+                 OR toLower(coalesce(test.namespace, '')) CONTAINS 'test'
+              RETURN count(test) > 0 AS candidateHasTestCoverage
+            }
+            RETURN source, candidate, score, sourceFanIn, candidateFanIn, sourceHasTestCoverage, candidateHasTestCoverage
+            ORDER BY score DESC, (sourceFanIn + candidateFanIn) DESC
+            LIMIT $limit
+            """;
+
+        var nodeTypes = nodeType.HasValue
+            ? [nodeType.Value.ToString()]
+            : new[] { CodeNodeType.Method.ToString(), CodeNodeType.Class.ToString() };
+
+        try
+        {
+            var cursor = await session.RunAsync(cypher, new
+            {
+                projectContext = (object?)projectContext,
+                namespaceFilter = (object?)namespaceFilter,
+                nodeTypes,
+                minLineCount,
+                minSimilarity,
+                excludeTests,
+                limit,
+                candidatePool = Math.Max(limit * 10, 100)
+            });
+
+            var results = new List<DuplicateCandidate>();
+            await foreach (var record in cursor.WithCancellation(cancellationToken))
+            {
+                results.Add(new DuplicateCandidate(
+                    MapToCodeNode(record["source"].As<INode>()),
+                    MapToCodeNode(record["candidate"].As<INode>()),
+                    record["score"].As<double>(),
+                    record["sourceFanIn"].As<int>(),
+                    record["candidateFanIn"].As<int>(),
+                    record["sourceHasTestCoverage"].As<bool>(),
+                    record["candidateHasTestCoverage"].As<bool>()));
+            }
+
+            return results;
+        }
+        catch (Exception ex) when (ex.Message.Contains("vector", StringComparison.OrdinalIgnoreCase)
+                                   || ex.Message.Contains("embedding", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(ex, "Vector similarity unavailable for duplicate-candidate discovery.");
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Encapsulates the GDS project/stream/drop lifecycle.
+    /// Projects a named in-memory graph, streams algorithm results, then drops the projection.
+    /// The <paramref name="parameters"/> object must contain a <c>graphName</c> property.
+    /// </summary>
     private static async Task<IReadOnlyList<T>> RunGdsStreamAsync<T>(
         IAsyncSession session,
         string graphName,

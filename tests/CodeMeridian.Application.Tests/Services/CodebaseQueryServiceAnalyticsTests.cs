@@ -31,13 +31,15 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         int? line = null,
         string? project = null,
         DateTimeOffset? createdAt = null,
-        DateTimeOffset? updatedAt = null) => new()
+        DateTimeOffset? updatedAt = null,
+        int? lineCount = null) => new()
     {
         Id = id,
         Name = name,
         Type = type,
         FilePath = file,
         LineNumber = line,
+        LineCount = lineCount,
         ProjectContext = project,
         CreatedAt = createdAt,
         UpdatedAt = updatedAt
@@ -825,5 +827,58 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("RelatedHelper");
         result.Should().Contain("74.0%");
         result.Should().Contain("Semantic similarity");
+    }
+
+    // ── FindDuplicateCandidatesAsync ─────────────────────────────────────────
+
+    [Fact]
+    public async Task FindDuplicateCandidatesAsync_WhenNoCandidates_ReturnsGuidance()
+    {
+        var (sut, graph) = Build();
+        graph.FindDuplicateCandidatesAsync(null, null, null, 5, 0.88, true, 20, Arg.Any<CancellationToken>())
+             .Returns([]);
+
+        var result = await sut.FindDuplicateCandidatesAsync();
+
+        result.Should().Contain("No duplicate-code candidates found");
+        result.Should().Contain("Embeddings must be stored");
+    }
+
+    [Fact]
+    public async Task FindDuplicateCandidatesAsync_WithCandidates_ReturnsWorkflowTable()
+    {
+        var (sut, graph) = Build();
+        var source = Node("m1", "CalculateTotal", CodeNodeType.Method, "src/Orders.cs", line: 42, lineCount: 18);
+        var candidate = Node("m2", "ComputeTotal", CodeNodeType.Method, "src/Billing.cs", line: 87, lineCount: 20);
+
+        graph.FindDuplicateCandidatesAsync("Shop", "Domain", CodeNodeType.Method, 10, 0.90, true, 20, Arg.Any<CancellationToken>())
+             .Returns([new DuplicateCandidate(source, candidate, 0.94, 1, 2, true, false)]);
+
+        var result = await sut.FindDuplicateCandidatesAsync(
+            projectContext: "Shop",
+            namespaceFilter: "Domain",
+            nodeType: "Method",
+            minLineCount: 10,
+            minSimilarity: 0.90);
+
+        result.Should().Contain("## Duplicate-Code Candidates - Shop");
+        result.Should().Contain("94.0%");
+        result.Should().Contain("CalculateTotal");
+        result.Should().Contain("ComputeTotal");
+        result.Should().Contain("18/20 lines");
+        result.Should().Contain("Medium (3 callers)");
+        result.Should().Contain("source only");
+    }
+
+    [Fact]
+    public async Task FindDuplicateCandidatesAsync_WithInvalidNodeType_ReturnsGuidance()
+    {
+        var (sut, _) = Build();
+
+        var result = await sut.FindDuplicateCandidatesAsync(nodeType: "File");
+
+        result.Should().Contain("Unknown duplicate candidate node type");
+        result.Should().Contain("Method");
+        result.Should().Contain("Class");
     }
 }

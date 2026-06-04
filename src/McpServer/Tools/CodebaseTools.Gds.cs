@@ -60,4 +60,33 @@ public sealed partial class CodebaseTools
         string? projectContext = null,
         CancellationToken cancellationToken = default) =>
         queryService.FindSimilarToNodeAsync(nodeId, projectContext, cancellationToken);
+
+    [McpServerTool(Name = "find_duplicate_candidates")]
+    [Description(
+        "Find duplicate-code review candidates by comparing embedded method/class nodes semantically. " +
+        "Groups similar methods/classes by score, filters by project, namespace, node type, and size, " +
+        "excludes tests by default, and reports lightweight refactor risk using fan-in and direct test callers. " +
+        "Requires backend embeddings to be enabled and indexed.")]
+    public Task<string> FindDuplicateCandidatesAsync(
+        [Description("Optional project name to scope duplicate discovery.")]
+        string? projectContext = null,
+        [Description("Optional namespace substring filter, e.g. 'Payments' or 'Infrastructure.Graph'.")]
+        string? namespaceFilter = null,
+        [Description("Optional node type filter. Valid values: Method, Class. Omit to include both.")]
+        string? nodeType = null,
+        [Description("Minimum line count for both nodes in a candidate pair. Default 5.")]
+        int minLineCount = 5,
+        [Description("Minimum cosine similarity from 0.0 to 1.0. Default 0.88.")]
+        double minSimilarity = 0.88,
+        [Description("Exclude test files/namespaces by default.")]
+        bool excludeTests = true,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindDuplicateCandidatesAsync(
+            projectContext,
+            namespaceFilter,
+            nodeType,
+            minLineCount,
+            minSimilarity,
+            excludeTests,
+            cancellationToken);
 }
