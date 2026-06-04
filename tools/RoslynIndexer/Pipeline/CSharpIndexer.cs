@@ -79,9 +79,9 @@ public sealed class CSharpIndexer(
             logger.LogInformation(
                 "  Ingesting nodes batch {Current}/{Total}...", i + 1, batches.Length);
 
-            var tasks = batches[i].Select(async n =>
+            foreach (var n in batches[i])
             {
-                return client.IngestCodeNodeAsync(
+                await client.IngestCodeNodeAsync(
                     n.Id, n.Name, n.Type,
                     namespacePath: n.Namespace,
                     filePath: n.FilePath,
@@ -90,9 +90,7 @@ public sealed class CSharpIndexer(
                     summary: n.Summary,
                     projectContext: projectContext,
                     cancellationToken: cancellationToken);
-            });
-
-            await Task.WhenAll(tasks);
+            }
         }
     }
 

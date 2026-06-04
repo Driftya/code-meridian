@@ -16,6 +16,7 @@ public sealed class OllamaEmbeddingProvider : IEmbeddingProvider, IAsyncDisposab
     private readonly HttpClient _httpClient;
     private readonly EmbeddingOptions _options;
     private readonly ILogger<OllamaEmbeddingProvider> _logger;
+    private readonly SemaphoreSlim _requestGate = new(1, 1);
     private bool _available = false;
 
     public int Dimensions => GetDimensionsForModel(_options.OllamaModel ?? "nomic-embed-text");
@@ -56,23 +57,31 @@ public sealed class OllamaEmbeddingProvider : IEmbeddingProvider, IAsyncDisposab
                 prompt = text
             };
 
-            var response = await _httpClient.PostAsJsonAsync(
-                $"{baseUrl}/api/embeddings",
-                request,
-                cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
+            await _requestGate.WaitAsync(cancellationToken);
+            try
             {
-                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogWarning(
-                    "Ollama embedding request failed with {StatusCode}: {Error}",
-                    response.StatusCode, errorContent);
-                return null;
-            }
+                var response = await _httpClient.PostAsJsonAsync(
+                    $"{baseUrl}/api/embeddings",
+                    request,
+                    cancellationToken);
 
-            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            var result = await JsonSerializer.DeserializeAsync<OllamaEmbeddingResponse>(stream, cancellationToken: cancellationToken);
-            return result?.Embedding;
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogWarning(
+                        "Ollama embedding request failed with {StatusCode}: {Error}",
+                        response.StatusCode, errorContent);
+                    return null;
+                }
+
+                var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                var result = await JsonSerializer.DeserializeAsync<OllamaEmbeddingResponse>(stream, cancellationToken: cancellationToken);
+                return result?.Embedding;
+            }
+            finally
+            {
+                _requestGate.Release();
+            }
         }
         catch (Exception ex)
         {

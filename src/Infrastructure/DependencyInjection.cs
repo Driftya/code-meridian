@@ -38,11 +38,11 @@ public static class DependencyInjection
             return options.Provider switch
             {
                 "OpenAI" => new OpenAiEmbeddingProvider(
-                    new HttpClient(),
+                    new HttpClient { Timeout = TimeSpan.FromMinutes(10) },
                     Microsoft.Extensions.Options.Options.Create(options),
                     sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<OpenAiEmbeddingProvider>>()),
                 "Ollama" => new OllamaEmbeddingProvider(
-                    new HttpClient(),
+                    new HttpClient { Timeout = TimeSpan.FromMinutes(10) },
                     Microsoft.Extensions.Options.Options.Create(options),
                     sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<OllamaEmbeddingProvider>>()),
                 "Stub" => new StubEmbeddingProvider(),

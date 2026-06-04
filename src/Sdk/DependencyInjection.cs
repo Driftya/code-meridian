@@ -22,7 +22,7 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.Add("Accept", "application/json");
             if (!string.IsNullOrWhiteSpace(apiKey))
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            client.Timeout = TimeSpan.FromSeconds(120);
+            client.Timeout = TimeSpan.FromMinutes(10);
         });
 
         return services;
