@@ -3,6 +3,7 @@ import fs from 'fs';
 import { watch as chokidarWatch } from 'chokidar';
 import { walkTypeScript } from './walker.js';
 import { CodeMeridianClient } from './client.js';
+import { getEmbeddingProvider } from './embedding.js';
 
 // ── CLI args ──────────────────────────────────────────────────────────────────
 
@@ -64,6 +65,22 @@ if (!projectName) {
 // ── Run ───────────────────────────────────────────────────────────────────────
 
 const client = new CodeMeridianClient(serverUrl, apiKey);
+const embeddingProvider = getEmbeddingProvider();
+
+// Check if embeddings are available
+let useEmbeddings = false;
+if (embeddingProvider.providerName !== 'None') {
+  useEmbeddings = await embeddingProvider.isAvailable();
+  if (!useEmbeddings) {
+    console.warn(
+      `⚠️  Embedding provider '${embeddingProvider.providerName}' is unavailable. ` +
+      `Indexing without embeddings. ` +
+      (embeddingProvider.providerName === 'Ollama'
+        ? 'Ensure Ollama is running: ollama serve'
+        : 'Provide valid credentials and set Embedding__Enabled=true to enable find_similar_nodes.')
+    );
+  }
+}
 
 if (clear) {
   process.stdout.write(`Clearing existing knowledge for '${projectName}'... `);
@@ -75,11 +92,22 @@ console.log(`Walking TypeScript files in ${rootPath}...`);
 const { nodes, edges } = walkTypeScript(rootPath, projectName);
 console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
 
-// Ingest nodes
+// Ingest nodes with optional embeddings
 let nodeCount = 0;
 let nodeErrors = 0;
+const embeddableTypes = ['Class', 'Interface', 'Method', 'Enum'];
 for (const node of nodes) {
   try {
+    // Generate embedding for important node types
+    if (useEmbeddings && embeddableTypes.includes(node.type)) {
+      const embeddingText = `${node.type} ${node.name}${node.summary ? ` - ${node.summary}` : ''}${
+        node.namespace ? ` in ${node.namespace}` : ''
+      }`;
+      const embedding = await embeddingProvider.generateEmbedding(embeddingText);
+      if (embedding && embedding.length > 0) {
+        node.embeddingCsv = embedding.join(',');
+      }
+    }
     await client.ingestNode(node);
     nodeCount++;
   } catch (e) {
@@ -128,7 +156,18 @@ if (watch) {
       console.log('[watch] Change detected — re-indexing...');
       try {
         const result = walkTypeScript(rootPath, projectName!);
-        for (const node of result.nodes) await client.ingestNode(node).catch(() => {});
+        for (const node of result.nodes) {
+          if (useEmbeddings && embeddableTypes.includes(node.type)) {
+            const embeddingText = `${node.type} ${node.name}${node.summary ? ` - ${node.summary}` : ''}${
+              node.namespace ? ` in ${node.namespace}` : ''
+            }`;
+            const embedding = await embeddingProvider.generateEmbedding(embeddingText);
+            if (embedding && embedding.length > 0) {
+              node.embeddingCsv = embedding.join(',');
+            }
+          }
+          await client.ingestNode(node).catch(() => {});
+        }
         for (const edge of result.edges) await client.ingestEdge(edge).catch(() => {});
         console.log(`[watch] Done: ${result.nodes.length} nodes, ${result.edges.length} edges`);
       } catch (e) {

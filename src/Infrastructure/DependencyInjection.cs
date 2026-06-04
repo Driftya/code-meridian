@@ -15,6 +15,7 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.Configure<Neo4jOptions>(configuration.GetSection(Neo4jOptions.SectionName));
+        services.Configure<EmbeddingOptions>(configuration.GetSection(EmbeddingOptions.SectionName));
 
         // Register concrete types so the initializer can access them directly
         services.AddSingleton<Neo4jCodeGraphRepository>();
@@ -25,6 +26,29 @@ public static class DependencyInjection
             sp.GetRequiredService<Neo4jCodeGraphRepository>());
         services.AddSingleton<IVectorRepository>(sp =>
             sp.GetRequiredService<Neo4jVectorRepository>());
+
+        // Register embedding provider based on configuration
+        services.AddSingleton<IEmbeddingProvider>(sp =>
+        {
+            var options = configuration.GetSection(EmbeddingOptions.SectionName).Get<EmbeddingOptions>() ?? new();
+            
+            if (!options.Enabled)
+                return new NoOpEmbeddingProvider();
+
+            return options.Provider switch
+            {
+                "OpenAI" => new OpenAiEmbeddingProvider(
+                    new HttpClient(),
+                    Microsoft.Extensions.Options.Options.Create(options),
+                    sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<OpenAiEmbeddingProvider>>()),
+                "Ollama" => new OllamaEmbeddingProvider(
+                    new HttpClient(),
+                    Microsoft.Extensions.Options.Options.Create(options),
+                    sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<OllamaEmbeddingProvider>>()),
+                "Stub" => new StubEmbeddingProvider(),
+                _ => new NoOpEmbeddingProvider()
+            };
+        });
 
         // Initialize Neo4j schema on startup
         services.AddHostedService<Neo4jInitializationService>();

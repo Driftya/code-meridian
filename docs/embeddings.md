@@ -1,0 +1,302 @@
+# Code Node Embeddings — Setup & Configuration
+
+CodeMeridian supports optional vector embeddings for code nodes. Embeddings enable the `find_similar_nodes` feature, which discovers conceptually related code using semantic similarity — useful for finding duplicates, alternative implementations, and related logic.
+
+**Default:** Embeddings are **OFF** (no cost, no external dependencies). When enabled, the **default provider is Ollama** (local, free), not OpenAI.
+
+## Quick Start
+
+### Option 1: Enable Ollama (recommended for local development)
+
+Ollama is local, free, and requires no API keys. Perfect for development and CI/CD.
+
+1. **Install Ollama**: Download from [ollama.ai](https://ollama.ai)
+
+2. **Start Ollama server**:
+   ```bash
+   ollama serve
+   ```
+
+3. **Enable embeddings in CodeMeridian**:
+   ```bash
+   export Embedding__Enabled=true
+   # Default provider is Ollama, default model is llama2-uncased
+   ```
+
+4. **Re-index your codebase**:
+   ```bash
+   dotnet run --project tools/Indexer -- . --project MyApp
+   ```
+
+Embeddings are now generated using your local Ollama instance.
+
+### Option 2: Enable OpenAI (cloud-hosted embeddings)
+
+For higher quality embeddings at ~$0.02 per million tokens.
+
+1. **Get an API key**: Sign up at [platform.openai.com](https://platform.openai.com)
+
+2. **Set environment variables**:
+   ```bash
+   export Embedding__Enabled=true
+   export Embedding__Provider=OpenAI
+   export Embedding__OpenAiApiKey=sk-proj-xyz...
+   ```
+
+3. **Re-index your codebase**:
+   ```bash
+   dotnet run --project tools/Indexer -- . --project MyApp
+   ```
+
+### Option 3: Use Stub for testing (no external dependencies)
+
+For testing without any external services:
+
+```bash
+export Embedding__Enabled=true
+export Embedding__Provider=Stub
+dotnet run --project tools/Indexer -- . --project MyApp
+```
+
+## Configuration Reference
+
+All settings are read from environment variables or `appsettings.json`:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `Embedding__Enabled` | `false` | Enable embedding generation — **default is OFF** (no cost) |
+| `Embedding__Provider` | `Ollama` | Provider type: `Ollama` (default when enabled), `OpenAI`, `Stub`, `None` |
+| `Embedding__OllamaBaseUrl` | `http://localhost:11434` | Ollama server URL |
+| `Embedding__OllamaModel` | `llama2-uncased` | Ollama model (384 dimensions) |
+| `Embedding__OpenAiApiKey` | — | OpenAI API key (required for `Provider=OpenAI`) |
+| `Embedding__OpenAiModel` | `text-embedding-3-small` | OpenAI model (1536 dimensions) |
+| `Embedding__BatchSize` | `50` | Max nodes per embedding batch |
+
+### Environment variable examples
+
+```bash
+# Ollama (default when enabled, free, local)
+export Embedding__Enabled=true
+# Embedding__Provider=Ollama is the default
+
+# Custom Ollama URL and model
+export Embedding__Enabled=true
+export Embedding__Provider=Ollama
+export Embedding__OllamaBaseUrl=http://192.168.1.100:11434
+export Embedding__OllamaModel=nomic-embed-text
+
+# OpenAI (cloud, paid)
+export Embedding__Enabled=true
+export Embedding__Provider=OpenAI
+export Embedding__OpenAiApiKey=sk-proj-abc123...
+export Embedding__OpenAiModel=text-embedding-3-small
+
+# Stub (testing, free)
+export Embedding__Enabled=true
+export Embedding__Provider=Stub
+```
+
+### appsettings.json example
+
+```json
+{
+  "Embedding": {
+    "Enabled": true,
+    "Provider": "Ollama",
+    "OllamaBaseUrl": "http://localhost:11434",
+    "OllamaModel": "llama2-uncased",
+    "BatchSize": 50
+  }
+}
+```
+
+## Supported Models
+
+### Ollama (recommended for local development)
+
+**Models** (popular options):
+
+| Model | Dimensions | Speed | Quality | Setup |
+|-------|-----------|-------|---------|-------|
+| `llama2-uncased` | 384 | Fast | Good | `ollama pull llama2-uncased` |
+| `nomic-embed-text` | 768 | Medium | Excellent | `ollama pull nomic-embed-text` |
+| `mistral:7b` | 384 | Fast | Good | `ollama pull mistral:7b` |
+
+**Setup:**
+```bash
+ollama serve          # Start server
+ollama pull llama2-uncased  # Download model
+# Server runs at http://localhost:11434
+```
+
+**Cost**: Free (local)  
+**Speed**: Varies by model and hardware (typically 10–100 nodes/second)  
+**Quality**: Excellent for code similarity
+
+### OpenAI text-embedding-3-small
+
+- **Dimensions**: 1536
+- **Cost**: $0.02 per 1M tokens (~$0.01–$0.10 per typical reindex)
+- **Speed**: ~100 nodes/second (cloud API)
+- **Quality**: Excellent for code
+
+### OpenAI text-embedding-3-large
+
+- **Dimensions**: 3072
+- **Cost**: $0.13 per 1M tokens (~$0.10–$1.00 per typical reindex)
+- **Speed**: ~50 nodes/second
+- **Quality**: Better semantic understanding, slower
+
+## Cost Estimation
+
+For a typical codebase (embeddings only for embeddable nodes):
+
+| Codebase Size | Nodes | Ollama Cost | OpenAI (small) | OpenAI (large) |
+|---------------|-------|------------|------------|------------|
+| 10K LOC | ~100 | Free | <$0.01 | <$0.01 |
+| 100K LOC | ~1,000 | Free | $0.01 | $0.10 |
+| 1M LOC | ~10,000 | Free | $0.10 | $1.00 |
+| 10M LOC | ~100,000 | Free | $1.00 | $10.00 |
+
+**Ollama advantage**: Completely free — embed as often as you like.
+
+## What Gets Embedded
+
+During indexing, CodeMeridian generates embeddings for:
+
+- **Classes**: `Class ClassName - one-line summary in Namespace.ClassName`
+- **Interfaces**: `Interface IServiceName - one-line summary`
+- **Methods**: `Method MethodName(param1, param2) - one-line summary`
+- **Enums**: `Enum EnumName in Namespace`
+
+**Not embedded** (to reduce cost): Namespaces, properties, fields, files.
+
+## Using find_similar_nodes
+
+Once embeddings are indexed, use the `find_similar_nodes` MCP tool:
+
+```
+find_similar_nodes(
+  nodeId: "MyApp::Class::UserService",
+  projectContext: "MyApp"
+)
+```
+
+Output:
+
+```
+## Semantically Similar Nodes — `MyApp::Class::UserService`
+
+**5** nodes with similar vector embeddings:
+
+| Similarity | Type | Name | File |
+|-----------|------|------|------|
+| 92.3% | Class | AuthService | src/Services/AuthService.cs |
+| 87.1% | Class | ProfileService | src/Services/ProfileService.cs |
+| 78.5% | Interface | IUserRepository | src/Repositories/IUserRepository.cs |
+| 72.0% | Method | GetUserAsync(userId) | src/Services/UserService.cs |
+| 65.3% | Class | UserValidator | src/Validation/UserValidator.cs |
+```
+
+## Troubleshooting
+
+### "Embeddings are disabled" warning
+
+If you see this message during indexing:
+
+```
+⚠️  Embeddings are disabled. Set Embedding__Enabled=true to enable find_similar_nodes.
+```
+
+**Fix**: Set `Embedding__Enabled=true`:
+
+```bash
+export Embedding__Enabled=true
+dotnet run --project tools/Indexer -- . --project MyApp
+```
+
+### "Ollama server not available"
+
+If you see:
+
+```
+Ollama server not available at http://localhost:11434. Ensure Ollama is running: ollama serve
+```
+
+**Fix**: Start Ollama:
+
+```bash
+ollama serve
+```
+
+In another terminal, download a model:
+
+```bash
+ollama pull llama2-uncased
+```
+
+Then re-run the indexer.
+
+### "OpenAI API key not set"
+
+If using OpenAI provider and it fails:
+
+```
+OpenAI embedding provider requires Embedding__OpenAiApiKey to be set
+```
+
+**Fix**: Verify and set your API key:
+
+```bash
+export Embedding__OpenAiApiKey=sk-proj-xyz...
+dotnet run --project tools/Indexer -- . --project MyApp
+```
+
+### Slow indexing with embeddings
+
+Embeddings can add 2–10x to indexing time depending on the model and hardware.
+
+**Optimization:**
+1. For **Ollama**: Use a faster model like `llama2-uncased` (not large models)
+2. For **OpenAI**: Increase `Embedding__BatchSize` to 100–200 (uses more API tokens)
+3. Use `--skip-embeddings` flag if available (future feature)
+
+### find_similar_nodes returns empty
+
+If `find_similar_nodes` finds no results:
+
+1. **Check embeddings were generated**: Query the Neo4j database:
+   ```cypher
+   MATCH (n:CodeNode {projectContext: "MyApp"})
+   WHERE n.embedding IS NOT NULL
+   RETURN COUNT(*) as with_embeddings, COUNT(n) as total
+   ```
+
+2. **Re-index with embeddings enabled**:
+   ```bash
+   export Embedding__Enabled=true
+   export Embedding__Provider=Ollama  # or OpenAI
+   dotnet run --project tools/Indexer -- . --project MyApp --clear
+   ```
+
+## Comparison: Ollama vs OpenAI
+
+| Aspect | Ollama | OpenAI |
+|--------|--------|--------|
+| **Cost** | Free | $0.02/M tokens (~$0.01–$0.10 per reindex) |
+| **Setup** | `ollama serve` | API key only |
+| **Speed** | Local, varies by hardware | Fast cloud API (~100 nodes/sec) |
+| **Quality** | Excellent for code | Excellent for code |
+| **Privacy** | Local (no cloud upload) | Cloud (data sent to OpenAI) |
+| **Dependency** | Requires Ollama service | HTTPS only |
+| **Best for** | Development, CI, privacy | Production, high volume |
+
+## Future Enhancements
+
+- Local LM Studio support
+- Azure OpenAI integration
+- Embedding cache (avoid regenerating identical code)
+- Incremental embeddings (only changed nodes on re-index)
+- `--skip-embeddings` flag for faster indexing
+- Web UI for embedding model selection
+

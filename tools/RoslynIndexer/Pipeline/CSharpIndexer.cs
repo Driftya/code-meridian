@@ -1,3 +1,4 @@
+using CodeMeridian.Core.Knowledge;
 using CodeMeridian.Sdk;
 using CodeMeridian.Sdk.Models;
 using Microsoft.CodeAnalysis;
@@ -11,8 +12,12 @@ namespace CodeMeridian.RoslynIndexer.Pipeline;
 /// Walks each .cs file using Roslyn's syntax tree (no compilation needed)
 /// and extracts: namespaces, classes, interfaces, enums, methods, properties.
 /// Relationships (Contains, Inherits, Implements, Calls) are also extracted.
+/// Optionally generates vector embeddings for each node if an embedding provider is available.
 /// </summary>
-public sealed class CSharpIndexer(CodeMeridianClient client, ILogger<CSharpIndexer> logger)
+public sealed class CSharpIndexer(
+    CodeMeridianClient client,
+    ILogger<CSharpIndexer> logger,
+    IEmbeddingProvider? embeddingProvider = null)
 {
     public async Task<IndexStats> IndexAsync(
         FileInfo[] files,
@@ -70,24 +75,59 @@ public sealed class CSharpIndexer(CodeMeridianClient client, ILogger<CSharpIndex
         const int batchSize = 50;
         var batches = nodes.Chunk(batchSize).ToArray();
 
+        // Check if embeddings are available
+        var useEmbeddings = embeddingProvider is not null 
+            && await embeddingProvider.IsAvailableAsync(cancellationToken);
+        
+        if (embeddingProvider is not null && !useEmbeddings)
+        {
+            logger.LogWarning(embeddingProvider is NoOpEmbeddingProvider
+                ? "Embeddings are disabled. Set Embedding__Enabled=true to enable find_similar_nodes."
+                : "Embedding provider is unavailable. Continuing without embeddings.");
+        }
+
         for (var i = 0; i < batches.Length; i++)
         {
             logger.LogInformation(
                 "  Ingesting nodes batch {Current}/{Total}...", i + 1, batches.Length);
 
-            var tasks = batches[i].Select(n => client.IngestCodeNodeAsync(
-                n.Id, n.Name, n.Type,
-                namespacePath: n.Namespace,
-                filePath: n.FilePath,
-                lineNumber: n.LineNumber,
-                lineCount: n.LineCount,
-                summary: n.Summary,
-                projectContext: projectContext,
-                cancellationToken: cancellationToken));
+            var tasks = batches[i].Select(async n =>
+            {
+                // Generate embedding for important node types
+                string? embeddingCsv = null;
+                if (useEmbeddings && IsEmbeddableType(n.Type))
+                {
+                    var embeddingText = GenerateEmbeddingText(n);
+                    var embedding = await embeddingProvider!.GenerateEmbeddingAsync(embeddingText, cancellationToken);
+                    if (embedding is not null)
+                    {
+                        embeddingCsv = string.Join(",", embedding);
+                    }
+                }
+
+                return client.IngestCodeNodeAsync(
+                    n.Id, n.Name, n.Type,
+                    namespacePath: n.Namespace,
+                    filePath: n.FilePath,
+                    lineNumber: n.LineNumber,
+                    lineCount: n.LineCount,
+                    summary: n.Summary,
+                    projectContext: projectContext,
+                    embeddingCsv: embeddingCsv,
+                    cancellationToken: cancellationToken);
+            });
 
             await Task.WhenAll(tasks);
         }
     }
+
+    private static bool IsEmbeddableType(string nodeType) =>
+        nodeType is "Class" or "Interface" or "Method" or "Enum";
+
+    private static string GenerateEmbeddingText(IngestNodeRequest node) =>
+        $"{node.Type} {node.Name}" +
+        (node.Summary is not null ? $" - {node.Summary}" : "") +
+        (node.Namespace is not null ? $" in {node.Namespace}" : "");
 
     private async Task BatchIngestEdgesAsync(
         List<IngestEdgeRequest> edges,

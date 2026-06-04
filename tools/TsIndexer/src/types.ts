@@ -30,6 +30,7 @@ export interface CodeNodeDto {
   lineCount?: number;
   summary?: string;
   projectContext: string;
+  embeddingCsv?: string;
 }
 
 export interface CodeEdgeDto {

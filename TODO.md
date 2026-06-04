@@ -74,7 +74,7 @@ public enum ContextDetailLevel
 **Value:** High  
 **Risk:** Medium, because output tests will need updates.
 
-## - [ ] P0 - Fix Code Node Embeddings in the Indexers
+## - [x] P0 - Fix Code Node Embeddings in the Indexers
 
 **Why:** `find_similar_nodes` already exists and is positioned as duplicate-code discovery, but it does not work unless nodes have embeddings. The current indexers ingest nodes without embeddings, so a high-value feature appears broken during real use.
 

@@ -34,6 +34,7 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         int? lineCount = null,
         string? summary = null,
         string? projectContext = null,
+        string? embeddingCsv = null,
         CancellationToken cancellationToken = default)
     {
         var response = await httpClient.PostAsJsonAsync(
@@ -48,7 +49,8 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
                 LineNumber = lineNumber,
                 LineCount = lineCount,
                 Summary = summary,
-                ProjectContext = projectContext
+                ProjectContext = projectContext,
+                EmbeddingCsv = embeddingCsv
             },
             cancellationToken);
 
