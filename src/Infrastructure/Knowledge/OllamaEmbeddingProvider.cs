@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using CodeMeridian.Core.Knowledge;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -17,8 +18,17 @@ public sealed class OllamaEmbeddingProvider : IEmbeddingProvider, IAsyncDisposab
     private readonly ILogger<OllamaEmbeddingProvider> _logger;
     private bool _available = false;
 
-    public int Dimensions => 384; // llama2-uncased default
+    public int Dimensions => GetDimensionsForModel(_options.OllamaModel ?? "nomic-embed-text");
     public string ProviderName => "Ollama";
+
+    private static int GetDimensionsForModel(string model) => model.ToLowerInvariant() switch
+    {
+        "llama2-uncased" => 384,
+        "all-minilm" => 384,
+        "nomic-embed-text" => 768,
+        "mxbai-embed-large" => 1024,
+        _ => 768 // default to nomic-embed-text dimensions
+    };
 
     public OllamaEmbeddingProvider(
         HttpClient httpClient,
@@ -38,7 +48,7 @@ public sealed class OllamaEmbeddingProvider : IEmbeddingProvider, IAsyncDisposab
         try
         {
             var baseUrl = _options.OllamaBaseUrl ?? "http://localhost:11434";
-            var model = _options.OllamaModel ?? "llama2-uncased";
+            var model = _options.OllamaModel ?? "nomic-embed-text";
 
             var request = new
             {
@@ -60,7 +70,8 @@ public sealed class OllamaEmbeddingProvider : IEmbeddingProvider, IAsyncDisposab
                 return null;
             }
 
-            var result = await response.Content.ReadAsAsync<OllamaEmbeddingResponse>(cancellationToken);
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var result = await JsonSerializer.DeserializeAsync<OllamaEmbeddingResponse>(stream, cancellationToken: cancellationToken);
             return result?.Embedding;
         }
         catch (Exception ex)

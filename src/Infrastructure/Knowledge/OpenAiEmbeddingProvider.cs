@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using CodeMeridian.Core.Knowledge;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -63,7 +64,8 @@ public sealed class OpenAiEmbeddingProvider : IEmbeddingProvider, IAsyncDisposab
                 return null;
             }
 
-            var result = await response.Content.ReadAsAsync<OpenAiEmbeddingResponse>(cancellationToken);
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var result = await JsonSerializer.DeserializeAsync<OpenAiEmbeddingResponse>(stream, cancellationToken: cancellationToken);
             return result?.Data?.FirstOrDefault()?.Embedding;
         }
         catch (Exception ex)
