@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using CodeMeridian.Core.Knowledge;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -107,11 +108,14 @@ public sealed class OpenAiEmbeddingProvider : IEmbeddingProvider, IAsyncDisposab
     }
 
     private sealed record OpenAiEmbeddingResponse(
+        [property: JsonPropertyName("data")]
         List<EmbeddingData> Data
     );
 
     private sealed record EmbeddingData(
+        [property: JsonPropertyName("embedding")]
         float[] Embedding,
+        [property: JsonPropertyName("index")]
         int Index
     );
 }

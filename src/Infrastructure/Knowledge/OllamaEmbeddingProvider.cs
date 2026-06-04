@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using CodeMeridian.Core.Knowledge;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -127,6 +128,7 @@ public sealed class OllamaEmbeddingProvider : IEmbeddingProvider, IAsyncDisposab
     }
 
     private sealed record OllamaEmbeddingResponse(
+        [property: JsonPropertyName("embedding")]
         float[] Embedding
     );
 }

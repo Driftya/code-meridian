@@ -28,6 +28,7 @@ public static class KnowledgeApiEndpoints
         IngestNodeRequest req,
         ICodeGraphRepository repo,
         IEmbeddingProvider embeddingProvider,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
         if (!Enum.TryParse<CodeNodeType>(req.Type, ignoreCase: true, out var nodeType))
@@ -61,6 +62,15 @@ public static class KnowledgeApiEndpoints
             ProjectContext = req.ProjectContext,
             Embedding = embedding
         }, ct);
+
+        if (embedding is { Length: > 0 })
+        {
+            var logger = loggerFactory.CreateLogger("CodeMeridian.McpServer.Api.KnowledgeIngest");
+            logger.LogInformation(
+                "Stored code node embedding for {NodeId} with {Dimensions} dimensions.",
+                req.Id,
+                embedding.Length);
+        }
 
         return Results.Created($"/api/v1/knowledge/nodes/{Uri.EscapeDataString(req.Id)}", req.Id);
     }
