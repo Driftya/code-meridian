@@ -44,7 +44,7 @@ var dryRun = false;
 var listCapabilities = false;
 var skipCSharp = false;
 var skipTypeScript = false;
-var skipDiagnostics = true;
+var skipDiagnostics = false;
 
 for (var i = 0; i < rawArgs.Count; i++)
 {
@@ -220,6 +220,8 @@ static async Task<int> RunCSharpIndexerAsync(
 
     services.AddLogging(builder => builder
         .AddConsole()
+        .AddFilter("System.Net.Http.HttpClient", LogLevel.Warning)
+        .AddFilter("Microsoft", LogLevel.Warning)
         .SetMinimumLevel(LogLevel.Information));
 
     services.AddCodeMeridianClient(codeMeridianUrl, apiKey);
@@ -404,7 +406,10 @@ static async Task<int> RunDiagnosticsAsync(
         var tsc = ResolveLocalNodeBinary(rootPath, "tsc");
         if (tsc is not null)
         {
-            var result = await RunCaptureAsync(tsc, ["--noEmit", "--pretty", "false"], rootPath);
+            var result = await RunCaptureAsync(
+                tsc,
+                ["--noEmit", "--pretty", "false", "--noUnusedLocals", "--noUnusedParameters"],
+                rootPath);
             findings.AddRange(ParseTypeScriptDiagnostics(result.Output, rootPath, project));
         }
         else
@@ -552,7 +557,7 @@ static void PrintDryRun(
     Console.WriteLine($"  Clear first       : {clear}");
     Console.WriteLine($"  Include docs      : {includeDocs}");
     Console.WriteLine($"  Watch mode        : {watch}");
-    Console.WriteLine($"  Diagnostics       : {(skipDiagnostics ? "skipped" : "requested (not implemented)")}");
+    Console.WriteLine($"  Diagnostics       : {(skipDiagnostics ? "skipped" : "enabled")}");
     Console.WriteLine($"  C# indexer        : {(hasCSharp ? "enabled" : "not applicable")}");
     Console.WriteLine($"  TypeScript roots  : {(typeScriptRoots.Count == 0 ? "none" : typeScriptRoots.Count)}");
 
@@ -575,7 +580,7 @@ static void PrintCapabilities()
         """);
 
     Console.WriteLine($"  TypeScript/TSX   {(tsIndexerRoot is null ? "no - assets not found" : "yes")}");
-    Console.WriteLine("  Diagnostics      planned - not implemented yet");
+    Console.WriteLine("  Diagnostics      yes - skip with --skip-diagnostics");
     Console.WriteLine();
     Console.WriteLine("Commands:");
     Console.WriteLine("  codemeridian index . --clear");
@@ -880,8 +885,8 @@ static void PrintUsage()
           --skip-csharp          Skip C# indexing.
           --skip-typescript      Skip TypeScript/TSX indexing.
           --no-docs              Skip documentation ingestion. Alias: --skip-docs.
-          --include-diagnostics  Run project-native compiler, TypeScript, and lint diagnostics indexing.
-          --skip-diagnostics     Skip diagnostics indexing. This is the current default.
+          --include-diagnostics  Run diagnostics indexing. This is the default; kept for compatibility.
+          --skip-diagnostics     Skip project-native compiler, TypeScript, and lint diagnostics indexing.
           --dry-run              Show what would be indexed without ingesting anything.
           --list-capabilities    Show available indexers on this machine.
           --watch                Watch mode. If both languages are present, C# watch runs first.

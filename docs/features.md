@@ -159,7 +159,7 @@ Find code similar to PaymentGateway.ChargeAsync.
 
 ### `find_diagnostics`
 
-Finds indexed compiler, analyzer, TypeScript, and lint diagnostics for a project. Run the indexer with `--include-diagnostics` first.
+Finds indexed compiler, analyzer, TypeScript, and lint diagnostics for a project. Diagnostics are indexed by default unless `--skip-diagnostics` is used.
 
 ```text
 What diagnostics exist in MyApi?

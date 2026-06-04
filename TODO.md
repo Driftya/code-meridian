@@ -220,7 +220,7 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 **Value:** High  
 **Risk:** Medium, because command execution differs across repositories and ESLint config discovery can be messy.
 
-**Implemented first slice:** Diagnostics are indexed as `Diagnostic` code nodes via `codemeridian index --include-diagnostics`, using `dotnet build --no-restore --nologo`, local `tsc --noEmit --pretty false`, and project lint scripts or local ESLint when available. Query tools `find_diagnostics` and `find_diagnostics_for_node` expose the results.
+**Implemented first slice:** Diagnostics are indexed as `Diagnostic` code nodes by default, using `dotnet build --no-restore --nologo`, local `tsc --noEmit --pretty false`, and project lint scripts or local ESLint when available. Use `--skip-diagnostics` for faster structural-only indexing. Query tools `find_diagnostics` and `find_diagnostics_for_node` expose the results.
 
 ## - [ ] P1 - Add Source Snippet Support With Strict Budgets
 
@@ -247,7 +247,7 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 ```powershell
 codemeridian index .
 codemeridian index C:\Projects\MyApp --project MyApp --watch
-codemeridian index . --clear --include-diagnostics
+codemeridian index . --clear
 ```
 
 **Packaging options:**

@@ -112,7 +112,8 @@ codemeridian index . --dry-run
 | `--no-docs` / `--skip-docs` | Skip documentation ingestion |
 | `--dry-run` | Show what would be indexed without ingesting anything |
 | `--list-capabilities` | Show available indexers on the current machine |
-| `--include-diagnostics` | Run project-native compiler, TypeScript, and lint diagnostics indexing |
+| `--include-diagnostics` | Run diagnostics indexing. This is the default; kept for compatibility |
+| `--skip-diagnostics` | Skip project-native compiler, TypeScript, and lint diagnostics indexing |
 | `--watch` | Stay running and re-index when files change |
 
 ## Clear Commands
@@ -166,12 +167,18 @@ Documentation becomes searchable through `search_documentation`.
 
 ## Diagnostics Indexing
 
-Diagnostics indexing is disabled by default because build, type-check, and lint commands can be slow or require restored dependencies.
+Diagnostics indexing runs by default so compiler, analyzer, TypeScript, and lint findings stay attached to the graph.
 
-Enable it explicitly:
+Run normal indexing:
 
 ```powershell
-codemeridian index . --include-diagnostics
+codemeridian index .
+```
+
+Skip diagnostics when you need a faster structural-only index:
+
+```powershell
+codemeridian index . --skip-diagnostics
 ```
 
 The unified indexer refreshes diagnostic nodes for the project, then runs available project-native checks:
