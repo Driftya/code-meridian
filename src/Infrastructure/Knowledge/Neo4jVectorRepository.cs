@@ -70,12 +70,15 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                 d.source         = $source,
                 d.projectContext = $projectContext,
                 d.embedding      = $embedding,
-                d.metadata       = $metadata,
+                d.relatedNodeIds = $relatedNodeIds,
+                d.metadataKind   = $metadataKind,
                 d.updatedAt      = $now
             """;
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var mentionIds = ExtractMentionIds(document.Metadata);
+        var relatedNodeIds = mentionIds.Count > 0 ? string.Join(",", mentionIds) : null;
+        var metadataKind = document.Metadata.TryGetValue("kind", out var kind) ? kind : null;
 
         await session.ExecuteWriteAsync(async tx =>
         {
@@ -86,7 +89,8 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                 source = document.Source,
                 projectContext = document.ProjectContext,
                 embedding = document.Embedding,
-                metadata = document.Metadata,
+                relatedNodeIds,
+                metadataKind,
                 now
             });
             await cursor.ConsumeAsync();
@@ -259,19 +263,13 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 
     private static Dictionary<string, string> ReadMetadata(IReadOnlyDictionary<string, object?> props)
     {
-        if (!props.TryGetValue("metadata", out var raw) || raw is null)
-            return [];
-
-        var map = raw.As<IDictionary<string, object>>();
         var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (key, value) in map)
-        {
-            if (value is null)
-                continue;
+        if (props.TryGetValue("relatedNodeIds", out var relatedNodeIds) && relatedNodeIds is not null)
+            metadata["relatedNodeIds"] = relatedNodeIds.As<string>();
 
-            metadata[key] = value.ToString() ?? string.Empty;
-        }
+        if (props.TryGetValue("metadataKind", out var metadataKind) && metadataKind is not null)
+            metadata["kind"] = metadataKind.As<string>();
 
         return metadata;
     }
