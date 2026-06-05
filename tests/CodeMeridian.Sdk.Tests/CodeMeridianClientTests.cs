@@ -51,6 +51,26 @@ public sealed class CodeMeridianClientTests
         handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/project/My%20Project/files/src%2FApp%2FOrder%20Service.cs");
     }
 
+    [Fact]
+    public async Task GetDoctorStatusAsync_SendsProjectContextQuery()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var status = await sut.GetDoctorStatusAsync("My Project");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Get);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/status/doctor");
+        handler.Request.RequestUri.Query.Should().Contain("projectContext=My%20Project");
+        status.Should().NotBeNull();
+        status!.GraphDriftReport.Should().Be("Graph drift: low");
+    }
+
     private sealed class CapturingHandler : HttpMessageHandler
     {
         public HttpRequestMessage? Request { get; private set; }
@@ -63,7 +83,19 @@ public sealed class CodeMeridianClientTests
 
             return new HttpResponseMessage(HttpStatusCode.Created)
             {
-                Content = JsonContent.Create(new { })
+                Content = JsonContent.Create(new DoctorStatusResponse(
+                    "My Project",
+                    true,
+                    1,
+                    2,
+                    3,
+                    4,
+                    "low",
+                    "Graph drift: low",
+                    false,
+                    "Ollama",
+                    768,
+                    null))
             };
         }
 

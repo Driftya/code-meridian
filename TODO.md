@@ -408,25 +408,128 @@ Recommendation: run `codemeridian index . --project CodeMeridian --clear`
 **Value:** Very high  
 **Risk:** Medium, because stable IDs and language-specific symbol models can affect existing graph references.
 
-**Implemented:** Added `resolve_exact_symbol`, which resolves symbol, file, and line hints to canonical node IDs with `exact`, `file-only`, `heuristic`, or `stale` confidence. `find_implementation_surface` now includes canonical IDs and target confidence in its result table. `CodeGraphQuery` supports file-path filtering so exact symbol lookup can query Neo4j directly by indexed file path instead of filtering after a broad result limit. The remaining CLI-level `codemeridian index --verify` idea is tracked separately below.
+**Implemented:** Added `resolve_exact_symbol`, which resolves symbol, file, and line hints to canonical node IDs with `exact`, `file-only`, `heuristic`, or `stale` confidence. `find_implementation_surface` now includes canonical IDs and target confidence in its result table. `CodeGraphQuery` supports file-path filtering so exact symbol lookup can query Neo4j directly by indexed file path instead of filtering after a broad result limit. The remaining CLI-level verification path is implemented as `codemeridian check-drift` and `codemeridian index --verify` below.
 
-## - [ ] P1 - Add Index Verification Command
+## - [x] P1 - Add Index Verification Command
 
 **Why:** Exact symbol lookup is much more useful when the user can quickly verify that the local working tree and graph agree before starting implementation.
 
 **Goal:** Add a CLI command or flag that runs drift/freshness checks from the indexer side and exits with a non-zero code when graph drift is too high for exact implementation targeting.
 
+**Suggested commands:**
+
+```powershell
+codemeridian check-drift --project MyApp
+codemeridian check-drift --project MyApp --fail-on high
+codemeridian index --verify --project MyApp
+```
+
+**Example output:**
+
+```text
+Graph drift: low
+Missing files: 0
+Invalid line ranges: 2
+Missing timestamps: 0
+Recommendation: graph is safe for exact implementation targeting.
+```
+
 **Tasks:**
 
 - Add `codemeridian index --verify` or `codemeridian verify`.
+- Add `codemeridian check-drift --fail-on low|moderate|high` for CI.
 - Compare indexed file paths and line metadata against the current working tree.
 - Report missing files, invalid line ranges, and missing timestamps.
 - Recommend `codemeridian index . --project <ProjectName> --clear` when drift is moderate or high.
+- Return stable exit codes so CI can fail only on the configured drift threshold.
 - Keep it fast enough for pre-work checks and CI.
 
 **Effort:** Medium  
 **Value:** High  
 **Risk:** Low to medium, mostly around local path mapping when the MCP server runs remotely.
+
+## - [x] P1 - Add `codemeridian doctor`
+
+**Why:** First-run setup has several moving parts: Docker, Neo4j, MCP server, auth, `.env`, `meridian.json`, embeddings, and indexed data. A single health command would make setup problems obvious and reduce support friction.
+
+**Goal:** One command that explains whether CodeMeridian is ready to use and what is missing.
+
+**Suggested command:**
+
+```powershell
+codemeridian doctor --project MyApp
+```
+
+**Example output:**
+
+```text
+Server reachable: yes
+Neo4j reachable: yes
+MCP endpoint reachable: yes
+Indexed nodes: 12,482
+Call edges: 34,901
+Docs indexed: 78
+Diagnostics indexed: 14
+Graph drift: low
+Embeddings: disabled
+```
+
+**Tasks:**
+
+- Check configured server URL and auth.
+- Check MCP health endpoint.
+- Ask backend for Neo4j connectivity status.
+- Count indexed nodes, call edges, docs, diagnostics, and projects.
+- Report embedding provider status and whether code-node embeddings exist.
+- Include graph drift summary when a project is provided.
+- Print exact remediation steps for common failures.
+
+**Effort:** Medium  
+**Value:** Very high  
+**Risk:** Low, mostly around adding backend health/stat endpoints cleanly.
+
+## - [ ] P1 - Add Session Usefulness Evaluation
+
+**Why:** CodeMeridian should be able to answer whether it actually helped an implementation session. This directly tests the product promise: did the graph reduce search and point at the right files/tests, or did the assistant mostly fall back to manual exploration?
+
+**Suggested command:**
+
+```powershell
+codemeridian evaluate-session --project MyApp
+```
+
+**Signals to compare:**
+
+- Files CodeMeridian suggested.
+- Files actually edited.
+- Tests CodeMeridian suggested.
+- Tests actually changed or run.
+- Stale warnings emitted.
+- Graph calls used.
+- Whether exact, file-only, heuristic, or stale targets were returned.
+
+**Example output:**
+
+```text
+CodeMeridian usefulness: partial
+Suggested files edited: 4/6
+Suggested tests changed/run: 2/3
+Exact targets used: 3
+Heuristic targets verified manually: 2
+Stale warnings: 1
+Manual fallback commands after graph lookup: 14
+```
+
+**Implementation options:**
+
+- Start simple with a local session log written by MCP tools and the indexer.
+- Track tool calls, returned file paths, returned node IDs, confidence labels, and stale/drift warnings.
+- Compare against `git diff --name-only` and test command history when available.
+- Keep the score explainable; do not hide it behind a vague metric.
+
+**Effort:** Medium to high  
+**Value:** High  
+**Risk:** Medium, because editor/agent sessions differ and not every client exposes command history.
 
 ## - [x] P1 - Package the Indexers for Easier Use
 
@@ -470,6 +573,8 @@ codemeridian index . --clear
 ## - [ ] P2 - Improve Cross-Language Connection Quality
 
 **Why:** Current C# and TypeScript indexing share the graph, but true frontend-to-backend tracing needs stronger edges than imports and class relationships.
+
+**Plan:** See [docs/plan/2026-06-05-cross-language-route-matching.md](docs/plan/2026-06-05-cross-language-route-matching.md).
 
 **Tasks:**
 
@@ -592,8 +697,10 @@ codemeridian index . --clear
 - [x] Add optional embeddings to the indexers.
 - [x] Add duplicate-code candidate workflow on top of embeddings.
 - [x] Improve exact symbol resolution.
-- [ ] Add index verification command.
 - [x] Add source snippet support with strict budgets.
+- [x] Add `codemeridian doctor`.
+- [x] Add index verification and CI drift check.
+- [ ] Add session usefulness evaluation.
 - [ ] Improve cross-language HTTP endpoint linking.
 - [ ] Add static HTML / CSS / SCSS relationship indexing.
 

@@ -148,6 +148,21 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         return results;
     }
 
+    public async Task<long> CountAsync(string? projectContext = null, CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (d:KnowledgeDocument)
+            WHERE ($projectContext IS NULL OR d.projectContext = $projectContext)
+            RETURN count(d) AS count
+            """;
+
+        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var record = await cursor.SingleAsync();
+        return record["count"].As<long>();
+    }
+
     public async Task<IReadOnlyList<KnowledgeDocument>> SearchAsync(
         float[] queryEmbedding,
         string? projectContext = null,

@@ -14,7 +14,9 @@ var command = "index";
 if (rawArgs.Count > 0
     && (rawArgs[0].Equals("index", StringComparison.OrdinalIgnoreCase)
         || rawArgs[0].Equals("clear", StringComparison.OrdinalIgnoreCase)
-        || rawArgs[0].Equals("init", StringComparison.OrdinalIgnoreCase)))
+        || rawArgs[0].Equals("init", StringComparison.OrdinalIgnoreCase)
+        || rawArgs[0].Equals("doctor", StringComparison.OrdinalIgnoreCase)
+        || rawArgs[0].Equals("check-drift", StringComparison.OrdinalIgnoreCase)))
 {
     command = rawArgs[0].ToLowerInvariant();
     rawArgs.RemoveAt(0);
@@ -51,6 +53,8 @@ var skipTypeScript = false;
 var skipDiagnostics = false;
 var allowRepoScripts = false;
 var incremental = true;
+var verify = false;
+var failOn = "high";
 
 for (var i = 0; i < rawArgs.Count; i++)
 {
@@ -101,6 +105,12 @@ for (var i = 0; i < rawArgs.Count; i++)
         case "--allow-repo-scripts":
             allowRepoScripts = true;
             break;
+        case "--verify":
+            verify = true;
+            break;
+        case "--fail-on" when i + 1 < rawArgs.Count:
+            failOn = rawArgs[++i];
+            break;
         case "--no-incremental":
         case "--force-full":
             incremental = false;
@@ -133,6 +143,16 @@ var environmentProject = Environment.GetEnvironmentVariable("CodeMeridian_Projec
 
 if (command == "init")
     return RunInitCommand(rootPath, project ?? environmentProject, codeMeridianUrl, initForce);
+
+if (command == "doctor")
+    return await RunDoctorCommandAsync(project ?? environmentProject ?? meridianConfig?.Project ?? IndexerDiscovery.ResolveProjectName(rootPath), codeMeridianUrl, apiKey);
+
+if (command == "check-drift" || verify)
+    return await RunDriftVerificationAsync(
+        project ?? environmentProject ?? meridianConfig?.Project ?? IndexerDiscovery.ResolveProjectName(rootPath),
+        codeMeridianUrl,
+        apiKey,
+        failOn);
 
 if (!rootPath.Exists)
 {
@@ -810,6 +830,121 @@ static async Task DeleteProjectFilesAsync(
         await client.DeleteProjectFileAsync(project, relativePath);
 }
 
+static async Task<int> RunDoctorCommandAsync(
+    string? project,
+    string codeMeridianUrl,
+    string? apiKey)
+{
+    using var httpClient = new HttpClient
+    {
+        BaseAddress = new Uri(codeMeridianUrl),
+        Timeout = TimeSpan.FromMinutes(10)
+    };
+    httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+    if (!string.IsNullOrWhiteSpace(apiKey))
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+    var client = new CodeMeridianClient(httpClient);
+    DoctorStatusResponse? status;
+
+    try
+    {
+        status = await client.GetDoctorStatusAsync(project);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("CodeMeridian doctor");
+        Console.Error.WriteLine("  Server reachable        : no");
+        Console.Error.WriteLine("  MCP endpoint reachable   : no");
+        Console.Error.WriteLine("  Neo4j reachable          : no");
+        Console.Error.WriteLine($"  Error                    : {ex.Message}");
+        return 1;
+    }
+
+    if (status is null)
+    {
+        Console.Error.WriteLine("CodeMeridian doctor");
+        Console.Error.WriteLine("  Server reachable        : no");
+        Console.Error.WriteLine("  MCP endpoint reachable   : no");
+        Console.Error.WriteLine("  Neo4j reachable          : no");
+        Console.Error.WriteLine("  Error                    : backend returned a non-success response.");
+        return 1;
+    }
+
+    Console.WriteLine("CodeMeridian doctor");
+    Console.WriteLine("  Server reachable        : yes");
+    Console.WriteLine("  MCP endpoint reachable   : yes");
+    Console.WriteLine($"  Neo4j reachable         : {(status.Neo4jReachable ? "yes" : "no")}");
+    Console.WriteLine($"  Indexed nodes           : {status.IndexedNodes:N0}");
+    Console.WriteLine($"  Call edges              : {status.CallEdges:N0}");
+    Console.WriteLine($"  Docs indexed            : {status.DocumentsIndexed:N0}");
+    Console.WriteLine($"  Diagnostics indexed     : {status.DiagnosticsIndexed:N0}");
+    Console.WriteLine($"  Graph drift             : {status.GraphDrift}");
+    Console.WriteLine($"  Embeddings              : {(status.EmbeddingsEnabled ? $"{status.EmbeddingProvider} ({status.EmbeddingDimensions} dims)" : "disabled")}");
+
+    if (!string.IsNullOrWhiteSpace(status.Error))
+        Console.WriteLine($"  Note                    : {status.Error}");
+
+    return status.Neo4jReachable ? 0 : 1;
+}
+
+static async Task<int> RunDriftVerificationAsync(
+    string? project,
+    string codeMeridianUrl,
+    string? apiKey,
+    string failOn)
+{
+    using var httpClient = new HttpClient
+    {
+        BaseAddress = new Uri(codeMeridianUrl),
+        Timeout = TimeSpan.FromMinutes(10)
+    };
+    httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+    if (!string.IsNullOrWhiteSpace(apiKey))
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+    var client = new CodeMeridianClient(httpClient);
+    DoctorStatusResponse? status;
+
+    try
+    {
+        status = await client.GetDoctorStatusAsync(project);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("CodeMeridian drift verification");
+        Console.Error.WriteLine("  Server reachable       : no");
+        Console.Error.WriteLine("  MCP endpoint reachable : no");
+        Console.Error.WriteLine("  Neo4j reachable        : no");
+        Console.Error.WriteLine($"  Error                  : {ex.Message}");
+        return 1;
+    }
+
+    if (status is null)
+    {
+        Console.Error.WriteLine("CodeMeridian drift verification");
+        Console.Error.WriteLine("  Server reachable       : no");
+        Console.Error.WriteLine("  MCP endpoint reachable : no");
+        Console.Error.WriteLine("  Neo4j reachable        : no");
+        Console.Error.WriteLine("  Error                  : backend returned a non-success response.");
+        return 1;
+    }
+
+    Console.WriteLine("CodeMeridian drift verification");
+    Console.WriteLine("  Server reachable       : yes");
+    Console.WriteLine("  MCP endpoint reachable : yes");
+    Console.WriteLine($"  Neo4j reachable        : {(status.Neo4jReachable ? "yes" : "no")}");
+    Console.WriteLine($"  Fail threshold         : {failOn}");
+    Console.WriteLine($"  Graph drift            : {status.GraphDrift}");
+    Console.WriteLine();
+    Console.WriteLine(status.GraphDriftReport);
+
+    if (!status.Neo4jReachable)
+        return 1;
+
+    return SeverityAtLeast(status.GraphDrift, failOn) ? 2 : 0;
+}
+
 static void PrintCapabilities()
 {
     var tsIndexerRoot = ResolveTypeScriptIndexerRoot();
@@ -830,6 +965,8 @@ static void PrintCapabilities()
     Console.WriteLine("  codemeridian index . --project MyProject --watch");
     Console.WriteLine("  codemeridian index . --dry-run");
     Console.WriteLine("  codemeridian init .");
+    Console.WriteLine("  codemeridian doctor --project MyProject");
+    Console.WriteLine("  codemeridian check-drift --project MyProject --fail-on high");
     Console.WriteLine("  codemeridian clear --project MyProject");
     Console.WriteLine("  codemeridian clear --all-code-graph");
 }
@@ -872,6 +1009,22 @@ static string ResolveCodeMeridianUrl(string? overrideUrl, IndexerConfig? config)
             : !string.IsNullOrWhiteSpace(config?.CodeMeridianUrl)
                 ? config!.CodeMeridianUrl!
                 : "http://localhost:5100";
+
+static bool SeverityAtLeast(string actual, string threshold)
+{
+    var actualRank = SeverityRank(actual);
+    var thresholdRank = SeverityRank(threshold);
+    return actualRank >= thresholdRank;
+}
+
+static int SeverityRank(string severity) =>
+    severity.Trim().ToLowerInvariant() switch
+    {
+        "low" => 1,
+        "moderate" => 2,
+        "high" => 3,
+        _ => 0
+    };
 
 static HashSet<string> GetEnvironmentKeys() =>
     Environment.GetEnvironmentVariables()
@@ -1155,12 +1308,16 @@ static void PrintUsage()
         USAGE:
           codemeridian index [path] [--project <name>] [options]
           codemeridian init [path] [--project <name>] [--url <url>] [--force]
+          codemeridian doctor [--project <name>] [--url <url>]
+          codemeridian check-drift [path] [--project <name>] [--url <url>] [--fail-on <severity>]
           codemeridian clear --project <name>
           codemeridian clear --all-code-graph
 
         BACKWARD-COMPATIBLE SOURCE USAGE:
           dotnet run --project tools/Indexer -- [path] [--project <name>] [options]
           dotnet run --project tools/Indexer -- init [path] [--project <name>] [--url <url>] [--force]
+          dotnet run --project tools/Indexer -- doctor [--project <name>] [--url <url>]
+          dotnet run --project tools/Indexer -- check-drift [path] [--project <name>] [--url <url>] [--fail-on <severity>]
           dotnet run --project tools/Indexer -- clear --project <name>
 
         ARGUMENTS:
@@ -1178,6 +1335,8 @@ static void PrintUsage()
           --include-diagnostics  Run diagnostics indexing. This is the default; kept for compatibility.
           --skip-diagnostics     Skip project-native compiler, TypeScript, and lint diagnostics indexing.
           --allow-repo-scripts   Allow repo-controlled build and lint commands during diagnostics.
+          --verify               Skip indexing and only verify graph drift/freshness. Alias for check-drift mode.
+          --fail-on <severity>   Drift threshold for verification mode: low, moderate, or high. Default: high.
           --no-incremental       Ignore .meridian/cache and scan all enabled files. Alias: --force-full.
           --dry-run              Show what would be indexed without ingesting anything.
           --list-capabilities    Show available indexers on this machine.
@@ -1188,6 +1347,8 @@ static void PrintUsage()
           codemeridian index . --clear
           codemeridian index C:\Projects\MyApi --project MyApi --clear
           codemeridian init C:\Projects\MyApi
+          codemeridian doctor --project CodeMeridian
+          codemeridian check-drift --project CodeMeridian --fail-on high
           codemeridian clear --project MyApi
           codemeridian clear --all-code-graph
           codemeridian index . --clear --watch

@@ -40,6 +40,8 @@ After install:
 codemeridian --list-capabilities
 codemeridian index . --dry-run
 codemeridian index . --clear
+codemeridian doctor --project CodeMeridian
+codemeridian check-drift --project CodeMeridian --fail-on high
 codemeridian clear --project CodeMeridian
 ```
 
@@ -100,6 +102,19 @@ Show what would be indexed:
 codemeridian index . --dry-run
 ```
 
+Check backend health and graph counts:
+
+```powershell
+codemeridian doctor --project CodeMeridian
+```
+
+Verify graph drift before implementation or in CI:
+
+```powershell
+codemeridian check-drift --project CodeMeridian --fail-on high
+codemeridian index . --verify --project CodeMeridian --fail-on moderate
+```
+
 ## Options
 
 | Flag | Description |
@@ -115,6 +130,8 @@ codemeridian index . --dry-run
 | `--include-diagnostics` | Run diagnostics indexing. This is the default; kept for compatibility |
 | `--skip-diagnostics` | Skip project-native compiler, TypeScript, and lint diagnostics indexing |
 | `--allow-repo-scripts` | Allow repo-controlled `dotnet build` and lint commands during diagnostics |
+| `--verify` | Skip indexing and only verify graph drift/freshness |
+| `--fail-on <severity>` | Verification drift threshold: `low`, `moderate`, or `high` |
 | `--no-incremental` / `--force-full` | Ignore the local file cache and scan all enabled files |
 | `--watch` | Stay running and re-index when files change |
 
@@ -199,6 +216,36 @@ The unified indexer refreshes diagnostic nodes for the project, then runs availa
 Without `--allow-repo-scripts`, the indexer skips `dotnet build` and repo lint commands but still uses the local `tsc` check when available.
 
 Diagnostics are stored as `Diagnostic` code nodes with severity/code, source tool, message, file, and line. When backend embeddings are enabled, diagnostic messages are embedded during ingestion for semantic discovery. Diagnostics can be queried with `find_diagnostics` and `find_diagnostics_for_node`.
+
+## `codemeridian doctor`
+
+`codemeridian doctor` asks the backend to inspect the current project graph and report:
+
+- whether the server and backend endpoint are reachable
+- whether Neo4j is reachable from the backend
+- how many code nodes, call edges, docs, and diagnostics are indexed
+- whether graph drift looks low, moderate, or high
+- whether embeddings are enabled and which provider is active
+
+It does not talk to Neo4j directly from the client. The backend does the check so the result reflects the actual running MCP service.
+
+## `codemeridian check-drift`
+
+`codemeridian check-drift` asks the backend for the current drift report and exits with a non-zero code when the drift severity meets or exceeds the configured threshold.
+
+Use it when:
+
+- you want a pre-implementation confidence check
+- CI should fail if the graph looks too stale
+- you want the full missing-file / invalid-line / missing-timestamp report without indexing anything new
+
+Severity thresholds:
+
+- `--fail-on low` fails on any reported drift
+- `--fail-on moderate` fails on moderate or high drift
+- `--fail-on high` fails only on high drift
+
+`codemeridian index --verify` is an alias for the same behavior, so existing indexer workflows can verify freshness without a separate command.
 
 ## Authentication and Configuration
 

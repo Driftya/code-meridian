@@ -4,6 +4,7 @@ public interface IVectorRepository
 {
     Task UpsertAsync(KnowledgeDocument document, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<KnowledgeDocument>> ListAsync(string? projectContext = null, int limit = 200, CancellationToken cancellationToken = default);
+    Task<long> CountAsync(string? projectContext = null, CancellationToken cancellationToken = default);
 
     /// <summary>Semantic similarity search — requires embeddings to be stored on documents.</summary>
     Task<IReadOnlyList<KnowledgeDocument>> SearchAsync(float[] queryEmbedding, string? projectContext = null, int topK = 10, CancellationToken cancellationToken = default);

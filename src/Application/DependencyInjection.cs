@@ -14,6 +14,7 @@ public static class DependencyInjection
 
         // Query service — provides structured facts to MCP tools (Copilot does the reasoning)
         services.AddTransient<ICodebaseQueryService, CodebaseQueryService>();
+        services.AddTransient<ICodebaseStatusService, CodebaseStatusService>();
 
         return services;
     }

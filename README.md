@@ -14,14 +14,28 @@ No LLM API key required. The assistant is the AI; CodeMeridian is the knowledge 
 
 Copilot can still read files beyond what is already open, but it has to spend context to discover them and the relationships do not persist. CodeMeridian makes that discovery explicit, cheaper, and reusable.
 
+The graph is yours. CodeMeridian stores indexed code structure, documentation, diagnostics, and remembered project knowledge in your Neo4j instance. Nothing is sent to a CodeMeridian cloud service. If you use Copilot, Codex, Claude Code, or another hosted assistant, that assistant still has its own data handling rules, but the CodeMeridian knowledge graph itself stays under your control.
+
 | Without CodeMeridian | With CodeMeridian |
 |---------------------|------------------|
 | Copilot loads files ad hoc as it searches for context | Copilot queries a graph of your entire codebase |
-| Context disappears between sessions | Knowledge persists in Neo4j |
+| Context disappears between sessions | Knowledge persists locally in Neo4j |
 | "What calls this method?" requires manual searching | `find_impact` answers from the call graph |
 | Refactors can miss hidden callers | Blast radius is known before edits |
 | Dead code and test gaps stay invisible | `find_unreferenced` and `find_coverage_gaps` surface them |
 | Large context windows get filled with noise | Copilot gets the smallest useful architecture slice |
+| Assistants guess which model/context size is enough | Context packs include token estimates and model guidance |
+| Stale indexes quietly mislead agents | Freshness and drift checks say when to re-index |
+| Docs and decisions live outside the code graph | Knowledge, docs, diagnostics, and code links can be queried together |
+
+What this gives you in practice:
+
+- **Local ownership:** the graph and knowledge store run in your Neo4j, not a hosted CodeMeridian service.
+- **Persistent memory:** architecture, docs, diagnostics, external concepts, and agent notes survive editor restarts.
+- **Lower context waste:** tools return callers, callees, tests, likely files, and small snippets instead of whole-file dumps.
+- **Safer edits:** impact, downstream dependencies, diagnostics, drift, and missing tests are visible before implementation.
+- **Model-aware context:** `build_minimal_context` estimates token cost and suggests when a small model is enough.
+- **Explainable results:** exact, heuristic, stale, and file-only matches are labeled so the assistant can say what it trusted.
 
 ## What It Indexes
 

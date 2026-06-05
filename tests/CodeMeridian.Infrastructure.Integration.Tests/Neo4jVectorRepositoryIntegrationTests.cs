@@ -51,4 +51,34 @@ public sealed class Neo4jVectorRepositoryIntegrationTests : IAsyncLifetime
 
         results.Should().NotBeEmpty();
     }
+
+    [Fact]
+    public async Task CountAsync_WithTemporaryDocumentFixture_ReturnsMatchingCount()
+    {
+        var projectContext = $"Integration.Documents.{Guid.NewGuid():N}";
+        var document = new KnowledgeDocument
+        {
+            Id = $"{projectContext}.Doc",
+            Content = "Temporary integration document for count coverage.",
+            Source = "docs/integration.md",
+            ProjectContext = projectContext,
+            Metadata = new Dictionary<string, string>
+            {
+                ["kind"] = "integration"
+            }
+        };
+
+        try
+        {
+            await _repository!.UpsertAsync(document);
+
+            var count = await _repository.CountAsync(projectContext);
+
+            count.Should().BeGreaterOrEqualTo(1);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
 }

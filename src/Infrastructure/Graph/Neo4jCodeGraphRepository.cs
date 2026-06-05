@@ -152,6 +152,52 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         return edges;
     }
 
+    public async Task<long> CountCodeNodesAsync(string? projectContext = null, CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (n:CodeNode)
+            WHERE ($projectContext IS NULL OR n.projectContext = $projectContext)
+            RETURN count(n) AS count
+            """;
+
+        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var record = await cursor.SingleAsync();
+        return record["count"].As<long>();
+    }
+
+    public async Task<long> CountCallEdgesAsync(string? projectContext = null, CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (s:CodeNode)-[r:Calls]->(t:CodeNode)
+            WHERE ($projectContext IS NULL OR s.projectContext = $projectContext OR t.projectContext = $projectContext)
+            RETURN count(r) AS count
+            """;
+
+        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var record = await cursor.SingleAsync();
+        return record["count"].As<long>();
+    }
+
+    public async Task<long> CountDiagnosticsAsync(string? projectContext = null, CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (n:CodeNode)
+            WHERE n.type = 'Diagnostic'
+              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+            RETURN count(n) AS count
+            """;
+
+        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var record = await cursor.SingleAsync();
+        return record["count"].As<long>();
+    }
+
     public async Task<string> GetSubgraphSummaryAsync(
         string nodeId,
         CancellationToken cancellationToken = default)

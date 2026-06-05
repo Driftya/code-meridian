@@ -9,6 +9,21 @@ namespace CodeMeridian.Sdk;
 /// </summary>
 public sealed class CodeMeridianClient(HttpClient httpClient)
 {
+    public async Task<DoctorStatusResponse?> GetDoctorStatusAsync(
+        string? projectContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        var path = "/api/v1/status/doctor";
+        if (!string.IsNullOrWhiteSpace(projectContext))
+            path += $"?projectContext={Uri.EscapeDataString(projectContext)}";
+
+        var response = await httpClient.GetAsync(path, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        return await response.Content.ReadFromJsonAsync<DoctorStatusResponse>(cancellationToken: cancellationToken);
+    }
+
     public async Task<float[]?> GenerateEmbeddingAsync(
         string text,
         CancellationToken cancellationToken = default)
@@ -140,3 +155,17 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
 
     private sealed record EmbeddingResponse(float[] Embedding, string ProviderName, int Dimensions);
 }
+
+public sealed record DoctorStatusResponse(
+    string? ProjectContext,
+    bool Neo4jReachable,
+    long IndexedNodes,
+    long CallEdges,
+    long DocumentsIndexed,
+    long DiagnosticsIndexed,
+    string GraphDrift,
+    string GraphDriftReport,
+    bool EmbeddingsEnabled,
+    string EmbeddingProvider,
+    int EmbeddingDimensions,
+    string? Error);
