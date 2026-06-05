@@ -113,9 +113,11 @@ Use this before `find_impact` for a quick local view. Use `find_impact` for full
 
 ### `build_minimal_context`
 
-Builds a bounded context pack for one target node. The pack combines local editing context, near impact, downstream dependencies, likely files, token estimate, complexity tier, model guidance, expansion risk, and optional test context.
+Builds a bounded context pack for one target node. The pack combines local editing context, near impact, downstream dependencies, likely files, token estimate, complexity tier, model guidance, expansion risk, optional test context, and optional source snippets.
 
 The token estimate is intentionally approximate. It counts target metadata, relationship rows, summaries, likely files, optional source snippets, and relevant test context. The model guidance uses that estimate plus graph complexity signals such as affected nodes, downstream dependencies, cross-project edges, missing tests, target size, and churn.
+
+Source snippets are disabled by default. When `includeSourceSnippets` is enabled, CodeMeridian reads only the target and top-ranked direct dependencies, respects the remaining `maxTokens` budget, line-numbers the snippet, and truncates with a marker instead of returning whole files.
 
 When `includeTests` is enabled, test context includes:
 

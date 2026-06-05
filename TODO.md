@@ -228,7 +228,7 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 
 **Implemented first slice:** Diagnostics are indexed as `Diagnostic` code nodes by default, using `dotnet build --no-restore --nologo`, local `tsc --noEmit --pretty false`, and project lint scripts or local ESLint when available. Use `--skip-diagnostics` for faster structural-only indexing. Query tools `find_diagnostics` and `find_diagnostics_for_node` expose the results.
 
-## - [ ] P1 - Add Source Snippet Support With Strict Budgets
+## - [x] P1 - Add Source Snippet Support With Strict Budgets
 
 **Why:** Most context packs should not include source, but sometimes a small method body or interface signature is the most efficient context.
 
@@ -243,6 +243,8 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 **Effort:** Medium  
 **Value:** Medium  
 **Risk:** Medium, because source extraction must stay predictable.
+
+**Implemented:** `build_minimal_context` now supports opt-in source snippets through `includeSourceSnippets`. Snippets are limited to the target and top-ranked direct dependencies, use the remaining `maxTokens` budget, include line numbers, and truncate with an explicit marker when needed. When no budget remains or source metadata is unavailable, the context pack reports why snippets were skipped instead of returning whole files.
 
 ## - [x] P1 - Find Stale Knowledge
 
@@ -591,7 +593,7 @@ codemeridian index . --clear
 - [x] Add duplicate-code candidate workflow on top of embeddings.
 - [x] Improve exact symbol resolution.
 - [ ] Add index verification command.
-- [ ] Add source snippet support with strict budgets.
+- [x] Add source snippet support with strict budgets.
 - [ ] Improve cross-language HTTP endpoint linking.
 - [ ] Add static HTML / CSS / SCSS relationship indexing.
 

@@ -401,6 +401,20 @@ public partial class CodebaseQueryService
             candidateFiles.Length,
             includeSourceSnippets);
         var sb = new StringBuilder();
+        var snippetBudget = includeSourceSnippets
+            ? Math.Max(0, maxTokens - contextCost.EstimatedTokens + contextCost.SourceSnippetTokens)
+            : 0;
+        var snippets = includeSourceSnippets
+            ? BuildSourceSnippets(
+                new[] { ctx.Node }
+                    .Concat(ctx.Callees)
+                    .Concat(ctx.Interfaces)
+                    .Concat(directRelatedTests)
+                    .DistinctBy(n => n.Id)
+                    .Take(detailLevel == ContextDetailLevel.Full ? 5 : 3),
+                snippetBudget,
+                detailLevel)
+            : [];
 
         sb.AppendLine($"## Minimal Context Pack — `{ctx.Node.Name}`");
         if (!string.IsNullOrWhiteSpace(goal))
@@ -434,11 +448,11 @@ public partial class CodebaseQueryService
             sb.AppendLine();
         }
 
+        if (includeSourceSnippets)
+            AppendSourceSnippets(sb, snippets, snippetBudget);
+
         if (includeExternalConcepts)
             sb.AppendLine("> External concepts are included when present in callers/callees/impact/downstream graph results.");
-
-        if (includeSourceSnippets)
-            sb.AppendLine("> Source snippets requested, but source extraction is not implemented yet. Use the listed files and target line number.");
 
         sb.AppendLine($"> Token estimate is approximate. {(contextCost.EstimatedTokens > maxTokens ? "Consider Summary detail, fewer optional sections, or a larger context budget." : "Current pack fits the requested budget.")}");
 

@@ -578,7 +578,7 @@ public partial class CodebaseQueryService
             size,
             churnScore);
 
-        return new ContextCost(estimate, complexity, modelGuidance, expansionRisk, reason);
+        return new ContextCost(estimate, sourceSnippetTokens, complexity, modelGuidance, expansionRisk, reason);
     }
 
     private static int EstimateSummaryTokens(CodeNode? node) =>
@@ -632,8 +632,127 @@ public partial class CodebaseQueryService
 
     private sealed record ContextCost(
         int EstimatedTokens,
+        int SourceSnippetTokens,
         string Complexity,
         string ModelGuidance,
         string ExpansionRisk,
         string Reason);
+
+    private static IReadOnlyList<SourceSnippet> BuildSourceSnippets(
+        IEnumerable<CodeNode> nodes,
+        int tokenBudget,
+        ContextDetailLevel detailLevel)
+    {
+        if (tokenBudget <= 0)
+            return [];
+
+        var remaining = tokenBudget;
+        var snippets = new List<SourceSnippet>();
+        var maxLinesPerNode = detailLevel == ContextDetailLevel.Full ? 40 : 20;
+
+        foreach (var node in nodes)
+        {
+            if (remaining < 80)
+                break;
+
+            var snippet = TryBuildSourceSnippet(node, remaining, maxLinesPerNode);
+            if (snippet is null)
+                continue;
+
+            snippets.Add(snippet);
+            remaining -= snippet.EstimatedTokens;
+        }
+
+        return snippets;
+    }
+
+    private static SourceSnippet? TryBuildSourceSnippet(CodeNode node, int tokenBudget, int maxLinesPerNode)
+    {
+        if (string.IsNullOrWhiteSpace(node.FilePath) || node.LineNumber is null)
+            return null;
+
+        var path = ResolveRepoPath(node.FilePath);
+        if (!File.Exists(path))
+            return null;
+
+        string[] lines;
+        try
+        {
+            lines = File.ReadAllLines(path);
+        }
+        catch
+        {
+            return null;
+        }
+
+        if (node.LineNumber.Value <= 0 || node.LineNumber.Value > lines.Length)
+            return null;
+
+        var requestedLineCount = Math.Clamp(node.LineCount ?? 12, 1, maxLinesPerNode);
+        var availableLineCount = Math.Min(requestedLineCount, lines.Length - node.LineNumber.Value + 1);
+        if (availableLineCount <= 0)
+            return null;
+
+        var budgetedLineCount = Math.Min(availableLineCount, Math.Max(1, tokenBudget / 18));
+        var startIndex = node.LineNumber.Value - 1;
+        var selected = lines
+            .Skip(startIndex)
+            .Take(budgetedLineCount)
+            .ToArray();
+        var truncated = budgetedLineCount < availableLineCount
+            || (node.LineCount.HasValue && node.LineCount.Value > budgetedLineCount);
+        var numbered = selected
+            .Select((line, index) => $"{node.LineNumber.Value + index,4}: {line}")
+            .ToArray();
+        var text = string.Join(Environment.NewLine, numbered);
+        var estimatedTokens = Math.Max(1, text.Length / 4);
+
+        if (estimatedTokens > tokenBudget)
+        {
+            var maxChars = Math.Max(80, tokenBudget * 4);
+            text = text.Length > maxChars ? text[..maxChars] : text;
+            truncated = true;
+            estimatedTokens = Math.Max(1, text.Length / 4);
+        }
+
+        return new SourceSnippet(node, text, estimatedTokens, truncated);
+    }
+
+    private static void AppendSourceSnippets(StringBuilder sb, IReadOnlyList<SourceSnippet> snippets, int tokenBudget)
+    {
+        sb.AppendLine("### Source snippets");
+
+        if (tokenBudget <= 0)
+        {
+            sb.AppendLine("- Skipped: no remaining token budget after graph context.");
+            sb.AppendLine();
+            return;
+        }
+
+        if (snippets.Count == 0)
+        {
+            sb.AppendLine("- No snippets available within budget. Check file paths, line metadata, or increase `maxTokens`.");
+            sb.AppendLine();
+            return;
+        }
+
+        sb.AppendLine($"Budget used: ~{snippets.Sum(s => s.EstimatedTokens):N0}/{tokenBudget:N0} tokens.");
+        foreach (var snippet in snippets)
+        {
+            var node = snippet.Node;
+            sb.AppendLine($"#### {node.Type} `{node.Name}` - `{node.FilePath}`:{node.LineNumber}");
+            sb.AppendLine("```text");
+            sb.AppendLine(snippet.Text);
+            if (snippet.Truncated)
+                sb.AppendLine("... [truncated to fit source snippet budget]");
+            sb.AppendLine("```");
+            sb.AppendLine();
+        }
+    }
+
+    private sealed record SourceSnippet(
+        CodeNode Node,
+        string Text,
+        int EstimatedTokens,
+        bool Truncated);
 }

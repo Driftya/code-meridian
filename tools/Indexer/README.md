@@ -10,6 +10,12 @@ dotnet tool install -g CodeMeridian.Indexer
 
 ## Use
 
+The indexer sends data to a running CodeMeridian backend. Start the MCP server and Neo4j first, usually with Docker Compose from the CodeMeridian repository:
+
+```powershell
+docker compose up -d
+```
+
 ```powershell
 codemeridian index .
 codemeridian index C:\Projects\MyApp --project MyApp --clear
@@ -43,4 +49,5 @@ codemeridian init .
 - Use `--allow-repo-scripts` only on trusted repos when you want `dotnet build` and repo lint commands to run.
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
 - Use `codemeridian init .` to generate `meridian.json` when you want a project-local config file.
+- The global tool does not include Neo4j or the MCP server. It requires a reachable CodeMeridian backend configured through `.env`, environment variables, or `meridian.json`.
 - The repo-level README covers the full CodeMeridian product and architecture.
