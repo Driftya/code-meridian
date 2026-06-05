@@ -115,6 +115,24 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindImplementationSurfaceAsync(goal, conceptsCsv, projectContext, limit, cancellationToken);
 
+    [McpServerTool(Name = "resolve_exact_symbol")]
+    [Description(
+        "Resolve a method, class, interface, or file hint to canonical CodeMeridian node IDs. " +
+        "Use this when query_codebase or find_implementation_surface found a likely file but you need the exact node ID before editing.")]
+    public Task<string> ResolveExactSymbolAsync(
+        [Description("Symbol name or partial name, e.g. 'BuildMinimalContextAsync' or 'CodebaseQueryService'.")]
+        string symbol,
+        [Description("Optional indexed file path to narrow the lookup, e.g. 'src/Application/Services/CodebaseQueryService.Analytics.cs'.")]
+        string? filePath = null,
+        [Description("Optional source line hint. Results nearest to this line are ranked first.")]
+        int? line = null,
+        [Description("Optional project name to scope the search.")]
+        string? projectContext = null,
+        [Description("Maximum number of candidate symbols to return.")]
+        int limit = 10,
+        CancellationToken cancellationToken = default) =>
+        queryService.ResolveExactSymbolAsync(symbol, filePath, line, projectContext, limit, cancellationToken);
+
     [McpServerTool(Name = "check_graph_freshness")]
     [Description(
         "Report freshness and confidence for graph nodes, including indexed timestamps, file existence, and line-range validity. " +

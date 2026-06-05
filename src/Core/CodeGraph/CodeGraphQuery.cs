@@ -4,6 +4,7 @@ public sealed record CodeGraphQuery
 {
     public string? ProjectContext { get; init; }
     public string? NameFilter { get; init; }
+    public string? FilePathFilter { get; init; }
     public CodeNodeType? TypeFilter { get; init; }
 
     /// <summary>Full-text or semantic query matched against node name and summary.</summary>

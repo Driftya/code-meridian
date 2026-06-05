@@ -113,6 +113,7 @@ How is this TypeScript component connected to the backend?
 | `check_graph_freshness` | Report graph confidence, file existence, and line validity |
 | `find_graph_drift` | Detect stale graph data before relying on exact implementation targets |
 | `find_stale_knowledge` | Detect stale docs, weak mentions, orphaned external concepts, and orphaned code references |
+| `resolve_exact_symbol` | Resolve symbol/file/line hints to canonical node IDs before editing |
 | `clear_project_knowledge` | Clear one project's indexed graph and docs before rebuilding |
 | `clear_code_graph` | Clear all indexed code graph nodes while preserving docs |
 

@@ -468,6 +468,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         var conditions = new List<string>();
         if (query.ProjectContext is not null) conditions.Add("n.projectContext = $projectContext");
         if (query.NameFilter is not null) conditions.Add("n.nameNormalized CONTAINS $nameFilterNormalized");
+        if (query.FilePathFilter is not null) conditions.Add("n.filePathNormalized CONTAINS $filePathFilterNormalized");
         if (query.TypeFilter.HasValue) conditions.Add("n.type = $typeFilter");
 
         var where = conditions.Count > 0 ? $"WHERE {string.Join(" AND ", conditions)}" : string.Empty;
@@ -477,6 +478,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         {
             projectContext = (object?)query.ProjectContext,
             nameFilterNormalized = (object?)Normalize(query.NameFilter),
+            filePathFilterNormalized = (object?)Normalize(query.FilePathFilter),
             typeFilter = (object?)query.TypeFilter?.ToString(),
             limit = query.Limit
         });

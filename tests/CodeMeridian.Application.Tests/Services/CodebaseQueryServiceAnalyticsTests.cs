@@ -1085,8 +1085,45 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("## Implementation Surface");
         result.Should().Contain("TODO.md");
         result.Should().Contain("FindStaleKnowledgeAsync");
-        result.Should().Contain("Confidence");
+        result.Should().Contain("Target confidence");
+        result.Should().Contain("exact");
+        result.Should().Contain("`m1`");
         result.Should().Contain("Freshness");
+    }
+
+    [Fact]
+    public async Task ResolveExactSymbolAsync_WithFileAndLineHints_ReturnsCanonicalNodeIds()
+    {
+        var (sut, graph) = Build();
+        var target = Node(
+            "Method:CodeMeridian.Application.Services.CodebaseQueryService.FindImplementationSurfaceAsync",
+            "FindImplementationSurfaceAsync",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.Surface.cs",
+            8,
+            "CodeMeridian");
+
+        graph
+            .QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q =>
+                    q.NameFilter == "FindImplementationSurfaceAsync"
+                    && q.FilePathFilter == "src/Application/Services/CodebaseQueryService.Surface.cs"
+                    && q.ProjectContext == "CodeMeridian"),
+                Arg.Any<CancellationToken>())
+            .Returns([target]);
+
+        var result = await sut.ResolveExactSymbolAsync(
+            "FindImplementationSurfaceAsync",
+            "src/Application/Services/CodebaseQueryService.Surface.cs",
+            line: 10,
+            projectContext: "CodeMeridian");
+
+        result.Should().Contain("## Exact Symbol Resolution");
+        result.Should().Contain("**Confidence summary:** 1 exact");
+        result.Should().Contain("Method:CodeMeridian.Application.Services.CodebaseQueryService.FindImplementationSurfaceAsync");
+        result.Should().Contain("name/id match");
+        result.Should().Contain("file match");
+        result.Should().Contain("near line hint");
     }
 
     [Fact]

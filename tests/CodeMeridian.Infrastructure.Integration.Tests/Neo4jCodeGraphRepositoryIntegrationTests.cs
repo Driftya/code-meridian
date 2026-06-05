@@ -44,6 +44,26 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task QueryNodesAsync_WithFilePathFilter_ReturnsNodesFromMatchingFile()
+    {
+        var target = await FindAnyTargetAsync();
+        target.Should().NotBeNull("the CodeMeridian graph should already contain indexed nodes");
+        target!.FilePath.Should().NotBeNullOrWhiteSpace("exact symbol resolution depends on indexed file paths");
+
+        var results = await _repository!.QueryNodesAsync(
+            new CodeGraphQuery
+            {
+                ProjectContext = target.ProjectContext,
+                FilePathFilter = target.FilePath,
+                Limit = 25
+            });
+
+        results.Should().NotBeEmpty();
+        results.Should().OnlyContain(node =>
+            string.Equals(node.FilePath, target.FilePath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task FindImpactAsync_ForKnownNode_ReturnsAtLeastOneCallerOrGuidance()
     {
         var target = await FindAnyTargetAsync();

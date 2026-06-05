@@ -211,10 +211,25 @@ What diagnostics are near OrderService.ProcessAsync?
 
 ### `find_implementation_surface`
 
-Ranks the most likely files, classes, and methods to edit for a feature goal. Results include confidence, reasons, and freshness checks so an assistant can tell whether CodeMeridian found exact targets or only broad areas.
+Ranks the most likely files, classes, and methods to edit for a feature goal. Results include canonical node IDs when available, target confidence (`exact`, `file-only`, `heuristic`, or `stale`), reasons, and freshness checks so an assistant can tell whether CodeMeridian found exact targets or only broad areas.
 
 ```text
 What is the best implementation surface for adding stale-knowledge detection?
+```
+
+### `resolve_exact_symbol`
+
+Resolves a symbol, file path, and optional line hint to canonical CodeMeridian node IDs. Use it when graph search found the right file or area but an implementation step needs an exact method/class/interface ID for `get_context_for_editing`, `find_impact`, or `build_minimal_context`.
+
+Resolution confidence is labeled as:
+
+- `exact`: name or ID matches and freshness/line hints are usable.
+- `file-only`: the file matches, but the exact symbol is inferred from nearby nodes.
+- `heuristic`: the node is related, but not precise enough to edit without source verification.
+- `stale`: the indexed file or line metadata no longer looks trustworthy.
+
+```text
+Resolve BuildMinimalContextAsync in src/Application/Services/CodebaseQueryService.Analytics.cs.
 ```
 
 ### `check_graph_freshness`

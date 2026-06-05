@@ -386,6 +386,46 @@ Recommendation: run `codemeridian index . --project CodeMeridian --clear`
 
 **Implemented:** Added `find_graph_drift`, which checks indexed nodes for missing files, invalid line ranges, and missing timestamps, then reports drift severity and a re-index recommendation when exact implementation targeting should not be trusted.
 
+## - [x] P1 - Improve Exact Symbol Resolution
+
+**Why:** CodeMeridian should be able to move from "this is probably the right file" to "this is the exact method/class ID to edit" more often. Today, implementation-surface lookup can still find broad layers when exact method IDs are missing, stale, duplicated, or not indexed with enough source precision.
+
+**Goal:** Make graph lookup behave more like an implementation navigator, not only an architectural map.
+
+**Tasks:**
+
+- Add an exact symbol lookup path that accepts method/class names, file paths, and line hints.
+- Return canonical node IDs alongside every implementation-surface result when available.
+- Detect when a file has graph nodes but no method/class near the requested line or concept.
+- Report "exact", "file-only", "heuristic", or "stale" target confidence.
+- Improve indexer coverage for nested classes, partial classes, local functions, top-level functions, overloads, generated-file exclusions, and language-specific edge cases.
+- Add a `codemeridian index --verify` or equivalent drift check that compares graph nodes against the current working tree before implementation work.
+- Add integration tests that prove exact method IDs can be found after indexing this repository.
+
+**Effort:** Medium to high  
+**Value:** Very high  
+**Risk:** Medium, because stable IDs and language-specific symbol models can affect existing graph references.
+
+**Implemented:** Added `resolve_exact_symbol`, which resolves symbol, file, and line hints to canonical node IDs with `exact`, `file-only`, `heuristic`, or `stale` confidence. `find_implementation_surface` now includes canonical IDs and target confidence in its result table. `CodeGraphQuery` supports file-path filtering so exact symbol lookup can query Neo4j directly by indexed file path instead of filtering after a broad result limit. The remaining CLI-level `codemeridian index --verify` idea is tracked separately below.
+
+## - [ ] P1 - Add Index Verification Command
+
+**Why:** Exact symbol lookup is much more useful when the user can quickly verify that the local working tree and graph agree before starting implementation.
+
+**Goal:** Add a CLI command or flag that runs drift/freshness checks from the indexer side and exits with a non-zero code when graph drift is too high for exact implementation targeting.
+
+**Tasks:**
+
+- Add `codemeridian index --verify` or `codemeridian verify`.
+- Compare indexed file paths and line metadata against the current working tree.
+- Report missing files, invalid line ranges, and missing timestamps.
+- Recommend `codemeridian index . --project <ProjectName> --clear` when drift is moderate or high.
+- Keep it fast enough for pre-work checks and CI.
+
+**Effort:** Medium  
+**Value:** High  
+**Risk:** Low to medium, mostly around local path mapping when the MCP server runs remotely.
+
 ## - [x] P1 - Package the Indexers for Easier Use
 
 **Why:** The old language-specific indexer commands worked for contributors, but they were not a polished user experience. Users should not need to know whether to run `tools/RoslynIndexer`, `tools/TsIndexer`, or another future language indexer; they should install one thing and run one command against a repo.
@@ -549,6 +589,9 @@ codemeridian index . --clear
 - [x] Package the indexers for easier install and one-command usage.
 - [x] Add optional embeddings to the indexers.
 - [x] Add duplicate-code candidate workflow on top of embeddings.
+- [x] Improve exact symbol resolution.
+- [ ] Add index verification command.
+- [ ] Add source snippet support with strict budgets.
 - [ ] Improve cross-language HTTP endpoint linking.
 - [ ] Add static HTML / CSS / SCSS relationship indexing.
 

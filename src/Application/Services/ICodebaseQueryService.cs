@@ -18,6 +18,7 @@ public interface ICodebaseQueryService
     Task<string> FindGodClassesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindStaleKnowledgeAsync(string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
     Task<string> FindImplementationSurfaceAsync(string goal, string? conceptsCsv = null, string? projectContext = null, int limit = 12, CancellationToken cancellationToken = default);
+    Task<string> ResolveExactSymbolAsync(string symbol, string? filePath = null, int? line = null, string? projectContext = null, int limit = 10, CancellationToken cancellationToken = default);
     Task<string> CheckGraphFreshnessAsync(string? query = null, string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
     Task<string> FindGraphDriftAsync(string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
 

@@ -131,8 +131,26 @@ public partial class CodebaseQueryService
         }
     }
 
-    private static string ResolveRepoPath(string filePath) =>
-        Path.IsPathRooted(filePath) ? filePath : Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), filePath));
+    private static string ResolveRepoPath(string filePath)
+    {
+        if (Path.IsPathRooted(filePath))
+            return filePath;
+
+        var current = new DirectoryInfo(Directory.GetCurrentDirectory());
+        while (current is not null)
+        {
+            var candidate = Path.GetFullPath(Path.Combine(current.FullName, filePath));
+            if (File.Exists(candidate))
+                return candidate;
+
+            if (File.Exists(Path.Combine(current.FullName, "CodeMeridian.sln")) || Directory.Exists(Path.Combine(current.FullName, ".git")))
+                return candidate;
+
+            current = current.Parent;
+        }
+
+        return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), filePath));
+    }
 
     private static string DescribeFreshness(FreshnessCheck check) =>
         $"{check.Confidence}: {check.Reason}";
