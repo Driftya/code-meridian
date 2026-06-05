@@ -1017,4 +1017,66 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("Orphaned external concepts");
         result.Should().Contain("orders table");
     }
+
+    [Fact]
+    public async Task FindImplementationSurfaceAsync_WithMatchingNodes_RanksLikelyFiles()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                Node("m1", "FindStaleKnowledgeAsync", CodeNodeType.Method, "TODO.md", 1, "CodeMeridian"),
+                Node("c1", "CodebaseQueryService", CodeNodeType.Class, "src/Application/Services/CodebaseQueryService.Analytics.cs", 1, "CodeMeridian")
+            ]);
+
+        var result = await sut.FindImplementationSurfaceAsync(
+            "add stale knowledge query",
+            "stale,knowledge",
+            "CodeMeridian");
+
+        result.Should().Contain("## Implementation Surface");
+        result.Should().Contain("TODO.md");
+        result.Should().Contain("FindStaleKnowledgeAsync");
+        result.Should().Contain("Confidence");
+        result.Should().Contain("Freshness");
+    }
+
+    [Fact]
+    public async Task CheckGraphFreshnessAsync_ReturnsConfidenceSignals()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                Node("n1", "Roadmap", CodeNodeType.File, "TODO.md", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow),
+                Node("n2", "Missing", CodeNodeType.Class, "missing/File.cs", 10, "CodeMeridian")
+            ]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "CodeMeridian");
+
+        result.Should().Contain("## Graph Freshness");
+        result.Should().Contain("Trust summary");
+        result.Should().Contain("High");
+        result.Should().Contain("Low");
+        result.Should().Contain("File exists");
+    }
+
+    [Fact]
+    public async Task FindGraphDriftAsync_WithMissingFiles_ReturnsRecommendation()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                Node("n1", "MissingService", CodeNodeType.Class, "missing/Service.cs", 12, "CodeMeridian"),
+                Node("n2", "MissingMethod", CodeNodeType.Method, "missing/Service.cs", 20, "CodeMeridian")
+            ]);
+
+        var result = await sut.FindGraphDriftAsync("CodeMeridian");
+
+        result.Should().Contain("## Graph Drift");
+        result.Should().Contain("missing files");
+        result.Should().Contain("MissingService");
+        result.Should().Contain("codemeridian index");
+    }
 }

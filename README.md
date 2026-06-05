@@ -109,6 +109,9 @@ How is this TypeScript component connected to the backend?
 | `find_similar_nodes` | Find duplicate code patterns (requires embeddings enabled) |
 | `find_duplicate_candidates` | Review likely duplicate methods/classes with refactor-risk signals |
 | `search_documentation` | Search indexed README/ADR/documentation content |
+| `find_implementation_surface` | Rank likely files and symbols to edit for a feature goal |
+| `check_graph_freshness` | Report graph confidence, file existence, and line validity |
+| `find_graph_drift` | Detect stale graph data before relying on exact implementation targets |
 | `find_stale_knowledge` | Detect stale docs, weak mentions, orphaned external concepts, and orphaned code references |
 | `clear_project_knowledge` | Clear one project's indexed graph and docs before rebuilding |
 | `clear_code_graph` | Clear all indexed code graph nodes while preserving docs |

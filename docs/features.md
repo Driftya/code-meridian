@@ -199,6 +199,30 @@ Finds diagnostics in the same file as a code node, ordered by proximity to the n
 What diagnostics are near OrderService.ProcessAsync?
 ```
 
+### `find_implementation_surface`
+
+Ranks the most likely files, classes, and methods to edit for a feature goal. Results include confidence, reasons, and freshness checks so an assistant can tell whether CodeMeridian found exact targets or only broad areas.
+
+```text
+What is the best implementation surface for adding stale-knowledge detection?
+```
+
+### `check_graph_freshness`
+
+Reports trust signals for matching graph nodes: update timestamp, whether the indexed file exists, whether the indexed line is still valid, and a confidence reason.
+
+```text
+Can I trust the graph results for CodebaseQueryService?
+```
+
+### `find_graph_drift`
+
+Checks whether the graph has drifted from the working tree before exact implementation work. It reports missing files, invalid line ranges, missing timestamps, drift severity, and a re-index recommendation.
+
+```text
+Should I re-index before implementing this change?
+```
+
 ### `find_stale_knowledge`
 
 Detects knowledge that may be out of date after renames, reindexing, or documentation drift. It looks for unresolved document mentions, orphaned external concepts, stale notes, and orphaned code nodes.

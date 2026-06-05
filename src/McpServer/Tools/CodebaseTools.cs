@@ -99,4 +99,46 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindStaleKnowledgeAsync(projectContext, limit, cancellationToken);
 
+    [McpServerTool(Name = "find_implementation_surface")]
+    [Description(
+        "Find the most likely files, classes, and methods to edit for a requested feature or fix. " +
+        "Use this before implementation when the user describes a goal rather than a precise node ID.")]
+    public Task<string> FindImplementationSurfaceAsync(
+        [Description("Feature or fix goal, e.g. 'add stale knowledge query'.")]
+        string goal,
+        [Description("Optional comma-separated concepts that should influence targeting, e.g. 'knowledge,document,stale'.")]
+        string? conceptsCsv = null,
+        [Description("Optional project name to scope the search.")]
+        string? projectContext = null,
+        [Description("Maximum number of implementation targets to return.")]
+        int limit = 12,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindImplementationSurfaceAsync(goal, conceptsCsv, projectContext, limit, cancellationToken);
+
+    [McpServerTool(Name = "check_graph_freshness")]
+    [Description(
+        "Report freshness and confidence for graph nodes, including indexed timestamps, file existence, and line-range validity. " +
+        "Use this when CodeMeridian results may be stale or only partially trusted.")]
+    public Task<string> CheckGraphFreshnessAsync(
+        [Description("Optional search query to inspect matching nodes. Omit to sample the project graph.")]
+        string? query = null,
+        [Description("Optional project name to scope freshness checks.")]
+        string? projectContext = null,
+        [Description("Maximum number of nodes to inspect.")]
+        int limit = 25,
+        CancellationToken cancellationToken = default) =>
+        queryService.CheckGraphFreshnessAsync(query, projectContext, limit, cancellationToken);
+
+    [McpServerTool(Name = "find_graph_drift")]
+    [Description(
+        "Detect graph drift before implementation by checking missing files, invalid line metadata, and missing update timestamps. " +
+        "Use this before relying on exact graph targets after renames, broad refactors, or indexer changes.")]
+    public Task<string> FindGraphDriftAsync(
+        [Description("Optional project name to scope drift checks.")]
+        string? projectContext = null,
+        [Description("Maximum number of drift findings to include per section.")]
+        int limit = 25,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindGraphDriftAsync(projectContext, limit, cancellationToken);
+
 }

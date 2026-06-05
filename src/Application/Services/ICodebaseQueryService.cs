@@ -17,6 +17,9 @@ public interface ICodebaseQueryService
     Task<string> BuildMinimalContextAsync(string target, string? goal = null, int maxTokens = 3000, bool includeTests = true, bool includeExternalConcepts = true, bool includeSourceSnippets = false, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
     Task<string> FindGodClassesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindStaleKnowledgeAsync(string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
+    Task<string> FindImplementationSurfaceAsync(string goal, string? conceptsCsv = null, string? projectContext = null, int limit = 12, CancellationToken cancellationToken = default);
+    Task<string> CheckGraphFreshnessAsync(string? query = null, string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
+    Task<string> FindGraphDriftAsync(string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
 
     // ── New capabilities ──────────────────────────────────────────────────────
     Task<string> FindDownstreamAsync(string nodeId, int depth = 5, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);

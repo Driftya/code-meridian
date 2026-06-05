@@ -291,6 +291,97 @@ Possibly stale knowledge:
 
 **Implemented:** Added `find_stale_knowledge` to surface unresolved doc references, orphaned external concepts, old notes, and orphaned code nodes. Documents can now carry weak `relatedNodeIds` metadata, which is stored as `Mentions` edges from `KnowledgeDocument` nodes to current `CodeNode` targets when available.
 
+## - [x] P1 - Find Implementation Surface
+
+**Why:** Graph lookup should help with exact implementation targets, not only broad orientation. When CodeMeridian can only point at a layer or repository surface, the agent still has to fall back to manual file inspection and loses most of the time saved by the graph.
+
+**Goal:** Given a feature goal or concept cluster, return the most likely files, classes, and methods to edit.
+
+**Suggested tool:** `find_implementation_surface`
+
+**Example prompt:**
+
+```text
+@copilot What is the best implementation surface for adding stale-knowledge detection?
+```
+
+**Desired output:**
+
+- Likely implementation files
+- Likely methods to extend
+- Why each target was chosen
+- Confidence level per target
+- Whether the graph data is fresh enough to trust
+
+**Useful signals:**
+
+- Related tool names and service names
+- API endpoint names
+- Repository methods with matching concepts
+- Tests that already cover the same behavior
+- Recent churn in the same area
+- Exact node IDs when available
+
+**Effort:** Medium  
+**Value:** High  
+**Risk:** Medium, because the heuristic needs to stay explainable and avoid noisy target suggestions.
+
+**Implemented:** Added `find_implementation_surface`, which ranks likely implementation files from graph matches, concept matches, likely methods/classes, and local freshness checks. Results include confidence, target files, likely symbols, reasons, and freshness status so agents can report whether CodeMeridian provided exact targets or only general areas.
+
+## - [x] P1 - Add Graph Freshness And Confidence Signals
+
+**Why:** A graph lookup is only as good as the data behind it. The assistant needs to know whether a result is exact, heuristic, stale, or partially verified before it decides whether to trust the graph or fall back to source files.
+
+**Add to result payloads:**
+
+- `indexedAt`
+- `updatedAt`
+- `fileExists`
+- `lineRangeStillValid`
+- `nodeIdConfidence`
+- `freshnessReason`
+
+**Desired behavior:**
+
+- Exact node hits should say why they are exact.
+- Heuristic matches should say what was inferred.
+- Stale or missing source should be explicit.
+- Tools should return a short trust summary, not just raw facts.
+
+**Effort:** Medium  
+**Value:** High  
+**Risk:** Medium, because it touches many result formatters and tool descriptions.
+
+**Implemented first slice:** Added `check_graph_freshness`, which reports `updatedAt`, file existence, line-range validity, confidence, and reason for matching graph nodes. `find_implementation_surface` also includes per-target freshness and confidence. Broader annotation across every existing formatter can be expanded later if needed.
+
+## - [x] P1 - Detect Graph Drift Before Implementation
+
+**Why:** If CodeMeridian is indexed out of date, the agent can still get the right architectural direction but miss exact file targets. A built-in drift check would tell the agent whether it should trust the graph or re-index first.
+
+**Suggested tool:** `find_graph_drift`
+
+**Possible checks:**
+
+- Nodes whose files no longer exist
+- Nodes whose line ranges no longer fit the source file
+- Nodes updated before the last major reindex
+- Projects with many renamed or deleted files
+- Query surfaces that return broad layers but no exact method IDs
+
+**Desired output example:**
+
+```text
+Graph drift: moderate
+Reason: 14 nodes point to missing files, 6 node line ranges no longer match source, and the last reindex predates the latest rename.
+Recommendation: run `codemeridian index . --project CodeMeridian --clear`
+```
+
+**Effort:** Medium  
+**Value:** High  
+**Risk:** Medium, because drift detection needs accurate file and timestamp metadata.
+
+**Implemented:** Added `find_graph_drift`, which checks indexed nodes for missing files, invalid line ranges, and missing timestamps, then reports drift severity and a re-index recommendation when exact implementation targeting should not be trusted.
+
 ## - [x] P1 - Package the Indexers for Easier Use
 
 **Why:** The old language-specific indexer commands worked for contributors, but they were not a polished user experience. Users should not need to know whether to run `tools/RoslynIndexer`, `tools/TsIndexer`, or another future language indexer; they should install one thing and run one command against a repo.
