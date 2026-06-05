@@ -392,7 +392,7 @@ public partial class CodebaseQueryService
             .Take(20)
             .ToArray();
 
-        var estimatedTokens = EstimateContextTokens(
+        var contextCost = EstimateContextCost(
             ctx,
             impact,
             downstream,
@@ -405,7 +405,9 @@ public partial class CodebaseQueryService
         sb.AppendLine($"## Minimal Context Pack — `{ctx.Node.Name}`");
         if (!string.IsNullOrWhiteSpace(goal))
             sb.AppendLine($"**Goal:** {goal}");
-        sb.AppendLine($"**Budget:** {maxTokens} tokens | **Estimated:** {estimatedTokens} tokens | **Detail:** {detailLevel}");
+        sb.AppendLine($"**Budget:** {maxTokens} tokens | **Estimated:** {contextCost.EstimatedTokens:N0} tokens | **Detail:** {detailLevel}");
+        sb.AppendLine($"**Complexity:** {contextCost.Complexity} | **Model guidance:** {contextCost.ModelGuidance}");
+        sb.AppendLine($"**Expansion risk:** {contextCost.ExpansionRisk} — {contextCost.Reason}");
         sb.AppendLine($"**Target:** {ctx.Node.Type} `{ctx.Node.Name}`");
         sb.AppendLine($"**File:** `{ctx.Node.FilePath ?? "—"}`{(ctx.Node.LineNumber.HasValue ? $":{ctx.Node.LineNumber}" : "")}{(ctx.Node.LineCount.HasValue ? $" ({ctx.Node.LineCount} lines)" : "")}");
         if (!string.IsNullOrWhiteSpace(ctx.Node.Summary))
@@ -438,7 +440,7 @@ public partial class CodebaseQueryService
         if (includeSourceSnippets)
             sb.AppendLine("> Source snippets requested, but source extraction is not implemented yet. Use the listed files and target line number.");
 
-        sb.AppendLine($"> Token estimate is approximate. {(estimatedTokens > maxTokens ? "Consider Summary detail or a larger context budget." : "Current pack fits the requested budget.")}");
+        sb.AppendLine($"> Token estimate is approximate. {(contextCost.EstimatedTokens > maxTokens ? "Consider Summary detail, fewer optional sections, or a larger context budget." : "Current pack fits the requested budget.")}");
 
         return sb.ToString();
     }

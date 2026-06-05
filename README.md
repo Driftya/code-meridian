@@ -101,7 +101,7 @@ How is this TypeScript component connected to the backend?
 | `query_codebase` | Natural-language search over code structure |
 | `get_architectural_overview` | Project map by namespace/module |
 | `get_context_for_editing` | Compact callers/callees/interfaces context for a node |
-| `build_minimal_context` | Bounded context pack with callers, callees, impact, tests, gaps, and likely files |
+| `build_minimal_context` | Bounded context pack with callers, callees, impact, tests, gaps, likely files, token estimate, and model guidance |
 | `find_impact` | Backward blast-radius analysis |
 | `find_connection` | Shortest path between two code elements |
 | `find_unreferenced` | Dead-code candidates |

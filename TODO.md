@@ -105,7 +105,7 @@ public enum ContextDetailLevel
 **Value:** High  
 **Risk:** Medium, because node ID changes can affect existing graph references.
 
-## - [ ] P1 - Add Token Cost Estimation
+## - [x] P1 - Add Token Cost Estimation
 
 **Why:** The pasted product idea is strongest when CodeMeridian can tell the assistant how much context a task likely needs. This enables better model selection and prevents unnecessary file loading.
 
@@ -130,7 +130,9 @@ Expansion risk: low, 4 direct callers, 3 direct callees, 1 related test.
 **Value:** High  
 **Risk:** Low, estimates do not need to be exact to be useful.
 
-## - [ ] P1 - Add Complexity-Based Model Guidance
+**Implemented:** `build_minimal_context` now reports an approximate token estimate using target metadata, graph rows, summaries, likely files, optional source snippets, and test context. The output states whether the pack fits the requested `maxTokens` budget and gives expansion-risk guidance when it does not.
+
+## - [x] P1 - Add Complexity-Based Model Guidance
 
 **Why:** Once token estimates and graph size are known, CodeMeridian can recommend whether a small, fast model is enough or whether a larger context/model is justified.
 
@@ -154,6 +156,8 @@ Reason: estimated 18,000 tokens, 42 affected nodes, 3 cross-project dependencies
 **Effort:** Low to medium  
 **Value:** Medium to high  
 **Risk:** Low.
+
+**Implemented:** Context packs now include a `Complexity`, `Model guidance`, and `Expansion risk` line. Guidance is based on estimated tokens, affected nodes, downstream dependencies, cross-project graph edges, nearby coverage gaps, related-test availability, target size, and indexed churn.
 
 ## - [x] P1 - Improve Test Discovery and Coverage Context
 
@@ -540,7 +544,7 @@ codemeridian index . --clear
 - [x] Fix local-function node ID collisions.
 - [x] Add `ContextDetailLevel` and compact output conventions.
 - [x] Implement `build_minimal_context` by composing existing repository/service queries.
-- [ ] Add token estimation to context output.
+- [x] Add token estimation to context output.
 - [x] Add diagnostics indexing for C#, TypeScript, and ESLint using project-native configs.
 - [x] Package the indexers for easier install and one-command usage.
 - [x] Add optional embeddings to the indexers.

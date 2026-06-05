@@ -49,26 +49,29 @@ var app = builder.Build();
 var apiKey = builder.Configuration["CodeMeridian_Auth_ApiKey"]
     ?? builder.Configuration["CodeMeridian:Auth:ApiKey"];
 
-if (!string.IsNullOrWhiteSpace(apiKey))
+if (string.IsNullOrWhiteSpace(apiKey))
 {
-    app.Use(async (context, next) =>
-    {
-        if (context.Request.Path.StartsWithSegments("/health"))
-        {
-            await next(context);
-            return;
-        }
-
-        if (!IsAuthorized(context.Request, apiKey))
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsync("Missing or invalid CodeMeridian API key.");
-            return;
-        }
-
-        await next(context);
-    });
+    throw new InvalidOperationException(
+        "CodeMeridian_Auth_ApiKey is not configured. Set CodeMeridian_Auth_ApiKey or CodeMeridian:Auth:ApiKey before starting the MCP server.");
 }
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/health"))
+    {
+        await next(context);
+        return;
+    }
+
+    if (!IsAuthorized(context.Request, apiKey))
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsync("Missing or invalid CodeMeridian API key.");
+        return;
+    }
+
+    await next(context);
+});
 
 app.MapHealthChecks("/health");
 

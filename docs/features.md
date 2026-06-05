@@ -113,7 +113,9 @@ Use this before `find_impact` for a quick local view. Use `find_impact` for full
 
 ### `build_minimal_context`
 
-Builds a bounded context pack for one target node. The pack combines local editing context, near impact, downstream dependencies, likely files, token estimate, and optional test context.
+Builds a bounded context pack for one target node. The pack combines local editing context, near impact, downstream dependencies, likely files, token estimate, complexity tier, model guidance, expansion risk, and optional test context.
+
+The token estimate is intentionally approximate. It counts target metadata, relationship rows, summaries, likely files, optional source snippets, and relevant test context. The model guidance uses that estimate plus graph complexity signals such as affected nodes, downstream dependencies, cross-project edges, missing tests, target size, and churn.
 
 When `includeTests` is enabled, test context includes:
 
@@ -125,6 +127,14 @@ Heuristic matches are labeled explicitly so callers can distinguish them from pr
 
 ```text
 Build a minimal context pack for OrderService.ProcessAsync with tests included.
+```
+
+Example guidance:
+
+```text
+Estimated: 2,400 tokens
+Complexity: Low | Model guidance: Small or fast model likely sufficient
+Expansion risk: Low - 2 affected nodes, 3 downstream dependencies, 1 related test
 ```
 
 ### `find_god_classes`

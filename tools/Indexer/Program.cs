@@ -49,6 +49,7 @@ var listCapabilities = false;
 var skipCSharp = false;
 var skipTypeScript = false;
 var skipDiagnostics = false;
+var allowRepoScripts = false;
 var incremental = true;
 
 for (var i = 0; i < rawArgs.Count; i++)
@@ -96,6 +97,9 @@ for (var i = 0; i < rawArgs.Count; i++)
             break;
         case "--skip-diagnostics":
             skipDiagnostics = true;
+            break;
+        case "--allow-repo-scripts":
+            allowRepoScripts = true;
             break;
         case "--no-incremental":
         case "--force-full":
@@ -212,6 +216,13 @@ if (hasTypeScript)
         return exitCode;
 
     var tsxCommand = ResolveTsxCommand(tsIndexerRoot);
+    if (tsxCommand is null)
+    {
+        Console.Error.WriteLine("error: local tsx binary was not found for the TypeScript indexer.");
+        Console.Error.WriteLine("Reinstall the indexer dependencies or run from a source checkout.");
+        return 1;
+    }
+
     foreach (var typeScriptRoot in typeScriptRoots)
     {
         var changedTypeScriptFiles = changedFiles is null
@@ -234,10 +245,7 @@ if (hasTypeScript)
             watch,
             filesList);
 
-        if (tsxCommand.UseNpx)
-            tsArgs.Insert(0, "tsx");
-
-        exitCode = await RunAsync(tsxCommand.FileName, tsArgs, tsIndexerRoot);
+        exitCode = await RunAsync(tsxCommand, tsArgs, tsIndexerRoot);
         if (exitCode != 0 || watch)
             return exitCode;
 
@@ -247,7 +255,7 @@ if (hasTypeScript)
 
 if (!skipDiagnostics)
 {
-    exitCode = await RunDiagnosticsAsync(rootPath, project, codeMeridianUrl, apiKey);
+    exitCode = await RunDiagnosticsAsync(rootPath, project, codeMeridianUrl, apiKey, allowRepoScripts);
     if (exitCode != 0)
         return exitCode;
 }
@@ -455,7 +463,8 @@ static async Task<int> RunDiagnosticsAsync(
     DirectoryInfo rootPath,
     string project,
     string codeMeridianUrl,
-    string? apiKey)
+    string? apiKey,
+    bool allowRepoScripts)
 {
     Console.WriteLine();
     Console.WriteLine("Indexing diagnostics...");
@@ -474,10 +483,14 @@ static async Task<int> RunDiagnosticsAsync(
 
     var findings = new List<DiagnosticFinding>();
 
-    if (IndexerDiscovery.ContainsFile(rootPath, ".cs"))
+    if (allowRepoScripts && IndexerDiscovery.ContainsFile(rootPath, ".cs"))
     {
         var build = await RunCaptureAsync("dotnet", ["build", "--no-restore", "--nologo"], rootPath);
         findings.AddRange(ParseDotnetDiagnostics(build.Output, rootPath, project));
+    }
+    else if (IndexerDiscovery.ContainsFile(rootPath, ".cs"))
+    {
+        Console.WriteLine("  C# build diagnostics skipped. Use --allow-repo-scripts to run repo-controlled build steps.");
     }
 
     if (File.Exists(Path.Combine(rootPath.FullName, "tsconfig.json")))
@@ -497,11 +510,18 @@ static async Task<int> RunDiagnosticsAsync(
         }
     }
 
-    var lintCommand = ResolveLintCommand(rootPath);
-    if (lintCommand is not null)
+    if (allowRepoScripts)
     {
-        var result = await RunCaptureAsync(lintCommand.Value.FileName, lintCommand.Value.Arguments, rootPath);
-        findings.AddRange(ParseLintDiagnostics(result.Output, rootPath, project));
+        var lintCommand = ResolveLintCommand(rootPath);
+        if (lintCommand is not null)
+        {
+            var result = await RunCaptureAsync(lintCommand.Value.FileName, lintCommand.Value.Arguments, rootPath);
+            findings.AddRange(ParseLintDiagnostics(result.Output, rootPath, project));
+        }
+    }
+    else if (ResolveLintCommand(rootPath) is not null)
+    {
+        Console.WriteLine("  Lint diagnostics skipped. Use --allow-repo-scripts to run repo-controlled lint steps.");
     }
 
     var distinct = findings
@@ -865,8 +885,6 @@ static string QuoteIfNeeded(string value)
     return value.Any(char.IsWhiteSpace) ? $"\"{value}\"" : value;
 }
 
-static string NpxCommand() => ResolveCommandFromPath(OperatingSystem.IsWindows() ? "npx.cmd" : "npx");
-
 static string NpmCommand() => ResolveCommandFromPath(OperatingSystem.IsWindows() ? "npm.cmd" : "npm");
 
 static string ResolveCommandFromPath(string command)
@@ -898,7 +916,7 @@ static string ResolveCommandFromPath(string command)
     return command;
 }
 
-static (string FileName, bool UseNpx) ResolveTsxCommand(DirectoryInfo tsIndexerRoot)
+static string? ResolveTsxCommand(DirectoryInfo tsIndexerRoot)
 {
     var localTsx = Path.Combine(
         tsIndexerRoot.FullName,
@@ -906,7 +924,7 @@ static (string FileName, bool UseNpx) ResolveTsxCommand(DirectoryInfo tsIndexerR
         ".bin",
         OperatingSystem.IsWindows() ? "tsx.cmd" : "tsx");
 
-    return File.Exists(localTsx) ? (localTsx, false) : (NpxCommand(), true);
+    return File.Exists(localTsx) ? localTsx : null;
 }
 
 static IReadOnlyList<DiagnosticFinding> ParseDotnetDiagnostics(
@@ -1159,6 +1177,7 @@ static void PrintUsage()
           --no-docs              Skip documentation ingestion. Alias: --skip-docs.
           --include-diagnostics  Run diagnostics indexing. This is the default; kept for compatibility.
           --skip-diagnostics     Skip project-native compiler, TypeScript, and lint diagnostics indexing.
+          --allow-repo-scripts   Allow repo-controlled build and lint commands during diagnostics.
           --no-incremental       Ignore .meridian/cache and scan all enabled files. Alias: --force-full.
           --dry-run              Show what would be indexed without ingesting anything.
           --list-capabilities    Show available indexers on this machine.

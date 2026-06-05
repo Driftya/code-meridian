@@ -114,6 +114,7 @@ codemeridian index . --dry-run
 | `--list-capabilities` | Show available indexers on the current machine |
 | `--include-diagnostics` | Run diagnostics indexing. This is the default; kept for compatibility |
 | `--skip-diagnostics` | Skip project-native compiler, TypeScript, and lint diagnostics indexing |
+| `--allow-repo-scripts` | Allow repo-controlled `dotnet build` and lint commands during diagnostics |
 | `--no-incremental` / `--force-full` | Ignore the local file cache and scan all enabled files |
 | `--watch` | Stay running and re-index when files change |
 
@@ -175,6 +176,7 @@ Documentation becomes searchable through `search_documentation`.
 ## Diagnostics Indexing
 
 Diagnostics indexing runs by default so compiler, analyzer, TypeScript, and lint findings stay attached to the graph.
+Repo-controlled build and lint commands are only executed when `--allow-repo-scripts` is set.
 
 Run normal indexing:
 
@@ -193,6 +195,8 @@ The unified indexer refreshes diagnostic nodes for the project, then runs availa
 - `dotnet build --no-restore --nologo` for C# compiler and analyzer diagnostics
 - local `tsc --noEmit --pretty false` when `tsconfig.json` and `node_modules/.bin/tsc` are present
 - `npm run lint` when `package.json` defines a lint script, otherwise local `eslint .` when available
+
+Without `--allow-repo-scripts`, the indexer skips `dotnet build` and repo lint commands but still uses the local `tsc` check when available.
 
 Diagnostics are stored as `Diagnostic` code nodes with severity/code, source tool, message, file, and line. When backend embeddings are enabled, diagnostic messages are embedded during ingestion for semantic discovery. Diagnostics can be queried with `find_diagnostics` and `find_diagnostics_for_node`.
 

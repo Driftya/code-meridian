@@ -909,6 +909,9 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("Heuristic matches:");
         result.Should().Contain("PlaceOrderTests");
         result.Should().Contain("heuristic");
+        result.Should().Contain("**Estimated:**");
+        result.Should().Contain("**Complexity:** Low");
+        result.Should().Contain("Small or fast model likely sufficient");
     }
 
     [Fact]
@@ -930,6 +933,51 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().NotContain("Relevant coverage gaps");
         result.Should().NotContain("Relevant tests");
+    }
+
+    [Fact]
+    public async Task BuildMinimalContextAsync_WithLargeImpact_ReturnsLargerModelGuidance()
+    {
+        var (sut, graph) = Build();
+        var target = new CodeNode
+        {
+            Id = "Method:Shop.Payments.PaymentGateway.ChargeAsync",
+            Name = "ChargeAsync",
+            Type = CodeNodeType.Method,
+            FilePath = "src/Payments/PaymentGateway.cs",
+            LineNumber = 42,
+            LineCount = 360,
+            Summary = "Charges a payment through an external processor.",
+            ProjectContext = "Shop",
+            ChangeCount = 6
+        };
+        var impact = Enumerable.Range(1, 30)
+            .Select(i => (Node($"caller-{i}", $"Caller{i}", CodeNodeType.Method, $"src/Callers/Caller{i}.cs", project: i % 2 == 0 ? "Shop.Api" : "Shop"), 1))
+            .ToArray();
+        var downstream = Enumerable.Range(1, 10)
+            .Select(i => (Node($"dep-{i}", $"Dependency{i}", CodeNodeType.Method, $"src/Dependencies/Dependency{i}.cs", project: "Shop"), 1))
+            .ToArray();
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns(impact);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns(downstream);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+             .Returns([target]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+
+        var result = await sut.BuildMinimalContextAsync(target.Id, includeSourceSnippets: true);
+
+        result.Should().Contain("**Complexity:** High");
+        result.Should().Contain("Use a larger reasoning model or larger context window");
+        result.Should().Contain("**Expansion risk:** High");
+        result.Should().Contain("30 affected nodes");
+        result.Should().Contain("10 downstream dependencies");
+        result.Should().Contain("nearby coverage gaps");
+        result.Should().Contain("no related tests found");
     }
 
     [Fact]

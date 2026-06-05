@@ -504,7 +504,7 @@ public partial class CodebaseQueryService
         left.Contains(right, StringComparison.OrdinalIgnoreCase)
         || right.Contains(left, StringComparison.OrdinalIgnoreCase);
 
-    private static int EstimateContextTokens(
+    private static ContextCost EstimateContextCost(
         EditingContext ctx,
         IReadOnlyCollection<(CodeNode Node, int Distance)> impact,
         IReadOnlyCollection<(CodeNode Node, int Distance)> downstream,
@@ -513,15 +513,127 @@ public partial class CodebaseQueryService
         int fileCount,
         bool includeSourceSnippets)
     {
-        var nodeRows = 1 + ctx.Callers.Count + ctx.Callees.Count + ctx.Interfaces.Count + impact.Count + downstream.Count + coverageGaps.Count + relatedTestCount;
+        var target = ctx.Node;
+        var relationshipRows = ctx.Callers.Count + ctx.Callees.Count + ctx.Interfaces.Count + impact.Count + downstream.Count;
+        var nodeRows = 1 + relationshipRows + coverageGaps.Count + relatedTestCount;
+        var summaryTokens = EstimateSummaryTokens(target);
+        var sourceSnippetTokens = includeSourceSnippets ? EstimateSourceSnippetTokens(target) : 0;
         var estimate = 120
-            + nodeRows * 22
+            + nodeRows * 20
+            + relationshipRows * 15
             + fileCount * 16
-            + (string.IsNullOrWhiteSpace(ctx.Node?.Summary) ? 0 : 80);
+            + summaryTokens
+            + sourceSnippetTokens;
 
-        if (includeSourceSnippets)
-            estimate += Math.Min(ctx.Node?.LineCount ?? 20, 80) * 12;
+        var affectedNodes = impact.Count;
+        var dependencyCount = downstream.Count;
+        var missingTests = coverageGaps.Count > 0;
+        var churnScore = target?.ChangeCount ?? 0;
+        var size = target?.LineCount ?? 0;
+        var crossProjectEdges =
+            impact.Count(i => !SameProject(target, i.Node))
+            + downstream.Count(d => !SameProject(target, d.Node))
+            + ctx.Callers.Count(n => !SameProject(target, n))
+            + ctx.Callees.Count(n => !SameProject(target, n));
+        var riskPoints = 0;
 
-        return estimate;
+        if (estimate > 12000) riskPoints += 3;
+        else if (estimate > 6000) riskPoints += 2;
+        else if (estimate > 3000) riskPoints += 1;
+
+        if (affectedNodes >= 25) riskPoints += 3;
+        else if (affectedNodes >= 8) riskPoints += 2;
+        else if (affectedNodes >= 3) riskPoints += 1;
+
+        if (dependencyCount >= 20) riskPoints += 2;
+        else if (dependencyCount >= 8) riskPoints += 1;
+
+        if (crossProjectEdges > 0) riskPoints += Math.Min(crossProjectEdges, 3);
+        if (missingTests) riskPoints += 1;
+        if (relatedTestCount == 0) riskPoints += 1;
+        if (size >= 300) riskPoints += 2;
+        else if (size >= 100) riskPoints += 1;
+        if (churnScore >= 5) riskPoints += 2;
+        else if (churnScore >= 2) riskPoints += 1;
+
+        var complexity = riskPoints >= 7 ? "High"
+            : riskPoints >= 3 ? "Medium"
+            : "Low";
+        var modelGuidance = complexity switch
+        {
+            "High" => "Use a larger reasoning model or larger context window",
+            "Medium" => "Use a standard coding model",
+            _ => "Small or fast model likely sufficient"
+        };
+        var expansionRisk = estimate > 12000 || affectedNodes >= 25 || crossProjectEdges > 2 ? "High"
+            : estimate > 3000 || affectedNodes >= 8 || dependencyCount >= 8 || missingTests ? "Medium"
+            : "Low";
+        var reason = BuildContextCostReason(
+            estimate,
+            affectedNodes,
+            dependencyCount,
+            crossProjectEdges,
+            coverageGaps.Count,
+            relatedTestCount,
+            size,
+            churnScore);
+
+        return new ContextCost(estimate, complexity, modelGuidance, expansionRisk, reason);
     }
+
+    private static int EstimateSummaryTokens(CodeNode? node) =>
+        string.IsNullOrWhiteSpace(node?.Summary)
+            ? 0
+            : node.Type == CodeNodeType.Class ? 150 : 80;
+
+    private static int EstimateSourceSnippetTokens(CodeNode? node)
+    {
+        var lineCount = Math.Min(node?.LineCount ?? 20, 80);
+        return lineCount * 12;
+    }
+
+    private static bool SameProject(CodeNode? target, CodeNode related) =>
+        string.IsNullOrWhiteSpace(target?.ProjectContext)
+        || string.IsNullOrWhiteSpace(related.ProjectContext)
+        || string.Equals(target.ProjectContext, related.ProjectContext, StringComparison.OrdinalIgnoreCase);
+
+    private static string BuildContextCostReason(
+        int estimatedTokens,
+        int affectedNodes,
+        int dependencyCount,
+        int crossProjectEdges,
+        int coverageGapCount,
+        int relatedTestCount,
+        int lineCount,
+        int changeCount)
+    {
+        var parts = new List<string>
+        {
+            $"{estimatedTokens:N0} estimated tokens",
+            $"{affectedNodes} affected nodes",
+            $"{dependencyCount} downstream dependencies"
+        };
+
+        if (crossProjectEdges > 0)
+            parts.Add($"{crossProjectEdges} cross-project edges");
+        if (coverageGapCount > 0)
+            parts.Add($"{coverageGapCount} nearby coverage gaps");
+        if (relatedTestCount == 0)
+            parts.Add("no related tests found");
+        else
+            parts.Add($"{relatedTestCount} related tests");
+        if (lineCount > 0)
+            parts.Add($"{lineCount} target lines");
+        if (changeCount > 0)
+            parts.Add($"{changeCount} indexed changes");
+
+        return string.Join(", ", parts);
+    }
+
+    private sealed record ContextCost(
+        int EstimatedTokens,
+        string Complexity,
+        string ModelGuidance,
+        string ExpansionRisk,
+        string Reason);
 }
