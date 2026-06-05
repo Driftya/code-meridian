@@ -12,7 +12,7 @@ function nodeId(project, relPath, name, type) {
     return `${project}:${type}:${sanitize(relPath)}:${name}`;
 }
 // ── Main entry ────────────────────────────────────────────────────────────────
-export function walkTypeScript(rootPath, projectName) {
+export function walkTypeScript(rootPath, projectName, files) {
     const nodes = [];
     const edges = [];
     const knownIds = new Set();
@@ -22,14 +22,19 @@ export function walkTypeScript(rootPath, projectName) {
         skipAddingFilesFromTsConfig: true,
         skipFileDependencyResolution: true,
     });
-    tsProject.addSourceFilesAtPaths([
-        path.join(rootPath, '**/*.ts').replace(/\\/g, '/'),
-        path.join(rootPath, '**/*.tsx').replace(/\\/g, '/'),
-        `!${path.join(rootPath, '**/node_modules/**').replace(/\\/g, '/')}`,
-        `!${path.join(rootPath, '**/dist/**').replace(/\\/g, '/')}`,
-        `!${path.join(rootPath, '**/build/**').replace(/\\/g, '/')}`,
-        `!${path.join(rootPath, '**/*.d.ts').replace(/\\/g, '/')}`,
-    ]);
+    if (files && files.length > 0) {
+        tsProject.addSourceFilesAtPaths(files.map(file => path.resolve(file).replace(/\\/g, '/')));
+    }
+    else {
+        tsProject.addSourceFilesAtPaths([
+            path.join(rootPath, '**/*.ts').replace(/\\/g, '/'),
+            path.join(rootPath, '**/*.tsx').replace(/\\/g, '/'),
+            `!${path.join(rootPath, '**/node_modules/**').replace(/\\/g, '/')}`,
+            `!${path.join(rootPath, '**/dist/**').replace(/\\/g, '/')}`,
+            `!${path.join(rootPath, '**/build/**').replace(/\\/g, '/')}`,
+            `!${path.join(rootPath, '**/*.d.ts').replace(/\\/g, '/')}`,
+        ]);
+    }
     const sourceFiles = tsProject.getSourceFiles();
     // First pass: collect all nodes so we can validate edge targets
     for (const sourceFile of sourceFiles) {

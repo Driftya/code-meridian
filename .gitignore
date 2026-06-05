@@ -428,3 +428,4 @@ FodyWeavers.xsd
 *.msm
 *.msp
 .codex/config.toml
+.meridian/cache/

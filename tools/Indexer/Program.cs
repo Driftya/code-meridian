@@ -49,6 +49,7 @@ var listCapabilities = false;
 var skipCSharp = false;
 var skipTypeScript = false;
 var skipDiagnostics = false;
+var incremental = true;
 
 for (var i = 0; i < rawArgs.Count; i++)
 {
@@ -96,6 +97,10 @@ for (var i = 0; i < rawArgs.Count; i++)
         case "--skip-diagnostics":
             skipDiagnostics = true;
             break;
+        case "--no-incremental":
+        case "--force-full":
+            incremental = false;
+            break;
         default:
             if (!rawArgs[i].StartsWith("-", StringComparison.Ordinal))
                 positional.Add(rawArgs[i]);
@@ -136,11 +141,17 @@ project ??= environmentProject ?? meridianConfig?.Project ?? IndexerDiscovery.Re
 var hasCSharp = !skipCSharp && IndexerDiscovery.ContainsFile(rootPath, ".cs");
 var typeScriptRoots = skipTypeScript ? [] : IndexerDiscovery.FindTypeScriptRoots(rootPath);
 var hasTypeScript = typeScriptRoots.Count > 0;
+var cache = IncrementalIndexCache.Load(rootPath, project);
+var indexableFiles = EnumerateIndexableFiles(rootPath, hasCSharp, hasTypeScript, includeDocs).ToArray();
+var incrementalPlan = cache.BuildPlan(rootPath, indexableFiles, forceFull: clear || !incremental);
+var changedFiles = incremental && !clear ? incrementalPlan.ChangedFiles : null;
+var deletedFiles = incremental && !clear ? incrementalPlan.DeletedFiles : [];
 
 Console.WriteLine("CodeMeridian index");
 Console.WriteLine($"  Root    : {rootPath.FullName}");
 Console.WriteLine($"  Project : {project}");
 Console.WriteLine($"  Server  : {codeMeridianUrl}");
+Console.WriteLine($"  Mode    : {(incremental && !clear ? "incremental" : "full")}");
 
 if (!hasCSharp && !hasTypeScript)
 {
@@ -151,12 +162,18 @@ if (!hasCSharp && !hasTypeScript)
 
 if (dryRun)
 {
-    PrintDryRun(rootPath, project, hasCSharp, typeScriptRoots, includeDocs, clear, watch, skipDiagnostics);
+    PrintDryRun(rootPath, project, hasCSharp, typeScriptRoots, includeDocs, clear, watch, skipDiagnostics, incrementalPlan, incremental && !clear);
     return 0;
 }
 
 var exitCode = 0;
 var clearNextIndexer = clear;
+
+if (incremental && !clear && !incrementalPlan.HasChanges)
+{
+    Console.WriteLine("No file changes detected since the last successful index run.");
+    return 0;
+}
 
 if (hasCSharp)
 {
@@ -167,7 +184,9 @@ if (hasCSharp)
         apiKey,
         clearNextIndexer,
         includeDocs,
-        watch);
+        watch,
+        changedFiles,
+        deletedFiles);
 
     if (exitCode != 0 || watch)
         return exitCode;
@@ -177,6 +196,9 @@ if (hasCSharp)
 
 if (hasTypeScript)
 {
+    if (changedFiles is not null || deletedFiles.Count > 0)
+        await DeleteProjectFilesAsync(rootPath, project, codeMeridianUrl, apiKey, FilterTypeScriptFiles(changedFiles ?? [], rootPath, typeScriptRoots).Concat(FilterTypeScriptFiles(deletedFiles, rootPath, typeScriptRoots)));
+
     var tsIndexerRoot = ResolveTypeScriptIndexerRoot();
     if (tsIndexerRoot is null)
     {
@@ -192,13 +214,25 @@ if (hasTypeScript)
     var tsxCommand = ResolveTsxCommand(tsIndexerRoot);
     foreach (var typeScriptRoot in typeScriptRoots)
     {
+        var changedTypeScriptFiles = changedFiles is null
+            ? null
+            : FilterFilesForRoot(changedFiles, rootPath, typeScriptRoot, IsTypeScriptSourceFile).ToArray();
+
+        if (changedTypeScriptFiles is { Length: 0 })
+            continue;
+
+        var filesList = changedTypeScriptFiles is null
+            ? null
+            : WriteFilesList(rootPath, project, typeScriptRoot, changedTypeScriptFiles);
+
         var tsArgs = BuildTypeScriptIndexerArgs(tsIndexerRoot, typeScriptRoot, project);
         AddTypeScriptIndexerOptions(
             tsArgs,
             codeMeridianUrl,
             clearNextIndexer,
             includeDocs && !hasCSharp && typeScriptRoots.Count == 1,
-            watch);
+            watch,
+            filesList);
 
         if (tsxCommand.UseNpx)
             tsArgs.Insert(0, "tsx");
@@ -218,6 +252,9 @@ if (!skipDiagnostics)
         return exitCode;
 }
 
+if (exitCode == 0)
+    cache.Save(incrementalPlan);
+
 return exitCode;
 
 static async Task<int> RunCSharpIndexerAsync(
@@ -227,7 +264,9 @@ static async Task<int> RunCSharpIndexerAsync(
     string? apiKey,
     bool clear,
     bool includeDocs,
-    bool watch)
+    bool watch,
+    IReadOnlyCollection<string>? changedFiles,
+    IReadOnlyCollection<string> deletedFiles)
 {
     var services = new ServiceCollection();
 
@@ -245,7 +284,7 @@ static async Task<int> RunCSharpIndexerAsync(
     await using var provider = services.BuildServiceProvider();
     var pipeline = provider.GetRequiredService<IndexerPipeline>();
 
-    await pipeline.RunAsync(rootPath, project, clear, includeDocs);
+    await pipeline.RunAsync(rootPath, project, clear, includeDocs, changedFiles, deletedFiles);
 
     if (!watch)
         return 0;
@@ -263,18 +302,38 @@ static async Task<int> RunCSharpIndexerAsync(
     };
 
     System.Timers.Timer? debounceTimer = null;
+    var changedDuringDebounce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var deletedDuringDebounce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-    void ScheduleReindex()
+    void ScheduleReindex(string fullPath, bool deleted)
     {
+        var relativePath = Path.GetRelativePath(rootPath.FullName, fullPath).Replace('\\', '/');
+        if (deleted)
+            deletedDuringDebounce.Add(relativePath);
+        else
+            changedDuringDebounce.Add(relativePath);
+
         debounceTimer?.Stop();
         debounceTimer?.Dispose();
         debounceTimer = new System.Timers.Timer(2_000) { AutoReset = false };
         debounceTimer.Elapsed += async (_, _) =>
         {
             logger.LogInformation("[watch] Change detected - re-indexing...");
+            var changedBatch = changedDuringDebounce.ToArray();
+            var deletedBatch = deletedDuringDebounce.ToArray();
+            changedDuringDebounce.Clear();
+            deletedDuringDebounce.Clear();
+
             try
             {
-                await pipeline.RunAsync(rootPath, project, clear: false, includeDocs, cts.Token);
+                await pipeline.RunAsync(
+                    rootPath,
+                    project,
+                    clear: false,
+                    includeDocs,
+                    changedFiles: changedBatch,
+                    deletedFiles: deletedBatch,
+                    cancellationToken: cts.Token);
             }
             catch (Exception ex)
             {
@@ -294,10 +353,14 @@ static async Task<int> RunCSharpIndexerAsync(
     watcher.Filters.Add("*.cs");
     watcher.Filters.Add("*.md");
     watcher.Filters.Add("*.txt");
-    watcher.Changed += (_, _) => ScheduleReindex();
-    watcher.Created += (_, _) => ScheduleReindex();
-    watcher.Deleted += (_, _) => ScheduleReindex();
-    watcher.Renamed += (_, _) => ScheduleReindex();
+    watcher.Changed += (_, e) => ScheduleReindex(e.FullPath, deleted: false);
+    watcher.Created += (_, e) => ScheduleReindex(e.FullPath, deleted: false);
+    watcher.Deleted += (_, e) => ScheduleReindex(e.FullPath, deleted: true);
+    watcher.Renamed += (_, e) =>
+    {
+        ScheduleReindex(e.OldFullPath, deleted: true);
+        ScheduleReindex(e.FullPath, deleted: false);
+    };
 
     try
     {
@@ -328,7 +391,8 @@ static void AddTypeScriptIndexerOptions(
     string codeMeridianUrl,
     bool clear,
     bool includeDocs,
-    bool watch)
+    bool watch,
+    FileInfo? filesList)
 {
     arguments.AddRange(["--url", codeMeridianUrl]);
     if (clear)
@@ -337,6 +401,8 @@ static void AddTypeScriptIndexerOptions(
         arguments.Add("--no-docs");
     if (watch)
         arguments.Add("--watch");
+    if (filesList is not null)
+        arguments.AddRange(["--files-list", filesList.FullName]);
 }
 
 static async Task<int> EnsureTypeScriptIndexerDependenciesAsync(DirectoryInfo tsIndexerRoot)
@@ -578,11 +644,16 @@ static void PrintDryRun(
     bool includeDocs,
     bool clear,
     bool watch,
-    bool skipDiagnostics)
+    bool skipDiagnostics,
+    IncrementalIndexPlan incrementalPlan,
+    bool incremental)
 {
     Console.WriteLine();
     Console.WriteLine("Dry run:");
     Console.WriteLine($"  Clear first       : {clear}");
+    Console.WriteLine($"  Incremental       : {(incremental ? "enabled" : "disabled")}");
+    Console.WriteLine($"  Changed files     : {incrementalPlan.ChangedFiles.Count}");
+    Console.WriteLine($"  Deleted files     : {incrementalPlan.DeletedFiles.Count}");
     Console.WriteLine($"  Include docs      : {includeDocs}");
     Console.WriteLine($"  Watch mode        : {watch}");
     Console.WriteLine($"  Diagnostics       : {(skipDiagnostics ? "skipped" : "enabled")}");
@@ -593,6 +664,130 @@ static void PrintDryRun(
         Console.WriteLine($"    - {Path.GetRelativePath(rootPath.FullName, typeScriptRoot.FullName)}");
 
     Console.WriteLine($"  Project context   : {project}");
+}
+
+static IEnumerable<FileInfo> EnumerateIndexableFiles(
+    DirectoryInfo rootPath,
+    bool includeCSharp,
+    bool includeTypeScript,
+    bool includeDocs)
+{
+    return rootPath
+        .EnumerateFiles("*.*", SearchOption.AllDirectories)
+        .Where(file => !IsIgnoredPath(rootPath, file))
+        .Where(file =>
+            (includeCSharp && IsCSharpSourceFile(file)) ||
+            (includeTypeScript && IsTypeScriptSourceFile(file)) ||
+            (includeDocs && IsDocumentationFile(file)));
+}
+
+static bool IsIgnoredPath(DirectoryInfo rootPath, FileInfo file)
+{
+    var relPath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
+    return relPath.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
+           relPath.StartsWith(".meridian/", StringComparison.OrdinalIgnoreCase) ||
+           relPath.Contains("/bin/", StringComparison.OrdinalIgnoreCase) ||
+           relPath.Contains("/obj/", StringComparison.OrdinalIgnoreCase) ||
+           relPath.Contains("/node_modules/", StringComparison.OrdinalIgnoreCase) ||
+           relPath.Contains("/dist/", StringComparison.OrdinalIgnoreCase) ||
+           relPath.Contains("/build/", StringComparison.OrdinalIgnoreCase) ||
+           relPath.Contains(".generated.", StringComparison.OrdinalIgnoreCase) ||
+           relPath.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase) ||
+           relPath.EndsWith("AssemblyInfo.cs", StringComparison.OrdinalIgnoreCase);
+}
+
+static bool IsCSharpSourceFile(FileInfo file) =>
+    file.Extension.Equals(".cs", StringComparison.OrdinalIgnoreCase);
+
+static bool IsTypeScriptSourceFile(FileInfo file) =>
+    (file.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
+     file.Extension.Equals(".tsx", StringComparison.OrdinalIgnoreCase)) &&
+    !file.Name.EndsWith(".d.ts", StringComparison.OrdinalIgnoreCase);
+
+static bool IsDocumentationFile(FileInfo file) =>
+    file.Extension.Equals(".md", StringComparison.OrdinalIgnoreCase) ||
+    file.Extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) ||
+    file.Name.Equals("README.md", StringComparison.OrdinalIgnoreCase) ||
+    file.Name.Equals("ARCHITECTURE.md", StringComparison.OrdinalIgnoreCase) ||
+    file.Name.Equals("CHANGELOG.md", StringComparison.OrdinalIgnoreCase) ||
+    file.Name.Equals("AGENTS.md", StringComparison.OrdinalIgnoreCase);
+
+static IEnumerable<string> FilterTypeScriptFiles(
+    IEnumerable<string> relativePaths,
+    DirectoryInfo rootPath,
+    IReadOnlyCollection<DirectoryInfo> typeScriptRoots) =>
+    FilterFilesForRoots(relativePaths, rootPath, typeScriptRoots, IsTypeScriptSourceFile);
+
+static IEnumerable<string> FilterFilesForRoots(
+    IEnumerable<string> relativePaths,
+    DirectoryInfo rootPath,
+    IReadOnlyCollection<DirectoryInfo> roots,
+    Func<FileInfo, bool> predicate) =>
+    roots.SelectMany(root => FilterFilesForRoot(relativePaths, rootPath, root, predicate));
+
+static IEnumerable<string> FilterFilesForRoot(
+    IEnumerable<string> relativePaths,
+    DirectoryInfo rootPath,
+    DirectoryInfo targetRoot,
+    Func<FileInfo, bool> predicate)
+{
+    foreach (var relativePath in relativePaths)
+    {
+        var fullPath = Path.GetFullPath(relativePath.Replace('/', Path.DirectorySeparatorChar), rootPath.FullName);
+        if (!fullPath.StartsWith(targetRoot.FullName, StringComparison.OrdinalIgnoreCase))
+            continue;
+
+        var file = new FileInfo(fullPath);
+        if (predicate(file))
+            yield return fullPath;
+    }
+}
+
+static FileInfo WriteFilesList(
+    DirectoryInfo rootPath,
+    string project,
+    DirectoryInfo languageRoot,
+    IReadOnlyCollection<string> fullPaths)
+{
+    var cacheDir = new DirectoryInfo(Path.Combine(rootPath.FullName, ".meridian", "cache"));
+    cacheDir.Create();
+    var file = new FileInfo(Path.Combine(
+        cacheDir.FullName,
+        $"ts-files-{Hash($"{project}|{languageRoot.FullName}")}.txt"));
+
+    File.WriteAllLines(file.FullName, fullPaths.Order(StringComparer.OrdinalIgnoreCase));
+    return file;
+}
+
+static async Task DeleteProjectFilesAsync(
+    DirectoryInfo rootPath,
+    string project,
+    string codeMeridianUrl,
+    string? apiKey,
+    IEnumerable<string> relativePaths)
+{
+    var distinct = relativePaths
+        .Select(path => Path.IsPathRooted(path)
+            ? Path.GetRelativePath(rootPath.FullName, path).Replace('\\', '/')
+            : path.Replace('\\', '/'))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    if (distinct.Length == 0)
+        return;
+
+    using var httpClient = new HttpClient
+    {
+        BaseAddress = new Uri(codeMeridianUrl),
+        Timeout = TimeSpan.FromMinutes(10)
+    };
+    httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+    if (!string.IsNullOrWhiteSpace(apiKey))
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+    var client = new CodeMeridianClient(httpClient);
+    foreach (var relativePath in distinct)
+        await client.DeleteProjectFileAsync(project, relativePath);
 }
 
 static void PrintCapabilities()
@@ -964,6 +1159,7 @@ static void PrintUsage()
           --no-docs              Skip documentation ingestion. Alias: --skip-docs.
           --include-diagnostics  Run diagnostics indexing. This is the default; kept for compatibility.
           --skip-diagnostics     Skip project-native compiler, TypeScript, and lint diagnostics indexing.
+          --no-incremental       Ignore .meridian/cache and scan all enabled files. Alias: --force-full.
           --dry-run              Show what would be indexed without ingesting anything.
           --list-capabilities    Show available indexers on this machine.
           --watch                Watch mode. If both languages are present, C# watch runs first.

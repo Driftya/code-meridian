@@ -64,25 +64,49 @@ public sealed class DocumentIngester(CodeMeridianClient client, ILogger<Document
         if (text.Length <= maxChars) return [text];
 
         var chunks = new List<string>();
+        var normalized = text.Replace("\r\n", "\n").Replace('\r', '\n');
 
-        // Split on paragraph boundaries (blank lines) first
-        var paragraphs = text.Split("\n\n", StringSplitOptions.RemoveEmptyEntries);
+        // Split on paragraph boundaries (blank lines) first.
+        // Normalize line endings so CRLF docs split the same way as LF docs.
+        var paragraphs = normalized.Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var current = new System.Text.StringBuilder();
 
         foreach (var paragraph in paragraphs)
         {
-            if (current.Length + paragraph.Length > maxChars && current.Length > 0)
+            if (paragraph.Length > maxChars)
+            {
+                if (current.Length > 0)
+                {
+                    chunks.Add(current.ToString().Trim());
+                    current.Clear();
+                }
+
+                for (var offset = 0; offset < paragraph.Length; offset += maxChars)
+                {
+                    var slice = paragraph[offset..Math.Min(offset + maxChars, paragraph.Length)].Trim();
+                    if (slice.Length > 0)
+                        chunks.Add(slice);
+                }
+
+                continue;
+            }
+
+            var separatorLength = current.Length > 0 ? 2 : 0;
+            if (current.Length + separatorLength + paragraph.Length > maxChars && current.Length > 0)
             {
                 chunks.Add(current.ToString().Trim());
                 current.Clear();
             }
 
-            current.Append(paragraph).Append("\n\n");
+            if (current.Length > 0)
+                current.Append("\n\n");
+
+            current.Append(paragraph);
         }
 
         if (current.Length > 0)
             chunks.Add(current.ToString().Trim());
 
-        return chunks.Count > 0 ? chunks : [text[..maxChars]];
+        return chunks.Count > 0 ? chunks : [normalized[..maxChars]];
     }
 }

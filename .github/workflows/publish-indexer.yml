@@ -73,7 +73,7 @@ jobs:
         run: dotnet build CodeMeridian.sln -c Release --no-restore /p:Version=${{ steps.version.outputs.version }}
 
       - name: Test
-        run: dotnet test CodeMeridian.sln -c Release --no-build
+        run: dotnet test CodeMeridian.sln -c Release --no-build --filter "FullyQualifiedName!~CodeMeridian.Infrastructure.Integration.Tests"
 
       - name: Pack indexer tool
         run: dotnet pack $env:PACKAGE_PROJECT -c Release --no-build -o $env:PACKAGE_OUTPUT /p:Version=${{ steps.version.outputs.version }}

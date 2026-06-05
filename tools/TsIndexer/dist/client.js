@@ -45,6 +45,13 @@ export class CodeMeridianClient {
             throw new Error(`Code graph clear failed: ${res.status} ${await res.text()}`);
         }
     }
+    async deleteProjectFile(projectContext, filePath) {
+        const normalized = filePath.replace(/\\/g, '/');
+        const res = await fetch(`${this.baseUrl}/api/v1/knowledge/project/${encodeURIComponent(projectContext)}/files/${encodeURIComponent(normalized)}`, { method: 'DELETE', headers: this.headers() });
+        if (!res.ok && res.status !== 404) {
+            throw new Error(`File cleanup failed: ${res.status} ${await res.text()}`);
+        }
+    }
     async post(path, body) {
         const res = await fetch(`${this.baseUrl}${path}`, {
             method: 'POST',

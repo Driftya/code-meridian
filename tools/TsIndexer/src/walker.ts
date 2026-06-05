@@ -24,7 +24,7 @@ function nodeId(project: string, relPath: string, name: string, type: string): s
 
 // ── Main entry ────────────────────────────────────────────────────────────────
 
-export function walkTypeScript(rootPath: string, projectName: string): WalkResult {
+export function walkTypeScript(rootPath: string, projectName: string, files?: string[]): WalkResult {
   const nodes: CodeNodeDto[] = [];
   const edges: CodeEdgeDto[] = [];
   const knownIds = new Set<string>();
@@ -36,14 +36,18 @@ export function walkTypeScript(rootPath: string, projectName: string): WalkResul
     skipFileDependencyResolution: true,
   });
 
-  tsProject.addSourceFilesAtPaths([
-    path.join(rootPath, '**/*.ts').replace(/\\/g, '/'),
-    path.join(rootPath, '**/*.tsx').replace(/\\/g, '/'),
-    `!${path.join(rootPath, '**/node_modules/**').replace(/\\/g, '/')}`,
-    `!${path.join(rootPath, '**/dist/**').replace(/\\/g, '/')}`,
-    `!${path.join(rootPath, '**/build/**').replace(/\\/g, '/')}`,
-    `!${path.join(rootPath, '**/*.d.ts').replace(/\\/g, '/')}`,
-  ]);
+  if (files && files.length > 0) {
+    tsProject.addSourceFilesAtPaths(files.map(file => path.resolve(file).replace(/\\/g, '/')));
+  } else {
+    tsProject.addSourceFilesAtPaths([
+      path.join(rootPath, '**/*.ts').replace(/\\/g, '/'),
+      path.join(rootPath, '**/*.tsx').replace(/\\/g, '/'),
+      `!${path.join(rootPath, '**/node_modules/**').replace(/\\/g, '/')}`,
+      `!${path.join(rootPath, '**/dist/**').replace(/\\/g, '/')}`,
+      `!${path.join(rootPath, '**/build/**').replace(/\\/g, '/')}`,
+      `!${path.join(rootPath, '**/*.d.ts').replace(/\\/g, '/')}`,
+    ]);
+  }
 
   const sourceFiles = tsProject.getSourceFiles();
 

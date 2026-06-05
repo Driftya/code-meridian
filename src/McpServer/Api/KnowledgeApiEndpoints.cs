@@ -19,6 +19,7 @@ public static class KnowledgeApiEndpoints
         group.MapPost("/nodes/edges", IngestEdge);
         group.MapPost("/documents", IngestDocument);
         group.MapDelete("/project/{projectContext}/diagnostics", DeleteDiagnostics);
+        group.MapDelete("/project/{projectContext}/files/{**filePath}", DeleteProjectFile);
         group.MapDelete("/code-graph", DeleteCodeGraph);
         group.MapDelete("/project/{projectContext}", DeleteProject);
 
@@ -120,6 +121,21 @@ public static class KnowledgeApiEndpoints
         await Task.WhenAll(
             codeGraph.DeleteProjectAsync(projectContext, ct),
             vectorStore.DeleteProjectAsync(projectContext, ct));
+
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> DeleteProjectFile(
+        string projectContext,
+        string filePath,
+        ICodeGraphRepository codeGraph,
+        IVectorRepository vectorStore,
+        CancellationToken ct)
+    {
+        var normalizedFilePath = Uri.UnescapeDataString(filePath).Replace('\\', '/');
+        await Task.WhenAll(
+            codeGraph.DeleteFileAsync(projectContext, normalizedFilePath, ct),
+            vectorStore.DeleteSourceAsync(projectContext, normalizedFilePath, ct));
 
         return Results.NoContent();
     }

@@ -21,6 +21,8 @@ public sealed class IndexerPipeline(
         string projectContext,
         bool clear,
         bool includeDocs,
+        IReadOnlyCollection<string>? changedFiles = null,
+        IReadOnlyCollection<string>? deletedFiles = null,
         CancellationToken cancellationToken = default)
     {
         if (!root.Exists)
@@ -40,13 +42,27 @@ public sealed class IndexerPipeline(
             logger.LogInformation("Cleared.");
         }
 
+        foreach (var filePath in deletedFiles ?? [])
+        {
+            logger.LogInformation("Removing stale graph data for {File}...", filePath);
+            await client.DeleteProjectFileAsync(projectContext, filePath, cancellationToken);
+        }
+
         // -- Phase 1: C# code graph --------------------------------------------
         var csFiles = root
             .EnumerateFiles("*.cs", SearchOption.AllDirectories)
             .Where(f => !IsGenerated(f.FullName))
+            .Where(f => changedFiles is null || changedFiles.Contains(RelativePath(root, f), StringComparer.OrdinalIgnoreCase))
             .ToArray();
 
         logger.LogInformation("Found {Count} C# files to index.", csFiles.Length);
+
+        foreach (var file in csFiles)
+        {
+            var relPath = RelativePath(root, file);
+            logger.LogInformation("Removing stale graph data for {File} before re-indexing...", relPath);
+            await client.DeleteProjectFileAsync(projectContext, relPath, cancellationToken);
+        }
 
         var stats = await csharpIndexer.IndexAsync(csFiles, projectContext, root.FullName, cancellationToken);
 
@@ -60,6 +76,7 @@ public sealed class IndexerPipeline(
             var docFiles = root
                 .EnumerateFiles("*.*", SearchOption.AllDirectories)
                 .Where(f => IsDocFile(f.Name) && !IsGenerated(f.FullName))
+                .Where(f => changedFiles is null || changedFiles.Contains(RelativePath(root, f), StringComparer.OrdinalIgnoreCase))
                 .ToArray();
 
             logger.LogInformation("Found {Count} documentation files to ingest.", docFiles.Length);
@@ -83,4 +100,7 @@ public sealed class IndexerPipeline(
         name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
         name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) ||
         name is "agents.md" or "README.md" or "ARCHITECTURE.md" or "CHANGELOG.md";
+
+    private static string RelativePath(DirectoryInfo root, FileInfo file) =>
+        Path.GetRelativePath(root.FullName, file.FullName).Replace('\\', '/');
 }

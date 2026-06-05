@@ -215,13 +215,33 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         return results;
     }
 
-    public async Task DeleteAsync(string id, CancellationToken cancellationToken = default)    {
+    public async Task DeleteAsync(string id, CancellationToken cancellationToken = default)
+    {
         await using var session = _driver.AsyncSession();
 
         const string cypher = "MATCH (d:KnowledgeDocument {id: $id}) DELETE d";
         await session.ExecuteWriteAsync(async tx =>
         {
             var cursor = await tx.RunAsync(cypher, new { id });
+            await cursor.ConsumeAsync();
+        });
+    }
+
+    public async Task DeleteSourceAsync(
+        string projectContext,
+        string source,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (d:KnowledgeDocument {projectContext: $projectContext, source: $source})
+            DETACH DELETE d
+            """;
+
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            var cursor = await tx.RunAsync(cypher, new { projectContext, source });
             await cursor.ConsumeAsync();
         });
     }

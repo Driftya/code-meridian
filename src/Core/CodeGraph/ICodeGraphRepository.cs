@@ -8,6 +8,7 @@ public interface ICodeGraphRepository
     Task UpsertNodeAsync(CodeNode node, CancellationToken cancellationToken = default);
     Task UpsertEdgeAsync(CodeEdge edge, CancellationToken cancellationToken = default);
     Task DeleteProjectAsync(string projectContext, CancellationToken cancellationToken = default);
+    Task DeleteFileAsync(string projectContext, string filePath, CancellationToken cancellationToken = default);
     Task DeleteDiagnosticsAsync(string projectContext, CancellationToken cancellationToken = default);
     Task DeleteAllAsync(CancellationToken cancellationToken = default);
 

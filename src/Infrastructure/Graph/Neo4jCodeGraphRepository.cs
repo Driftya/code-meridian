@@ -297,6 +297,25 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         });
     }
 
+    public async Task DeleteFileAsync(
+        string projectContext,
+        string filePath,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (n:CodeNode {projectContext: $projectContext, filePath: $filePath})
+            DETACH DELETE n
+            """;
+
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            var cursor = await tx.RunAsync(cypher, new { projectContext, filePath });
+            await cursor.ConsumeAsync();
+        });
+    }
+
     public async Task DeleteDiagnosticsAsync(string projectContext, CancellationToken cancellationToken = default)
     {
         await using var session = _driver.AsyncSession();

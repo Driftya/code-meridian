@@ -1,0 +1,77 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using CodeMeridian.Sdk;
+using FluentAssertions;
+
+namespace CodeMeridian.Sdk.Tests;
+
+public sealed class CodeMeridianClientTests
+{
+    [Fact]
+    public async Task IngestDocumentAsync_SendsRelatedNodeIdsCsv()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.IngestDocumentAsync(
+            content: "ADR-004 references PaymentGateway.ChargeAsync",
+            source: "docs/adr-004.md",
+            projectContext: "Shop",
+            id: "doc-1",
+            relatedNodeIdsCsv: "Method:Shop.Payments.PaymentGateway.ChargeAsync");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Post);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/documents");
+
+        var body = await handler.ReadBodyAsync();
+        body.GetProperty("relatedNodeIdsCsv").GetString().Should().Be("Method:Shop.Payments.PaymentGateway.ChargeAsync");
+        body.GetProperty("content").GetString().Should().Contain("PaymentGateway.ChargeAsync");
+    }
+
+    [Fact]
+    public async Task DeleteProjectFileAsync_SendsEncodedFileDeleteRequest()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.DeleteProjectFileAsync("My Project", "src/App/Order Service.cs");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Delete);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/project/My%20Project/files/src%2FApp%2FOrder%20Service.cs");
+    }
+
+    private sealed class CapturingHandler : HttpMessageHandler
+    {
+        public HttpRequestMessage? Request { get; private set; }
+        private string? _body;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Request = request;
+            _body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+
+            return new HttpResponseMessage(HttpStatusCode.Created)
+            {
+                Content = JsonContent.Create(new { })
+            };
+        }
+
+        public async Task<JsonElement> ReadBodyAsync()
+        {
+            _body.Should().NotBeNull();
+            using var doc = JsonDocument.Parse(_body!);
+            return doc.RootElement.Clone();
+        }
+    }
+}

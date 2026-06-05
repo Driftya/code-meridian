@@ -21,6 +21,7 @@ const apiKey = process.env.CodeMeridian_Auth_ApiKey;
 let clear = false;
 let noDocs = false;
 let watch = false;
+let filesListPath: string | undefined;
 
 for (let i = 0; i < args.length; i++) {
   switch (args[i]) {
@@ -38,6 +39,9 @@ for (let i = 0; i < args.length; i++) {
       break;
     case '--watch':
       watch = true;
+      break;
+    case '--files-list':
+      filesListPath = args[++i];
       break;
     default:
       if (!args[i].startsWith('--')) positional.push(args[i]);
@@ -72,7 +76,9 @@ if (clear) {
 }
 
 console.log(`Walking TypeScript files in ${rootPath}...`);
-const { nodes, edges } = walkTypeScript(rootPath, projectName);
+const files = filesListPath ? readFilesList(filesListPath) : undefined;
+if (files) console.log(`  Incremental file list: ${files.length} file(s)`);
+const { nodes, edges } = walkTypeScript(rootPath, projectName, files);
 console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
 
 let nodeCount = 0;
@@ -120,13 +126,30 @@ if (watch) {
   console.log(`\nWatch mode active — monitoring ${rootPath} for .ts/.tsx/.md changes. Press Ctrl+C to exit.\n`);
 
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  const changed = new Set<string>();
+  const deleted = new Set<string>();
 
-  const reindex = (): void => {
+  const reindex = (filePath: string, wasDeleted: boolean): void => {
+    const relativePath = path.relative(rootPath, filePath).replace(/\\/g, '/');
+    if (wasDeleted) deleted.add(relativePath);
+    else changed.add(filePath);
+
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(async () => {
       console.log('[watch] Change detected — re-indexing...');
+      const changedBatch = Array.from(changed);
+      const deletedBatch = Array.from(deleted);
+      changed.clear();
+      deleted.clear();
+
       try {
-        const result = walkTypeScript(rootPath, projectName!);
+        for (const relPath of [...changedBatch.map(file => path.relative(rootPath, file).replace(/\\/g, '/')), ...deletedBatch]) {
+          await client.deleteProjectFile(projectName!, relPath).catch(() => {});
+        }
+
+        const result = changedBatch.length > 0
+          ? walkTypeScript(rootPath, projectName!, changedBatch)
+          : { nodes: [], edges: [] };
         for (const node of result.nodes) {
           await client.ingestNode(node).catch(() => {});
         }
@@ -149,9 +172,9 @@ if (watch) {
     persistent: true,
     ignoreInitial: true,
   })
-    .on('add', reindex)
-    .on('change', reindex)
-    .on('unlink', reindex);
+    .on('add', filePath => reindex(filePath, false))
+    .on('change', filePath => reindex(filePath, false))
+    .on('unlink', filePath => reindex(filePath, true));
 
   // Keep process alive until Ctrl+C
   await new Promise<void>((resolve) => {
@@ -178,6 +201,7 @@ Options:
   --clear             Wipe this project's existing data before indexing
   --no-docs           Skip README ingestion
   --watch             Stay running; re-index when .ts, .tsx or .md files change
+  --files-list <path> Index only files listed in a newline-delimited text file
   -h, --help          Show this help
 
 Examples:
@@ -185,6 +209,14 @@ Examples:
   npx tsx src/index.ts ../my-api --clear
   npx tsx src/index.ts . --url http://localhost:5100
 `);
+}
+
+function readFilesList(filePath: string): string[] {
+  return fs
+    .readFileSync(path.resolve(filePath), 'utf8')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
 }
 
 function resolveProjectName(dir: string): string {

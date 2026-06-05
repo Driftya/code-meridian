@@ -105,6 +105,19 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task DeleteProjectFileAsync(
+        string projectContext,
+        string filePath,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedPath = filePath.Replace('\\', '/');
+        var response = await httpClient.DeleteAsync(
+            $"/api/v1/knowledge/project/{Uri.EscapeDataString(projectContext)}/files/{Uri.EscapeDataString(normalizedPath)}",
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task ClearProjectDiagnosticsAsync(
         string projectContext,
         CancellationToken cancellationToken = default)

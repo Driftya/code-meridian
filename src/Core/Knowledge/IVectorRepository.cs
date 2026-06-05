@@ -12,5 +12,6 @@ public interface IVectorRepository
     Task<IReadOnlyList<KnowledgeDocument>> SearchByTextAsync(string query, string? projectContext = null, int topK = 10, CancellationToken cancellationToken = default);
 
     Task DeleteAsync(string id, CancellationToken cancellationToken = default);
+    Task DeleteSourceAsync(string projectContext, string source, CancellationToken cancellationToken = default);
     Task DeleteProjectAsync(string projectContext, CancellationToken cancellationToken = default);
 }

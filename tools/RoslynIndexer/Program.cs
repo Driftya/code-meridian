@@ -85,22 +85,45 @@ await pipeline.RunAsync(rootPath, project, clear, docs);
 if (watch)
 {
     var logger = provider.GetRequiredService<ILogger<IndexerPipeline>>();
-    logger.LogInformation("Watch mode active — monitoring {Path} for .cs and .md changes. Press Ctrl+C to exit.", rootPath.FullName);
+    logger.LogInformation("Watch mode active monitoring {Path} for .cs and .md changes. Press Ctrl+C to exit.", rootPath.FullName);
 
     // Debounce: collect changes for 2 s of quiet before re-indexing
     var debounceTimer = (System.Timers.Timer?)null;
+    var changedDuringDebounce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var deletedDuringDebounce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
-    void ScheduleReindex()
+    void ScheduleReindex(string fullPath, bool deleted)
     {
+        var relativePath = Path.GetRelativePath(rootPath.FullName, fullPath).Replace('\\', '/');
+        if (deleted)
+            deletedDuringDebounce.Add(relativePath);
+        else
+            changedDuringDebounce.Add(relativePath);
+
         debounceTimer?.Stop();
         debounceTimer?.Dispose();
         debounceTimer = new System.Timers.Timer(2_000) { AutoReset = false };
         debounceTimer.Elapsed += async (_, _) =>
         {
-            logger.LogInformation("[watch] Change detected — re-indexing...");
-            try { await pipeline.RunAsync(rootPath, project, clear: false, docs, cts.Token); }
+            logger.LogInformation("[watch] Change detected re-indexing...");
+            var changedBatch = changedDuringDebounce.ToArray();
+            var deletedBatch = deletedDuringDebounce.ToArray();
+            changedDuringDebounce.Clear();
+            deletedDuringDebounce.Clear();
+
+            try
+            {
+                await pipeline.RunAsync(
+                    rootPath,
+                    project,
+                    clear: false,
+                    includeDocs: docs,
+                    changedFiles: changedBatch,
+                    deletedFiles: deletedBatch,
+                    cancellationToken: cts.Token);
+            }
             catch (Exception ex) { logger.LogError(ex, "[watch] Re-index failed."); }
         };
         debounceTimer.Start();
@@ -114,10 +137,14 @@ if (watch)
     };
     fsWatcher.Filters.Add("*.cs");
     fsWatcher.Filters.Add("*.md");
-    fsWatcher.Changed += (_, _) => ScheduleReindex();
-    fsWatcher.Created += (_, _) => ScheduleReindex();
-    fsWatcher.Deleted += (_, _) => ScheduleReindex();
-    fsWatcher.Renamed += (_, _) => ScheduleReindex();
+    fsWatcher.Changed += (_, e) => ScheduleReindex(e.FullPath, deleted: false);
+    fsWatcher.Created += (_, e) => ScheduleReindex(e.FullPath, deleted: false);
+    fsWatcher.Deleted += (_, e) => ScheduleReindex(e.FullPath, deleted: true);
+    fsWatcher.Renamed += (_, e) =>
+    {
+        ScheduleReindex(e.OldFullPath, deleted: true);
+        ScheduleReindex(e.FullPath, deleted: false);
+    };
 
     try { await Task.Delay(Timeout.Infinite, cts.Token); } catch (OperationCanceledException) { }
     logger.LogInformation("Watch mode stopped.");
@@ -129,7 +156,7 @@ return 0;
 static void PrintUsage()
 {
     Console.WriteLine("""
-        CodeMeridian Indexer — populates the code knowledge graph from a C# codebase
+        CodeMeridian Indexer populates the code knowledge graph from a C# codebase
 
         USAGE:
           CodeMeridian-index <path> [--project <name>] [options]

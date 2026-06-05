@@ -114,6 +114,7 @@ codemeridian index . --dry-run
 | `--list-capabilities` | Show available indexers on the current machine |
 | `--include-diagnostics` | Run diagnostics indexing. This is the default; kept for compatibility |
 | `--skip-diagnostics` | Skip project-native compiler, TypeScript, and lint diagnostics indexing |
+| `--no-incremental` / `--force-full` | Ignore the local file cache and scan all enabled files |
 | `--watch` | Stay running and re-index when files change |
 
 ## Clear Commands
@@ -123,6 +124,12 @@ Use `codemeridian index --clear` for normal rebuilds. It clears the selected pro
 Use `codemeridian clear --project <name>` when you want to remove one project's indexed code graph and documentation without immediately re-indexing.
 
 Use `codemeridian clear --all-code-graph` only for a hard reset of indexed code nodes across every project. It removes `CodeNode` nodes and relationships but preserves documentation nodes.
+
+## Incremental Indexing
+
+By default, the unified indexer stores a language-neutral file snapshot in `.meridian/cache`. Later runs compare file path, last-write time, and length so unchanged files can be skipped before invoking the C# or TypeScript indexer.
+
+Changed and deleted files are removed from the project graph before re-indexing, which prevents old symbols from lingering when a file is edited or removed. Use `--clear` after major renames, project moves, or indexer ID changes. Use `--no-incremental` or `--force-full` when you want a full scan without clearing existing knowledge.
 
 ## C# Indexing
 
