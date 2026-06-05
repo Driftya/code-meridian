@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024px" height="1024px" xmlns:bx="https://boxy-svg.com">
+  <defs>
+    <linearGradient id="color-0" gradientUnits="userSpaceOnUse" bx:pinned="true" gradientTransform="matrix(1, 0, 0, 1, -179.683598, 961.936635)">
+      <title>Main</title>
+      <stop style="stop-color: rgb(27, 56, 95)"/>
+    </linearGradient>
+  </defs>
+  <title>Compass Graph Icon Simple</title>
+  <ellipse style="fill: rgb(171, 232, 255);" cx="512" cy="512" rx="472.718" ry="474.694"/>
+  <g stroke="#05070d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" transform="matrix(2.122642, 0, 0, 2.122642, -31.396363, -31.396365)" style="">
+    <circle cx="256" cy="256" r="168" style="fill: none; stroke: url(&quot;#color-0&quot;); stroke-width: 28px;"/>
+    <path d="M256 44 L282 128 L256 112 L230 128 Z" style="fill: url(&quot;#color-0&quot;); stroke: none;"/>
+    <path d="M256 468 L282 384 L256 400 L230 384 Z" style="stroke: none; fill: url(&quot;#color-0&quot;);"/>
+    <path d="M44 256 L128 230 L112 256 L128 282 Z" style="stroke: none; fill: url(&quot;#color-0&quot;);"/>
+    <path d="M468 256 L384 230 L400 256 L384 282 Z" style="fill: url(&quot;#color-0&quot;); stroke: none;"/>
+    <path d="M256 168 L188 224" style="stroke-width: 12px; stroke: url(&quot;#color-0&quot;);"/>
+    <path d="M256 168 L324 224" style="stroke-width: 12px; stroke: url(&quot;#color-0&quot;);"/>
+    <path d="M188 224 L256 256" style="stroke-width: 12px; stroke: url(&quot;#color-0&quot;);"/>
+    <path d="M324 224 L256 256" style="stroke-width: 12px; stroke: url(&quot;#color-0&quot;);"/>
+    <path d="M188 224 L206 328" style="stroke-width: 12px; stroke: url(&quot;#color-0&quot;);"/>
+    <path d="M324 224 L306 328" style="stroke-width: 12px; stroke: url(&quot;#color-0&quot;);"/>
+    <path d="M206 328 L256 256" style="stroke-width: 12px; stroke: url(&quot;#color-0&quot;);"/>
+    <path d="M306 328 L256 256" style="stroke-width: 12px; stroke: url(&quot;#color-0&quot;);"/>
+    <path d="M206 328 L306 328" style="stroke-width: 12px; stroke: url(&quot;#color-0&quot;);"/>
+  </g>
+  <g fill="#05070d" transform="matrix(2.122642, 0, 0, 2.122642, -31.396363, -31.396365)" style="">
+    <circle cx="256" cy="168" r="17" style="fill: url(&quot;#color-0&quot;);"/>
+    <circle cx="188" cy="224" r="18" style="fill: url(&quot;#color-0&quot;);"/>
+    <circle cx="324" cy="224" r="18" style="fill: url(&quot;#color-0&quot;);"/>
+    <circle cx="256" cy="256" r="23" style="fill: url(&quot;#color-0&quot;);"/>
+    <circle cx="206" cy="328" r="18" style="fill: url(&quot;#color-0&quot;);"/>
+    <circle cx="306" cy="328" r="18" style="fill: url(&quot;#color-0&quot;);"/>
+  </g>
+</svg>
