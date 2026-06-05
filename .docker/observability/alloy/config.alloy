@@ -1,0 +1,79 @@
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker" {
+  targets = discovery.docker.containers.targets
+
+  // Only ship logs from containers that opt-in via label: logging=enabled
+  rule {
+    source_labels = ["__meta_docker_container_label_logging"]
+    regex         = "enabled"
+    action        = "keep"
+  }
+
+  // Useful, low-cardinality labels (safe to keep)
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_environment"]
+    target_label  = "environment"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_app"]
+    target_label  = "app"
+  }
+}
+
+loki.source.docker "containers" {
+  host    = "unix:///var/run/docker.sock"
+  targets = discovery.relabel.docker.output
+
+  forward_to = [loki.process.docker.receiver]
+}
+
+loki.process "docker" {
+  stage.regex {
+    expression = "^(?P<plainLevel>Error|Warning|Information|Debug|Trace):"
+  }
+
+  stage.json {
+    expressions = {
+      logLevel = "LogLevel",
+      level    = "level",
+    }
+  }
+
+  stage.template {
+    source   = "normalized_level"
+    template = "{{ if .plainLevel }}{{ .plainLevel }}{{ else if .logLevel }}{{ .logLevel }}{{ else }}{{ .level }}{{ end }}"
+  }
+
+  stage.labels {
+    values = {
+      level = "normalized_level",
+    }
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
