@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using CodeMeridian.Indexer.Cli;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
@@ -26,9 +25,9 @@ if (rawArgs.Count > 0
 if (rawArgs.Count > 0 && rawArgs[0] is "-h" or "--help" or "help")
 {
     if (command == "clear")
-        PrintClearUsage();
+        ClearCommand.PrintUsage();
     else if (command == "serve")
-        PrintServeUsage();
+        ServeCommand.PrintUsage();
     else
         PrintUsage();
     return 0;
@@ -40,10 +39,10 @@ LoadDotEnv(new DirectoryInfo(Directory.GetCurrentDirectory()), initialEnvironmen
 var startupConfig = IndexerConfig.Load(new DirectoryInfo(Directory.GetCurrentDirectory()));
 
 if (command == "clear")
-    return await RunClearCommandAsync(rawArgs, startupConfig);
+    return await ClearCommand.RunAsync(rawArgs, startupConfig);
 
 if (command == "serve")
-    return await RunServeCommandAsync(rawArgs);
+    return await ServeCommand.RunAsync(rawArgs);
 
 var positional = new List<string>();
 string? project = null;
@@ -148,13 +147,13 @@ var apiKey = Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
 var environmentProject = Environment.GetEnvironmentVariable("CodeMeridian_Project");
 
 if (command == "init")
-    return RunInitCommand(rootPath, project ?? environmentProject, codeMeridianUrl, initForce);
+    return InitCommand.Run(rootPath, project ?? environmentProject, codeMeridianUrl, initForce);
 
 if (command == "doctor")
-    return await RunDoctorCommandAsync(project ?? environmentProject ?? meridianConfig?.Project ?? IndexerDiscovery.ResolveProjectName(rootPath), codeMeridianUrl, apiKey);
+    return await StatusCommand.RunDoctorAsync(project ?? environmentProject ?? meridianConfig?.Project ?? IndexerDiscovery.ResolveProjectName(rootPath), codeMeridianUrl, apiKey);
 
 if (command == "check-drift" || verify)
-    return await RunDriftVerificationAsync(
+    return await StatusCommand.RunDriftVerificationAsync(
         project ?? environmentProject ?? meridianConfig?.Project ?? IndexerDiscovery.ResolveProjectName(rootPath),
         codeMeridianUrl,
         apiKey,
@@ -281,7 +280,7 @@ if (hasTypeScript)
 
 if (!skipDiagnostics)
 {
-    exitCode = await RunDiagnosticsAsync(rootPath, project, codeMeridianUrl, apiKey, allowRepoScripts);
+    exitCode = await DiagnosticsCommand.RunAsync(rootPath, project, codeMeridianUrl, apiKey, allowRepoScripts);
     if (exitCode != 0)
         return exitCode;
 }
@@ -483,126 +482,6 @@ static async Task<int> RunAsync(string fileName, IReadOnlyList<string> arguments
     process.Start();
     await process.WaitForExitAsync();
     return process.ExitCode;
-}
-
-static async Task<int> RunDiagnosticsAsync(
-    DirectoryInfo rootPath,
-    string project,
-    string codeMeridianUrl,
-    string? apiKey,
-    bool allowRepoScripts)
-{
-    Console.WriteLine();
-    Console.WriteLine("Indexing diagnostics...");
-
-    using var httpClient = new HttpClient
-    {
-        BaseAddress = new Uri(codeMeridianUrl),
-        Timeout = TimeSpan.FromMinutes(10)
-    };
-    httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-    if (!string.IsNullOrWhiteSpace(apiKey))
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-
-    var client = new CodeMeridianClient(httpClient);
-    await client.ClearProjectDiagnosticsAsync(project);
-
-    var findings = new List<DiagnosticFinding>();
-
-    if (allowRepoScripts && IndexerDiscovery.ContainsFile(rootPath, ".cs"))
-    {
-        var build = await RunCaptureAsync("dotnet", ["build", "--no-restore", "--nologo"], rootPath);
-        findings.AddRange(ParseDotnetDiagnostics(build.Output, rootPath, project));
-    }
-    else if (IndexerDiscovery.ContainsFile(rootPath, ".cs"))
-    {
-        Console.WriteLine("  C# build diagnostics skipped. Use --allow-repo-scripts to run repo-controlled build steps.");
-    }
-
-    if (File.Exists(Path.Combine(rootPath.FullName, "tsconfig.json")))
-    {
-        var tsc = ResolveLocalNodeBinary(rootPath, "tsc");
-        if (tsc is not null)
-        {
-            var result = await RunCaptureAsync(
-                tsc,
-                ["--noEmit", "--pretty", "false", "--noUnusedLocals", "--noUnusedParameters"],
-                rootPath);
-            findings.AddRange(ParseTypeScriptDiagnostics(result.Output, rootPath, project));
-        }
-        else
-        {
-            Console.WriteLine("  TypeScript diagnostics unavailable: local tsc not found.");
-        }
-    }
-
-    if (allowRepoScripts)
-    {
-        var lintCommand = ResolveLintCommand(rootPath);
-        if (lintCommand is not null)
-        {
-            var result = await RunCaptureAsync(lintCommand.Value.FileName, lintCommand.Value.Arguments, rootPath);
-            findings.AddRange(ParseLintDiagnostics(result.Output, rootPath, project));
-        }
-    }
-    else if (ResolveLintCommand(rootPath) is not null)
-    {
-        Console.WriteLine("  Lint diagnostics skipped. Use --allow-repo-scripts to run repo-controlled lint steps.");
-    }
-
-    var distinct = findings
-        .GroupBy(f => f.Id, StringComparer.Ordinal)
-        .Select(g => g.First())
-        .ToArray();
-
-    foreach (var finding in distinct)
-    {
-        await client.IngestCodeNodeAsync(
-            finding.Id,
-            $"{finding.Severity} {finding.Code}",
-            "Diagnostic",
-            namespacePath: finding.Source,
-            filePath: finding.FilePath,
-            lineNumber: finding.Line,
-            summary: finding.Message,
-            projectContext: project);
-
-        if (!string.IsNullOrWhiteSpace(finding.FilePath))
-        {
-            await client.IngestRelationshipAsync(
-                $"{project}::File::{finding.FilePath}",
-                finding.Id,
-                "Contains");
-        }
-    }
-
-    Console.WriteLine($"  Indexed {distinct.Length} diagnostics.");
-    return 0;
-}
-
-static async Task<(int ExitCode, string Output)> RunCaptureAsync(
-    string fileName,
-    IReadOnlyList<string> arguments,
-    DirectoryInfo workingDirectory)
-{
-    using var process = new Process();
-    process.StartInfo = new ProcessStartInfo
-    {
-        FileName = fileName,
-        WorkingDirectory = workingDirectory.FullName,
-        UseShellExecute = false,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true,
-    };
-
-    foreach (var argument in arguments)
-        process.StartInfo.ArgumentList.Add(argument);
-
-    process.Start();
-    var stdout = await process.StandardOutput.ReadToEndAsync();
-    var stderr = await process.StandardError.ReadToEndAsync();
-    await process.WaitForExitAsync();
-    return (process.ExitCode, stdout + Environment.NewLine + stderr);
 }
 
 static DirectoryInfo? ResolveTypeScriptIndexerRoot()
@@ -836,121 +715,6 @@ static async Task DeleteProjectFilesAsync(
         await client.DeleteProjectFileAsync(project, relativePath);
 }
 
-static async Task<int> RunDoctorCommandAsync(
-    string? project,
-    string codeMeridianUrl,
-    string? apiKey)
-{
-    using var httpClient = new HttpClient
-    {
-        BaseAddress = new Uri(codeMeridianUrl),
-        Timeout = TimeSpan.FromMinutes(10)
-    };
-    httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-    if (!string.IsNullOrWhiteSpace(apiKey))
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-
-    var client = new CodeMeridianClient(httpClient);
-    DoctorStatusResponse? status;
-
-    try
-    {
-        status = await client.GetDoctorStatusAsync(project);
-    }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine("CodeMeridian doctor");
-        Console.Error.WriteLine("  Server reachable        : no");
-        Console.Error.WriteLine("  MCP endpoint reachable   : no");
-        Console.Error.WriteLine("  Neo4j reachable          : no");
-        Console.Error.WriteLine($"  Error                    : {ex.Message}");
-        return 1;
-    }
-
-    if (status is null)
-    {
-        Console.Error.WriteLine("CodeMeridian doctor");
-        Console.Error.WriteLine("  Server reachable        : no");
-        Console.Error.WriteLine("  MCP endpoint reachable   : no");
-        Console.Error.WriteLine("  Neo4j reachable          : no");
-        Console.Error.WriteLine("  Error                    : backend returned a non-success response.");
-        return 1;
-    }
-
-    Console.WriteLine("CodeMeridian doctor");
-    Console.WriteLine("  Server reachable        : yes");
-    Console.WriteLine("  MCP endpoint reachable   : yes");
-    Console.WriteLine($"  Neo4j reachable         : {(status.Neo4jReachable ? "yes" : "no")}");
-    Console.WriteLine($"  Indexed nodes           : {status.IndexedNodes:N0}");
-    Console.WriteLine($"  Call edges              : {status.CallEdges:N0}");
-    Console.WriteLine($"  Docs indexed            : {status.DocumentsIndexed:N0}");
-    Console.WriteLine($"  Diagnostics indexed     : {status.DiagnosticsIndexed:N0}");
-    Console.WriteLine($"  Graph drift             : {status.GraphDrift}");
-    Console.WriteLine($"  Embeddings              : {(status.EmbeddingsEnabled ? $"{status.EmbeddingProvider} ({status.EmbeddingDimensions} dims)" : "disabled")}");
-
-    if (!string.IsNullOrWhiteSpace(status.Error))
-        Console.WriteLine($"  Note                    : {status.Error}");
-
-    return status.Neo4jReachable ? 0 : 1;
-}
-
-static async Task<int> RunDriftVerificationAsync(
-    string? project,
-    string codeMeridianUrl,
-    string? apiKey,
-    string failOn)
-{
-    using var httpClient = new HttpClient
-    {
-        BaseAddress = new Uri(codeMeridianUrl),
-        Timeout = TimeSpan.FromMinutes(10)
-    };
-    httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-    if (!string.IsNullOrWhiteSpace(apiKey))
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-
-    var client = new CodeMeridianClient(httpClient);
-    DoctorStatusResponse? status;
-
-    try
-    {
-        status = await client.GetDoctorStatusAsync(project);
-    }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine("CodeMeridian drift verification");
-        Console.Error.WriteLine("  Server reachable       : no");
-        Console.Error.WriteLine("  MCP endpoint reachable : no");
-        Console.Error.WriteLine("  Neo4j reachable        : no");
-        Console.Error.WriteLine($"  Error                  : {ex.Message}");
-        return 1;
-    }
-
-    if (status is null)
-    {
-        Console.Error.WriteLine("CodeMeridian drift verification");
-        Console.Error.WriteLine("  Server reachable       : no");
-        Console.Error.WriteLine("  MCP endpoint reachable : no");
-        Console.Error.WriteLine("  Neo4j reachable        : no");
-        Console.Error.WriteLine("  Error                  : backend returned a non-success response.");
-        return 1;
-    }
-
-    Console.WriteLine("CodeMeridian drift verification");
-    Console.WriteLine("  Server reachable       : yes");
-    Console.WriteLine("  MCP endpoint reachable : yes");
-    Console.WriteLine($"  Neo4j reachable        : {(status.Neo4jReachable ? "yes" : "no")}");
-    Console.WriteLine($"  Fail threshold         : {failOn}");
-    Console.WriteLine($"  Graph drift            : {status.GraphDrift}");
-    Console.WriteLine();
-    Console.WriteLine(status.GraphDriftReport);
-
-    if (!status.Neo4jReachable)
-        return 1;
-
-    return SeverityAtLeast(status.GraphDrift, failOn) ? 2 : 0;
-}
-
 static void PrintCapabilities()
 {
     var tsIndexerRoot = ResolveTypeScriptIndexerRoot();
@@ -978,138 +742,6 @@ static void PrintCapabilities()
     Console.WriteLine("  codemeridian clear --all-code-graph");
 }
 
-static int RunInitCommand(DirectoryInfo rootPath, string? projectOverride, string codeMeridianUrl, bool force)
-{
-    Directory.CreateDirectory(rootPath.FullName);
-
-    var project = projectOverride
-        ?? IndexerConfig.Load(rootPath)?.Project
-        ?? IndexerDiscovery.ResolveProjectName(rootPath);
-
-    try
-    {
-        IndexerConfig.Write(rootPath, project, codeMeridianUrl, overwrite: force);
-    }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine($"error: {ex.Message}");
-        return 1;
-    }
-
-    var configPath = Path.Combine(rootPath.FullName, "meridian.json");
-    Console.WriteLine("Initialized CodeMeridian indexer config:");
-    Console.WriteLine($"  Path    : {configPath}");
-    Console.WriteLine($"  Project : {project}");
-    Console.WriteLine($"  Server  : {codeMeridianUrl}");
-    Console.WriteLine();
-    Console.WriteLine("Next step:");
-    Console.WriteLine("  codemeridian index .");
-
-    return 0;
-}
-
-static async Task<int> RunServeCommandAsync(IReadOnlyList<string> rawArgs)
-{
-    var positional = new List<string>();
-    var host = ServeOptions.DefaultHost;
-    var port = ServeOptions.DefaultPort;
-    var neo4jHttpPort = ServeOptions.DefaultNeo4jHttpPort;
-    var neo4jBoltPort = ServeOptions.DefaultNeo4jBoltPort;
-    var composeFile = ServeOptions.DefaultComposeFileName;
-    var image = ServeOptions.DefaultImage;
-    var force = false;
-    var start = true;
-
-    for (var i = 0; i < rawArgs.Count; i++)
-    {
-        switch (rawArgs[i])
-        {
-            case "-h":
-            case "--help":
-                PrintServeUsage();
-                return 0;
-            case "--host" when i + 1 < rawArgs.Count:
-                host = rawArgs[++i];
-                break;
-            case "--port" when i + 1 < rawArgs.Count && int.TryParse(rawArgs[i + 1], out var parsedPort):
-                port = parsedPort;
-                i++;
-                break;
-            case "--neo4j-http-port" when i + 1 < rawArgs.Count && int.TryParse(rawArgs[i + 1], out var parsedHttpPort):
-                neo4jHttpPort = parsedHttpPort;
-                i++;
-                break;
-            case "--neo4j-bolt-port" when i + 1 < rawArgs.Count && int.TryParse(rawArgs[i + 1], out var parsedBoltPort):
-                neo4jBoltPort = parsedBoltPort;
-                i++;
-                break;
-            case "--compose-file" when i + 1 < rawArgs.Count:
-                composeFile = rawArgs[++i];
-                break;
-            case "--image" when i + 1 < rawArgs.Count:
-                image = rawArgs[++i];
-                break;
-            case "--force":
-                force = true;
-                break;
-            case "--no-start":
-                start = false;
-                break;
-            default:
-                if (!rawArgs[i].StartsWith("-", StringComparison.Ordinal))
-                    positional.Add(rawArgs[i]);
-                else
-                    Console.Error.WriteLine($"warn: unknown option ignored: {rawArgs[i]}");
-                break;
-        }
-    }
-
-    var rootPath = new DirectoryInfo(positional.Count > 0
-        ? Path.GetFullPath(positional[0], Directory.GetCurrentDirectory())
-        : Directory.GetCurrentDirectory());
-
-    var options = new ServeOptions(
-        rootPath,
-        host,
-        port,
-        neo4jHttpPort,
-        neo4jBoltPort,
-        composeFile,
-        image,
-        force,
-        start);
-
-    ServeApplyResult result;
-    try
-    {
-        result = new ServeWriter().Apply(options);
-    }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine($"error: {ex.Message}");
-        return 1;
-    }
-
-    Console.WriteLine("CodeMeridian serve");
-    Console.WriteLine($"  Root    : {rootPath.FullName}");
-    Console.WriteLine($"  Server  : http://{host}:{port}");
-    Console.WriteLine($"  Compose : {result.ComposePath}");
-    Console.WriteLine();
-    Console.WriteLine("Files:");
-    foreach (var change in result.Changes)
-        Console.WriteLine($"  {change.Status,-11} {change.Path}");
-
-    if (!start)
-    {
-        Console.WriteLine();
-        Console.WriteLine("Next step:");
-        Console.WriteLine($"  docker compose -f {QuoteIfNeeded(result.ComposePath)} up -d");
-        return 0;
-    }
-
-    return await RunAsync("docker", ["compose", "-f", result.ComposePath, "up", "-d"], rootPath);
-}
-
 static string ResolveCodeMeridianUrl(string? overrideUrl, IndexerConfig? config) =>
     !string.IsNullOrWhiteSpace(overrideUrl)
         ? overrideUrl
@@ -1118,22 +750,6 @@ static string ResolveCodeMeridianUrl(string? overrideUrl, IndexerConfig? config)
             : !string.IsNullOrWhiteSpace(config?.CodeMeridianUrl)
                 ? config!.CodeMeridianUrl!
                 : "http://localhost:5100";
-
-static bool SeverityAtLeast(string actual, string threshold)
-{
-    var actualRank = SeverityRank(actual);
-    var thresholdRank = SeverityRank(threshold);
-    return actualRank >= thresholdRank;
-}
-
-static int SeverityRank(string severity) =>
-    severity.Trim().ToLowerInvariant() switch
-    {
-        "low" => 1,
-        "moderate" => 2,
-        "high" => 3,
-        _ => 0
-    };
 
 static HashSet<string> GetEnvironmentKeys() =>
     Environment.GetEnvironmentVariables()
@@ -1189,224 +805,10 @@ static string? ResolveTsxCommand(DirectoryInfo tsIndexerRoot)
     return File.Exists(localTsx) ? localTsx : null;
 }
 
-static IReadOnlyList<DiagnosticFinding> ParseDotnetDiagnostics(
-    string output,
-    DirectoryInfo rootPath,
-    string project)
-{
-    const string pattern = @"^(?<file>.+?)\((?<line>\d+),(?<column>\d+)\):\s(?<severity>warning|error)\s(?<code>[A-Z]+\d+):\s(?<message>.+?)(?:\s\[(?<project>.+?)\])?$";
-    return ParseDiagnostics(output, rootPath, project, "dotnet", pattern);
-}
-
-static IReadOnlyList<DiagnosticFinding> ParseTypeScriptDiagnostics(
-    string output,
-    DirectoryInfo rootPath,
-    string project)
-{
-    const string pattern = @"^(?<file>.+?)\((?<line>\d+),(?<column>\d+)\):\s(?<severity>error)\s(?<code>TS\d+):\s(?<message>.+)$";
-    return ParseDiagnostics(output, rootPath, project, "tsc", pattern);
-}
-
-static IReadOnlyList<DiagnosticFinding> ParseLintDiagnostics(
-    string output,
-    DirectoryInfo rootPath,
-    string project)
-{
-    const string pattern = @"^\s*(?<line>\d+):(?<column>\d+)\s+(?<severity>error|warning|warn)\s+(?<message>.+?)\s+(?<code>[@\w/-]+)$";
-    var findings = new List<DiagnosticFinding>();
-    string? currentFile = null;
-
-    foreach (var rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-    {
-        var line = rawLine.TrimEnd();
-        if (!line.StartsWith(' ') && LooksLikePath(line))
-        {
-            currentFile = NormalizePath(line, rootPath);
-            continue;
-        }
-
-        if (currentFile is null)
-            continue;
-
-        var match = Regex.Match(line, pattern, RegexOptions.IgnoreCase);
-        if (!match.Success)
-            continue;
-
-        findings.Add(CreateDiagnostic(
-            project,
-            "eslint",
-            match.Groups["severity"].Value is "warn" ? "warning" : match.Groups["severity"].Value,
-            match.Groups["code"].Value,
-            match.Groups["message"].Value.Trim(),
-            currentFile,
-            ParseInt(match.Groups["line"].Value),
-            ParseInt(match.Groups["column"].Value)));
-    }
-
-    return findings;
-}
-
-static IReadOnlyList<DiagnosticFinding> ParseDiagnostics(
-    string output,
-    DirectoryInfo rootPath,
-    string project,
-    string source,
-    string pattern)
-{
-    var findings = new List<DiagnosticFinding>();
-
-    foreach (var rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-    {
-        var match = Regex.Match(rawLine.TrimEnd(), pattern, RegexOptions.IgnoreCase);
-        if (!match.Success)
-            continue;
-
-        findings.Add(CreateDiagnostic(
-            project,
-            source,
-            match.Groups["severity"].Value,
-            match.Groups["code"].Value,
-            match.Groups["message"].Value.Trim(),
-            NormalizePath(match.Groups["file"].Value, rootPath),
-            ParseInt(match.Groups["line"].Value),
-            ParseInt(match.Groups["column"].Value)));
-    }
-
-    return findings;
-}
-
-static DiagnosticFinding CreateDiagnostic(
-    string project,
-    string source,
-    string severity,
-    string code,
-    string message,
-    string filePath,
-    int? line,
-    int? column)
-{
-    var normalizedSeverity = severity.Equals("warn", StringComparison.OrdinalIgnoreCase)
-        ? "warning"
-        : severity.ToLowerInvariant();
-    var hashInput = $"{project}|{source}|{normalizedSeverity}|{code}|{filePath}|{line}|{column}|{message}";
-    var id = $"{project}::Diagnostic::{Hash(hashInput)}";
-    return new DiagnosticFinding(id, normalizedSeverity, code, message, filePath, line, column, source);
-}
-
-static string? ResolveLocalNodeBinary(DirectoryInfo rootPath, string name)
-{
-    var executable = OperatingSystem.IsWindows() ? $"{name}.cmd" : name;
-    for (var current = rootPath; current is not null; current = current.Parent)
-    {
-        var candidate = Path.Combine(current.FullName, "node_modules", ".bin", executable);
-        if (File.Exists(candidate))
-            return candidate;
-    }
-
-    return null;
-}
-
-static (string FileName, string[] Arguments)? ResolveLintCommand(DirectoryInfo rootPath)
-{
-    var packageJson = new FileInfo(Path.Combine(rootPath.FullName, "package.json"));
-    if (packageJson.Exists)
-    {
-        var content = File.ReadAllText(packageJson.FullName);
-        if (content.Contains("\"lint\"", StringComparison.OrdinalIgnoreCase))
-            return (NpmCommand(), ["run", "lint"]);
-    }
-
-    var eslint = ResolveLocalNodeBinary(rootPath, "eslint");
-    return eslint is null ? null : (eslint, ["."]);
-}
-
-static string NormalizePath(string path, DirectoryInfo rootPath)
-{
-    var trimmed = path.Trim().Trim('"');
-    var fullPath = Path.IsPathRooted(trimmed)
-        ? trimmed
-        : Path.GetFullPath(trimmed, rootPath.FullName);
-
-    return Path.GetRelativePath(rootPath.FullName, fullPath).Replace('\\', '/');
-}
-
-static bool LooksLikePath(string value) =>
-    value.Contains('/') || value.Contains('\\') || value.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) ||
-    value.EndsWith(".tsx", StringComparison.OrdinalIgnoreCase) || value.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
-    value.EndsWith(".jsx", StringComparison.OrdinalIgnoreCase);
-
-static int? ParseInt(string value) =>
-    int.TryParse(value, out var parsed) ? parsed : null;
-
 static string Hash(string value)
 {
     var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
     return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
-}
-
-static async Task<int> RunClearCommandAsync(IReadOnlyList<string> rawArgs, IndexerConfig? config)
-{
-    string? project = null;
-    var clearAllCodeGraph = false;
-    var codeMeridianUrl = Environment.GetEnvironmentVariable("CodeMeridian_Url")
-        ?? config?.CodeMeridianUrl
-        ?? "http://localhost:5100";
-    var apiKey = Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
-
-    for (var i = 0; i < rawArgs.Count; i++)
-    {
-        switch (rawArgs[i])
-        {
-            case "-h":
-            case "--help":
-                PrintClearUsage();
-                return 0;
-            case "--project" when i + 1 < rawArgs.Count:
-                project = rawArgs[++i];
-                break;
-            case "--CodeMeridian" when i + 1 < rawArgs.Count:
-            case "--url" when i + 1 < rawArgs.Count:
-                codeMeridianUrl = rawArgs[++i];
-                break;
-            case "--all-code-graph":
-                clearAllCodeGraph = true;
-                break;
-            default:
-                Console.Error.WriteLine($"warn: unknown option ignored: {rawArgs[i]}");
-                break;
-        }
-    }
-
-    if (!clearAllCodeGraph && string.IsNullOrWhiteSpace(project))
-    {
-        Console.Error.WriteLine("error: specify --project <name> or --all-code-graph.");
-        PrintClearUsage();
-        return 1;
-    }
-
-    using var httpClient = new HttpClient
-    {
-        BaseAddress = new Uri(codeMeridianUrl),
-        Timeout = TimeSpan.FromSeconds(120)
-    };
-    httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-    if (!string.IsNullOrWhiteSpace(apiKey))
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-
-    var client = new CodeMeridianClient(httpClient);
-
-    if (clearAllCodeGraph)
-    {
-        Console.WriteLine($"Clearing all indexed code graph nodes at {codeMeridianUrl}...");
-        await client.ClearCodeGraphAsync();
-        Console.WriteLine("Code graph cleared. Documentation knowledge was preserved.");
-        return 0;
-    }
-
-    Console.WriteLine($"Clearing project '{project}' at {codeMeridianUrl}...");
-    await client.ClearProjectKnowledgeAsync(project!);
-    Console.WriteLine("Project knowledge cleared.");
-    return 0;
 }
 
 static void PrintUsage()
@@ -1467,62 +869,3 @@ static void PrintUsage()
           codemeridian index . --dry-run
         """);
 }
-
-static void PrintServeUsage()
-{
-    Console.WriteLine("""
-        CodeMeridian Serve - create local MCP client config and start the backend stack.
-
-        USAGE:
-          codemeridian serve [path] [options]
-
-        OPTIONS:
-          --host <host>                 Hostname for generated MCP URLs. Default: localhost.
-          --port <port>                 MCP server host port. Default: 5100.
-          --neo4j-http-port <port>      Neo4j browser host port. Default: 47474.
-          --neo4j-bolt-port <port>      Neo4j bolt host port. Default: 47687.
-          --image <image>               MCP server image. Default: ghcr.io/driftya/codemeridian-mcp:latest.
-          --compose-file <path>         Compose file to create/use. Default: docker-compose.codemeridian.yml.
-          --force                       Back up and overwrite generated files where needed.
-          --no-start                    Write files but do not run docker compose.
-          -h, --help                    Show this help.
-
-        EXAMPLES:
-          codemeridian serve
-          codemeridian serve --no-start
-          codemeridian serve --host localhost --port 5100
-          codemeridian serve --image ghcr.io/driftya/codemeridian-mcp:latest
-        """);
-}
-
-static void PrintClearUsage()
-{
-    Console.WriteLine("""
-        CodeMeridian Clear - remove indexed knowledge from Neo4j.
-
-        USAGE:
-          codemeridian clear --project <name> [--url <url>]
-          codemeridian clear --all-code-graph [--url <url>]
-
-        SOURCE USAGE:
-          dotnet run --project tools/Indexer -- clear --project <name>
-          dotnet run --project tools/Indexer -- clear --all-code-graph
-
-        OPTIONS:
-          --project <name>       Remove code graph nodes and documents for one project.
-          --all-code-graph       Remove all CodeNode graph data for every project. Documents are preserved.
-          --url <url>            CodeMeridian server URL. Alias for --CodeMeridian.
-          --CodeMeridian <url>   CodeMeridian server URL.
-          -h, --help             Show this help.
-        """);
-}
-
-internal sealed record DiagnosticFinding(
-    string Id,
-    string Severity,
-    string Code,
-    string Message,
-    string FilePath,
-    int? Line,
-    int? Column,
-    string Source);
