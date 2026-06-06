@@ -41,6 +41,17 @@ public sealed class CSharpIndexer(
             }
         }
 
+        var attemptedCallEdges = edges.Count(e => e.RelationshipType == "Calls");
+        edges = ResolveCallEdges(nodes, edges);
+        var resolvedCallEdges = edges.Count(e => e.RelationshipType == "Calls");
+        if (attemptedCallEdges > 0)
+        {
+            logger.LogInformation(
+                "  Resolved {Resolved}/{Attempted} local call edge(s).",
+                resolvedCallEdges,
+                attemptedCallEdges);
+        }
+
         // Batch ingest - parallelism capped to avoid overwhelming the server
         await BatchIngestNodesAsync(nodes, projectContext, cancellationToken);
         await BatchIngestEdgesAsync(edges, cancellationToken);
@@ -117,6 +128,100 @@ public sealed class CSharpIndexer(
             await Task.WhenAll(tasks);
         }
     }
+
+    private static List<IngestEdgeRequest> ResolveCallEdges(
+        IReadOnlyList<IngestNodeRequest> nodes,
+        IReadOnlyList<IngestEdgeRequest> edges)
+    {
+        var nodesById = nodes.ToDictionary(n => n.Id, StringComparer.Ordinal);
+        var methodCandidates = nodes
+            .Where(n => n.Type.Equals("Method", StringComparison.OrdinalIgnoreCase))
+            .Select(n => new MethodCandidate(
+                n.Id,
+                n.Namespace,
+                n.FilePath,
+                MethodName(n.Name),
+                ParameterCount(n.Name)))
+            .GroupBy(n => (n.Name, n.ParameterCount), StringTupleComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringTupleComparer.Ordinal);
+
+        var resolved = new List<IngestEdgeRequest>(edges.Count);
+        foreach (var edge in edges)
+        {
+            if (edge.RelationshipType != "Calls" || edge.CallName is null)
+            {
+                resolved.Add(edge);
+                continue;
+            }
+
+            if (!nodesById.TryGetValue(edge.SourceId, out var source))
+                continue;
+
+            if (edge.ParamCount is null)
+                continue;
+
+            if (!methodCandidates.TryGetValue((edge.CallName, edge.ParamCount.Value), out var candidates))
+                continue;
+
+            var selected = SelectBestCandidate(source, candidates);
+            if (selected is not null)
+                resolved.Add(edge with { TargetId = selected.Id });
+        }
+
+        return resolved
+            .DistinctBy(edge => (edge.SourceId, edge.TargetId, edge.RelationshipType))
+            .ToList();
+    }
+
+    private static MethodCandidate? SelectBestCandidate(
+        IngestNodeRequest source,
+        IReadOnlyList<MethodCandidate> candidates)
+    {
+        if (candidates.Count == 1)
+            return candidates[0];
+
+        var sameFile = candidates
+            .Where(candidate => string.Equals(candidate.FilePath, source.FilePath, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (sameFile.Length == 1)
+            return sameFile[0];
+
+        var sameNamespace = candidates
+            .Where(candidate => string.Equals(candidate.Namespace, source.Namespace, StringComparison.Ordinal))
+            .ToArray();
+        return sameNamespace.Length == 1 ? sameNamespace[0] : null;
+    }
+
+    private static string MethodName(string signature)
+    {
+        var openParen = signature.IndexOf('(');
+        return openParen > 0 ? signature[..openParen] : signature;
+    }
+
+    private static int ParameterCount(string signature)
+    {
+        var openParen = signature.IndexOf('(');
+        var closeParen = signature.LastIndexOf(')');
+        if (openParen < 0 || closeParen <= openParen + 1)
+            return 0;
+
+        return signature[(openParen + 1)..closeParen]
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Length;
+    }
+
+    private sealed record MethodCandidate(string Id, string? Namespace, string? FilePath, string Name, int ParameterCount);
+
+    private sealed class StringTupleComparer : IEqualityComparer<(string Name, int ParameterCount)>
+    {
+        public static readonly StringTupleComparer Ordinal = new();
+
+        public bool Equals((string Name, int ParameterCount) x, (string Name, int ParameterCount) y) =>
+            x.ParameterCount == y.ParameterCount && string.Equals(x.Name, y.Name, StringComparison.Ordinal);
+
+        public int GetHashCode((string Name, int ParameterCount) obj) =>
+            HashCode.Combine(StringComparer.Ordinal.GetHashCode(obj.Name), obj.ParameterCount);
+    }
 }
 
 // -- Records -------------------------------------------------------------------
@@ -126,7 +231,7 @@ internal sealed record IngestNodeRequest(
     string? Namespace, string? FilePath, int? LineNumber, string? Summary, int? LineCount = null, string? SourceSnippet = null, string? SourceHash = null);
 
 internal sealed record IngestEdgeRequest(
-    string SourceId, string TargetId, string RelationshipType);
+    string SourceId, string TargetId, string RelationshipType, string? CallName = null, int? ParamCount = null);
 
 // -- Roslyn AST walker ---------------------------------------------------------
 
@@ -327,14 +432,22 @@ internal sealed class CSharpAstWalker(
     {
         var invocations = node.DescendantNodes()
             .OfType<InvocationExpressionSyntax>()
-            .Select(ExtractCalleeName)
-            .Where(n => n is not null)
+            .Select(invocation => new
+            {
+                Name = ExtractCalleeName(invocation),
+                ParamCount = invocation.ArgumentList.Arguments.Count
+            })
+            .Where(call => call.Name is not null)
             .Distinct();
 
         foreach (var callee in invocations)
         {
-            var calleeId = MakeId("Method", callee!);
-            edges.Add(new IngestEdgeRequest(sourceId, calleeId, "Calls"));
+            edges.Add(new IngestEdgeRequest(
+                sourceId,
+                TargetId: string.Empty,
+                RelationshipType: "Calls",
+                CallName: callee.Name,
+                ParamCount: callee.ParamCount));
         }
     }
 

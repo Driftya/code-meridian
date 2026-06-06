@@ -23,8 +23,10 @@ export function walkTypeScript(rootPath, projectName, files) {
         skipAddingFilesFromTsConfig: true,
         skipFileDependencyResolution: true,
     });
-    if (files && files.length > 0) {
-        tsProject.addSourceFilesAtPaths(files.map(file => path.resolve(file).replace(/\\/g, '/')));
+    if (files) {
+        if (files.length > 0) {
+            tsProject.addSourceFilesAtPaths(files.map(file => path.resolve(file).replace(/\\/g, '/')));
+        }
     }
     else {
         tsProject.addSourceFilesAtPaths([

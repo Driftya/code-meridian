@@ -328,9 +328,10 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 r.callSite    = $callSite,
                 r.paramCount  = $paramCount,
                 r.confidence  = $confidence
+            RETURN count(r) AS edgeCount
             """;
 
-        await session.ExecuteWriteAsync(async tx =>
+        var edgeCount = await session.ExecuteWriteAsync(async tx =>
         {
             var cursor = await tx.RunAsync(cypher, new
             {
@@ -341,8 +342,19 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 paramCount = (object?)edge.ParamCount,
                 confidence = (object?)edge.Confidence
             });
+            var record = await cursor.SingleAsync();
             await cursor.ConsumeAsync();
+            return record["edgeCount"].As<long>();
         });
+
+        if (edgeCount == 0)
+        {
+            _logger.LogWarning(
+                "Skipped {EdgeType} edge because source or target node was missing. Source: {SourceId}; Target: {TargetId}",
+                edge.Type,
+                edge.SourceId,
+                edge.TargetId);
+        }
     }
 
     public async Task DeleteProjectAsync(string projectContext, CancellationToken cancellationToken = default)

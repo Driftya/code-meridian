@@ -68,7 +68,9 @@ console.log(`Walking TypeScript files in ${rootPath}...`);
 const files = filesListPath ? readFilesList(filesListPath) : undefined;
 if (files)
     console.log(`  Incremental file list: ${files.length} file(s)`);
-const { nodes, edges } = walkTypeScript(rootPath, projectName, files);
+const typeScriptFiles = files?.map(file => resolveInputFile(rootPath, file)).filter(isTypeScriptSourceFile);
+const docFiles = noDocs ? [] : resolveDocumentFiles(rootPath, files);
+const { nodes, edges } = walkTypeScript(rootPath, projectName, typeScriptFiles);
 console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
 let nodeCount = 0;
 let nodeErrors = 0;
@@ -99,14 +101,23 @@ for (const edge of edges) {
     }
 }
 console.log(`  Ingested ${edgeCount} edges${edgeErrors > 0 ? ` (${edgeErrors} errors)` : ''}`);
-// Ingest README
+// Ingest documentation
 if (!noDocs) {
-    const readmePath = path.join(rootPath, 'README.md');
-    if (fs.existsSync(readmePath)) {
-        const content = fs.readFileSync(readmePath, 'utf-8');
-        await client.ingestDocument({ source: 'README.md', content, projectContext: projectName });
-        console.log('  Ingested README.md');
+    let docCount = 0;
+    for (const docPath of docFiles) {
+        const relPath = path.relative(rootPath, docPath).replace(/\\/g, '/');
+        const content = fs.readFileSync(docPath, 'utf-8');
+        if (content.trim().length === 0)
+            continue;
+        await client.ingestDocument({
+            id: `${projectName}::doc::${relPath}`,
+            source: relPath,
+            content,
+            projectContext: projectName,
+        });
+        docCount++;
     }
+    console.log(`  Ingested ${docCount} document(s)`);
 }
 console.log(`\nDone. '${projectName}' indexed into CodeMeridian at ${serverUrl}`);
 // ── Watch mode ────────────────────────────────────────────────────────────────
@@ -132,15 +143,32 @@ if (watch) {
                 for (const relPath of [...changedBatch.map(file => path.relative(rootPath, file).replace(/\\/g, '/')), ...deletedBatch]) {
                     await client.deleteProjectFile(projectName, relPath).catch(() => { });
                 }
-                const result = changedBatch.length > 0
-                    ? walkTypeScript(rootPath, projectName, changedBatch)
+                const changedTsFiles = changedBatch.filter(isTypeScriptSourceFile);
+                const result = changedTsFiles.length > 0
+                    ? walkTypeScript(rootPath, projectName, changedTsFiles)
                     : { nodes: [], edges: [] };
                 for (const node of result.nodes) {
                     await client.ingestNode(node).catch(() => { });
                 }
                 for (const edge of result.edges)
                     await client.ingestEdge(edge).catch(() => { });
-                console.log(`[watch] Done: ${result.nodes.length} nodes, ${result.edges.length} edges`);
+                let docCount = 0;
+                if (!noDocs) {
+                    for (const docPath of changedBatch.filter(file => isDocumentationFile(file) && fs.existsSync(file))) {
+                        const relPath = path.relative(rootPath, docPath).replace(/\\/g, '/');
+                        const content = fs.readFileSync(docPath, 'utf-8');
+                        if (content.trim().length === 0)
+                            continue;
+                        await client.ingestDocument({
+                            id: `${projectName}::doc::${relPath}`,
+                            source: relPath,
+                            content,
+                            projectContext: projectName,
+                        }).catch(() => { });
+                        docCount++;
+                    }
+                }
+                console.log(`[watch] Done: ${result.nodes.length} nodes, ${result.edges.length} edges, ${docCount} docs`);
             }
             catch (e) {
                 console.error('[watch] Re-index failed:', e);
@@ -182,7 +210,7 @@ Options:
                       .code-workspace filename, or the folder name.
   --url <url>         CodeMeridian server URL  (default: CodeMeridian_Url or http://localhost:5100)
   --clear             Wipe this project's existing data before indexing
-  --no-docs           Skip README ingestion
+  --no-docs           Skip documentation ingestion
   --watch             Stay running; re-index when .ts, .tsx or .md files change
   --files-list <path> Index only files listed in a newline-delimited text file
   -h, --help          Show this help
@@ -199,6 +227,67 @@ function readFilesList(filePath) {
         .split(/\r?\n/)
         .map(line => line.trim())
         .filter(line => line.length > 0);
+}
+function resolveDocumentFiles(rootPath, files) {
+    if (files) {
+        return files
+            .map(file => resolveInputFile(rootPath, file))
+            .filter(file => isDocumentationFile(file) && !isIgnoredPath(rootPath, file) && fs.existsSync(file));
+    }
+    return enumerateFiles(rootPath)
+        .filter(file => isDocumentationFile(file) && !isIgnoredPath(rootPath, file));
+}
+function enumerateFiles(rootPath) {
+    const results = [];
+    const pending = [rootPath];
+    while (pending.length > 0) {
+        const current = pending.pop();
+        if (isIgnoredPath(rootPath, current))
+            continue;
+        for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+            const fullPath = path.join(current, entry.name);
+            if (entry.isDirectory()) {
+                pending.push(fullPath);
+            }
+            else if (entry.isFile()) {
+                results.push(fullPath);
+            }
+        }
+    }
+    return results;
+}
+function resolveInputFile(rootPath, filePath) {
+    return path.isAbsolute(filePath)
+        ? path.resolve(filePath)
+        : path.resolve(rootPath, filePath);
+}
+function isTypeScriptSourceFile(filePath) {
+    return (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) && !filePath.endsWith('.d.ts');
+}
+function isDocumentationFile(filePath) {
+    const name = path.basename(filePath).toLowerCase();
+    return name.endsWith('.md') ||
+        name.endsWith('.txt') ||
+        name === 'readme.md' ||
+        name === 'architecture.md' ||
+        name === 'changelog.md' ||
+        name === 'agents.md';
+}
+function isIgnoredPath(rootPath, filePath) {
+    const relPath = path.relative(rootPath, filePath).replace(/\\/g, '/');
+    const segments = relPath.split('/').filter(segment => segment.length > 0);
+    return segments.some(segment => [
+        '.git',
+        '.vs',
+        '.vscode',
+        '.meridian',
+        'bin',
+        'obj',
+        'node_modules',
+        'dist',
+        'build',
+        'coverage',
+    ].includes(segment.toLowerCase()));
 }
 function resolveProjectName(dir) {
     // 1. package.json "name"

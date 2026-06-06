@@ -227,7 +227,13 @@ if (hasCSharp)
 if (hasTypeScript)
 {
     if (changedFiles is not null || deletedFiles.Count > 0)
-        await DeleteProjectFilesAsync(rootPath, project, codeMeridianUrl, apiKey, FilterTypeScriptFiles(changedFiles ?? [], rootPath, typeScriptRoots).Concat(FilterTypeScriptFiles(deletedFiles, rootPath, typeScriptRoots)));
+        await DeleteProjectFilesAsync(
+            rootPath,
+            project,
+            codeMeridianUrl,
+            apiKey,
+            FilterTypeScriptIndexerFiles(changedFiles ?? [], rootPath, typeScriptRoots, includeDocs && !hasCSharp)
+                .Concat(FilterTypeScriptIndexerFiles(deletedFiles, rootPath, typeScriptRoots, includeDocs && !hasCSharp)));
 
     var tsIndexerRoot = ResolveTypeScriptIndexerRoot();
     if (tsIndexerRoot is null)
@@ -253,7 +259,12 @@ if (hasTypeScript)
     {
         var changedTypeScriptFiles = changedFiles is null
             ? null
-            : FilterFilesForRoot(changedFiles, rootPath, typeScriptRoot, IsTypeScriptSourceFile).ToArray();
+            : FilterFilesForRoot(
+                changedFiles,
+                rootPath,
+                typeScriptRoot,
+                file => IsTypeScriptSourceFile(file) || (includeDocs && !hasCSharp && IsDocumentationFile(file)))
+                .ToArray();
 
         if (changedTypeScriptFiles is { Length: 0 })
             continue;
@@ -610,13 +621,17 @@ static IEnumerable<FileInfo> EnumerateIndexableFiles(
 static bool IsIgnoredPath(DirectoryInfo rootPath, FileInfo file)
 {
     var relPath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
-    return relPath.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
-           relPath.StartsWith(".meridian/", StringComparison.OrdinalIgnoreCase) ||
-           relPath.Contains("/bin/", StringComparison.OrdinalIgnoreCase) ||
-           relPath.Contains("/obj/", StringComparison.OrdinalIgnoreCase) ||
-           relPath.Contains("/node_modules/", StringComparison.OrdinalIgnoreCase) ||
-           relPath.Contains("/dist/", StringComparison.OrdinalIgnoreCase) ||
-           relPath.Contains("/build/", StringComparison.OrdinalIgnoreCase) ||
+    var segments = relPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+    return segments.Any(segment => segment.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
+                                   segment.Equals(".vs", StringComparison.OrdinalIgnoreCase) ||
+                                   segment.Equals(".vscode", StringComparison.OrdinalIgnoreCase) ||
+                                   segment.Equals(".meridian", StringComparison.OrdinalIgnoreCase) ||
+                                   segment.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
+                                   segment.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
+                                   segment.Equals("node_modules", StringComparison.OrdinalIgnoreCase) ||
+                                   segment.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
+                                   segment.Equals("build", StringComparison.OrdinalIgnoreCase) ||
+                                   segment.Equals("coverage", StringComparison.OrdinalIgnoreCase)) ||
            relPath.Contains(".generated.", StringComparison.OrdinalIgnoreCase) ||
            relPath.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase) ||
            relPath.EndsWith("AssemblyInfo.cs", StringComparison.OrdinalIgnoreCase);
@@ -638,11 +653,16 @@ static bool IsDocumentationFile(FileInfo file) =>
     file.Name.Equals("CHANGELOG.md", StringComparison.OrdinalIgnoreCase) ||
     file.Name.Equals("AGENTS.md", StringComparison.OrdinalIgnoreCase);
 
-static IEnumerable<string> FilterTypeScriptFiles(
+static IEnumerable<string> FilterTypeScriptIndexerFiles(
     IEnumerable<string> relativePaths,
     DirectoryInfo rootPath,
-    IReadOnlyCollection<DirectoryInfo> typeScriptRoots) =>
-    FilterFilesForRoots(relativePaths, rootPath, typeScriptRoots, IsTypeScriptSourceFile);
+    IReadOnlyCollection<DirectoryInfo> typeScriptRoots,
+    bool includeDocs) =>
+    FilterFilesForRoots(
+        relativePaths,
+        rootPath,
+        typeScriptRoots,
+        file => IsTypeScriptSourceFile(file) || (includeDocs && IsDocumentationFile(file)));
 
 static IEnumerable<string> FilterFilesForRoots(
     IEnumerable<string> relativePaths,

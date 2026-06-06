@@ -1291,7 +1291,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
             .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
             .Returns([
                 Node("n1", "ServiceWithoutPath", CodeNodeType.Class, project: "CodeMeridian"),
-                Node("n2", "MethodWithoutLine", CodeNodeType.Method, "src/Service.cs", project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow)
+                Node("n2", "MethodWithoutLine", CodeNodeType.Method, "src/Service.cs", project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow),
+                Node("n3", "CodeMeridian.Services", CodeNodeType.Namespace, "src/Service.cs", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow)
             ]);
 
         var result = await sut.FindGraphDriftAsync("CodeMeridian");
@@ -1301,6 +1302,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("Missing file metadata");
         result.Should().Contain("Missing source hashes");
         result.Should().Contain("ServiceWithoutPath");
+        result.Should().NotContain("CodeMeridian.Services");
         result.Should().Contain("codemeridian index");
     }
 }

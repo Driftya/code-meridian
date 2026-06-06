@@ -57,11 +57,14 @@ public sealed class IndexerPipeline(
 
         logger.LogInformation("Found {Count} C# files to index.", csFiles.Length);
 
-        foreach (var file in csFiles)
+        if (changedFiles is not null)
         {
-            var relPath = RelativePath(root, file);
-            logger.LogInformation("Removing stale graph data for {File} before re-indexing...", relPath);
-            await client.DeleteProjectFileAsync(projectContext, relPath, cancellationToken);
+            foreach (var file in csFiles)
+            {
+                var relPath = RelativePath(root, file);
+                logger.LogInformation("Removing stale graph data for {File} before re-indexing...", relPath);
+                await client.DeleteProjectFileAsync(projectContext, relPath, cancellationToken);
+            }
         }
 
         var stats = await csharpIndexer.IndexAsync(csFiles, projectContext, root.FullName, cancellationToken);
@@ -81,6 +84,16 @@ public sealed class IndexerPipeline(
 
             logger.LogInformation("Found {Count} documentation files to ingest.", docFiles.Length);
 
+            if (changedFiles is not null)
+            {
+                foreach (var file in docFiles)
+                {
+                    var relPath = RelativePath(root, file);
+                    logger.LogInformation("Removing stale document chunks for {File} before re-ingesting...", relPath);
+                    await client.DeleteProjectFileAsync(projectContext, relPath, cancellationToken);
+                }
+            }
+
             var docStats = await documentIngester.IngestAsync(docFiles, projectContext, root.FullName, cancellationToken);
 
             logger.LogInformation("{Count} documents ingested.", docStats.Documents);
@@ -90,11 +103,28 @@ public sealed class IndexerPipeline(
     }
 
     private static bool IsGenerated(string path) =>
-        path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar) ||
-        path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) ||
-        path.Contains(".generated.") ||
-        path.Contains("AssemblyInfo.cs") ||
+        HasIgnoredSegment(path) ||
+        path.Contains(".generated.", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("AssemblyInfo.cs", StringComparison.OrdinalIgnoreCase) ||
         path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasIgnoredSegment(string path)
+    {
+        var segments = path.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+        return segments.Any(segment =>
+            segment.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
+            segment.Equals(".vs", StringComparison.OrdinalIgnoreCase) ||
+            segment.Equals(".vscode", StringComparison.OrdinalIgnoreCase) ||
+            segment.Equals(".meridian", StringComparison.OrdinalIgnoreCase) ||
+            segment.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
+            segment.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
+            segment.Equals("node_modules", StringComparison.OrdinalIgnoreCase) ||
+            segment.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
+            segment.Equals("build", StringComparison.OrdinalIgnoreCase) ||
+            segment.Equals("coverage", StringComparison.OrdinalIgnoreCase));
+    }
 
     private static bool IsDocFile(string name) =>
         name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||

@@ -66,7 +66,9 @@ public partial class CodebaseQueryService
         var missingFileMetadata = checks.Where(c => string.IsNullOrWhiteSpace(c.Node.FilePath)).ToArray();
         var incompleteLines = checks.Where(c => c.LineMetadata == "incomplete").ToArray();
         var missingTimestamps = checks.Where(c => c.Node.UpdatedAt is null).ToArray();
-        var missingSourceHashes = checks.Where(c => c.SourceVerification == "missing source hash").ToArray();
+        var missingSourceHashes = checks
+            .Where(c => c.SourceVerification == "missing source hash" && c.Node.Type != CodeNodeType.Namespace)
+            .ToArray();
         var lowConfidence = checks.Count(c => c.Confidence == "Low");
 
         if (missingFileMetadata.Length == 0 && incompleteLines.Length == 0 && missingTimestamps.Length == 0 && missingSourceHashes.Length == 0)
@@ -98,17 +100,20 @@ public partial class CodebaseQueryService
         var hasLineMetadata = node.LineNumber is > 0 || node.LineCount is > 0;
         var hasTimestamp = node.UpdatedAt is not null;
         var hasSourceHash = !string.IsNullOrWhiteSpace(node.SourceHash);
+        var requiresSourceHash = node.Type != CodeNodeType.Namespace;
         var lineMetadata = hasLineMetadata ? "present" : "incomplete";
         var sourceVerification = !hasFilePath ? "no file path"
             : hasSourceHash ? "checksum indexed"
+            : !requiresSourceHash ? "structural node"
             : "missing source hash";
-        var confidence = hasFilePath && hasLineMetadata && hasTimestamp && hasSourceHash ? "High"
+        var confidence = hasFilePath && hasLineMetadata && hasTimestamp && (hasSourceHash || !requiresSourceHash) ? "High"
             : hasFilePath && hasTimestamp ? "Medium"
             : "Low";
         var reason = confidence switch
         {
+            "High" when !requiresSourceHash => "structural node with file, line, and content-update metadata",
             "High" => "indexer supplied file, line, checksum, and content-update metadata",
-            "Medium" when !hasSourceHash => "indexer supplied file and update metadata, but source hash is missing",
+            "Medium" when requiresSourceHash && !hasSourceHash => "indexer supplied file and update metadata, but source hash is missing",
             "Medium" => "indexer supplied file and update metadata, but line metadata is incomplete",
             _ => !hasFilePath ? "node has no file path" : "node is missing update metadata"
         };
