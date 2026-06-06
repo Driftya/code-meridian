@@ -88,6 +88,9 @@ public partial class CodebaseQueryService
                 continue;
             }
 
+            if (!ShouldScanHeuristicMentions(doc))
+                continue;
+
             foreach (var mention in ExtractSymbolMentions(doc.Content).Take(8))
             {
                 var matches = await codeGraph.QueryNodesAsync(
@@ -314,6 +317,13 @@ public partial class CodebaseQueryService
                || kind.Equals("note", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool ShouldScanHeuristicMentions(KnowledgeDocument document)
+    {
+        var source = document.Source ?? string.Empty;
+        return !source.StartsWith("docs/plan/", StringComparison.OrdinalIgnoreCase)
+               && !source.StartsWith("docs/features/", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string GetMetadataValue(IReadOnlyDictionary<string, string> metadata, string key) =>
         metadata.TryGetValue(key, out var value) ? value : string.Empty;
 
@@ -405,10 +415,14 @@ public partial class CodebaseQueryService
         "ASP",
         "ASP.NET",
         "CodeMeridian.Indexer",
+        "CodeMeridian.Indexer.Tests",
         "TypeScript",
         "JavaScript",
         "Neo4j",
         "Docker",
+        "ApiEndpoint",
+        "Controller",
+        "Command",
         "README",
         "README.md",
         "meridian.json",
