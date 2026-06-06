@@ -19,8 +19,10 @@ public sealed partial class Neo4jCodeGraphRepository
         await using var session = _driver.AsyncSession();
         var graphName = $"cm_pr_{Guid.NewGuid():N}";
 
+        // GDS fails if the projection lists relationship types that do not exist in the current graph.
+        // Project the dependency types that are guaranteed to exist after indexing.
         const string projectCypher = """
-            CALL gds.graph.project($graphName, 'CodeNode', ['Calls', 'Uses', 'DependsOn'])
+            CALL gds.graph.project($graphName, 'CodeNode', 'Calls')
             YIELD graphName, nodeCount, relationshipCount
             """;
 
@@ -49,7 +51,7 @@ public sealed partial class Neo4jCodeGraphRepository
         var graphName = $"cm_bc_{Guid.NewGuid():N}";
 
         const string projectCypher = """
-            CALL gds.graph.project($graphName, 'CodeNode', ['Calls', 'Uses', 'DependsOn'])
+            CALL gds.graph.project($graphName, 'CodeNode', 'Calls')
             YIELD graphName, nodeCount, relationshipCount
             """;
 
@@ -79,9 +81,7 @@ public sealed partial class Neo4jCodeGraphRepository
         // Louvain requires undirected relationships
         const string projectCypher = """
             CALL gds.graph.project($graphName, 'CodeNode', {
-              Calls:     {orientation: 'UNDIRECTED'},
-              Uses:      {orientation: 'UNDIRECTED'},
-              DependsOn: {orientation: 'UNDIRECTED'}
+              Calls: {orientation: 'UNDIRECTED'}
             })
             YIELD graphName, nodeCount, relationshipCount
             """;

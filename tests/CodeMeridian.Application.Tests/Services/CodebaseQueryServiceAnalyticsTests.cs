@@ -262,6 +262,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("## Test Coverage Gaps — MyApi");
         result.Should().Contain("**2** production");
+        result.Should().Contain("ranked by likely risk");
         result.Should().Contain("`UntouchedService`");
         result.Should().Contain("`OrphanMethod`");
         result.Should().Contain(":10");
@@ -676,6 +677,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("## High-Churn Nodes");
         result.Should().Contain("**2** nodes");
+        result.Should().Contain("Production code is ranked ahead");
         result.Should().Contain("HotFile");
         result.Should().Contain("12×");
         result.Should().Contain("5×");
@@ -1137,6 +1139,44 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("PaymentGateway.ChargeAsync");
         result.Should().Contain("Orphaned external concepts");
         result.Should().Contain("orders table");
+    }
+
+    [Fact]
+    public async Task FindStaleKnowledgeAsync_WithGenericTechAndConfigMentions_DoesNotReportFalsePositives()
+    {
+        var (sut, graph) = Build();
+        var vector = Substitute.For<IVectorRepository>();
+        sut = new CodebaseQueryService(graph, vector);
+
+        vector
+            .ListAsync(Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new KnowledgeDocument
+                {
+                    Id = "doc-indexer",
+                    Content = "Configure TypeScript with meridian.json, mcp.json, config.toml. Example calls: axios.post, client.get, app.MapPost, api.example.com.",
+                    Source = "tools/Indexer/README.md",
+                    ProjectContext = "Shop",
+                    UpdatedAt = DateTimeOffset.UtcNow
+                }
+            ]);
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindUnreferencedAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .GetMostRecentCodeUpdateAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns(DateTimeOffset.UtcNow);
+
+        var result = await sut.FindStaleKnowledgeAsync("Shop");
+
+        result.Should().Contain("No obvious stale knowledge found");
+        result.Should().NotContain("axios.post");
+        result.Should().NotContain("meridian.json");
+        result.Should().NotContain("TypeScript");
     }
 
     [Fact]

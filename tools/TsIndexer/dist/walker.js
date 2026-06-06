@@ -58,6 +58,8 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
         name: path.basename(relPath),
         type: 'File',
         filePath: relPath,
+        lineNumber: 1,
+        lineCount: sourceFile.getEndLineNumber(),
         sourceHash: hashText(sourceFile.getFullText()),
         projectContext: projectName,
     });

@@ -178,7 +178,7 @@ public partial class CodebaseQueryService
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Test Coverage Gaps{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{results.Count}** production types/methods with no test calling them:\n");
+        sb.AppendLine($"**{results.Count}** production types/methods with no test calling them, ranked by likely risk:\n");
 
         foreach (var group in grouped)
         {

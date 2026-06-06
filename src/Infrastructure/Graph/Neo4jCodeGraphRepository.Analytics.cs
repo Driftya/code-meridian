@@ -54,13 +54,30 @@ public sealed partial class Neo4jCodeGraphRepository
               AND ($projectContextNormalized IS NULL OR prod.projectContextNormalized = $projectContextNormalized)
               AND NOT coalesce(prod.namespaceNormalized CONTAINS 'test', false)
               AND NOT coalesce(prod.filePathNormalized CONTAINS 'test', false)
+              AND NOT coalesce(prod.filePathNormalized CONTAINS '/obj/', false)
+              AND NOT coalesce(prod.filePathNormalized CONTAINS '/bin/', false)
               AND NOT EXISTS {
                 MATCH (test:CodeNode)-[:Calls]->(prod)
                 WHERE test.namespaceNormalized CONTAINS 'test'
                    OR test.filePathNormalized CONTAINS 'test'
               }
+            OPTIONAL MATCH (caller:CodeNode)-[:Calls|Uses|DependsOn]->(prod)
+            WITH prod, count(DISTINCT caller) AS fanIn,
+                 CASE
+                   WHEN prod.filePathNormalized CONTAINS '/program.cs' THEN 1
+                   WHEN prod.nameNormalized IN ['dependencyinjection', 'neo4joptions', 'embeddingoptions'] THEN 1
+                   WHEN prod.nameNormalized ENDS WITH 'options' THEN 1
+                   WHEN prod.nameNormalized ENDS WITH 'endpoints' THEN 1
+                   WHEN prod.nameNormalized ENDS WITH 'tools' THEN 1
+                   ELSE 0
+                 END AS infrastructureRank
             RETURN prod
-            ORDER BY prod.type, prod.name
+            ORDER BY infrastructureRank ASC,
+                     fanIn DESC,
+                     coalesce(prod.lineCount, 0) DESC,
+                     coalesce(prod.changeCount, 0) DESC,
+                     prod.type,
+                     prod.name
             LIMIT 100
             """;
 
@@ -534,8 +551,15 @@ public sealed partial class Neo4jCodeGraphRepository
             WHERE n.changeCount IS NOT NULL
               AND n.changeCount >= $threshold
               AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
+            WITH n,
+                 CASE WHEN n.type = 'Namespace' THEN 1 ELSE 0 END AS namespaceRank,
+                 CASE
+                   WHEN coalesce(n.namespaceNormalized CONTAINS 'test', false) THEN 1
+                   WHEN coalesce(n.filePathNormalized CONTAINS 'test', false) THEN 1
+                   ELSE 0
+                 END AS testRank
             RETURN n, n.changeCount AS changeCount
-            ORDER BY changeCount DESC
+            ORDER BY testRank ASC, namespaceRank ASC, changeCount DESC, coalesce(n.lineCount, 0) DESC, n.name
             LIMIT 50
             """;
 

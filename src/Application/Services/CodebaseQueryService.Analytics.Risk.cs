@@ -285,7 +285,7 @@ public partial class CodebaseQueryService
 
         var sb = new StringBuilder();
         sb.AppendLine($"## High-Churn Nodes{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{results.Count}** nodes re-indexed ≥{threshold} times (frequently changed):\n");
+        sb.AppendLine($"**{results.Count}** nodes re-indexed ≥{threshold} times (frequently changed). Production code is ranked ahead of namespaces and tests:\n");
         sb.AppendLine("| Churn | Type | Name | File |");
         sb.AppendLine("|-------|------|------|------|");
 
@@ -337,15 +337,93 @@ public partial class CodebaseQueryService
     {
         var dotted = DottedSymbolRegex().Matches(content)
             .Select(match => match.Value)
+            .Where(IsLikelySymbolMention)
             .Distinct(StringComparer.OrdinalIgnoreCase);
 
         var memberLike = MemberLikeRegex().Matches(content)
             .Select(match => match.Value)
             .Where(value => value.Length >= 6)
+            .Where(IsLikelySymbolMention)
             .Distinct(StringComparer.OrdinalIgnoreCase);
 
         return dotted.Concat(memberLike);
     }
+
+    private static bool IsLikelySymbolMention(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        var normalized = value.Trim('`', '\'', '"', '.', ',', ':', ';', '(', ')', '[', ']');
+        if (normalized.Length < 4)
+            return false;
+
+        if (IgnoredKnowledgeMentionTokens.Contains(normalized))
+            return false;
+
+        if (normalized.Contains('.', StringComparison.Ordinal))
+        {
+            var lower = normalized.ToLowerInvariant();
+            var firstSegment = normalized.Split('.')[0];
+            if (firstSegment.Length > 0 && char.IsLower(firstSegment[0]))
+                return false;
+
+            if (lower.Contains("example.com", StringComparison.Ordinal)
+                || lower.Contains("localhost", StringComparison.Ordinal)
+                || lower.StartsWith("www.", StringComparison.Ordinal)
+                || lower.EndsWith(".com", StringComparison.Ordinal)
+                || lower.EndsWith(".org", StringComparison.Ordinal)
+                || lower.EndsWith(".net", StringComparison.Ordinal)
+                || lower.EndsWith(".md", StringComparison.Ordinal)
+                || lower.EndsWith(".json", StringComparison.Ordinal)
+                || lower.EndsWith(".toml", StringComparison.Ordinal)
+                || lower.EndsWith(".yml", StringComparison.Ordinal)
+                || lower.EndsWith(".yaml", StringComparison.Ordinal)
+                || lower.EndsWith(".txt", StringComparison.Ordinal)
+                || lower.EndsWith(".sln", StringComparison.Ordinal)
+                || lower.EndsWith(".csproj", StringComparison.Ordinal)
+                || lower.EndsWith(".tsproj", StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static readonly HashSet<string> IgnoredKnowledgeMentionTokens = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ASP",
+        "ASP.NET",
+        "CodeMeridian.Indexer",
+        "TypeScript",
+        "JavaScript",
+        "Neo4j",
+        "Docker",
+        "README",
+        "README.md",
+        "meridian.json",
+        "mcp.json",
+        "config.toml",
+        "compose.codemeridian.yml",
+        "docker-compose.yml",
+        "Import",
+        "Identify",
+        "Configure",
+        "Constants",
+        "Resolve",
+        "MapGet",
+        "MapPost",
+        "MapPut",
+        "MapDelete",
+        "Expected",
+        "Actual",
+        "Example",
+        "Examples",
+        "Warning",
+        "Warnings",
+        "Notes"
+    };
 
     private static bool IsLikelyMatch(CodeNode node) =>
         node.Type is CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.Method or CodeNodeType.ExternalConcept;
