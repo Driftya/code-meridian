@@ -52,6 +52,31 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task IngestCodeNodeAsync_SendsSourceHash()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.IngestCodeNodeAsync(
+            id: "Method:Shop.OrderService.PlaceOrder",
+            name: "PlaceOrder",
+            type: "Method",
+            sourceHash: "abc123",
+            projectContext: "Shop");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Post);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/nodes");
+
+        var body = await handler.ReadBodyAsync();
+        body.GetProperty("sourceHash").GetString().Should().Be("abc123");
+    }
+
+    [Fact]
     public async Task GetDoctorStatusAsync_SendsProjectContextQuery()
     {
         var handler = new CapturingHandler();

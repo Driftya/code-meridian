@@ -71,6 +71,10 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             await (await tx.RunAsync(
                 "CREATE INDEX codenode_updatedat IF NOT EXISTS FOR (n:CodeNode) ON (n.updatedAt)")).ConsumeAsync();
             await (await tx.RunAsync(
+                "CREATE INDEX codenode_lastindexedat IF NOT EXISTS FOR (n:CodeNode) ON (n.lastIndexedAt)")).ConsumeAsync();
+            await (await tx.RunAsync(
+                "CREATE INDEX codenode_sourcehash IF NOT EXISTS FOR (n:CodeNode) ON (n.sourceHash)")).ConsumeAsync();
+            await (await tx.RunAsync(
                 "CREATE INDEX codenode_linecount IF NOT EXISTS FOR (n:CodeNode) ON (n.lineCount)")).ConsumeAsync();
             await (await tx.RunAsync(
                 "CREATE INDEX codenode_changecount IF NOT EXISTS FOR (n:CodeNode) ON (n.changeCount)")).ConsumeAsync();
@@ -244,7 +248,16 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
         const string cypher = """
             MERGE (n:CodeNode {id: $id})
-            ON CREATE SET n.createdAt = $now, n.changeCount = 0
+            ON CREATE SET n.createdAt = $now,
+                          n.updatedAt = $now,
+                          n.changeCount = 0
+            WITH n,
+                 CASE
+                   WHEN $sourceHash IS NULL THEN true
+                   WHEN n.sourceHash IS NULL THEN true
+                   WHEN n.sourceHash <> $sourceHash THEN true
+                   ELSE false
+                 END AS contentChanged
             SET n.name           = $name,
                 n.nameNormalized = $nameNormalized,
                 n.type           = $type,
@@ -256,10 +269,12 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 n.lineCount      = $lineCount,
                 n.summary        = $summary,
                 n.sourceSnippet  = $sourceSnippet,
+                n.sourceHash     = $sourceHash,
                 n.projectContext = $projectContext,
                 n.projectContextNormalized = $projectContextNormalized,
-                n.changeCount    = coalesce(n.changeCount, 0) + 1,
-                n.updatedAt      = $now
+                n.lastIndexedAt  = $now,
+                n.changeCount    = CASE WHEN contentChanged THEN coalesce(n.changeCount, 0) + 1 ELSE coalesce(n.changeCount, 0) END,
+                n.updatedAt      = CASE WHEN contentChanged THEN $now ELSE n.updatedAt END
             """;
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -280,6 +295,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 lineCount = (object?)node.LineCount,
                 summary = node.Summary,
                 sourceSnippet = node.SourceSnippet,
+                sourceHash = node.SourceHash,
                 projectContext = node.ProjectContext,
                 projectContextNormalized = Normalize(node.ProjectContext),
                 now
@@ -570,9 +586,11 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             Summary = props.TryGetValue("summary", out var sum) ? sum?.As<string>() : null,
             SourceSnippet = props.TryGetValue("sourceSnippet", out var ss) ? ss?.As<string>() : null,
             ProjectContext = props.TryGetValue("projectContext", out var pc) ? pc?.As<string>() : null,
+            SourceHash = props.TryGetValue("sourceHash", out var sh) ? sh?.As<string>() : null,
             ChangeCount = props.TryGetValue("changeCount", out var cc) ? cc?.As<int?>() : null,
             CreatedAt = ReadTimestamp("createdAt"),
-            UpdatedAt = ReadTimestamp("updatedAt")
+            UpdatedAt = ReadTimestamp("updatedAt"),
+            LastIndexedAt = ReadTimestamp("lastIndexedAt")
         };
     }
 

@@ -33,7 +33,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         DateTimeOffset? createdAt = null,
         DateTimeOffset? updatedAt = null,
         int? lineCount = null,
-        string? sourceSnippet = null) => new()
+        string? sourceSnippet = null,
+        string? sourceHash = null) => new()
     {
         Id = id,
         Name = name,
@@ -42,6 +43,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         LineNumber = line,
         LineCount = lineCount,
         SourceSnippet = sourceSnippet,
+        SourceHash = sourceHash,
         ProjectContext = project,
         CreatedAt = createdAt,
         UpdatedAt = updatedAt
@@ -1266,7 +1268,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         graph
             .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
             .Returns([
-                Node("n1", "Roadmap", CodeNodeType.File, "TODO.md", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, lineCount: 120),
+                Node("n1", "Roadmap", CodeNodeType.File, "TODO.md", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, lineCount: 120, sourceHash: "abc123"),
                 Node("n2", "Incomplete", CodeNodeType.Class, "src/File.cs", project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow)
             ]);
 
@@ -1277,7 +1279,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("High");
         result.Should().Contain("Medium");
         result.Should().Contain("Source verification");
-        result.Should().Contain("not checked by server");
+        result.Should().Contain("checksum indexed");
+        result.Should().Contain("missing source hash");
     }
 
     [Fact]
@@ -1296,6 +1299,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("## Graph Drift");
         result.Should().Contain("Source verification");
         result.Should().Contain("Missing file metadata");
+        result.Should().Contain("Missing source hashes");
         result.Should().Contain("ServiceWithoutPath");
         result.Should().Contain("codemeridian index");
     }

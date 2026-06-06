@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import { createHash } from 'crypto';
 import { Project } from 'ts-morph';
 // ── ID helpers ────────────────────────────────────────────────────────────────
 function sanitize(s) {
@@ -55,6 +56,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
         name: path.basename(relPath),
         type: 'File',
         filePath: relPath,
+        sourceHash: hashText(sourceFile.getFullText()),
         projectContext: projectName,
     });
     // Classes
@@ -69,6 +71,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
             lineNumber: cls.getStartLineNumber(),
             lineCount: cls.getEndLineNumber() - cls.getStartLineNumber() + 1,
             sourceSnippet: sourceSnippet(sourceFile, cls.getStartLineNumber(), cls.getEndLineNumber()),
+            sourceHash: sourceHash(sourceFile, cls.getStartLineNumber(), cls.getEndLineNumber()),
             projectContext: projectName,
         });
         for (const method of cls.getMethods()) {
@@ -82,6 +85,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
                 lineNumber: method.getStartLineNumber(),
                 lineCount: method.getEndLineNumber() - method.getStartLineNumber() + 1,
                 sourceSnippet: sourceSnippet(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
+                sourceHash: sourceHash(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
                 projectContext: projectName,
             });
         }
@@ -96,6 +100,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
                 lineNumber: prop.getStartLineNumber(),
                 lineCount: prop.getEndLineNumber() - prop.getStartLineNumber() + 1,
                 sourceSnippet: sourceSnippet(sourceFile, prop.getStartLineNumber(), prop.getEndLineNumber()),
+                sourceHash: sourceHash(sourceFile, prop.getStartLineNumber(), prop.getEndLineNumber()),
                 projectContext: projectName,
             });
         }
@@ -112,6 +117,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
             lineNumber: iface.getStartLineNumber(),
             lineCount: iface.getEndLineNumber() - iface.getStartLineNumber() + 1,
             sourceSnippet: sourceSnippet(sourceFile, iface.getStartLineNumber(), iface.getEndLineNumber()),
+            sourceHash: sourceHash(sourceFile, iface.getStartLineNumber(), iface.getEndLineNumber()),
             projectContext: projectName,
         });
         for (const method of iface.getMethods()) {
@@ -125,6 +131,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
                 lineNumber: method.getStartLineNumber(),
                 lineCount: method.getEndLineNumber() - method.getStartLineNumber() + 1,
                 sourceSnippet: sourceSnippet(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
+                sourceHash: sourceHash(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
                 projectContext: projectName,
             });
         }
@@ -141,6 +148,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
             lineNumber: fn.getStartLineNumber(),
             lineCount: fn.getEndLineNumber() - fn.getStartLineNumber() + 1,
             sourceSnippet: sourceSnippet(sourceFile, fn.getStartLineNumber(), fn.getEndLineNumber()),
+            sourceHash: sourceHash(sourceFile, fn.getStartLineNumber(), fn.getEndLineNumber()),
             projectContext: projectName,
         });
     }
@@ -156,6 +164,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
             lineNumber: enumDecl.getStartLineNumber(),
             lineCount: enumDecl.getEndLineNumber() - enumDecl.getStartLineNumber() + 1,
             sourceSnippet: sourceSnippet(sourceFile, enumDecl.getStartLineNumber(), enumDecl.getEndLineNumber()),
+            sourceHash: sourceHash(sourceFile, enumDecl.getStartLineNumber(), enumDecl.getEndLineNumber()),
             projectContext: projectName,
         });
     }
@@ -259,6 +268,13 @@ function sourceSnippet(sourceFile, startLine, endLine) {
     if (!snippet.trim())
         return undefined;
     return snippet.length > maxChars ? snippet.slice(0, maxChars) : snippet;
+}
+function sourceHash(sourceFile, startLine, endLine) {
+    const lines = sourceFile.getFullText().split(/\r?\n/);
+    return hashText(lines.slice(Math.max(0, startLine - 1), endLine).join('\n'));
+}
+function hashText(text) {
+    return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 /** Scan knownIds for an Interface node matching the given short name. */
 function findInterfaceId(shortName, projectName, knownIds) {

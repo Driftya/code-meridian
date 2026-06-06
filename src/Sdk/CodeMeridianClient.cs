@@ -72,6 +72,7 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         int? lineCount = null,
         string? summary = null,
         string? sourceSnippet = null,
+        string? sourceHash = null,
         string? projectContext = null,
         string? embeddingCsv = null,
         CancellationToken cancellationToken = default)
@@ -89,6 +90,7 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
                 LineCount = lineCount,
                 Summary = summary,
                 SourceSnippet = sourceSnippet,
+                SourceHash = sourceHash,
                 ProjectContext = projectContext,
                 EmbeddingCsv = embeddingCsv
             },

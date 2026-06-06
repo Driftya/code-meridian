@@ -30,11 +30,27 @@ public sealed class CodeNodeTests
             Name = "X",
             Type = CodeNodeType.Class,
             CreatedAt = now.AddHours(-1),
-            UpdatedAt = now
+            UpdatedAt = now,
+            LastIndexedAt = now.AddMinutes(1)
         };
 
         node.CreatedAt.Should().Be(now.AddHours(-1));
         node.UpdatedAt.Should().Be(now);
+        node.LastIndexedAt.Should().Be(now.AddMinutes(1));
+    }
+
+    [Fact]
+    public void CodeNode_SourceHashDefaultsToNullAndCanBeSet()
+    {
+        var node = new CodeNode
+        {
+            Id = "x",
+            Name = "X",
+            Type = CodeNodeType.Class,
+            SourceHash = "abc123"
+        };
+
+        node.SourceHash.Should().Be("abc123");
     }
 
     [Fact]

@@ -14,6 +14,8 @@ public sealed record CodeNode
     public string? ProjectContext { get; init; }
     public DateTimeOffset? CreatedAt { get; init; }
     public DateTimeOffset? UpdatedAt { get; init; }
+    public DateTimeOffset? LastIndexedAt { get; init; }
+    public string? SourceHash { get; init; }
     public Dictionary<string, string> Properties { get; init; } = [];
 
     /// <summary>Number of times this node has been re-indexed. Used for churn analysis.</summary>

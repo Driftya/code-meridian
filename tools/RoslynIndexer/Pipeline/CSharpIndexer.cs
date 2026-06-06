@@ -5,6 +5,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace CodeMeridian.RoslynIndexer.Pipeline;
 
@@ -89,6 +91,7 @@ public sealed class CSharpIndexer(
                     lineCount: n.LineCount,
                     summary: n.Summary,
                     sourceSnippet: n.SourceSnippet,
+                    sourceHash: n.SourceHash,
                     projectContext: projectContext,
                     cancellationToken: cancellationToken);
             }
@@ -120,7 +123,7 @@ public sealed class CSharpIndexer(
 
 internal sealed record IngestNodeRequest(
     string Id, string Name, string Type,
-    string? Namespace, string? FilePath, int? LineNumber, string? Summary, int? LineCount = null, string? SourceSnippet = null);
+    string? Namespace, string? FilePath, int? LineNumber, string? Summary, int? LineCount = null, string? SourceSnippet = null, string? SourceHash = null);
 
 internal sealed record IngestEdgeRequest(
     string SourceId, string TargetId, string RelationshipType);
@@ -141,7 +144,7 @@ internal sealed class CSharpAstWalker(
     public override void VisitCompilationUnit(CompilationUnitSyntax node)
     {
         nodes.Add(new IngestNodeRequest(_fileId, Path.GetFileName(filePath), "File",
-            null, filePath, 1, null, GetLineCount(node)));
+            null, filePath, 1, null, GetLineCount(node), SourceHash: HashSource(node.ToFullString())));
 
         base.VisitCompilationUnit(node);
     }
@@ -174,7 +177,7 @@ internal sealed class CSharpAstWalker(
         var summary = ExtractXmlSummary(node);
 
         nodes.Add(new IngestNodeRequest(id, node.Identifier.Text, "Class",
-            _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node)));
+            _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node), HashSource(node.ToFullString())));
 
         // Contains edge from namespace
         if (_currentNamespace is not null)
@@ -205,7 +208,7 @@ internal sealed class CSharpAstWalker(
         var summary = ExtractXmlSummary(node);
 
         nodes.Add(new IngestNodeRequest(id, node.Identifier.Text, "Interface",
-            _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node)));
+            _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node), HashSource(node.ToFullString())));
 
         if (_currentNamespace is not null)
             edges.Add(new IngestEdgeRequest(MakeId("Namespace", _currentNamespace), id, "Contains"));
@@ -223,7 +226,7 @@ internal sealed class CSharpAstWalker(
         var line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
 
         nodes.Add(new IngestNodeRequest(id, node.Identifier.Text, "Enum",
-            _currentNamespace, filePath, line, null, GetLineCount(node), ExtractSourceSnippet(node)));
+            _currentNamespace, filePath, line, null, GetLineCount(node), ExtractSourceSnippet(node), HashSource(node.ToFullString())));
 
         if (_currentNamespace is not null)
             edges.Add(new IngestEdgeRequest(MakeId("Namespace", _currentNamespace), id, "Contains"));
@@ -273,7 +276,7 @@ internal sealed class CSharpAstWalker(
         var line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
 
         nodes.Add(new IngestNodeRequest(id, node.Identifier.Text, "Property",
-            _currentNamespace, filePath, line, null));
+            _currentNamespace, filePath, line, null, GetLineCount(node), ExtractSourceSnippet(node), HashSource(node.ToFullString())));
 
         edges.Add(new IngestEdgeRequest(_currentTypeId, id, "Contains"));
     }
@@ -304,7 +307,7 @@ internal sealed class CSharpAstWalker(
         var lineCount = span.EndLinePosition.Line - span.StartLinePosition.Line + 1;
 
         nodes.Add(new IngestNodeRequest(id, signature, "Method",
-            _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node)));
+            _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node), HashSource(node.ToFullString())));
 
         edges.Add(new IngestEdgeRequest(containerId, id, "Contains"));
         AddInvocationEdges(node, id);
@@ -359,6 +362,12 @@ internal sealed class CSharpAstWalker(
         var lines = text.Split(["\r\n", "\n"], StringSplitOptions.None);
         var snippet = string.Join(Environment.NewLine, lines.Take(maxLines));
         return snippet.Length > maxChars ? snippet[..maxChars] : snippet;
+    }
+
+    private static string HashSource(string source)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(source));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     private static string? ExtractXmlSummary(SyntaxNode node)

@@ -37,6 +37,8 @@ public sealed class KnowledgeTools(
         string? summary = null,
         [Description("Optional bounded source snippet captured by an indexer. Do not send whole files.")]
         string? sourceSnippet = null,
+        [Description("Optional stable SHA-256 hash of the node's source text. Used to distinguish re-indexing from real source changes.")]
+        string? sourceHash = null,
         [Description("Project context name, e.g. 'MyApi'")]
         string? projectContext = null,
         [Description("Optional vector embedding as comma-separated floats (e.g. '0.1,0.23,-0.05,...'). Enables find_similar_nodes.")]
@@ -70,6 +72,7 @@ public sealed class KnowledgeTools(
             LineCount = lineCount,
             Summary = summary,
             SourceSnippet = sourceSnippet,
+            SourceHash = sourceHash,
             ProjectContext = projectContext,
             Embedding = embedding
         };
