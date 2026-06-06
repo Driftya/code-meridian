@@ -68,6 +68,99 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
+    public async Task<string> PlanEditRouteAsync(
+        string goal,
+        string? conceptsCsv = null,
+        string? projectContext = null,
+        int limit = 8,
+        CancellationToken cancellationToken = default)
+    {
+        var concepts = ParseConcepts(conceptsCsv);
+        var queries = new[] { goal }.Concat(concepts).Where(q => !string.IsNullOrWhiteSpace(q)).Distinct(StringComparer.OrdinalIgnoreCase);
+        var candidates = new List<CodeNode>();
+
+        foreach (var query in queries)
+        {
+            var nodes = await codeGraph.QueryNodesAsync(
+                new CodeGraphQuery
+                {
+                    SemanticQuery = query,
+                    ProjectContext = projectContext,
+                    Limit = 30
+                },
+                cancellationToken);
+
+            candidates.AddRange(nodes);
+        }
+
+        var rankedNodes = candidates
+            .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
+            .DistinctBy(n => n.Id)
+            .OrderByDescending(node => ScoreRouteNode(node, goal, concepts))
+            .ThenBy(node => node.FilePath, StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Clamp(limit, 1, 25))
+            .ToArray();
+
+        if (rankedNodes.Length == 0)
+            return $"No edit route found for `{goal}`. Try `find_implementation_surface`, add more specific concepts, or re-index before relying on CodeMeridian for route planning.";
+
+        var anchor = rankedNodes.FirstOrDefault(n => n.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
+            ?? rankedNodes[0];
+        var ctx = await codeGraph.GetContextForEditingAsync(anchor.Id, cancellationToken)
+            ?? new EditingContext(null, [], [], []);
+        var impact = await codeGraph.FindImpactAsync(anchor.Id, depth: 2, cancellationToken) ?? [];
+        var downstream = await codeGraph.FindDownstreamAsync(anchor.Id, depth: 2, cancellationToken) ?? [];
+        var relatedTests = await codeGraph.FindRelatedTestsAsync(anchor.Id, anchor.ProjectContext ?? projectContext, cancellationToken) ?? [];
+
+        var routeNodes = rankedNodes
+            .Concat(ctx.Node is null ? [] : [ctx.Node])
+            .Concat(ctx.Interfaces)
+            .Concat(ctx.Callees)
+            .Concat(ctx.Callers)
+            .Concat(downstream.Select(d => d.Node))
+            .Concat(impact.Select(i => i.Node))
+            .Concat(relatedTests.Select(t => t.Node))
+            .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
+            .DistinctBy(n => n.Id)
+            .ToArray();
+
+        var steps = BuildEditRouteSteps(routeNodes, anchor, goal);
+        var routeConfidence = DescribeRouteConfidence(anchor, steps, ctx.Node is not null);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Change Route - `{goal}`");
+        if (concepts.Length > 0)
+            sb.AppendLine($"**Concepts:** {string.Join(", ", concepts.Select(c => $"`{c}`"))}");
+        sb.AppendLine($"**Anchor:** `{anchor.Name}` ({anchor.Type}) - `{anchor.FilePath}`");
+        sb.AppendLine($"**Route confidence:** {routeConfidence}");
+        sb.AppendLine();
+        sb.AppendLine("| Step | Edit route | Why this comes here | Primary targets |");
+        sb.AppendLine("|---:|---|---|---|");
+
+        var stepNumber = 1;
+        foreach (var step in steps)
+        {
+            var targets = step.Nodes.Count == 0
+                ? "No graph target found"
+                : string.Join("<br>", step.Nodes.Take(4).Select(FormatRouteNode));
+            sb.AppendLine($"| {stepNumber++} | {step.Title} | {step.Reason} | {targets} |");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("### Graph signals");
+        sb.AppendLine($"- Implementation candidates: {rankedNodes.Length}");
+        sb.AppendLine($"- Direct callers: {ctx.Callers.Count}");
+        sb.AppendLine($"- Direct callees: {ctx.Callees.Count}");
+        sb.AppendLine($"- Interfaces/contracts: {ctx.Interfaces.Count}");
+        sb.AppendLine($"- Near impact nodes: {impact.Count}");
+        sb.AppendLine($"- Near downstream nodes: {downstream.Count}");
+        sb.AppendLine($"- Related tests: {relatedTests.Count}");
+        sb.AppendLine();
+        sb.AppendLine("> Use this as the edit itinerary. Run `build_minimal_context` on exact route targets before changing code.");
+
+        return sb.ToString();
+    }
+
     public async Task<string> ResolveExactSymbolAsync(
         string symbol,
         string? filePath = null,
@@ -171,6 +264,15 @@ public partial class CodebaseQueryService
         if (node.FilePath?.Contains("test", StringComparison.OrdinalIgnoreCase) == true)
             score += 1;
 
+        return score;
+    }
+
+    private static int ScoreRouteNode(CodeNode node, string goal, IReadOnlyCollection<string> concepts)
+    {
+        var score = ScoreSurfaceNode(node, goal, concepts);
+        if (IsContractNode(node)) score += 2;
+        if (IsTestNode(node)) score += 2;
+        if (IsApiNode(node) || IsInfrastructureNode(node)) score += 1;
         return score;
     }
 
@@ -283,6 +385,117 @@ public partial class CodebaseQueryService
         && !string.IsNullOrWhiteSpace(needle)
         && haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
 
+    private static IReadOnlyList<EditRouteStep> BuildEditRouteSteps(
+        IReadOnlyCollection<CodeNode> nodes,
+        CodeNode anchor,
+        string goal)
+    {
+        var contracts = nodes.Where(IsContractNode).ToArray();
+        var appDomain = nodes.Where(n => !IsContractNode(n) && (IsApplicationNode(n) || IsDomainNode(n))).ToArray();
+        var infrastructure = nodes.Where(IsInfrastructureNode).ToArray();
+        var composition = nodes.Where(n => IsCompositionNode(n) || IsApiNode(n)).ToArray();
+        var tests = nodes.Where(IsTestNode).ToArray();
+        var fallback = nodes
+            .Where(n => !contracts.Contains(n)
+                && !appDomain.Contains(n)
+                && !infrastructure.Contains(n)
+                && !composition.Contains(n)
+                && !tests.Contains(n))
+            .OrderByDescending(n => ScoreRouteNode(n, goal, []))
+            .ToArray();
+
+        return
+        [
+            new EditRouteStep(
+                "Contract / port",
+                "Start with interfaces and public contracts so downstream edits have a stable shape.",
+                contracts.Length == 0 && IsContractNode(anchor) ? [anchor] : contracts),
+            new EditRouteStep(
+                "Application / domain behavior",
+                "Change the use case or domain behavior before wiring outer layers.",
+                appDomain.Length == 0 && !IsInfrastructureNode(anchor) && !IsTestNode(anchor) ? [anchor] : appDomain),
+            new EditRouteStep(
+                "Infrastructure implementation",
+                "Update adapters and persistence/API implementations after the contract is clear.",
+                infrastructure),
+            new EditRouteStep(
+                "Composition and API entry points",
+                "Update DI registrations and endpoint/controller surfaces after implementations exist.",
+                composition),
+            new EditRouteStep(
+                "Tests and verification",
+                "Finish with direct or heuristic tests that protect the route.",
+                tests),
+            new EditRouteStep(
+                "Fallback graph targets",
+                "Inspect remaining graph matches if the route still feels incomplete.",
+                fallback)
+        ];
+    }
+
+    private static bool IsContractNode(CodeNode node) =>
+        node.Type == CodeNodeType.Interface
+        || TextMatches(node.Name, "interface")
+        || TextMatches(node.Name, "port")
+        || TextMatches(node.FilePath, "port")
+        || TextMatches(node.FilePath, "abstractions");
+
+    private static bool IsApplicationNode(CodeNode node) =>
+        TextMatches(node.FilePath, "/Application/")
+        || TextMatches(node.FilePath, "\\Application\\")
+        || TextMatches(node.Namespace, ".Application");
+
+    private static bool IsDomainNode(CodeNode node) =>
+        TextMatches(node.FilePath, "/Domain/")
+        || TextMatches(node.FilePath, "\\Domain\\")
+        || TextMatches(node.FilePath, "/Core/")
+        || TextMatches(node.FilePath, "\\Core\\")
+        || TextMatches(node.Namespace, ".Domain")
+        || TextMatches(node.Namespace, ".Core");
+
+    private static bool IsInfrastructureNode(CodeNode node) =>
+        TextMatches(node.FilePath, "/Infrastructure/")
+        || TextMatches(node.FilePath, "\\Infrastructure\\")
+        || TextMatches(node.Namespace, ".Infrastructure");
+
+    private static bool IsCompositionNode(CodeNode node) =>
+        TextMatches(node.Name, "Program")
+        || TextMatches(node.Name, "DependencyInjection")
+        || TextMatches(node.FilePath, "Program.cs")
+        || TextMatches(node.FilePath, "DependencyInjection");
+
+    private static bool IsApiNode(CodeNode node) =>
+        TextMatches(node.FilePath, "/Api/")
+        || TextMatches(node.FilePath, "\\Api\\")
+        || TextMatches(node.FilePath, "/Controllers/")
+        || TextMatches(node.FilePath, "\\Controllers\\")
+        || TextMatches(node.Name, "Endpoint")
+        || TextMatches(node.Name, "Controller");
+
+    private static bool IsTestNode(CodeNode node) =>
+        TextMatches(node.FilePath, "test")
+        || TextMatches(node.Namespace, "test")
+        || TextMatches(node.Name, "test");
+
+    private static string FormatRouteNode(CodeNode node)
+    {
+        var line = node.LineNumber is null ? string.Empty : $":{node.LineNumber}";
+        return $"`{node.Name}` - `{node.FilePath}{line}`";
+    }
+
+    private static string DescribeRouteConfidence(
+        CodeNode anchor,
+        IReadOnlyCollection<EditRouteStep> steps,
+        bool exactContextFound)
+    {
+        var nonEmptySteps = steps.Count(step => step.Nodes.Count > 0);
+        if (exactContextFound && nonEmptySteps >= 4)
+            return "High - exact anchor plus graph targets across most route stages";
+        if (!string.IsNullOrWhiteSpace(anchor.FilePath) && nonEmptySteps >= 2)
+            return "Medium - graph found an anchor and partial route coverage";
+        return "Low - route is mostly heuristic; re-index or add concepts for better targeting";
+    }
+
     private sealed record SurfaceCandidate(
         string FilePath,
         IReadOnlyList<CodeNode> Nodes,
@@ -298,4 +511,9 @@ public partial class CodebaseQueryService
         int Score,
         int? LineDistance,
         string Reason);
+
+    private sealed record EditRouteStep(
+        string Title,
+        string Reason,
+        IReadOnlyList<CodeNode> Nodes);
 }

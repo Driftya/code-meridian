@@ -26,7 +26,7 @@ This is the roadmap index. Each item links to a dedicated note under `docs/featu
 - [x] [P2 - Add Duplicate-Code Workflow](docs/features/22-add-duplicate-code-workflow.md) - Once embeddings work, CodeMeridian can turn `find_similar_nodes` into a practical duplicate-code review flow.
 - [ ] [P3 - Add More External Concept Indexers](docs/features/23-add-more-external-concept-indexers.md) - `link_external_concept` is powerful, but manual linking limits adoption.
 
-- [ ] [P2 - Add Change-Route Planning](docs/features/24-add-change-route-planning.md) - Give the AI an ordered edit path instead of a file dump.
+- [x] [P2 - Add Change-Route Planning](docs/features/24-add-change-route-planning.md) - Give the AI an ordered edit path instead of a file dump.
 - [ ] [P2 - Add Bridge Node Detection](docs/features/25-add-bridge-node-detection.md) - Find small but structurally important nodes that connect separate parts of the system.
 - [ ] [P2 - Add Natural Module Detection](docs/features/26-add-natural-module-detection.md) - Discover modules from the graph instead of from folders.
 - [ ] [P2 - Add Architecture Erosion Timeline](docs/features/27-add-architecture-erosion-timeline.md) - Track how architecture gets worse over time.

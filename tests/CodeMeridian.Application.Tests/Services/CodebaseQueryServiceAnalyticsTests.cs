@@ -1163,6 +1163,66 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task PlanEditRouteAsync_WithGraphMatches_ReturnsOrderedItinerary()
+    {
+        var (sut, graph) = Build();
+        var port = Node("i1", "IPaymentRepository", CodeNodeType.Interface, "src/Application/Ports/IPaymentRepository.cs", 1, "Shop");
+        var service = Node("s1", "PaymentService", CodeNodeType.Class, "src/Application/Payments/PaymentService.cs", 12, "Shop");
+        var implementation = Node("r1", "SqlPaymentRepository", CodeNodeType.Class, "src/Infrastructure/Payments/SqlPaymentRepository.cs", 9, "Shop");
+        var endpoint = Node("e1", "PaymentEndpoint", CodeNodeType.Method, "src/McpServer/Api/PaymentEndpoint.cs", 20, "Shop");
+        var program = Node("p1", "Program", CodeNodeType.File, "src/McpServer/Program.cs", 1, "Shop");
+        var test = Node("t1", "PaymentServiceTests", CodeNodeType.Class, "tests/Shop.Tests/PaymentServiceTests.cs", 8, "Shop");
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([service, port, implementation, endpoint, program]);
+        graph
+            .GetContextForEditingAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(service, [endpoint], [implementation], [port]));
+        graph
+            .FindImpactAsync(Arg.Any<string>(), 2, Arg.Any<CancellationToken>())
+            .Returns([(endpoint, 1)]);
+        graph
+            .FindDownstreamAsync(Arg.Any<string>(), 2, Arg.Any<CancellationToken>())
+            .Returns([(implementation, 1), (program, 2)]);
+        graph
+            .FindRelatedTestsAsync(Arg.Any<string>(), "Shop", Arg.Any<CancellationToken>())
+            .Returns([(test, "direct")]);
+
+        var result = await sut.PlanEditRouteAsync(
+            "replace repository pattern in payments",
+            "repository,payments",
+            "Shop");
+
+        result.Should().Contain("## Change Route");
+        result.Should().Contain("Contract / port");
+        result.Should().Contain("Application / domain behavior");
+        result.Should().Contain("Infrastructure implementation");
+        result.Should().Contain("Composition and API entry points");
+        result.Should().Contain("Tests and verification");
+        result.Should().Contain("IPaymentRepository");
+        result.Should().Contain("PaymentService");
+        result.Should().Contain("SqlPaymentRepository");
+        result.Should().Contain("PaymentEndpoint");
+        result.Should().Contain("PaymentServiceTests");
+        result.Should().Contain("Graph signals");
+    }
+
+    [Fact]
+    public async Task PlanEditRouteAsync_WhenNoMatches_ReturnsGuidance()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.PlanEditRouteAsync("replace repository pattern in payments");
+
+        result.Should().Contain("No edit route found");
+        result.Should().Contain("find_implementation_surface");
+    }
+
+    [Fact]
     public async Task ResolveExactSymbolAsync_WithFileAndLineHints_ReturnsCanonicalNodeIds()
     {
         var (sut, graph) = Build();

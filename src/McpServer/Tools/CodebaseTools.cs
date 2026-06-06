@@ -115,6 +115,23 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindImplementationSurfaceAsync(goal, conceptsCsv, projectContext, limit, cancellationToken);
 
+    [McpServerTool(Name = "plan_edit_route")]
+    [Description(
+        "Plan an ordered edit route for a feature or refactor goal. " +
+        "Use this before implementation when the user wants an itinerary across contracts, application/domain behavior, " +
+        "infrastructure implementations, DI/API entry points, and tests instead of a flat file list.")]
+    public Task<string> PlanEditRouteAsync(
+        [Description("Feature or refactor goal, e.g. 'replace repository pattern in payments'.")]
+        string goal,
+        [Description("Optional comma-separated concepts that should influence route planning, e.g. 'repository,payments,DI,tests'.")]
+        string? conceptsCsv = null,
+        [Description("Optional project name to scope the route.")]
+        string? projectContext = null,
+        [Description("Maximum number of initial implementation candidates to inspect.")]
+        int limit = 8,
+        CancellationToken cancellationToken = default) =>
+        queryService.PlanEditRouteAsync(goal, conceptsCsv, projectContext, limit, cancellationToken);
+
     [McpServerTool(Name = "resolve_exact_symbol")]
     [Description(
         "Resolve a method, class, interface, or file hint to canonical CodeMeridian node IDs. " +
