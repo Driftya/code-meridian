@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace CodeMeridian.Indexer.Cli;
 
-internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl)
+internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, bool AllowRepoScripts)
 {
     public static IndexerConfig? Load(DirectoryInfo startDirectory)
     {
@@ -12,13 +12,20 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl)
 
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(configFile.FullName));
+            using var document = JsonDocument.Parse(
+                File.ReadAllText(configFile.FullName),
+                new JsonDocumentOptions
+                {
+                    CommentHandling = JsonCommentHandling.Skip,
+                    AllowTrailingCommas = true
+                });
             var root = document.RootElement;
 
             return new IndexerConfig(
                 ReadString(root, "project"),
                 ReadString(root, "codeMeridianUrl")
-                ?? ReadString(root, "url"));
+                ?? ReadString(root, "url"),
+                ReadBoolean(root, "allowRepoScripts") ?? false);
         }
         catch
         {
@@ -34,13 +41,15 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl)
         if (File.Exists(filePath) && !overwrite)
             throw new InvalidOperationException($"Config file already exists: {filePath}. Use --force to overwrite it.");
 
-        var payload = new
-        {
-            project,
-            codeMeridianUrl
-        };
+        var json = $$"""
+            {
+              "project": "{{project}}",
+              "codeMeridianUrl": "{{codeMeridianUrl}}",
+              // Enabled by default so repo-controlled build and lint diagnostics can run on trusted repos.
+              "allowRepoScripts": true
+            }
+            """;
 
-        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(filePath, json + Environment.NewLine);
     }
 
@@ -61,5 +70,18 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl)
         return root.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;
+    }
+
+    private static bool? ReadBoolean(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value))
+            return null;
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => null
+        };
     }
 }

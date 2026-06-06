@@ -23,7 +23,8 @@ public sealed class IndexerConfigTests : IDisposable
             """
             {
               "project": "MyApi",
-              "codeMeridianUrl": "http://localhost:5100"
+              "codeMeridianUrl": "http://localhost:5100",
+              "allowRepoScripts": true
             }
             """);
 
@@ -32,6 +33,7 @@ public sealed class IndexerConfigTests : IDisposable
         result.Should().NotBeNull();
         result!.Project.Should().Be("MyApi");
         result.CodeMeridianUrl.Should().Be("http://localhost:5100");
+        result.AllowRepoScripts.Should().BeTrue();
     }
 
     [Fact]
@@ -61,6 +63,8 @@ public sealed class IndexerConfigTests : IDisposable
 
         json.Should().Contain("\"project\": \"MyApi\"");
         json.Should().Contain("\"codeMeridianUrl\": \"http://localhost:5100\"");
+        json.Should().Contain("\"allowRepoScripts\": true");
+        json.Should().Contain("Enabled by default so repo-controlled build and lint diagnostics can run on trusted repos.");
     }
 
     public void Dispose()

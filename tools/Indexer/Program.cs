@@ -145,6 +145,7 @@ var meridianConfig = IndexerConfig.Load(rootPath);
 var codeMeridianUrl = ResolveCodeMeridianUrl(codeMeridianUrlOverride, meridianConfig);
 var apiKey = Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
 var environmentProject = Environment.GetEnvironmentVariable("CodeMeridian_Project");
+allowRepoScripts |= meridianConfig?.AllowRepoScripts ?? false;
 
 if (command == "init")
     return InitCommand.Run(rootPath, project ?? environmentProject, codeMeridianUrl, initForce);

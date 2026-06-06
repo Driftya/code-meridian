@@ -148,7 +148,7 @@ Generate a project-local `meridian.json` plus MCP client config with:
 codemeridian init .
 ```
 
-`codemeridian init` writes the project indexing config and merges `.vscode/mcp.json` plus `.codex/config.toml`. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
+`codemeridian init` writes the project indexing config, enables `allowRepoScripts` by default in `meridian.json`, and merges `.vscode/mcp.json` plus `.codex/config.toml`. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
 
 The API key still comes from `.env` or your shell environment and is sent as:
 
