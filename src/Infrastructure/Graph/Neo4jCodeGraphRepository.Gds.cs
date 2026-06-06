@@ -28,14 +28,14 @@ public sealed partial class Neo4jCodeGraphRepository
             CALL gds.pageRank.stream($graphName)
             YIELD nodeId, score
             MATCH (n:CodeNode) WHERE id(n) = nodeId
-              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
             RETURN n, score
             ORDER BY score DESC
             LIMIT $limit
             """;
 
         return await RunGdsStreamAsync(session, graphName, projectCypher, streamCypher,
-            new { graphName, projectContext = (object?)projectContext, limit },
+            new { graphName, projectContextNormalized = (object?)Normalize(projectContext), limit },
             r => (MapToCodeNode(r["n"].As<INode>()), r["score"].As<double>()),
             cancellationToken);
     }
@@ -57,14 +57,14 @@ public sealed partial class Neo4jCodeGraphRepository
             CALL gds.betweenness.stream($graphName)
             YIELD nodeId, score
             MATCH (n:CodeNode) WHERE id(n) = nodeId
-              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
             RETURN n, score
             ORDER BY score DESC
             LIMIT $limit
             """;
 
         return await RunGdsStreamAsync(session, graphName, projectCypher, streamCypher,
-            new { graphName, projectContext = (object?)projectContext, limit },
+            new { graphName, projectContextNormalized = (object?)Normalize(projectContext), limit },
             r => (MapToCodeNode(r["n"].As<INode>()), r["score"].As<double>()),
             cancellationToken);
     }
@@ -90,14 +90,14 @@ public sealed partial class Neo4jCodeGraphRepository
             CALL gds.louvain.stream($graphName)
             YIELD nodeId, communityId
             MATCH (n:CodeNode) WHERE id(n) = nodeId
-              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
             RETURN n, communityId
             ORDER BY communityId, n.name
             LIMIT 200
             """;
 
         return await RunGdsStreamAsync(session, graphName, projectCypher, streamCypher,
-            new { graphName, projectContext = (object?)projectContext },
+            new { graphName, projectContextNormalized = (object?)Normalize(projectContext) },
             r => (MapToCodeNode(r["n"].As<INode>()), r["communityId"].As<long>()),
             cancellationToken);
     }
@@ -117,7 +117,7 @@ public sealed partial class Neo4jCodeGraphRepository
             CALL db.index.vector.queryNodes('codenode_embeddings', $topKPlus, source.embedding)
             YIELD node, score
             WHERE node.id <> $nodeId
-              AND ($projectContext IS NULL OR node.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
             RETURN node, score
             LIMIT $topK
             """;
@@ -127,7 +127,7 @@ public sealed partial class Neo4jCodeGraphRepository
             var cursor = await session.RunAsync(cypher, new
             {
                 nodeId,
-                projectContext = (object?)projectContext,
+                projectContextNormalized = (object?)Normalize(projectContext),
                 topK,
                 topKPlus = topK + 1
             });
@@ -174,7 +174,7 @@ public sealed partial class Neo4jCodeGraphRepository
             WHERE source.embedding IS NOT NULL
               AND source.type IN $nodeTypes
               AND coalesce(source.lineCount, 0) >= $minLineCount
-              AND ($projectContext IS NULL OR source.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR source.projectContextNormalized = $projectContextNormalized)
               AND ($namespaceFilterNormalized IS NULL OR source.namespaceNormalized CONTAINS $namespaceFilterNormalized)
               AND (
                 $excludeTests = false OR
@@ -193,7 +193,7 @@ public sealed partial class Neo4jCodeGraphRepository
               AND candidate.id > source.id
               AND candidate.type = source.type
               AND coalesce(candidate.lineCount, 0) >= $minLineCount
-              AND ($projectContext IS NULL OR candidate.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR candidate.projectContextNormalized = $projectContextNormalized)
               AND ($namespaceFilterNormalized IS NULL OR candidate.namespaceNormalized CONTAINS $namespaceFilterNormalized)
               AND (
                 $excludeTests = false OR
@@ -244,7 +244,7 @@ public sealed partial class Neo4jCodeGraphRepository
         {
             var cursor = await session.RunAsync(cypher, new
             {
-                projectContext = (object?)projectContext,
+                projectContextNormalized = (object?)Normalize(projectContext),
                 namespaceFilterNormalized = (object?)Normalize(namespaceFilter),
                 nodeTypes,
                 minLineCount,

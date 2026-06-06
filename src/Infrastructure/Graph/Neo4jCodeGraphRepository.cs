@@ -158,11 +158,11 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
         const string cypher = """
             MATCH (n:CodeNode)
-            WHERE ($projectContext IS NULL OR n.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
             RETURN count(n) AS count
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
         var record = await cursor.SingleAsync();
         return record["count"].As<long>();
     }
@@ -173,11 +173,11 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
         const string cypher = """
             MATCH (s:CodeNode)-[r:Calls]->(t:CodeNode)
-            WHERE ($projectContext IS NULL OR s.projectContext = $projectContext OR t.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR s.projectContextNormalized = $projectContextNormalized OR t.projectContextNormalized = $projectContextNormalized)
             RETURN count(r) AS count
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
         var record = await cursor.SingleAsync();
         return record["count"].As<long>();
     }
@@ -189,11 +189,11 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         const string cypher = """
             MATCH (n:CodeNode)
             WHERE n.type = 'Diagnostic'
-              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
             RETURN count(n) AS count
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
         var record = await cursor.SingleAsync();
         return record["count"].As<long>();
     }
@@ -334,13 +334,14 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         await using var session = _driver.AsyncSession();
 
         const string cypher = """
-            MATCH (n:CodeNode {projectContext: $projectContext})
+            MATCH (n:CodeNode)
+            WHERE n.projectContextNormalized = $projectContextNormalized
             DETACH DELETE n
             """;
 
         await session.ExecuteWriteAsync(async tx =>
         {
-            var cursor = await tx.RunAsync(cypher, new { projectContext });
+            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Normalize(projectContext) });
             await cursor.ConsumeAsync();
         });
     }
@@ -353,13 +354,19 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         await using var session = _driver.AsyncSession();
 
         const string cypher = """
-            MATCH (n:CodeNode {projectContext: $projectContext, filePath: $filePath})
+            MATCH (n:CodeNode)
+            WHERE n.projectContextNormalized = $projectContextNormalized
+              AND n.filePathNormalized = $filePathNormalized
             DETACH DELETE n
             """;
 
         await session.ExecuteWriteAsync(async tx =>
         {
-            var cursor = await tx.RunAsync(cypher, new { projectContext, filePath });
+            var cursor = await tx.RunAsync(cypher, new
+            {
+                projectContextNormalized = Normalize(projectContext),
+                filePathNormalized = Normalize(filePath)
+            });
             await cursor.ConsumeAsync();
         });
     }
@@ -369,13 +376,15 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         await using var session = _driver.AsyncSession();
 
         const string cypher = """
-            MATCH (n:CodeNode {projectContext: $projectContext, type: 'Diagnostic'})
+            MATCH (n:CodeNode)
+            WHERE n.projectContextNormalized = $projectContextNormalized
+              AND n.type = 'Diagnostic'
             DETACH DELETE n
             """;
 
         await session.ExecuteWriteAsync(async tx =>
         {
-            var cursor = await tx.RunAsync(cypher, new { projectContext });
+            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Normalize(projectContext) });
             await cursor.ConsumeAsync();
         });
     }
@@ -406,7 +415,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         const string cypher = """
             MATCH (n:CodeNode)
             WHERE n.type = 'Diagnostic'
-              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND ($severityNormalized IS NULL OR n.nameNormalized STARTS WITH $severityNormalized)
             RETURN n
             ORDER BY n.filePath, n.lineNumber, n.name
@@ -415,7 +424,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
         var cursor = await session.RunAsync(cypher, new
         {
-            projectContext = (object?)projectContext,
+            projectContextNormalized = (object?)Normalize(projectContext),
             severityNormalized = (object?)Normalize(severity)
         });
 
@@ -436,8 +445,8 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             MATCH (target:CodeNode {id: $nodeId})
             MATCH (diag:CodeNode)
             WHERE diag.type = 'Diagnostic'
-              AND diag.projectContext = target.projectContext
-              AND diag.filePath = target.filePath
+              AND diag.projectContextNormalized = target.projectContextNormalized
+              AND diag.filePathNormalized = target.filePathNormalized
             RETURN diag AS n
             ORDER BY abs(coalesce(diag.lineNumber, 0) - coalesce(target.lineNumber, 0)), diag.lineNumber
             LIMIT 50
@@ -459,12 +468,12 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
         const string cypher = """
             MATCH (n:CodeNode)
-            WHERE ($projectContext IS NULL OR n.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND n.updatedAt IS NOT NULL
             RETURN max(n.updatedAt) AS updatedAt
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
         var records = await cursor.ToListAsync();
 
         if (records.Count == 0)
@@ -488,7 +497,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         const string cypher = """
             CALL db.index.fulltext.queryNodes('codenode_fulltext', $query)
             YIELD node, score
-            WHERE ($projectContext IS NULL OR node.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
             RETURN node
             ORDER BY score DESC
             LIMIT $limit
@@ -497,7 +506,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         var cursor = await session.RunAsync(cypher, new
         {
             query = query.SemanticQuery,
-            projectContext = (object?)query.ProjectContext,
+            projectContextNormalized = (object?)Normalize(query.ProjectContext),
             limit = query.Limit
         });
 
@@ -514,7 +523,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         CancellationToken cancellationToken)
     {
         var conditions = new List<string>();
-        if (query.ProjectContext is not null) conditions.Add("n.projectContext = $projectContext");
+        if (query.ProjectContext is not null) conditions.Add("n.projectContextNormalized = $projectContextNormalized");
         if (query.NameFilter is not null) conditions.Add("n.nameNormalized CONTAINS $nameFilterNormalized");
         if (query.FilePathFilter is not null) conditions.Add("n.filePathNormalized CONTAINS $filePathFilterNormalized");
         if (query.TypeFilter.HasValue) conditions.Add("n.type = $typeFilter");
@@ -524,7 +533,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
         var cursor = await session.RunAsync(cypher, new
         {
-            projectContext = (object?)query.ProjectContext,
+            projectContextNormalized = (object?)Normalize(query.ProjectContext),
             nameFilterNormalized = (object?)Normalize(query.NameFilter),
             filePathFilterNormalized = (object?)Normalize(query.FilePathFilter),
             typeFilter = (object?)query.TypeFilter?.ToString(),

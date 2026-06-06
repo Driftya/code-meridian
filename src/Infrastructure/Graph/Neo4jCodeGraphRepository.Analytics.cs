@@ -18,16 +18,16 @@ public sealed partial class Neo4jCodeGraphRepository
 
         const string cypher = """
             MATCH (source:CodeNode)-[r:Calls|Uses|DependsOn]->(target:CodeNode)
-            WHERE source.projectContext <> target.projectContext
-              AND ($projectContext IS NULL
-                   OR source.projectContext = $projectContext
-                   OR target.projectContext = $projectContext)
+            WHERE source.projectContextNormalized <> target.projectContextNormalized
+              AND ($projectContextNormalized IS NULL
+                   OR source.projectContextNormalized = $projectContextNormalized
+                   OR target.projectContextNormalized = $projectContextNormalized)
             RETURN source, target, type(r) AS relType
             ORDER BY source.projectContext, target.projectContext
             LIMIT 100
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
         var results = new List<(CodeNode, CodeNode, string)>();
 
         await foreach (var record in cursor.WithCancellation(cancellationToken))
@@ -51,7 +51,7 @@ public sealed partial class Neo4jCodeGraphRepository
         const string cypher = """
             MATCH (prod:CodeNode)
             WHERE prod.type IN ['Class', 'Method']
-              AND ($projectContext IS NULL OR prod.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR prod.projectContextNormalized = $projectContextNormalized)
               AND NOT coalesce(prod.namespaceNormalized CONTAINS 'test', false)
               AND NOT coalesce(prod.filePathNormalized CONTAINS 'test', false)
               AND NOT EXISTS {
@@ -64,7 +64,7 @@ public sealed partial class Neo4jCodeGraphRepository
             LIMIT 100
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
         var results = new List<CodeNode>();
 
         await foreach (var record in cursor.WithCancellation(cancellationToken))
@@ -86,7 +86,7 @@ public sealed partial class Neo4jCodeGraphRepository
                 test.namespaceNormalized CONTAINS 'test'
                 OR test.filePathNormalized CONTAINS 'test'
               )
-              AND ($projectContext IS NULL OR test.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR test.projectContextNormalized = $projectContextNormalized)
             RETURN test AS node, 'direct' AS matchType
             ORDER BY test.name
             LIMIT 25
@@ -99,7 +99,7 @@ public sealed partial class Neo4jCodeGraphRepository
                 test.namespaceNormalized CONTAINS 'test'
                 OR test.filePathNormalized CONTAINS 'test'
               )
-              AND ($projectContext IS NULL OR test.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR test.projectContextNormalized = $projectContextNormalized)
               AND (
                 test.filePath = target.filePath
                 OR test.namespace = target.namespace
@@ -122,7 +122,7 @@ public sealed partial class Neo4jCodeGraphRepository
             var cursor = await session.RunAsync(cypher, new
             {
                 nodeId,
-                projectContext = (object?)projectContext
+                projectContextNormalized = (object?)Normalize(projectContext)
             });
 
             await foreach (var record in cursor.WithCancellation(cancellationToken))
@@ -150,7 +150,7 @@ public sealed partial class Neo4jCodeGraphRepository
 
         const string cypher = """
             MATCH (n:CodeNode)
-            WHERE ($projectContext IS NULL OR n.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND (n.createdAt >= $cutoff OR n.updatedAt >= $cutoff)
             WITH n,
                  CASE WHEN n.createdAt >= $cutoff AND (n.updatedAt IS NULL OR n.createdAt = n.updatedAt)
@@ -163,7 +163,7 @@ public sealed partial class Neo4jCodeGraphRepository
 
         var cursor = await session.RunAsync(cypher, new
         {
-            projectContext = (object?)projectContext,
+            projectContextNormalized = (object?)Normalize(projectContext),
             cutoff = cutoffMs
         });
 
@@ -235,7 +235,7 @@ public sealed partial class Neo4jCodeGraphRepository
 
         const string cypher = """
             MATCH (caller:CodeNode)-[:Calls|Uses|DependsOn]->(n:CodeNode)
-            WHERE ($projectContext IS NULL OR n.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND n.type IN ['Method', 'Class', 'Interface']
             RETURN n, count(caller) AS fanIn
             ORDER BY fanIn DESC
@@ -244,7 +244,7 @@ public sealed partial class Neo4jCodeGraphRepository
 
         var cursor = await session.RunAsync(cypher, new
         {
-            projectContext = (object?)projectContext,
+            projectContextNormalized = (object?)Normalize(projectContext),
             limit
         });
 
@@ -299,14 +299,14 @@ public sealed partial class Neo4jCodeGraphRepository
         const string cypher = """
             MATCH (n:CodeNode)
             WHERE n.type IN ['Method', 'Class']
-              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND NOT ()-[:Calls|Uses|Contains]->(n)
             RETURN n
             ORDER BY n.type, n.name
             LIMIT 100
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
         var results = new List<CodeNode>();
 
         await foreach (var record in cursor.WithCancellation(cancellationToken))
@@ -326,7 +326,7 @@ public sealed partial class Neo4jCodeGraphRepository
         const string cypher = """
             MATCH (n:CodeNode)
             WHERE n.lineCount IS NOT NULL
-              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND (
                 (n.type = 'Class' AND n.lineCount > $classThreshold) OR
                 (n.type = 'Method' AND n.lineCount > $methodThreshold)
@@ -344,7 +344,7 @@ public sealed partial class Neo4jCodeGraphRepository
 
         var cursor = await session.RunAsync(cypher, new
         {
-            projectContext = (object?)projectContext,
+            projectContextNormalized = (object?)Normalize(projectContext),
             classThreshold,
             methodThreshold
         });
@@ -404,7 +404,7 @@ public sealed partial class Neo4jCodeGraphRepository
             MATCH (n:CodeNode)
             WHERE n.type = 'Class'
               AND n.lineCount IS NOT NULL
-              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND n.lineCount > $lineThreshold
               AND NOT (
                 coalesce(n.namespace, '') CONTAINS 'Test' OR
@@ -422,7 +422,7 @@ public sealed partial class Neo4jCodeGraphRepository
 
         var cursor = await session.RunAsync(cypher, new
         {
-            projectContext = (object?)projectContext,
+            projectContextNormalized = (object?)Normalize(projectContext),
             lineThreshold,
             fanInThreshold
         });
@@ -451,7 +451,7 @@ public sealed partial class Neo4jCodeGraphRepository
             WHERE a.namespace IS NOT NULL
               AND b.namespace IS NOT NULL
               AND a.namespace <> b.namespace
-              AND ($projectContext IS NULL OR a.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR a.projectContextNormalized = $projectContextNormalized)
             WITH DISTINCT a.namespace AS nsA, b.namespace AS nsB
             MATCH (c:CodeNode)-[:Calls|Uses|DependsOn]->(d:CodeNode)
             WHERE c.namespace = nsB AND d.namespace = nsA
@@ -461,7 +461,7 @@ public sealed partial class Neo4jCodeGraphRepository
             LIMIT 50
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
         var results = new List<(string, string)>();
 
         await foreach (var record in cursor.WithCancellation(cancellationToken))
@@ -480,7 +480,7 @@ public sealed partial class Neo4jCodeGraphRepository
         // Application must not depend on Infrastructure/McpServer.
         const string cypher = """
             MATCH (source:CodeNode)-[:Calls|Uses|DependsOn]->(target:CodeNode)
-            WHERE ($projectContext IS NULL OR source.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR source.projectContextNormalized = $projectContextNormalized)
               AND source.namespace IS NOT NULL
               AND target.namespace IS NOT NULL
               AND (
@@ -508,7 +508,7 @@ public sealed partial class Neo4jCodeGraphRepository
             LIMIT 50
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
         var results = new List<(CodeNode, CodeNode, string)>();
 
         await foreach (var record in cursor.WithCancellation(cancellationToken))
@@ -533,7 +533,7 @@ public sealed partial class Neo4jCodeGraphRepository
             MATCH (n:CodeNode)
             WHERE n.changeCount IS NOT NULL
               AND n.changeCount >= $threshold
-              AND ($projectContext IS NULL OR n.projectContext = $projectContext)
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
             RETURN n, n.changeCount AS changeCount
             ORDER BY changeCount DESC
             LIMIT 50
@@ -541,7 +541,7 @@ public sealed partial class Neo4jCodeGraphRepository
 
         var cursor = await session.RunAsync(cypher, new
         {
-            projectContext = (object?)projectContext,
+            projectContextNormalized = (object?)Normalize(projectContext),
             threshold
         });
 

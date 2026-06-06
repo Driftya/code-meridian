@@ -42,6 +42,26 @@ public sealed class IncrementalIndexCacheTests
         nextPlan.DeletedFiles.Should().ContainSingle("src/Deleted.cs");
     }
 
+    [Fact]
+    public void BuildPlan_WhenTimestampChangesButContentIsSame_DoesNotTreatFileAsChanged()
+    {
+        using var workspace = TestWorkspace.Create();
+        var file = workspace.WriteFile("src/App.cs", "class App {}");
+
+        var sut = IncrementalIndexCache.Load(workspace.Root, "Project");
+        var firstPlan = sut.BuildPlan(workspace.Root, [file], forceFull: false);
+        sut.Save(firstPlan);
+
+        file.LastWriteTimeUtc = file.LastWriteTimeUtc.AddDays(1);
+        file.Refresh();
+
+        var reloaded = IncrementalIndexCache.Load(workspace.Root, "Project");
+        var nextPlan = reloaded.BuildPlan(workspace.Root, [file], forceFull: false);
+
+        nextPlan.ChangedFiles.Should().BeEmpty();
+        nextPlan.DeletedFiles.Should().BeEmpty();
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         private TestWorkspace(DirectoryInfo root)

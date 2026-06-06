@@ -1,10 +1,11 @@
 using System.Text.Json;
+using System.Security.Cryptography;
 
 namespace CodeMeridian.Indexer.Cli;
 
 public sealed class IncrementalIndexCache
 {
-    private const int CacheVersion = 1;
+    private const int CacheVersion = 2;
     private readonly FileInfo _cacheFile;
     private readonly CacheState _state;
 
@@ -54,7 +55,7 @@ public sealed class IncrementalIndexCache
         var currentByPath = current.ToDictionary(entry => entry.Path, StringComparer.OrdinalIgnoreCase);
 
         var changed = current
-            .Where(entry => !previous.TryGetValue(entry.Path, out var old) || !entry.SameStampAs(old))
+            .Where(entry => !previous.TryGetValue(entry.Path, out var old) || !entry.SameContentAs(old))
             .Select(entry => entry.Path)
             .ToArray();
 
@@ -92,16 +93,23 @@ public sealed class IncrementalIndexCache
         public List<CacheEntry> Files { get; set; } = [];
     }
 
-    public sealed record CacheEntry(string Path, long LastWriteUtcTicks, long Length)
+    public sealed record CacheEntry(string Path, long LastWriteUtcTicks, long Length, string ContentHash)
     {
         public static CacheEntry FromFile(DirectoryInfo root, FileInfo file) =>
             new(
                 System.IO.Path.GetRelativePath(root.FullName, file.FullName).Replace('\\', '/'),
                 file.LastWriteTimeUtc.Ticks,
-                file.Length);
+                file.Length,
+                HashFile(file));
 
-        public bool SameStampAs(CacheEntry other) =>
-            LastWriteUtcTicks == other.LastWriteUtcTicks && Length == other.Length;
+        public bool SameContentAs(CacheEntry other) =>
+            string.Equals(ContentHash, other.ContentHash, StringComparison.OrdinalIgnoreCase);
+
+        private static string HashFile(FileInfo file)
+        {
+            using var stream = file.OpenRead();
+            return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+        }
     }
 }
 

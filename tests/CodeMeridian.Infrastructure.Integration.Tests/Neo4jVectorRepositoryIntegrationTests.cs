@@ -81,4 +81,33 @@ public sealed class Neo4jVectorRepositoryIntegrationTests : IAsyncLifetime
             await _repository!.DeleteProjectAsync(projectContext);
         }
     }
+
+    [Fact]
+    public async Task ProjectScopedDocumentQueries_AreCaseInsensitive()
+    {
+        var projectContext = $"Integration.Documents.Case.{Guid.NewGuid():N}";
+        var document = new KnowledgeDocument
+        {
+            Id = $"{projectContext}.Doc",
+            Content = "Temporary integration document for case-insensitive project lookup.",
+            Source = "docs/case.md",
+            ProjectContext = projectContext
+        };
+
+        try
+        {
+            await _repository!.UpsertAsync(document);
+
+            var lowerCaseProject = projectContext.ToLowerInvariant();
+            var listed = await _repository.ListAsync(lowerCaseProject, limit: 10);
+            var count = await _repository.CountAsync(lowerCaseProject);
+
+            listed.Should().Contain(doc => doc.Id == document.Id);
+            count.Should().BeGreaterOrEqualTo(1);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
 }

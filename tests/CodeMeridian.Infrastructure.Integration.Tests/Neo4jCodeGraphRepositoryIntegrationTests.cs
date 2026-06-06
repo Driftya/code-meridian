@@ -119,6 +119,40 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ProjectScopedQueries_AreCaseInsensitive()
+    {
+        var projectContext = $"Integration.Case.{Guid.NewGuid():N}";
+        var node = CreateNode(
+            id: $"{projectContext}.Target",
+            name: "Target",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Target.cs",
+            namespaceName: $"{projectContext}.Target");
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(node);
+
+            var lowerCaseProject = projectContext.ToLowerInvariant();
+            var matches = await _repository.QueryNodesAsync(new CodeGraphQuery
+            {
+                ProjectContext = lowerCaseProject,
+                NameFilter = "Target",
+                Limit = 10
+            });
+            var count = await _repository.CountCodeNodesAsync(lowerCaseProject);
+
+            matches.Should().Contain(match => match.Id == node.Id);
+            count.Should().BeGreaterOrEqualTo(1);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
     public async Task FindImpactAsync_ForKnownNode_ReturnsAtLeastOneCallerOrGuidance()
     {
         var target = await FindAnyTargetAsync();

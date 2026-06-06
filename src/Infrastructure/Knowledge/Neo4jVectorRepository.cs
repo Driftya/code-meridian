@@ -42,6 +42,8 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             await (await tx.RunAsync(
                 "CREATE FULLTEXT INDEX knowledge_fulltext IF NOT EXISTS " +
                 "FOR (d:KnowledgeDocument) ON EACH [d.content, d.source]")).ConsumeAsync();
+            await (await tx.RunAsync(
+                "CREATE INDEX knowledge_project_normalized IF NOT EXISTS FOR (d:KnowledgeDocument) ON (d.projectContextNormalized)")).ConsumeAsync();
 
             // Vector index — used when embeddings are available
             await (await tx.RunAsync($$"""
@@ -54,6 +56,17 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                   }
                 }
                 """)).ConsumeAsync();
+        });
+
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            await (await tx.RunAsync(
+                """
+                MATCH (d:KnowledgeDocument)
+                WHERE d.projectContext IS NOT NULL AND d.projectContextNormalized IS NULL
+                SET d.projectContextNormalized = toLower(d.projectContext)
+                """
+            )).ConsumeAsync();
         });
 
         _logger.LogInformation("Neo4j knowledge indexes ready.");
@@ -69,6 +82,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             SET d.content        = $content,
                 d.source         = $source,
                 d.projectContext = $projectContext,
+                d.projectContextNormalized = $projectContextNormalized,
                 d.embedding      = $embedding,
                 d.relatedNodeIds = $relatedNodeIds,
                 d.metadataKind   = $metadataKind,
@@ -88,6 +102,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                 content = document.Content,
                 source = document.Source,
                 projectContext = document.ProjectContext,
+                projectContextNormalized = Normalize(document.ProjectContext),
                 embedding = document.Embedding,
                 relatedNodeIds,
                 metadataKind,
@@ -129,7 +144,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 
         const string cypher = """
             MATCH (d:KnowledgeDocument)
-            WHERE ($projectContext IS NULL OR d.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR d.projectContextNormalized = $projectContextNormalized)
             RETURN d
             ORDER BY d.updatedAt DESC, d.id
             LIMIT $limit
@@ -137,7 +152,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 
         var cursor = await session.RunAsync(cypher, new
         {
-            projectContext = (object?)projectContext,
+            projectContextNormalized = (object?)Normalize(projectContext),
             limit
         });
 
@@ -154,11 +169,11 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 
         const string cypher = """
             MATCH (d:KnowledgeDocument)
-            WHERE ($projectContext IS NULL OR d.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR d.projectContextNormalized = $projectContextNormalized)
             RETURN count(d) AS count
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContext = (object?)projectContext });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
         var record = await cursor.SingleAsync();
         return record["count"].As<long>();
     }
@@ -174,7 +189,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         const string cypher = """
             CALL db.index.vector.queryNodes($indexName, $topK, $embedding)
             YIELD node, score
-            WHERE ($projectContext IS NULL OR node.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
             RETURN node, score
             ORDER BY score DESC
             """;
@@ -184,7 +199,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             indexName = IndexName,
             topK,
             embedding = queryEmbedding,
-            projectContext = (object?)projectContext
+            projectContextNormalized = (object?)Normalize(projectContext)
         });
 
         var results = new List<KnowledgeDocument>();
@@ -209,7 +224,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         const string cypher = """
             CALL db.index.fulltext.queryNodes('knowledge_fulltext', $query)
             YIELD node, score
-            WHERE ($projectContext IS NULL OR node.projectContext = $projectContext)
+            WHERE ($projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
             RETURN node, score
             ORDER BY score DESC
             LIMIT $topK
@@ -218,7 +233,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         var cursor = await session.RunAsync(cypher, new
         {
             query,
-            projectContext = (object?)projectContext,
+            projectContextNormalized = (object?)Normalize(projectContext),
             topK
         });
 
@@ -250,13 +265,15 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         await using var session = _driver.AsyncSession();
 
         const string cypher = """
-            MATCH (d:KnowledgeDocument {projectContext: $projectContext, source: $source})
+            MATCH (d:KnowledgeDocument)
+            WHERE d.projectContextNormalized = $projectContextNormalized
+              AND d.source = $source
             DETACH DELETE d
             """;
 
         await session.ExecuteWriteAsync(async tx =>
         {
-            var cursor = await tx.RunAsync(cypher, new { projectContext, source });
+            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Normalize(projectContext), source });
             await cursor.ConsumeAsync();
         });
     }
@@ -265,10 +282,14 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
     {
         await using var session = _driver.AsyncSession();
 
-        const string cypher = "MATCH (d:KnowledgeDocument {projectContext: $projectContext}) DELETE d";
+        const string cypher = """
+            MATCH (d:KnowledgeDocument)
+            WHERE d.projectContextNormalized = $projectContextNormalized
+            DELETE d
+            """;
         await session.ExecuteWriteAsync(async tx =>
         {
-            var cursor = await tx.RunAsync(cypher, new { projectContext });
+            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Normalize(projectContext) });
             await cursor.ConsumeAsync();
         });
     }
@@ -324,6 +345,9 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 
         return [];
     }
+
+    private static string? Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.ToLowerInvariant();
 
     public async ValueTask DisposeAsync() => await _driver.DisposeAsync();
 }
