@@ -67,7 +67,7 @@ public partial class CodebaseQueryService
         var incompleteLines = checks.Where(c => c.LineMetadata == "incomplete").ToArray();
         var missingTimestamps = checks.Where(c => c.Node.UpdatedAt is null).ToArray();
         var missingSourceHashes = checks
-            .Where(c => c.SourceVerification == "missing source hash" && c.Node.Type != CodeNodeType.Namespace)
+            .Where(c => c.SourceVerification == "missing source hash" && RequiresSourceHash(c.Node))
             .ToArray();
         var lowConfidence = checks.Count(c => c.Confidence == "Low");
 
@@ -100,7 +100,7 @@ public partial class CodebaseQueryService
         var hasLineMetadata = node.LineNumber is > 0 || node.LineCount is > 0;
         var hasTimestamp = node.UpdatedAt is not null;
         var hasSourceHash = !string.IsNullOrWhiteSpace(node.SourceHash);
-        var requiresSourceHash = node.Type != CodeNodeType.Namespace;
+        var requiresSourceHash = RequiresSourceHash(node);
         var lineMetadata = hasLineMetadata ? "present" : "incomplete";
         var sourceVerification = !hasFilePath ? "no file path"
             : hasSourceHash ? "checksum indexed"
@@ -123,6 +123,9 @@ public partial class CodebaseQueryService
 
     private static string DescribeFreshness(FreshnessCheck check) =>
         $"{check.Confidence}: {check.Reason}";
+
+    private static bool RequiresSourceHash(CodeNode node) =>
+        node.Type is not CodeNodeType.Namespace and not CodeNodeType.Diagnostic;
 
     private static void AppendDriftSection(StringBuilder sb, string title, IReadOnlyCollection<FreshnessCheck> checks, int limit)
     {

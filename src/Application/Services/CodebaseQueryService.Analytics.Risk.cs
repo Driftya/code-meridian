@@ -344,9 +344,18 @@ public partial class CodebaseQueryService
             .Select(match => match.Value)
             .Where(value => value.Length >= 6)
             .Where(IsLikelySymbolMention)
+            .Where(IsLikelySingleSymbolMention)
             .Distinct(StringComparer.OrdinalIgnoreCase);
 
         return dotted.Concat(memberLike);
+    }
+
+    private static bool IsLikelySingleSymbolMention(string value)
+    {
+        if (value.Contains('.', StringComparison.Ordinal))
+            return true;
+
+        return CodeLikeSuffixes.Any(suffix => value.EndsWith(suffix, StringComparison.Ordinal));
     }
 
     private static bool IsLikelySymbolMention(string value)
@@ -424,6 +433,36 @@ public partial class CodebaseQueryService
         "Warnings",
         "Notes"
     };
+
+    private static readonly string[] CodeLikeSuffixes =
+    [
+        "Service",
+        "Repository",
+        "Controller",
+        "Handler",
+        "Provider",
+        "Factory",
+        "Client",
+        "Command",
+        "Query",
+        "Endpoint",
+        "Endpoints",
+        "Tool",
+        "Tools",
+        "Options",
+        "Registry",
+        "Context",
+        "Builder",
+        "Mapper",
+        "Validator",
+        "Exception",
+        "Reader",
+        "Writer",
+        "Parser",
+        "Resolver",
+        "Indexer",
+        "Ingester"
+    ];
 
     private static bool IsLikelyMatch(CodeNode node) =>
         node.Type is CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.Method or CodeNodeType.ExternalConcept;
