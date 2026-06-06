@@ -83,7 +83,7 @@ docker compose up -d
 dotnet run --project tools/Indexer -- . --clear
 ```
 
-To create a local project config for the indexer, run:
+To create a local project config and MCP client config, run:
 
 ```powershell
 codemeridian init .

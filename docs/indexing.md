@@ -273,13 +273,13 @@ Precedence for non-secret settings:
 4. Values in `meridian.json`
 5. Auto-detected defaults
 
-You can generate `meridian.json` with:
+You can generate `meridian.json` plus MCP client config with:
 
 ```powershell
 codemeridian init .
 ```
 
-`codemeridian init` owns only `meridian.json`. Use `codemeridian serve` for `.env`, MCP client config, and the Docker Compose backend stack.
+`codemeridian init` writes `meridian.json` and merges `.vscode/mcp.json` plus `.codex/config.toml`. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
 
 Useful variables:
 

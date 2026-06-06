@@ -4,7 +4,7 @@
 
 Add a `codemeridian serve` command to the .NET global tool that boots and manages a local CodeMeridian backend stack with as little manual editing as possible.
 
-The existing `codemeridian init` command already owns `meridian.json` generation, so this work should not introduce a second init path for project-local config.
+The existing `codemeridian init` command owns `meridian.json` and MCP client config generation, so this work should not introduce a second init path for project-local config.
 
 Status: implemented in `tools/Indexer` as `codemeridian serve`. The command writes or merges local config and runs `docker compose -f <compose-file> up -d` unless `--no-start` is provided.
 
@@ -173,7 +173,7 @@ codemeridian doctor --project CodeMeridian
 - Default image decision: use `ghcr.io/driftya/codemeridian-mcp:latest`, matching the current publish workflow image name.
 - Compose file decision: default to `docker-compose.codemeridian.yml` to avoid taking ownership of app-specific Compose files.
 - Wrapper decision: `codemeridian serve` owns the wrapper behavior directly. No `server up` alias was added.
-- Init decision: `codemeridian init` owns only `meridian.json`. `serve` does not call it implicitly.
+- Init decision: `codemeridian init` owns `meridian.json`, `.vscode/mcp.json`, and `.codex/config.toml`. `serve` owns `.env`, Compose generation, and Docker startup.
 
 ## Recommendation
 

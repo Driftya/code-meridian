@@ -142,13 +142,13 @@ If you want to pin the project name without using `--project`, set `CodeMeridian
 CodeMeridian_Project=MyApi
 ```
 
-Generate a project-local `meridian.json` with:
+Generate a project-local `meridian.json` plus MCP client config with:
 
 ```powershell
 codemeridian init .
 ```
 
-`codemeridian init` only writes the project indexing config. Use `codemeridian serve` for the Docker-backed server stack and MCP client config.
+`codemeridian init` writes the project indexing config and merges `.vscode/mcp.json` plus `.codex/config.toml`. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
 
 The API key still comes from `.env` or your shell environment and is sent as:
 

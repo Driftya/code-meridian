@@ -38,7 +38,7 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Can verify graph drift with `codemeridian check-drift` or `codemeridian index --verify`.
 - Can create local MCP client config and start the backend stack with `codemeridian serve`.
 - Supports dry runs and capability listing for environment checks.
-- Can generate a local `meridian.json` with an auto-detected project name.
+- Can generate a local `meridian.json` and MCP client config with an auto-detected project name.
 - Can also read `CodeMeridian_Project` from `.env` when you want a fixed project name without `--project`.
 
 ## Package Contents
@@ -57,7 +57,7 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Use `--skip-diagnostics` if you only want structural indexing.
 - Use `--allow-repo-scripts` only on trusted repos when you want `dotnet build` and repo lint commands to run.
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
-- Use `codemeridian init .` to generate `meridian.json` when you want a project-local config file.
+- Use `codemeridian init .` to generate `meridian.json`, `.vscode/mcp.json`, and `.codex/config.toml` for a project.
 - Use `codemeridian serve` to create `.env`, `.vscode/mcp.json`, `.codex/config.toml`, and `docker-compose.codemeridian.yml`, then start the backend stack.
 - Use `codemeridian serve --no-start` when you only want to write or merge those files.
 - The global tool does not include Neo4j. It starts Neo4j and the MCP server through Docker using the published MCP server image.

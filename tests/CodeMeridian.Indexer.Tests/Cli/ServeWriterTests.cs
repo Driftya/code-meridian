@@ -145,6 +145,32 @@ public sealed class ServeWriterTests : IDisposable
         Directory.GetFiles(_root, "docker-compose.codemeridian.yml.*.bak").Should().ContainSingle();
     }
 
+    [Fact]
+    public void ApplyClientConfig_CreatesOnlyMcpClientFiles()
+    {
+        var result = new ServeWriter().ApplyClientConfig(new DirectoryInfo(_root), "http://localhost:5100", force: false);
+
+        File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".env")).Should().BeFalse();
+        File.Exists(Path.Combine(_root, "docker-compose.codemeridian.yml")).Should().BeFalse();
+        result.Should().OnlyContain(change => change.Status == "created");
+    }
+
+    [Fact]
+    public void ApplyClientConfig_UsesExistingSseUrl()
+    {
+        new ServeWriter().ApplyClientConfig(new DirectoryInfo(_root), "http://localhost:5100/sse", force: false);
+
+        var json = File.ReadAllText(Path.Combine(_root, ".vscode", "mcp.json"));
+        var toml = File.ReadAllText(Path.Combine(_root, ".codex", "config.toml"));
+
+        json.Should().Contain("\"url\": \"http://localhost:5100/sse\"");
+        toml.Should().Contain("url = \"http://localhost:5100/sse\"");
+        json.Should().NotContain("/sse/sse");
+        toml.Should().NotContain("/sse/sse");
+    }
+
     private ServeApplyResult Apply(
         string host = ServeOptions.DefaultHost,
         int port = ServeOptions.DefaultPort,

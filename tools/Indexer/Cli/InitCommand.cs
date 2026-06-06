@@ -21,10 +21,16 @@ internal static class InitCommand
         }
 
         var configPath = Path.Combine(rootPath.FullName, "meridian.json");
+        var clientConfigChanges = new ServeWriter().ApplyClientConfig(rootPath, codeMeridianUrl, force);
+
         Console.WriteLine("Initialized CodeMeridian indexer config:");
         Console.WriteLine($"  Path    : {configPath}");
         Console.WriteLine($"  Project : {project}");
         Console.WriteLine($"  Server  : {codeMeridianUrl}");
+        Console.WriteLine();
+        Console.WriteLine("Client MCP config:");
+        foreach (var change in clientConfigChanges)
+            Console.WriteLine($"  {change.Status,-11} {change.Path}");
         Console.WriteLine();
         Console.WriteLine("Next step:");
         Console.WriteLine("  codemeridian index .");

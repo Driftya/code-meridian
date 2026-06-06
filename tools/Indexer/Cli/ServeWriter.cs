@@ -24,6 +24,18 @@ internal sealed class ServeWriter
         return new ServeApplyResult(composePath, changes);
     }
 
+    public IReadOnlyList<ServeFileChange> ApplyClientConfig(DirectoryInfo rootDirectory, string codeMeridianUrl, bool force)
+    {
+        Directory.CreateDirectory(rootDirectory.FullName);
+        var mcpUrl = BuildMcpUrl(codeMeridianUrl);
+
+        return
+        [
+            WriteMcpJson(rootDirectory, mcpUrl, force),
+            WriteCodexToml(rootDirectory, mcpUrl, force),
+        ];
+    }
+
     private static ServeFileChange WriteEnv(ServeOptions options)
     {
         var path = Path.Combine(options.RootDirectory.FullName, ".env");
@@ -84,14 +96,19 @@ internal sealed class ServeWriter
 
     private static ServeFileChange WriteMcpJson(ServeOptions options)
     {
-        var directory = Path.Combine(options.RootDirectory.FullName, ".vscode");
+        return WriteMcpJson(options.RootDirectory, $"http://{options.Host}:{options.Port}/sse", options.Force);
+    }
+
+    private static ServeFileChange WriteMcpJson(DirectoryInfo rootDirectory, string mcpUrl, bool force)
+    {
+        var directory = Path.Combine(rootDirectory.FullName, ".vscode");
         Directory.CreateDirectory(directory);
 
         var path = Path.Combine(directory, "mcp.json");
         var server = new JsonObject
         {
             ["type"] = "sse",
-            ["url"] = $"http://{options.Host}:{options.Port}/sse",
+            ["url"] = mcpUrl,
             ["headers"] = new JsonObject
             {
                 ["Authorization"] = $"Bearer ${{env:{AuthEnvVar}}}"
@@ -113,7 +130,7 @@ internal sealed class ServeWriter
                         CommentHandling = JsonCommentHandling.Skip,
                     })?.AsObject() ?? [];
             }
-            catch when (options.Force)
+            catch when (force)
             {
                 Backup(path);
                 root = [];
@@ -134,18 +151,23 @@ internal sealed class ServeWriter
         servers["CodeMeridian"] = server;
         var content = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
 
-        return WriteMergedFile(path, content, existed, options.Force);
+        return WriteMergedFile(path, content, existed, force);
     }
 
     private static ServeFileChange WriteCodexToml(ServeOptions options)
     {
-        var directory = Path.Combine(options.RootDirectory.FullName, ".codex");
+        return WriteCodexToml(options.RootDirectory, $"http://{options.Host}:{options.Port}/sse", options.Force);
+    }
+
+    private static ServeFileChange WriteCodexToml(DirectoryInfo rootDirectory, string mcpUrl, bool force)
+    {
+        var directory = Path.Combine(rootDirectory.FullName, ".codex");
         Directory.CreateDirectory(directory);
 
         var path = Path.Combine(directory, "config.toml");
         var section = $"""
             [mcp_servers.CodeMeridian]
-            url = "http://{options.Host}:{options.Port}/sse"
+            url = "{mcpUrl}"
             default_tools_approval_mode = "auto"
             startup_timeout_sec = 15
             tool_timeout_sec = 60
@@ -160,7 +182,7 @@ internal sealed class ServeWriter
 
         var original = File.ReadAllText(path);
         var content = ReplaceTomlSection(original, "mcp_servers.CodeMeridian", section);
-        return WriteMergedFile(path, content, existed: true, options.Force);
+        return WriteMergedFile(path, content, existed: true, force);
     }
 
     private static ServeFileChange WriteWholeFile(string path, string content, bool force)
@@ -323,6 +345,14 @@ internal sealed class ServeWriter
         Span<byte> bytes = stackalloc byte[32];
         RandomNumberGenerator.Fill(bytes);
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string BuildMcpUrl(string codeMeridianUrl)
+    {
+        var trimmed = codeMeridianUrl.TrimEnd('/');
+        return trimmed.EndsWith("/sse", StringComparison.OrdinalIgnoreCase)
+            ? trimmed
+            : $"{trimmed}/sse";
     }
 
     private static string BuildCompose(ServeOptions options) =>
