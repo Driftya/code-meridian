@@ -133,7 +133,9 @@ public sealed class CSharpIndexer(
         IReadOnlyList<IngestNodeRequest> nodes,
         IReadOnlyList<IngestEdgeRequest> edges)
     {
-        var nodesById = nodes.ToDictionary(n => n.Id, StringComparer.Ordinal);
+        var nodesById = nodes
+            .GroupBy(n => n.Id, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         var methodCandidates = nodes
             .Where(n => n.Type.Equals("Method", StringComparison.OrdinalIgnoreCase))
             .Select(n => new MethodCandidate(

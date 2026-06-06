@@ -57,6 +57,47 @@ public sealed class CSharpIndexerTests : IDisposable
         callEdges[0].Body.GetProperty("targetId").GetString().Should().Be("CodeMeridian::Method::Demo.Callee()");
     }
 
+    [Fact]
+    public async Task IndexAsync_WhenNamespaceAppearsInMultipleFiles_DoesNotThrow()
+    {
+        var caller = WriteFile(
+            "src/Caller.cs",
+            """
+            namespace Demo;
+
+            public class Caller
+            {
+                public void Run()
+                {
+                    Work();
+                }
+
+                public void Work()
+                {
+                }
+            }
+            """);
+        var other = WriteFile(
+            "src/Other.cs",
+            """
+            namespace Demo;
+
+            public class Other
+            {
+                public void Ping()
+                {
+                }
+            }
+            """);
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        var act = async () => await sut.IndexAsync([caller, other], "CodeMeridian", _root);
+
+        await act.Should().NotThrowAsync();
+    }
+
     private FileInfo WriteFile(string relativePath, string content)
     {
         var file = new FileInfo(Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
