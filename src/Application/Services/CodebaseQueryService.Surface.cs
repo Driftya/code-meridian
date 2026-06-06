@@ -63,7 +63,7 @@ public partial class CodebaseQueryService
         }
 
         sb.AppendLine();
-        sb.AppendLine("CodeMeridian result: implementation targets are ranked from graph/document matches and local freshness checks. Use `resolve_exact_symbol` when target confidence is not exact.");
+        sb.AppendLine("CodeMeridian result: implementation targets are ranked from graph/document matches and indexed metadata freshness checks. Use `resolve_exact_symbol` when target confidence is not exact.");
 
         return sb.ToString();
     }

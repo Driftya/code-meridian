@@ -43,6 +43,29 @@ public sealed class CSharpAstWalkerTests
             && e.RelationshipType == "Contains");
     }
 
+    [Fact]
+    public void MethodNodes_CaptureBoundedSourceSnippet()
+    {
+        const string source = """
+            namespace Shop;
+
+            public sealed class OrderService
+            {
+                public void PlaceOrder()
+                {
+                    ValidateOrder();
+                }
+            }
+            """;
+
+        var nodes = ExtractNodes(source, "src/Orders/OrderService.cs");
+
+        var method = nodes.Single(n => n.Type == "Method" && n.Name == "PlaceOrder()");
+
+        method.SourceSnippet.Should().Contain("public void PlaceOrder()");
+        method.SourceSnippet.Should().Contain("ValidateOrder();");
+    }
+
     private static List<IngestNodeRequest> ExtractNodes(string source, string filePath)
     {
         var nodes = new List<IngestNodeRequest>();

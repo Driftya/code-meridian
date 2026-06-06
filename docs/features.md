@@ -117,7 +117,7 @@ Builds a bounded context pack for one target node. The pack combines local editi
 
 The token estimate is intentionally approximate. It counts target metadata, relationship rows, summaries, likely files, optional source snippets, and relevant test context. The model guidance uses that estimate plus graph complexity signals such as affected nodes, downstream dependencies, cross-project edges, missing tests, target size, and churn.
 
-Source snippets are disabled by default. When `includeSourceSnippets` is enabled, CodeMeridian reads only the target and top-ranked direct dependencies, respects the remaining `maxTokens` budget, line-numbers the snippet, and truncates with a marker instead of returning whole files.
+Source snippets are disabled by default. When `includeSourceSnippets` is enabled, CodeMeridian uses bounded snippets captured by the indexer for the target and top-ranked direct dependencies, respects the remaining `maxTokens` budget, line-numbers the snippet, and truncates with a marker instead of returning whole files. The MCP server does not read project files from its own filesystem; re-index with a snippet-aware indexer version to populate this data.
 
 When `includeTests` is enabled, test context includes:
 
@@ -213,7 +213,7 @@ What diagnostics are near OrderService.ProcessAsync?
 
 ### `find_implementation_surface`
 
-Ranks the most likely files, classes, and methods to edit for a feature goal. Results include canonical node IDs when available, target confidence (`exact`, `file-only`, `heuristic`, or `stale`), reasons, and freshness checks so an assistant can tell whether CodeMeridian found exact targets or only broad areas.
+Ranks the most likely files, classes, and methods to edit for a feature goal. Results include canonical node IDs when available, target confidence (`exact`, `file-only`, `heuristic`, or `stale`), reasons, and indexed-metadata freshness checks so an assistant can tell whether CodeMeridian found exact targets or only broad areas.
 
 ```text
 What is the best implementation surface for adding stale-knowledge detection?
@@ -236,7 +236,7 @@ Resolve BuildMinimalContextAsync in src/Application/Services/CodebaseQueryServic
 
 ### `check_graph_freshness`
 
-Reports trust signals for matching graph nodes: update timestamp, whether the indexed file exists, whether the indexed line is still valid, and a confidence reason.
+Reports trust signals for matching graph nodes using indexed file path, line metadata, update timestamp, and a confidence reason. It does not read source files from the MCP server because indexed projects may live on another machine.
 
 ```text
 Can I trust the graph results for CodebaseQueryService?
@@ -244,7 +244,7 @@ Can I trust the graph results for CodebaseQueryService?
 
 ### `find_graph_drift`
 
-Checks whether the graph has drifted from the working tree before exact implementation work. It reports missing files, invalid line ranges, missing timestamps, drift severity, and a re-index recommendation.
+Checks whether the graph has enough indexed metadata for exact implementation work. It reports missing file metadata, incomplete line metadata, missing timestamps, drift severity, and a re-index recommendation.
 
 ```text
 Should I re-index before implementing this change?

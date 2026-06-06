@@ -15,6 +15,7 @@ if (rawArgs.Count > 0
     && (rawArgs[0].Equals("index", StringComparison.OrdinalIgnoreCase)
         || rawArgs[0].Equals("clear", StringComparison.OrdinalIgnoreCase)
         || rawArgs[0].Equals("init", StringComparison.OrdinalIgnoreCase)
+        || rawArgs[0].Equals("serve", StringComparison.OrdinalIgnoreCase)
         || rawArgs[0].Equals("doctor", StringComparison.OrdinalIgnoreCase)
         || rawArgs[0].Equals("check-drift", StringComparison.OrdinalIgnoreCase)))
 {
@@ -26,6 +27,8 @@ if (rawArgs.Count > 0 && rawArgs[0] is "-h" or "--help" or "help")
 {
     if (command == "clear")
         PrintClearUsage();
+    else if (command == "serve")
+        PrintServeUsage();
     else
         PrintUsage();
     return 0;
@@ -38,6 +41,9 @@ var startupConfig = IndexerConfig.Load(new DirectoryInfo(Directory.GetCurrentDir
 
 if (command == "clear")
     return await RunClearCommandAsync(rawArgs, startupConfig);
+
+if (command == "serve")
+    return await RunServeCommandAsync(rawArgs);
 
 var positional = new List<string>();
 string? project = null;
@@ -965,6 +971,7 @@ static void PrintCapabilities()
     Console.WriteLine("  codemeridian index . --project MyProject --watch");
     Console.WriteLine("  codemeridian index . --dry-run");
     Console.WriteLine("  codemeridian init .");
+    Console.WriteLine("  codemeridian serve");
     Console.WriteLine("  codemeridian doctor --project MyProject");
     Console.WriteLine("  codemeridian check-drift --project MyProject --fail-on high");
     Console.WriteLine("  codemeridian clear --project MyProject");
@@ -999,6 +1006,108 @@ static int RunInitCommand(DirectoryInfo rootPath, string? projectOverride, strin
     Console.WriteLine("  codemeridian index .");
 
     return 0;
+}
+
+static async Task<int> RunServeCommandAsync(IReadOnlyList<string> rawArgs)
+{
+    var positional = new List<string>();
+    var host = ServeOptions.DefaultHost;
+    var port = ServeOptions.DefaultPort;
+    var neo4jHttpPort = ServeOptions.DefaultNeo4jHttpPort;
+    var neo4jBoltPort = ServeOptions.DefaultNeo4jBoltPort;
+    var composeFile = ServeOptions.DefaultComposeFileName;
+    var image = ServeOptions.DefaultImage;
+    var force = false;
+    var start = true;
+
+    for (var i = 0; i < rawArgs.Count; i++)
+    {
+        switch (rawArgs[i])
+        {
+            case "-h":
+            case "--help":
+                PrintServeUsage();
+                return 0;
+            case "--host" when i + 1 < rawArgs.Count:
+                host = rawArgs[++i];
+                break;
+            case "--port" when i + 1 < rawArgs.Count && int.TryParse(rawArgs[i + 1], out var parsedPort):
+                port = parsedPort;
+                i++;
+                break;
+            case "--neo4j-http-port" when i + 1 < rawArgs.Count && int.TryParse(rawArgs[i + 1], out var parsedHttpPort):
+                neo4jHttpPort = parsedHttpPort;
+                i++;
+                break;
+            case "--neo4j-bolt-port" when i + 1 < rawArgs.Count && int.TryParse(rawArgs[i + 1], out var parsedBoltPort):
+                neo4jBoltPort = parsedBoltPort;
+                i++;
+                break;
+            case "--compose-file" when i + 1 < rawArgs.Count:
+                composeFile = rawArgs[++i];
+                break;
+            case "--image" when i + 1 < rawArgs.Count:
+                image = rawArgs[++i];
+                break;
+            case "--force":
+                force = true;
+                break;
+            case "--no-start":
+                start = false;
+                break;
+            default:
+                if (!rawArgs[i].StartsWith("-", StringComparison.Ordinal))
+                    positional.Add(rawArgs[i]);
+                else
+                    Console.Error.WriteLine($"warn: unknown option ignored: {rawArgs[i]}");
+                break;
+        }
+    }
+
+    var rootPath = new DirectoryInfo(positional.Count > 0
+        ? Path.GetFullPath(positional[0], Directory.GetCurrentDirectory())
+        : Directory.GetCurrentDirectory());
+
+    var options = new ServeOptions(
+        rootPath,
+        host,
+        port,
+        neo4jHttpPort,
+        neo4jBoltPort,
+        composeFile,
+        image,
+        force,
+        start);
+
+    ServeApplyResult result;
+    try
+    {
+        result = new ServeWriter().Apply(options);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"error: {ex.Message}");
+        return 1;
+    }
+
+    Console.WriteLine("CodeMeridian serve");
+    Console.WriteLine($"  Root    : {rootPath.FullName}");
+    Console.WriteLine($"  Server  : http://{host}:{port}");
+    Console.WriteLine($"  Compose : {result.ComposePath}");
+    Console.WriteLine();
+    Console.WriteLine("Files:");
+    foreach (var change in result.Changes)
+        Console.WriteLine($"  {change.Status,-11} {change.Path}");
+
+    if (!start)
+    {
+        Console.WriteLine();
+        Console.WriteLine("Next step:");
+        Console.WriteLine($"  docker compose -f {QuoteIfNeeded(result.ComposePath)} up -d");
+        return 0;
+    }
+
+    return await RunAsync("docker", ["compose", "-f", result.ComposePath, "up", "-d"], rootPath);
 }
 
 static string ResolveCodeMeridianUrl(string? overrideUrl, IndexerConfig? config) =>
@@ -1308,6 +1417,7 @@ static void PrintUsage()
         USAGE:
           codemeridian index [path] [--project <name>] [options]
           codemeridian init [path] [--project <name>] [--url <url>] [--force]
+          codemeridian serve [path] [--host <host>] [--port <port>] [--no-start]
           codemeridian doctor [--project <name>] [--url <url>]
           codemeridian check-drift [path] [--project <name>] [--url <url>] [--fail-on <severity>]
           codemeridian clear --project <name>
@@ -1316,6 +1426,7 @@ static void PrintUsage()
         BACKWARD-COMPATIBLE SOURCE USAGE:
           dotnet run --project tools/Indexer -- [path] [--project <name>] [options]
           dotnet run --project tools/Indexer -- init [path] [--project <name>] [--url <url>] [--force]
+          dotnet run --project tools/Indexer -- serve [path] [--no-start]
           dotnet run --project tools/Indexer -- doctor [--project <name>] [--url <url>]
           dotnet run --project tools/Indexer -- check-drift [path] [--project <name>] [--url <url>] [--fail-on <severity>]
           dotnet run --project tools/Indexer -- clear --project <name>
@@ -1328,7 +1439,7 @@ static void PrintUsage()
           --url <url>            CodeMeridian server URL. Alias for --CodeMeridian.
           --CodeMeridian <url>   CodeMeridian server URL.
           --clear                Remove existing knowledge before indexing. Applied only once.
-          --force                Overwrite meridian.json when running init.
+          --force                Overwrite generated config when running init or serve.
           --skip-csharp          Skip C# indexing.
           --skip-typescript      Skip TypeScript/TSX indexing.
           --no-docs              Skip documentation ingestion. Alias: --skip-docs.
@@ -1347,12 +1458,40 @@ static void PrintUsage()
           codemeridian index . --clear
           codemeridian index C:\Projects\MyApi --project MyApi --clear
           codemeridian init C:\Projects\MyApi
+          codemeridian serve C:\Projects\MyApi --no-start
           codemeridian doctor --project CodeMeridian
           codemeridian check-drift --project CodeMeridian --fail-on high
           codemeridian clear --project MyApi
           codemeridian clear --all-code-graph
           codemeridian index . --clear --watch
           codemeridian index . --dry-run
+        """);
+}
+
+static void PrintServeUsage()
+{
+    Console.WriteLine("""
+        CodeMeridian Serve - create local MCP client config and start the backend stack.
+
+        USAGE:
+          codemeridian serve [path] [options]
+
+        OPTIONS:
+          --host <host>                 Hostname for generated MCP URLs. Default: localhost.
+          --port <port>                 MCP server host port. Default: 5100.
+          --neo4j-http-port <port>      Neo4j browser host port. Default: 47474.
+          --neo4j-bolt-port <port>      Neo4j bolt host port. Default: 47687.
+          --image <image>               MCP server image. Default: ghcr.io/driftya/codemeridian-mcp:latest.
+          --compose-file <path>         Compose file to create/use. Default: docker-compose.codemeridian.yml.
+          --force                       Back up and overwrite generated files where needed.
+          --no-start                    Write files but do not run docker compose.
+          -h, --help                    Show this help.
+
+        EXAMPLES:
+          codemeridian serve
+          codemeridian serve --no-start
+          codemeridian serve --host localhost --port 5100
+          codemeridian serve --image ghcr.io/driftya/codemeridian-mcp:latest
         """);
 }
 

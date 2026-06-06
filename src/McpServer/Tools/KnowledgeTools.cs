@@ -35,6 +35,8 @@ public sealed class KnowledgeTools(
         int? lineCount = null,
         [Description("One-sentence summary of what this element does")]
         string? summary = null,
+        [Description("Optional bounded source snippet captured by an indexer. Do not send whole files.")]
+        string? sourceSnippet = null,
         [Description("Project context name, e.g. 'MyApi'")]
         string? projectContext = null,
         [Description("Optional vector embedding as comma-separated floats (e.g. '0.1,0.23,-0.05,...'). Enables find_similar_nodes.")]
@@ -67,6 +69,7 @@ public sealed class KnowledgeTools(
             LineNumber = lineNumber,
             LineCount = lineCount,
             Summary = summary,
+            SourceSnippet = sourceSnippet,
             ProjectContext = projectContext,
             Embedding = embedding
         };

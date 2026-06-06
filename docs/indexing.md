@@ -5,8 +5,7 @@ The unified indexer CLI scans a target directory and runs the available language
 ## Start the Server
 
 ```powershell
-Copy-Item .env.example .env
-docker compose up -d
+codemeridian serve
 ```
 
 This starts:
@@ -38,6 +37,7 @@ After install:
 
 ```powershell
 codemeridian --list-capabilities
+codemeridian serve
 codemeridian index . --dry-run
 codemeridian index . --clear
 codemeridian doctor --project CodeMeridian
@@ -54,6 +54,18 @@ dotnet run --project tools/Indexer -- . --clear
 ```
 
 ## Common Commands
+
+Create MCP client config and start the local backend stack:
+
+```powershell
+codemeridian serve
+```
+
+Generate config without starting Docker:
+
+```powershell
+codemeridian serve --no-start
+```
 
 Index the current directory:
 
@@ -233,11 +245,13 @@ It does not talk to Neo4j directly from the client. The backend does the check s
 
 `codemeridian check-drift` asks the backend for the current drift report and exits with a non-zero code when the drift severity meets or exceeds the configured threshold.
 
+The backend evaluates indexed file, line, and timestamp metadata. It does not read source files from the MCP server process, because the server may run in Docker or on a remote host while indexing happens from a developer machine or CI runner.
+
 Use it when:
 
 - you want a pre-implementation confidence check
 - CI should fail if the graph looks too stale
-- you want the full missing-file / invalid-line / missing-timestamp report without indexing anything new
+- you want the full missing-metadata / incomplete-line / missing-timestamp report without indexing anything new
 
 Severity thresholds:
 
@@ -264,6 +278,8 @@ You can generate `meridian.json` with:
 ```powershell
 codemeridian init .
 ```
+
+`codemeridian init` owns only `meridian.json`. Use `codemeridian serve` for `.env`, MCP client config, and the Docker Compose backend stack.
 
 Useful variables:
 
@@ -310,12 +326,14 @@ When this repository is opened in VS Code, `.vscode/mcp.json` registers CodeMeri
 
 To use CodeMeridian from another project, copy `.vscode/mcp.json` into that project's `.vscode/` folder and make sure the MCP server is running.
 
+`codemeridian serve` can create or merge this file for the current project.
+
 ## Stop or Reset
 
 ```powershell
 # Stop containers, keep graph data
-docker compose down
+docker compose -f docker-compose.codemeridian.yml down
 
 # Stop containers and wipe graph data
-docker compose down -v
+docker compose -f docker-compose.codemeridian.yml down -v
 ```

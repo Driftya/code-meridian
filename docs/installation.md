@@ -12,25 +12,6 @@ CodeMeridian has two pieces:
 - GitHub Copilot in VS Code
 - Node.js 18+ when indexing TypeScript / TSX
 
-## Install and Start the Server
-
-Clone the repository, copy the environment file, and start the containers:
-
-```powershell
-git clone https://github.com/<owner>/<repo>.git
-cd code-meridian
-Copy-Item .env.example .env
-docker compose up -d
-```
-
-This starts:
-
-- Neo4j browser: `http://localhost:47474`
-- Neo4j bolt: `bolt://localhost:47687`
-- MCP server: `http://localhost:5100/sse`
-
-Open this repository in VS Code. The included `.vscode/mcp.json` registers the MCP server for GitHub Copilot.
-
 ## Install the Indexer CLI
 
 ### From NuGet
@@ -66,6 +47,37 @@ If you already installed a local version:
 
 ```powershell
 dotnet tool update CodeMeridian.Indexer --global --add-source artifacts/packages
+```
+
+## Start the Server
+
+Create the local server config and start the containers:
+
+```powershell
+codemeridian serve
+```
+
+This creates or merges `.env`, `.vscode/mcp.json`, `.codex/config.toml`, and `docker-compose.codemeridian.yml`, then runs `docker compose -f docker-compose.codemeridian.yml up -d`.
+
+To generate the files without starting Docker:
+
+```powershell
+codemeridian serve --no-start
+```
+
+This starts:
+
+- Neo4j browser: `http://localhost:47474`
+- Neo4j bolt: `bolt://localhost:47687`
+- MCP server: `http://localhost:5100/sse`
+
+Open this repository in VS Code. The included `.vscode/mcp.json` registers the MCP server for GitHub Copilot.
+
+For source-checkout development, you can still start the repository compose file directly:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d
 ```
 
 ## Index a Project
@@ -136,6 +148,8 @@ Generate a project-local `meridian.json` with:
 codemeridian init .
 ```
 
+`codemeridian init` only writes the project indexing config. Use `codemeridian serve` for the Docker-backed server stack and MCP client config.
+
 The API key still comes from `.env` or your shell environment and is sent as:
 
 ```http
@@ -173,11 +187,11 @@ dotnet tool uninstall --global CodeMeridian.Indexer
 Stop the server:
 
 ```powershell
-docker compose down
+docker compose -f docker-compose.codemeridian.yml down
 ```
 
 Stop the server and wipe graph data:
 
 ```powershell
-docker compose down -v
+docker compose -f docker-compose.codemeridian.yml down -v
 ```

@@ -29,6 +29,7 @@ export interface CodeNodeDto {
   lineNumber?: number;
   lineCount?: number;
   summary?: string;
+  sourceSnippet?: string;
   projectContext: string;
   embeddingCsv?: string;
 }

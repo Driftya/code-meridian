@@ -32,7 +32,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         string? project = null,
         DateTimeOffset? createdAt = null,
         DateTimeOffset? updatedAt = null,
-        int? lineCount = null) => new()
+        int? lineCount = null,
+        string? sourceSnippet = null) => new()
     {
         Id = id,
         Name = name,
@@ -40,6 +41,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         FilePath = file,
         LineNumber = line,
         LineCount = lineCount,
+        SourceSnippet = sourceSnippet,
         ProjectContext = project,
         CreatedAt = createdAt,
         UpdatedAt = updatedAt
@@ -938,49 +940,44 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     [Fact]
     public async Task BuildMinimalContextAsync_WithSourceSnippets_IncludesBudgetedTargetSnippet()
     {
-        var sourcePath = Path.Combine(Path.GetTempPath(), $"codemeridian-snippet-{Guid.NewGuid():N}.cs");
-        await File.WriteAllLinesAsync(sourcePath, [
-            "namespace Shop.Orders;",
-            "public sealed class OrderService",
-            "{",
-            "    public void PlaceOrder()",
-            "    {",
-            "        ValidateOrder();",
-            "        SaveOrder();",
-            "    }",
-            "}"
-        ]);
+        var (sut, graph) = Build();
+        var target = Node(
+            "m1",
+            "PlaceOrder",
+            CodeNodeType.Method,
+            "src/Orders/OrderService.cs",
+            4,
+            "Shop",
+            lineCount: 5,
+            sourceSnippet:
+            """
+                public void PlaceOrder()
+                {
+                    ValidateOrder();
+                    SaveOrder();
+                }
+            """);
 
-        try
-        {
-            var (sut, graph) = Build();
-            var target = Node("m1", "PlaceOrder", CodeNodeType.Method, sourcePath, 4, "Shop", lineCount: 5);
+        graph.GetContextForEditingAsync("Method:Shop.Orders.OrderService.PlaceOrder", Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
 
-            graph.GetContextForEditingAsync("Method:Shop.Orders.OrderService.PlaceOrder", Arg.Any<CancellationToken>())
-                 .Returns(new EditingContext(target, [], [], []));
-            graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
-                 .Returns([]);
-            graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
-                 .Returns([]);
-            graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
-                 .Returns([]);
-            graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
-                 .Returns([]);
+        var result = await sut.BuildMinimalContextAsync(
+            target: "Method:Shop.Orders.OrderService.PlaceOrder",
+            maxTokens: 800,
+            includeSourceSnippets: true);
 
-            var result = await sut.BuildMinimalContextAsync(
-                target: "Method:Shop.Orders.OrderService.PlaceOrder",
-                maxTokens: 800,
-                includeSourceSnippets: true);
-
-            result.Should().Contain("### Source snippets");
-            result.Should().Contain("PlaceOrder");
-            result.Should().Contain("ValidateOrder();");
-            result.Should().NotContain("source extraction is not implemented");
-        }
-        finally
-        {
-            File.Delete(sourcePath);
-        }
+        result.Should().Contain("### Source snippets");
+        result.Should().Contain("PlaceOrder");
+        result.Should().Contain("ValidateOrder();");
+        result.Should().NotContain("source extraction is not implemented");
     }
 
     [Fact]
@@ -1175,7 +1172,9 @@ public sealed class CodebaseQueryServiceAnalyticsTests
             CodeNodeType.Method,
             "src/Application/Services/CodebaseQueryService.Surface.cs",
             8,
-            "CodeMeridian");
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 40);
 
         graph
             .QueryNodesAsync(
@@ -1207,8 +1206,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         graph
             .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
             .Returns([
-                Node("n1", "Roadmap", CodeNodeType.File, "TODO.md", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow),
-                Node("n2", "Missing", CodeNodeType.Class, "missing/File.cs", 10, "CodeMeridian")
+                Node("n1", "Roadmap", CodeNodeType.File, "TODO.md", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, lineCount: 120),
+                Node("n2", "Incomplete", CodeNodeType.Class, "src/File.cs", project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow)
             ]);
 
         var result = await sut.CheckGraphFreshnessAsync(projectContext: "CodeMeridian");
@@ -1216,26 +1215,28 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("## Graph Freshness");
         result.Should().Contain("Trust summary");
         result.Should().Contain("High");
-        result.Should().Contain("Low");
-        result.Should().Contain("File exists");
+        result.Should().Contain("Medium");
+        result.Should().Contain("Source verification");
+        result.Should().Contain("not checked by server");
     }
 
     [Fact]
-    public async Task FindGraphDriftAsync_WithMissingFiles_ReturnsRecommendation()
+    public async Task FindGraphDriftAsync_WithIncompleteIndexedMetadata_ReturnsRecommendation()
     {
         var (sut, graph) = Build();
         graph
             .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
             .Returns([
-                Node("n1", "MissingService", CodeNodeType.Class, "missing/Service.cs", 12, "CodeMeridian"),
-                Node("n2", "MissingMethod", CodeNodeType.Method, "missing/Service.cs", 20, "CodeMeridian")
+                Node("n1", "ServiceWithoutPath", CodeNodeType.Class, project: "CodeMeridian"),
+                Node("n2", "MethodWithoutLine", CodeNodeType.Method, "src/Service.cs", project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow)
             ]);
 
         var result = await sut.FindGraphDriftAsync("CodeMeridian");
 
         result.Should().Contain("## Graph Drift");
-        result.Should().Contain("missing files");
-        result.Should().Contain("MissingService");
+        result.Should().Contain("Source verification");
+        result.Should().Contain("Missing file metadata");
+        result.Should().Contain("ServiceWithoutPath");
         result.Should().Contain("codemeridian index");
     }
 }

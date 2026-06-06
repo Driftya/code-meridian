@@ -61,6 +61,7 @@ public static class KnowledgeApiEndpoints
             LineNumber = req.LineNumber,
             LineCount = req.LineCount,
             Summary = req.Summary,
+            SourceSnippet = req.SourceSnippet,
             ProjectContext = req.ProjectContext,
             Embedding = embedding
         }, ct);
@@ -245,6 +246,7 @@ internal sealed record IngestNodeRequest(
     int? LineNumber = null,
     int? LineCount = null,
     string? Summary = null,
+    string? SourceSnippet = null,
     string? ProjectContext = null,
     string? EmbeddingCsv = null);
 

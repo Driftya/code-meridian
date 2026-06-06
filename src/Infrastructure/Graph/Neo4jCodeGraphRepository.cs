@@ -255,6 +255,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 n.lineNumber     = $lineNumber,
                 n.lineCount      = $lineCount,
                 n.summary        = $summary,
+                n.sourceSnippet  = $sourceSnippet,
                 n.projectContext = $projectContext,
                 n.projectContextNormalized = $projectContextNormalized,
                 n.changeCount    = coalesce(n.changeCount, 0) + 1,
@@ -278,6 +279,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 lineNumber = (object?)node.LineNumber,
                 lineCount = (object?)node.LineCount,
                 summary = node.Summary,
+                sourceSnippet = node.SourceSnippet,
                 projectContext = node.ProjectContext,
                 projectContextNormalized = Normalize(node.ProjectContext),
                 now
@@ -557,6 +559,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             LineNumber = props.TryGetValue("lineNumber", out var ln) ? ln?.As<int?>() : null,
             LineCount = props.TryGetValue("lineCount", out var lc) ? lc?.As<int?>() : null,
             Summary = props.TryGetValue("summary", out var sum) ? sum?.As<string>() : null,
+            SourceSnippet = props.TryGetValue("sourceSnippet", out var ss) ? ss?.As<string>() : null,
             ProjectContext = props.TryGetValue("projectContext", out var pc) ? pc?.As<string>() : null,
             ChangeCount = props.TryGetValue("changeCount", out var cc) ? cc?.As<int?>() : null,
             CreatedAt = ReadTimestamp("createdAt"),

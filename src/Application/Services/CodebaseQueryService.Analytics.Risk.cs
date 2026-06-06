@@ -668,35 +668,20 @@ public partial class CodebaseQueryService
 
     private static SourceSnippet? TryBuildSourceSnippet(CodeNode node, int tokenBudget, int maxLinesPerNode)
     {
-        if (string.IsNullOrWhiteSpace(node.FilePath) || node.LineNumber is null)
+        if (string.IsNullOrWhiteSpace(node.SourceSnippet) || node.LineNumber is null)
             return null;
 
-        var path = ResolveRepoPath(node.FilePath);
-        if (!File.Exists(path))
-            return null;
-
-        string[] lines;
-        try
-        {
-            lines = File.ReadAllLines(path);
-        }
-        catch
-        {
-            return null;
-        }
-
-        if (node.LineNumber.Value <= 0 || node.LineNumber.Value > lines.Length)
+        var lines = node.SourceSnippet.Split(["\r\n", "\n"], StringSplitOptions.None);
+        if (node.LineNumber.Value <= 0 || lines.Length == 0)
             return null;
 
         var requestedLineCount = Math.Clamp(node.LineCount ?? 12, 1, maxLinesPerNode);
-        var availableLineCount = Math.Min(requestedLineCount, lines.Length - node.LineNumber.Value + 1);
+        var availableLineCount = Math.Min(requestedLineCount, lines.Length);
         if (availableLineCount <= 0)
             return null;
 
         var budgetedLineCount = Math.Min(availableLineCount, Math.Max(1, tokenBudget / 18));
-        var startIndex = node.LineNumber.Value - 1;
         var selected = lines
-            .Skip(startIndex)
             .Take(budgetedLineCount)
             .ToArray();
         var truncated = budgetedLineCount < availableLineCount
@@ -731,7 +716,7 @@ public partial class CodebaseQueryService
 
         if (snippets.Count == 0)
         {
-            sb.AppendLine("- No snippets available within budget. Check file paths, line metadata, or increase `maxTokens`.");
+            sb.AppendLine("- No indexed source snippets available within budget. Re-index with a version of the indexer that sends bounded `sourceSnippet` data, or increase `maxTokens`.");
             sb.AppendLine();
             return;
         }

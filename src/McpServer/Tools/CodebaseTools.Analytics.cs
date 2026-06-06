@@ -137,7 +137,7 @@ public sealed partial class CodebaseTools
         bool includeTests = true,
         [Description("Whether to include external-concept hints when graph data contains them. Default true.")]
         bool includeExternalConcepts = true,
-        [Description("Whether to request source snippets. Source extraction is currently reported as guidance. Default false.")]
+        [Description("Whether to include bounded source snippets previously captured by the indexer. Default false.")]
         bool includeSourceSnippets = false,
         [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,

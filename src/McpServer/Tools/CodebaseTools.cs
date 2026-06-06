@@ -135,8 +135,8 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
 
     [McpServerTool(Name = "check_graph_freshness")]
     [Description(
-        "Report freshness and confidence for graph nodes, including indexed timestamps, file existence, and line-range validity. " +
-        "Use this when CodeMeridian results may be stale or only partially trusted.")]
+        "Report freshness and confidence for graph nodes using indexer-supplied file, line, and timestamp metadata. " +
+        "Use this when CodeMeridian results may be stale or only partially trusted. Source files are not read from the MCP server.")]
     public Task<string> CheckGraphFreshnessAsync(
         [Description("Optional search query to inspect matching nodes. Omit to sample the project graph.")]
         string? query = null,
@@ -149,7 +149,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
 
     [McpServerTool(Name = "find_graph_drift")]
     [Description(
-        "Detect graph drift before implementation by checking missing files, invalid line metadata, and missing update timestamps. " +
+        "Detect graph drift before implementation by checking missing indexed file metadata, incomplete line metadata, and missing update timestamps. " +
         "Use this before relying on exact graph targets after renames, broad refactors, or indexer changes.")]
     public Task<string> FindGraphDriftAsync(
         [Description("Optional project name to scope drift checks.")]

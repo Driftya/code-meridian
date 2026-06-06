@@ -1,0 +1,173 @@
+using CodeMeridian.Indexer.Cli;
+using FluentAssertions;
+
+namespace CodeMeridian.Indexer.Tests.Cli;
+
+public sealed class ServeWriterTests : IDisposable
+{
+    private readonly string _root = Path.Combine(
+        Path.GetTempPath(),
+        "codemeridian-serve-writer-tests",
+        Guid.NewGuid().ToString("N"));
+
+    public ServeWriterTests()
+    {
+        Directory.CreateDirectory(_root);
+    }
+
+    [Fact]
+    public void Apply_CreatesAllFilesInEmptyDirectory()
+    {
+        var result = Apply();
+
+        File.Exists(Path.Combine(_root, ".env")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "docker-compose.codemeridian.yml")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeTrue();
+        result.Changes.Should().OnlyContain(change => change.Status == "created");
+    }
+
+    [Fact]
+    public void Apply_GeneratesComposeWithPublishedImage()
+    {
+        Apply(image: "ghcr.io/example/codemeridian-mcp:test");
+
+        var compose = File.ReadAllText(Path.Combine(_root, "docker-compose.codemeridian.yml"));
+
+        compose.Should().Contain("image: ghcr.io/example/codemeridian-mcp:test");
+        compose.Should().NotContain("build:");
+    }
+
+    [Fact]
+    public void Apply_MergesMcpJsonAndPreservesUnrelatedServer()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, ".vscode"));
+        File.WriteAllText(
+            Path.Combine(_root, ".vscode", "mcp.json"),
+            """
+            {
+              // user-owned server
+              "servers": {
+                "Other": {
+                  "type": "stdio",
+                  "command": "other"
+                }
+              }
+            }
+            """);
+
+        Apply();
+
+        var json = File.ReadAllText(Path.Combine(_root, ".vscode", "mcp.json"));
+
+        json.Should().Contain("\"Other\"");
+        json.Should().Contain("\"CodeMeridian\"");
+        json.Should().Contain("\"url\": \"http://localhost:5100/sse\"");
+        json.Should().Contain("Bearer ${env:CodeMeridian_Auth_ApiKey}");
+    }
+
+    [Fact]
+    public void Apply_MergesCodexConfigAndPreservesUnrelatedSections()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, ".codex"));
+        File.WriteAllText(
+            Path.Combine(_root, ".codex", "config.toml"),
+            """
+            model = "gpt-5"
+
+            [mcp_servers.Other]
+            command = "other"
+            """);
+
+        Apply();
+
+        var toml = File.ReadAllText(Path.Combine(_root, ".codex", "config.toml"));
+
+        toml.Should().Contain("model = \"gpt-5\"");
+        toml.Should().Contain("[mcp_servers.Other]");
+        toml.Should().Contain("[mcp_servers.CodeMeridian]");
+        toml.Should().Contain("bearer_token_env_var = \"CodeMeridian_Auth_ApiKey\"");
+    }
+
+    [Fact]
+    public void Apply_ReplacesExistingCodexCodeMeridianSection()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, ".codex"));
+        File.WriteAllText(
+            Path.Combine(_root, ".codex", "config.toml"),
+            """
+            [mcp_servers.CodeMeridian]
+            url = "http://old:5100/sse"
+            bearer_token = "literal-secret"
+
+            [mcp_servers.Other]
+            command = "other"
+            """);
+
+        Apply(port: 5200);
+
+        var toml = File.ReadAllText(Path.Combine(_root, ".codex", "config.toml"));
+
+        toml.Should().Contain("url = \"http://localhost:5200/sse\"");
+        toml.Should().NotContain("literal-secret");
+        toml.Should().Contain("[mcp_servers.Other]");
+    }
+
+    [Fact]
+    public void Apply_PreservesExistingEnvValuesAndMergesMissingKeys()
+    {
+        File.WriteAllText(
+            Path.Combine(_root, ".env"),
+            """
+            NEO4J_PASSWORD=CustomPassword
+            CodeMeridian_Auth_ApiKey=ExistingToken
+            """);
+
+        Apply();
+
+        var env = File.ReadAllText(Path.Combine(_root, ".env"));
+
+        env.Should().Contain("NEO4J_PASSWORD=CustomPassword");
+        env.Should().Contain("CodeMeridian_Auth_ApiKey=ExistingToken");
+        env.Should().Contain("CODEMERIDIAN_PORT=5100");
+        env.Should().Contain("Embedding__Enabled=false");
+    }
+
+    [Fact]
+    public void Apply_ForceOverwritesComposeAndCreatesBackup()
+    {
+        var composePath = Path.Combine(_root, "docker-compose.codemeridian.yml");
+        File.WriteAllText(composePath, "services: {}" + Environment.NewLine);
+
+        Apply(force: true);
+
+        File.ReadAllText(composePath).Should().Contain("codemeridian-mcp:");
+        Directory.GetFiles(_root, "docker-compose.codemeridian.yml.*.bak").Should().ContainSingle();
+    }
+
+    private ServeApplyResult Apply(
+        string host = ServeOptions.DefaultHost,
+        int port = ServeOptions.DefaultPort,
+        string image = ServeOptions.DefaultImage,
+        bool force = false)
+    {
+        var options = new ServeOptions(
+            new DirectoryInfo(_root),
+            host,
+            port,
+            ServeOptions.DefaultNeo4jHttpPort,
+            ServeOptions.DefaultNeo4jBoltPort,
+            ServeOptions.DefaultComposeFileName,
+            image,
+            force,
+            Start: false);
+
+        return new ServeWriter().Apply(options);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root))
+            Directory.Delete(_root, recursive: true);
+    }
+}

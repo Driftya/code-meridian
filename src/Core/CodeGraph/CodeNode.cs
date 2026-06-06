@@ -10,6 +10,7 @@ public sealed record CodeNode
     public int? LineNumber { get; init; }
     public int? LineCount { get; init; }
     public string? Summary { get; init; }
+    public string? SourceSnippet { get; init; }
     public string? ProjectContext { get; init; }
     public DateTimeOffset? CreatedAt { get; init; }
     public DateTimeOffset? UpdatedAt { get; init; }

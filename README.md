@@ -57,23 +57,30 @@ Prerequisites:
 - GitHub Copilot in VS Code
 - Node.js 18+ when indexing TypeScript / TSX
 
+Install the CLI:
+
+```powershell
+dotnet tool install -g CodeMeridian.Indexer
+```
+
 Start CodeMeridian:
 
 ```powershell
-Copy-Item .env.example .env
-docker compose up -d
+codemeridian serve
 ```
 
 Index this repository:
 
 ```powershell
-dotnet run --project tools/Indexer -- . --clear
+codemeridian index . --clear
 ```
 
-Or, after installing the indexer tool:
+If you are running from a source checkout before installing the global tool:
 
 ```powershell
-codemeridian index . --clear
+Copy-Item .env.example .env
+docker compose up -d
+dotnet run --project tools/Indexer -- . --clear
 ```
 
 To create a local project config for the indexer, run:
@@ -124,7 +131,7 @@ How is this TypeScript component connected to the backend?
 | `find_duplicate_candidates` | Review likely duplicate methods/classes with refactor-risk signals |
 | `search_documentation` | Search indexed README/ADR/documentation content |
 | `find_implementation_surface` | Rank likely files and symbols to edit for a feature goal |
-| `check_graph_freshness` | Report graph confidence, file existence, and line validity |
+| `check_graph_freshness` | Report graph confidence from indexed file, line, and timestamp metadata |
 | `find_graph_drift` | Detect stale graph data before relying on exact implementation targets |
 | `find_stale_knowledge` | Detect stale docs, weak mentions, orphaned external concepts, and orphaned code references |
 | `resolve_exact_symbol` | Resolve symbol/file/line hints to canonical node IDs before editing |

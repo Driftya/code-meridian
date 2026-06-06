@@ -95,6 +95,7 @@ function collectNodes(
       filePath: relPath,
       lineNumber: cls.getStartLineNumber(),
       lineCount: cls.getEndLineNumber() - cls.getStartLineNumber() + 1,
+      sourceSnippet: sourceSnippet(sourceFile, cls.getStartLineNumber(), cls.getEndLineNumber()),
       projectContext: projectName,
     });
 
@@ -108,6 +109,7 @@ function collectNodes(
         filePath: relPath,
         lineNumber: method.getStartLineNumber(),
         lineCount: method.getEndLineNumber() - method.getStartLineNumber() + 1,
+        sourceSnippet: sourceSnippet(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
         projectContext: projectName,
       });
     }
@@ -121,6 +123,8 @@ function collectNodes(
         type: 'Property',
         filePath: relPath,
         lineNumber: prop.getStartLineNumber(),
+        lineCount: prop.getEndLineNumber() - prop.getStartLineNumber() + 1,
+        sourceSnippet: sourceSnippet(sourceFile, prop.getStartLineNumber(), prop.getEndLineNumber()),
         projectContext: projectName,
       });
     }
@@ -137,6 +141,7 @@ function collectNodes(
       filePath: relPath,
       lineNumber: iface.getStartLineNumber(),
       lineCount: iface.getEndLineNumber() - iface.getStartLineNumber() + 1,
+      sourceSnippet: sourceSnippet(sourceFile, iface.getStartLineNumber(), iface.getEndLineNumber()),
       projectContext: projectName,
     });
 
@@ -150,6 +155,7 @@ function collectNodes(
         filePath: relPath,
         lineNumber: method.getStartLineNumber(),
         lineCount: method.getEndLineNumber() - method.getStartLineNumber() + 1,
+        sourceSnippet: sourceSnippet(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
         projectContext: projectName,
       });
     }
@@ -166,6 +172,7 @@ function collectNodes(
       filePath: relPath,
       lineNumber: fn.getStartLineNumber(),
       lineCount: fn.getEndLineNumber() - fn.getStartLineNumber() + 1,
+      sourceSnippet: sourceSnippet(sourceFile, fn.getStartLineNumber(), fn.getEndLineNumber()),
       projectContext: projectName,
     });
   }
@@ -180,6 +187,8 @@ function collectNodes(
       type: 'Enum',
       filePath: relPath,
       lineNumber: enumDecl.getStartLineNumber(),
+      lineCount: enumDecl.getEndLineNumber() - enumDecl.getStartLineNumber() + 1,
+      sourceSnippet: sourceSnippet(sourceFile, enumDecl.getStartLineNumber(), enumDecl.getEndLineNumber()),
       projectContext: projectName,
     });
   }
@@ -282,6 +291,16 @@ function addNode(nodes: CodeNodeDto[], knownIds: Set<string>, node: CodeNodeDto)
     knownIds.add(node.id);
     nodes.push(node);
   }
+}
+
+function sourceSnippet(sourceFile: SourceFile, startLine: number, endLine: number): string | undefined {
+  const maxLines = 80;
+  const maxChars = 12_000;
+  const lines = sourceFile.getFullText().split(/\r?\n/);
+  const selected = lines.slice(Math.max(0, startLine - 1), Math.min(endLine, startLine - 1 + maxLines));
+  const snippet = selected.join('\n').trimEnd();
+  if (!snippet.trim()) return undefined;
+  return snippet.length > maxChars ? snippet.slice(0, maxChars) : snippet;
 }
 
 /** Scan knownIds for an Interface node matching the given short name. */
