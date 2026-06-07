@@ -11,6 +11,7 @@ internal static class DiagnosticsCommand
 {
     public static async Task<int> RunAsync(
         DirectoryInfo rootPath,
+        IReadOnlyCollection<DirectoryInfo> typeScriptRoots,
         string project,
         string codeMeridianUrl,
         string? apiKey,
@@ -36,27 +37,31 @@ internal static class DiagnosticsCommand
         if (allowRepoScripts && IndexerDiscovery.ContainsFile(rootPath, ".cs"))
         {
             var build = await RunCaptureAsync("dotnet", ["build", "--no-restore", "--nologo"], rootPath);
-            findings.AddRange(ParseDotnetDiagnostics(build.Output, rootPath, project));
+            var dotnetFindings = ParseDotnetDiagnostics(build.Output, rootPath, project);
+            findings.AddRange(dotnetFindings);
+            Console.WriteLine($"  dotnet build exit code {build.ExitCode}; parsed {dotnetFindings.Count} diagnostics.");
         }
         else if (IndexerDiscovery.ContainsFile(rootPath, ".cs"))
         {
             Console.WriteLine("  C# build diagnostics skipped. Use --allow-repo-scripts to run repo-controlled build steps.");
         }
 
-        if (File.Exists(Path.Combine(rootPath.FullName, "tsconfig.json")))
+        foreach (var typeScriptRoot in typeScriptRoots.Where(root => File.Exists(Path.Combine(root.FullName, "tsconfig.json"))))
         {
-            var tsc = ResolveLocalNodeBinary(rootPath, "tsc");
+            var tsc = ResolveLocalNodeBinary(typeScriptRoot, "tsc");
             if (tsc is not null)
             {
                 var result = await RunCaptureAsync(
                     tsc,
                     ["--noEmit", "--pretty", "false", "--noUnusedLocals", "--noUnusedParameters"],
-                    rootPath);
-                findings.AddRange(ParseTypeScriptDiagnostics(result.Output, rootPath, project));
+                    typeScriptRoot);
+                var typeScriptFindings = ParseTypeScriptDiagnostics(result.Output, rootPath, typeScriptRoot, project);
+                findings.AddRange(typeScriptFindings);
+                Console.WriteLine($"  tsc {Path.GetRelativePath(rootPath.FullName, typeScriptRoot.FullName)} exit code {result.ExitCode}; parsed {typeScriptFindings.Count} diagnostics.");
             }
             else
             {
-                Console.WriteLine("  TypeScript diagnostics unavailable: local tsc not found.");
+                Console.WriteLine($"  TypeScript diagnostics unavailable in {Path.GetRelativePath(rootPath.FullName, typeScriptRoot.FullName)}: local tsc not found.");
             }
         }
 
@@ -66,7 +71,9 @@ internal static class DiagnosticsCommand
             if (lintCommand is not null)
             {
                 var result = await RunCaptureAsync(lintCommand.Value.FileName, lintCommand.Value.Arguments, rootPath);
-                findings.AddRange(ParseLintDiagnostics(result.Output, rootPath, project));
+                var lintFindings = ParseLintDiagnostics(result.Output, rootPath, project);
+                findings.AddRange(lintFindings);
+                Console.WriteLine($"  lint exit code {result.ExitCode}; parsed {lintFindings.Count} diagnostics.");
             }
         }
         else if (ResolveLintCommand(rootPath) is not null)
@@ -134,17 +141,18 @@ internal static class DiagnosticsCommand
         DirectoryInfo rootPath,
         string project)
     {
-        const string pattern = @"^(?<file>.+?)\((?<line>\d+),(?<column>\d+)\):\s(?<severity>warning|error)\s(?<code>[A-Z]+\d+):\s(?<message>.+?)(?:\s\[(?<project>.+?)\])?$";
-        return ParseDiagnostics(output, rootPath, project, "dotnet", pattern);
+        const string pattern = @"^(?<file>.+?)\((?<line>\d+),(?<column>\d+)\):\s(?<severity>warning|error)\s(?<code>[A-Z][A-Z0-9]*\d+[A-Z0-9]*):\s(?<message>.+?)(?:\s\[(?<project>.+?)\])?$";
+        return ParseDiagnostics(output, rootPath, rootPath, project, "dotnet", pattern);
     }
 
     private static IReadOnlyList<DiagnosticFinding> ParseTypeScriptDiagnostics(
         string output,
         DirectoryInfo rootPath,
+        DirectoryInfo workingDirectory,
         string project)
     {
         const string pattern = @"^(?<file>.+?)\((?<line>\d+),(?<column>\d+)\):\s(?<severity>error)\s(?<code>TS\d+):\s(?<message>.+)$";
-        return ParseDiagnostics(output, rootPath, project, "tsc", pattern);
+        return ParseDiagnostics(output, rootPath, workingDirectory, project, "tsc", pattern);
     }
 
     private static IReadOnlyList<DiagnosticFinding> ParseLintDiagnostics(
@@ -161,7 +169,7 @@ internal static class DiagnosticsCommand
             var line = rawLine.TrimEnd();
             if (!line.StartsWith(' ') && LooksLikePath(line))
             {
-                currentFile = NormalizePath(line, rootPath);
+                currentFile = NormalizePath(line, rootPath, rootPath);
                 continue;
             }
 
@@ -189,6 +197,7 @@ internal static class DiagnosticsCommand
     private static IReadOnlyList<DiagnosticFinding> ParseDiagnostics(
         string output,
         DirectoryInfo rootPath,
+        DirectoryInfo workingDirectory,
         string project,
         string source,
         string pattern)
@@ -207,7 +216,7 @@ internal static class DiagnosticsCommand
                 match.Groups["severity"].Value,
                 match.Groups["code"].Value,
                 match.Groups["message"].Value.Trim(),
-                NormalizePath(match.Groups["file"].Value, rootPath),
+                NormalizePath(match.Groups["file"].Value, rootPath, workingDirectory),
                 ParseInt(match.Groups["line"].Value),
                 ParseInt(match.Groups["column"].Value)));
         }
@@ -260,12 +269,12 @@ internal static class DiagnosticsCommand
         return eslint is null ? null : (eslint, ["."]);
     }
 
-    private static string NormalizePath(string path, DirectoryInfo rootPath)
+    private static string NormalizePath(string path, DirectoryInfo rootPath, DirectoryInfo workingDirectory)
     {
         var trimmed = path.Trim().Trim('"');
         var fullPath = Path.IsPathRooted(trimmed)
             ? trimmed
-            : Path.GetFullPath(trimmed, rootPath.FullName);
+            : Path.GetFullPath(trimmed, workingDirectory.FullName);
 
         return Path.GetRelativePath(rootPath.FullName, fullPath).Replace('\\', '/');
     }

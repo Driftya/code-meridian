@@ -292,7 +292,7 @@ if (hasTypeScript)
 
 if (!skipDiagnostics)
 {
-    exitCode = await DiagnosticsCommand.RunAsync(rootPath, project, codeMeridianUrl, apiKey, allowRepoScripts);
+    exitCode = await DiagnosticsCommand.RunAsync(rootPath, typeScriptRoots, project, codeMeridianUrl, apiKey, allowRepoScripts);
     if (exitCode != 0)
         return exitCode;
 }
