@@ -203,7 +203,14 @@ public sealed partial class Neo4jCodeGraphRepository
         await using var session = _driver.AsyncSession();
 
         var cypher = $$"""
-            MATCH path = (caller:CodeNode)-[:Calls|Uses|DependsOn*1..{{depth}}]->(target:CodeNode {id: $nodeId})
+            MATCH (target:CodeNode {id: $nodeId})
+            OPTIONAL MATCH (target)-[:Contains*0..2]->(targetMember:CodeNode)
+            WITH collect(DISTINCT target) + collect(DISTINCT targetMember) AS targets
+            UNWIND targets AS targetNode
+            WITH DISTINCT targetNode, targets
+            WHERE targetNode IS NOT NULL
+            MATCH path = (caller:CodeNode)-[:Calls|Uses|DependsOn|Implements|Inherits*1..{{depth}}]->(targetNode)
+            WHERE none(target IN targets WHERE target = caller)
             WITH caller, min(length(path)) AS dist
             RETURN caller, dist
             ORDER BY dist ASC
@@ -227,7 +234,14 @@ public sealed partial class Neo4jCodeGraphRepository
         await using var session = _driver.AsyncSession();
 
         var cypher = $$"""
-            MATCH path = (source:CodeNode {id: $nodeId})-[:Calls|Uses|DependsOn*1..{{depth}}]->(downstream:CodeNode)
+            MATCH (source:CodeNode {id: $nodeId})
+            OPTIONAL MATCH (source)-[:Contains*0..2]->(sourceMember:CodeNode)
+            WITH collect(DISTINCT source) + collect(DISTINCT sourceMember) AS sources
+            UNWIND sources AS sourceNode
+            WITH DISTINCT sourceNode, sources
+            WHERE sourceNode IS NOT NULL
+            MATCH path = (sourceNode)-[:Calls|Uses|DependsOn|Implements|Inherits*1..{{depth}}]->(downstream:CodeNode)
+            WHERE none(source IN sources WHERE source = downstream)
             WITH downstream, min(length(path)) AS dist
             RETURN downstream, dist
             ORDER BY dist ASC
@@ -381,9 +395,11 @@ public sealed partial class Neo4jCodeGraphRepository
 
         const string cypher = """
             MATCH (n:CodeNode {id: $nodeId})
-            OPTIONAL MATCH (caller:CodeNode)-[:Calls|Uses]->(n)
+            OPTIONAL MATCH (n)-[:Contains*0..2]->(member:CodeNode)
+            WITH n, collect(DISTINCT member) AS members
+            OPTIONAL MATCH (caller:CodeNode)-[:Calls|Uses|DependsOn]->(member)
             WITH n, collect(DISTINCT caller)[..10] AS callers
-            OPTIONAL MATCH (n)-[:Calls|Uses]->(callee:CodeNode)
+            OPTIONAL MATCH (n)-[:Calls|Uses|DependsOn]->(callee:CodeNode)
             WITH n, callers, collect(DISTINCT callee)[..10] AS callees
             OPTIONAL MATCH (n)-[:Implements]->(iface:CodeNode)
             WITH n, callers, callees, collect(DISTINCT iface)[..10] AS interfaces
@@ -429,8 +445,14 @@ public sealed partial class Neo4jCodeGraphRepository
                 coalesce(n.filePath, '') CONTAINS 'test' OR
                 coalesce(n.filePath, '') CONTAINS '.spec.'
               )
-            OPTIONAL MATCH (caller:CodeNode)-[:Calls|Uses|Implements|Inherits]->(n)
-            WITH n, n.lineCount AS lineCount, count(DISTINCT caller) AS fanIn
+            OPTIONAL MATCH (n)-[:Contains*0..2]->(member:CodeNode)
+            WITH n, n.lineCount AS lineCount, collect(DISTINCT member) AS members
+            OPTIONAL MATCH (caller:CodeNode)-[:Calls|Uses|DependsOn|Implements|Inherits]->(n)
+            WITH n, lineCount, collect(DISTINCT caller) AS directCallers, members
+            OPTIONAL MATCH (memberCaller:CodeNode)-[:Calls|Uses|DependsOn]->(member)
+            WITH n, lineCount, directCallers + collect(DISTINCT memberCaller) AS callers
+            UNWIND callers AS caller
+            WITH n, lineCount, count(DISTINCT caller) AS fanIn
             WHERE fanIn > $fanInThreshold
             RETURN n, lineCount, fanIn
             ORDER BY (fanIn * 10 + lineCount) DESC

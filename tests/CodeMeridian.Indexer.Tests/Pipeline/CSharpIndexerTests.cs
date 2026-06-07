@@ -98,6 +98,49 @@ public sealed class CSharpIndexerTests : IDisposable
         await act.Should().NotThrowAsync();
     }
 
+    [Fact]
+    public async Task IndexAsync_ResolvesConstructorParameterTypeToUsesEdge()
+    {
+        var service = WriteFile(
+            "src/Service.cs",
+            """
+            namespace Demo.Services;
+
+            using Demo.Data;
+
+            public class ChainService
+            {
+                public ChainService(IChainRepository repository)
+                {
+                }
+            }
+            """);
+        var repository = WriteFile(
+            "src/IChainRepository.cs",
+            """
+            namespace Demo.Data;
+
+            public interface IChainRepository
+            {
+                void Save();
+            }
+            """);
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([service, repository], "CodeMeridian", _root);
+
+        var usesEdges = handler.Requests
+            .Where(request => request.Path == "/api/v1/knowledge/nodes/edges"
+                              && request.Body.GetProperty("type").GetString() == "Uses")
+            .ToArray();
+
+        usesEdges.Should().Contain(request =>
+            request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Class::Demo.Services.ChainService"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::Interface::Demo.Data.IChainRepository");
+    }
+
     private FileInfo WriteFile(string relativePath, string content)
     {
         var file = new FileInfo(Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar)));

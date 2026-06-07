@@ -13,7 +13,7 @@ namespace CodeMeridian.RoslynIndexer.Pipeline;
 /// <summary>
 /// Walks each .cs file using Roslyn's syntax tree (no compilation needed)
 /// and extracts: namespaces, classes, interfaces, enums, methods, properties.
-/// Relationships (Contains, Inherits, Implements, Calls) are also extracted.
+/// Relationships (Contains, Inherits, Implements, Calls, Uses) are also extracted.
 /// Optionally generates vector embeddings for each node if an embedding provider is available.
 /// </summary>
 public sealed class CSharpIndexer(
@@ -42,14 +42,24 @@ public sealed class CSharpIndexer(
         }
 
         var attemptedCallEdges = edges.Count(e => e.RelationshipType == "Calls");
+        var attemptedReferenceEdges = edges.Count(e => e.RelationshipType is "Uses" or "Implements" or "Inherits");
         edges = ResolveCallEdges(nodes, edges);
+        edges = ResolveReferenceEdges(nodes, edges);
         var resolvedCallEdges = edges.Count(e => e.RelationshipType == "Calls");
+        var resolvedReferenceEdges = edges.Count(e => e.RelationshipType is "Uses" or "Implements" or "Inherits");
         if (attemptedCallEdges > 0)
         {
             logger.LogInformation(
                 "  Resolved {Resolved}/{Attempted} local call edge(s).",
                 resolvedCallEdges,
                 attemptedCallEdges);
+        }
+        if (attemptedReferenceEdges > 0)
+        {
+            logger.LogInformation(
+                "  Resolved {Resolved}/{Attempted} local type reference edge(s).",
+                resolvedReferenceEdges,
+                attemptedReferenceEdges);
         }
 
         // Batch ingest - parallelism capped to avoid overwhelming the server
@@ -175,6 +185,77 @@ public sealed class CSharpIndexer(
             .ToList();
     }
 
+    private static List<IngestEdgeRequest> ResolveReferenceEdges(
+        IReadOnlyList<IngestNodeRequest> nodes,
+        IReadOnlyList<IngestEdgeRequest> edges)
+    {
+        var nodesById = nodes
+            .GroupBy(n => n.Id, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        var typeCandidates = nodes
+            .Where(n => n.Type is "Class" or "Interface" or "Enum")
+            .Select(n => new TypeCandidate(n.Id, n.Type, n.Namespace, n.FilePath, n.Name, ShortTypeName(n.Id)))
+            .GroupBy(n => (n.Type, n.Name), StringTupleComparer.OrdinalType)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringTupleComparer.OrdinalType);
+
+        var resolved = new List<IngestEdgeRequest>(edges.Count);
+        foreach (var edge in edges)
+        {
+            if (edge.RelationshipType is not ("Uses" or "Implements" or "Inherits"))
+            {
+                resolved.Add(edge);
+                continue;
+            }
+
+            if (nodesById.ContainsKey(edge.TargetId))
+            {
+                resolved.Add(edge);
+                continue;
+            }
+
+            if (!nodesById.TryGetValue(edge.SourceId, out var source) || edge.TargetName is null || edge.TargetType is null)
+                continue;
+
+            if (!typeCandidates.TryGetValue((edge.TargetType, edge.TargetName), out var candidates))
+                continue;
+
+            var selected = SelectBestTypeCandidate(source, candidates);
+            if (selected is not null)
+                resolved.Add(edge with { TargetId = selected.Id });
+        }
+
+        return resolved
+            .Where(edge => !string.IsNullOrWhiteSpace(edge.TargetId))
+            .DistinctBy(edge => (edge.SourceId, edge.TargetId, edge.RelationshipType))
+            .ToList();
+    }
+
+    private static TypeCandidate? SelectBestTypeCandidate(
+        IngestNodeRequest source,
+        IReadOnlyList<TypeCandidate> candidates)
+    {
+        if (candidates.Count == 1)
+            return candidates[0];
+
+        var sameNamespace = candidates
+            .Where(candidate => string.Equals(candidate.Namespace, source.Namespace, StringComparison.Ordinal))
+            .ToArray();
+        if (sameNamespace.Length == 1)
+            return sameNamespace[0];
+
+        var sameFile = candidates
+            .Where(candidate => string.Equals(candidate.FilePath, source.FilePath, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        return sameFile.Length == 1 ? sameFile[0] : null;
+    }
+
+    private static string ShortTypeName(string id)
+    {
+        var name = id.Split("::").LastOrDefault() ?? id;
+        var dot = name.LastIndexOf('.');
+        return dot >= 0 ? name[(dot + 1)..] : name;
+    }
+
     private static MethodCandidate? SelectBestCandidate(
         IngestNodeRequest source,
         IReadOnlyList<MethodCandidate> candidates)
@@ -213,10 +294,18 @@ public sealed class CSharpIndexer(
     }
 
     private sealed record MethodCandidate(string Id, string? Namespace, string? FilePath, string Name, int ParameterCount);
+    private sealed record TypeCandidate(string Id, string Type, string? Namespace, string? FilePath, string Name, string ShortName);
 
     private sealed class StringTupleComparer : IEqualityComparer<(string Name, int ParameterCount)>
     {
         public static readonly StringTupleComparer Ordinal = new();
+        public static readonly IEqualityComparer<(string Type, string Name)> OrdinalType =
+            EqualityComparer<(string Type, string Name)>.Create(
+                (x, y) => string.Equals(x.Type, y.Type, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(x.Name, y.Name, StringComparison.Ordinal),
+                obj => HashCode.Combine(
+                    StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Type),
+                    StringComparer.Ordinal.GetHashCode(obj.Name)));
 
         public bool Equals((string Name, int ParameterCount) x, (string Name, int ParameterCount) y) =>
             x.ParameterCount == y.ParameterCount && string.Equals(x.Name, y.Name, StringComparison.Ordinal);
@@ -233,7 +322,13 @@ internal sealed record IngestNodeRequest(
     string? Namespace, string? FilePath, int? LineNumber, string? Summary, int? LineCount = null, string? SourceSnippet = null, string? SourceHash = null);
 
 internal sealed record IngestEdgeRequest(
-    string SourceId, string TargetId, string RelationshipType, string? CallName = null, int? ParamCount = null);
+    string SourceId,
+    string TargetId,
+    string RelationshipType,
+    string? CallName = null,
+    int? ParamCount = null,
+    string? TargetName = null,
+    string? TargetType = null);
 
 // -- Roslyn AST walker ---------------------------------------------------------
 
@@ -293,10 +388,14 @@ internal sealed class CSharpAstWalker(
         // Inherits / Implements edges from base list
         foreach (var baseType in node.BaseList?.Types ?? Enumerable.Empty<BaseTypeSyntax>())
         {
-            var baseName = baseType.Type.ToString().Split('<')[0]; // strip generics
-            var baseId = MakeId(baseName.StartsWith('I') ? "Interface" : "Class", baseName);
-            var relType = baseName.StartsWith('I') ? "Implements" : "Inherits";
-            edges.Add(new IngestEdgeRequest(id, baseId, relType));
+            var baseName = CleanTypeName(baseType.Type.ToString());
+            if (baseName is null)
+                continue;
+
+            var targetType = baseName.StartsWith('I') ? "Interface" : "Class";
+            var baseId = MakeId(targetType, baseName);
+            var relType = targetType == "Interface" ? "Implements" : "Inherits";
+            edges.Add(new IngestEdgeRequest(id, baseId, relType, TargetName: baseName, TargetType: targetType));
         }
 
         var prev = _currentTypeId;
@@ -352,7 +451,28 @@ internal sealed class CSharpAstWalker(
 
         var previousMemberId = _currentMemberId;
         _currentMemberId = id;
+        AddParameterTypeUseEdges(node.ParameterList.Parameters, id);
         base.VisitMethodDeclaration(node);
+        _currentMemberId = previousMemberId;
+    }
+
+    public override void VisitConstructorDeclaration(ConstructorDeclarationSyntax node)
+    {
+        if (_currentTypeId is null) return;
+
+        var id = AddMethodNode(
+            node.Identifier.Text,
+            node.ParameterList.Parameters,
+            node,
+            _currentTypeId,
+            summary: null);
+
+        AddParameterTypeUseEdges(node.ParameterList.Parameters, _currentTypeId);
+        AddParameterTypeUseEdges(node.ParameterList.Parameters, id);
+
+        var previousMemberId = _currentMemberId;
+        _currentMemberId = id;
+        base.VisitConstructorDeclaration(node);
         _currentMemberId = previousMemberId;
     }
 
@@ -386,6 +506,8 @@ internal sealed class CSharpAstWalker(
             _currentNamespace, filePath, line, null, GetLineCount(node), ExtractSourceSnippet(node), HashSource(node.ToFullString())));
 
         edges.Add(new IngestEdgeRequest(_currentTypeId, id, "Contains"));
+        AddTypeUseEdge(id, node.Type?.ToString());
+        AddTypeUseEdge(_currentTypeId, node.Type?.ToString());
     }
 
     // -- Helpers ---------------------------------------------------------------
@@ -453,6 +575,27 @@ internal sealed class CSharpAstWalker(
         }
     }
 
+    private void AddParameterTypeUseEdges(SeparatedSyntaxList<ParameterSyntax> parameters, string sourceId)
+    {
+        foreach (var parameter in parameters)
+            AddTypeUseEdge(sourceId, parameter.Type?.ToString());
+    }
+
+    private void AddTypeUseEdge(string sourceId, string? rawType)
+    {
+        var typeName = CleanTypeName(rawType);
+        if (typeName is null || IsBuiltInType(typeName))
+            return;
+
+        var targetType = typeName.StartsWith('I') ? "Interface" : "Class";
+        edges.Add(new IngestEdgeRequest(
+            sourceId,
+            TargetId: string.Empty,
+            RelationshipType: "Uses",
+            TargetName: typeName,
+            TargetType: targetType));
+    }
+
     private static string BuildSignature(string methodName, SeparatedSyntaxList<ParameterSyntax> parameters)
     {
         var paramTypes = string.Join(",", parameters.Select(p => p.Type?.ToString() ?? "?"));
@@ -516,4 +659,27 @@ internal sealed class CSharpAstWalker(
             IdentifierNameSyntax i => i.Identifier.Text,
             _ => null
         };
+
+    private static string? CleanTypeName(string? rawType)
+    {
+        if (string.IsNullOrWhiteSpace(rawType))
+            return null;
+
+        var name = rawType.Trim().TrimEnd('?');
+        if (name.EndsWith("[]", StringComparison.Ordinal))
+            name = name[..^2];
+
+        var genericStart = name.IndexOf('<');
+        if (genericStart >= 0)
+            name = name[..genericStart];
+
+        var dot = name.LastIndexOf('.');
+        return dot >= 0 ? name[(dot + 1)..] : name;
+    }
+
+    private static bool IsBuiltInType(string typeName) =>
+        typeName is "string" or "int" or "long" or "short" or "byte" or "bool" or "decimal"
+            or "double" or "float" or "object" or "Guid" or "DateTime" or "DateTimeOffset"
+            or "CancellationToken" or "Task" or "ValueTask" or "IEnumerable" or "IReadOnlyList"
+            or "List" or "Dictionary";
 }

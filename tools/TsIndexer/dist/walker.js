@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { createHash } from 'crypto';
-import { Project } from 'ts-morph';
+import { Project, SyntaxKind } from 'ts-morph';
 // ── ID helpers ────────────────────────────────────────────────────────────────
 function sanitize(s) {
     return s.replace(/[\\/:*?"<>|]/g, '_');
@@ -17,6 +17,7 @@ export function walkTypeScript(rootPath, projectName, files) {
     const nodes = [];
     const edges = [];
     const knownIds = new Set();
+    const methodIndex = new Map();
     const tsConfigPath = path.join(rootPath, 'tsconfig.json');
     const tsProject = new Project({
         ...(fs.existsSync(tsConfigPath) ? { tsConfigFilePath: tsConfigPath } : {}),
@@ -43,9 +44,10 @@ export function walkTypeScript(rootPath, projectName, files) {
     for (const sourceFile of sourceFiles) {
         collectNodes(sourceFile, rootPath, projectName, nodes, knownIds);
     }
+    indexMethods(nodes, methodIndex);
     // Second pass: collect edges (only emit where target is known or is a local file)
     for (const sourceFile of sourceFiles) {
-        collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds);
+        collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds, methodIndex);
     }
     return { nodes, edges };
 }
@@ -174,7 +176,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
     }
 }
 // ── Edge collection ───────────────────────────────────────────────────────────
-function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds) {
+function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds, methodIndex) {
     const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
     const fId = fileId(projectName, relPath);
     // File → Class/Interface/Enum/Function (Contains)
@@ -187,6 +189,10 @@ function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds)
             const mId = nodeId(projectName, relPath, `${name}.${method.getName()}`, 'Method');
             if (knownIds.has(mId))
                 edges.push({ sourceId: cId, targetId: mId, type: 'Contains' });
+            addCallEdges(mId, method.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, {
+                filePath: relPath,
+                className: name,
+            });
         }
         for (const prop of cls.getProperties()) {
             const pId = nodeId(projectName, relPath, `${name}.${prop.getName()}`, 'Property');
@@ -237,6 +243,9 @@ function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds)
         const fnId = nodeId(projectName, relPath, name, 'Method');
         if (knownIds.has(fnId))
             edges.push({ sourceId: fId, targetId: fnId, type: 'Contains' });
+        addCallEdges(fnId, fn.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, {
+            filePath: relPath,
+        });
     }
     for (const enumDecl of sourceFile.getEnums()) {
         const eId = nodeId(projectName, relPath, enumDecl.getName(), 'Enum');
@@ -262,6 +271,52 @@ function addNode(nodes, knownIds, node) {
         knownIds.add(node.id);
         nodes.push(node);
     }
+}
+function indexMethods(nodes, methodIndex) {
+    for (const node of nodes) {
+        if (node.type !== 'Method')
+            continue;
+        const shortName = methodShortName(node.name);
+        const ids = methodIndex.get(shortName) ?? [];
+        ids.push(node.id);
+        methodIndex.set(shortName, ids);
+    }
+}
+function addCallEdges(sourceId, calls, edges, methodIndex, source) {
+    for (const call of calls) {
+        const calleeName = calleeShortName(call);
+        if (!calleeName)
+            continue;
+        const candidates = methodIndex.get(calleeName) ?? [];
+        const targetId = selectCallTarget(candidates, source, calleeName);
+        if (!targetId || targetId === sourceId)
+            continue;
+        edges.push({ sourceId, targetId, type: 'Calls' });
+    }
+}
+function selectCallTarget(candidates, source, calleeName) {
+    if (candidates.length === 0)
+        return undefined;
+    if (candidates.length === 1)
+        return candidates[0];
+    if (source.className) {
+        const sameClass = candidates.filter(id => id.endsWith(`:${source.className}.${calleeName}`));
+        if (sameClass.length === 1)
+            return sameClass[0];
+    }
+    const sameFileToken = sanitize(source.filePath);
+    const sameFile = candidates.filter(id => id.includes(`:${sameFileToken}:`));
+    return sameFile.length === 1 ? sameFile[0] : undefined;
+}
+function calleeShortName(call) {
+    const expression = call.getExpression().getText();
+    const match = /([A-Za-z_$][\w$]*)\s*$/.exec(expression.split('<')[0]);
+    return match?.[1];
+}
+function methodShortName(name) {
+    const withoutParams = name.split('(')[0];
+    const segments = withoutParams.split('.');
+    return segments[segments.length - 1] ?? withoutParams;
 }
 function sourceSnippet(sourceFile, startLine, endLine) {
     const maxLines = 80;
