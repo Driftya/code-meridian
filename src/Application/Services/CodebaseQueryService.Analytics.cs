@@ -60,7 +60,9 @@ public partial class CodebaseQueryService
         sb.AppendLine("|------|--------|------|------|------|");
 
         var rank = 1;
-        foreach (var (node, fanIn) in results)
+        foreach (var (node, fanIn) in results
+                     .OrderBy(item => NodeDisplayRank(item.Node))
+                     .ThenByDescending(item => item.FanIn))
         {
             var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
             sb.AppendLine($"| {rank++} | {fanIn} | {node.Type} | `{node.Name}` | {file} |");
@@ -170,7 +172,8 @@ public partial class CodebaseQueryService
             return $"No coverage gaps found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
                    "All production classes and methods appear to be called from test namespaces.";
 
-        var grouped = results.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString()).ToArray();
+        var rankedResults = RankNodesForDisplay(results).ToArray();
+        var grouped = rankedResults.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString()).ToArray();
 
         if (detailLevel == ContextDetailLevel.Summary)
             return $"Coverage gap summary{(projectContext is not null ? $" for '{projectContext}'" : "")}: " +
@@ -178,7 +181,7 @@ public partial class CodebaseQueryService
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Test Coverage Gaps{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{results.Count}** production types/methods with no test calling them, ranked by likely risk:\n");
+        sb.AppendLine($"**{rankedResults.Length}** production types/methods with no test calling them, ranked by likely risk:\n");
 
         foreach (var group in grouped)
         {

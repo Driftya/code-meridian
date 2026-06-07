@@ -2,6 +2,7 @@ using CodeMeridian.Application.Services;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
@@ -21,6 +22,13 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var graph = Substitute.For<ICodeGraphRepository>();
         var vector = Substitute.For<IVectorRepository>();
         return (new CodebaseQueryService(graph, vector), graph);
+    }
+
+    private static (CodebaseQueryService Sut, ICodeGraphRepository Graph) Build(CodebaseAnalysisOptions options)
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        return (new CodebaseQueryService(graph, vector, Options.Create(options)), graph);
     }
 
     private static CodeNode Node(
@@ -684,6 +692,30 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("find_hotspots");
     }
 
+    [Fact]
+    public async Task FindHighChurnAsync_WithRankingOptions_RanksProductionBeforeTests()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                PreferProductionOverTests = true,
+                TestPathContains = ["tests/"]
+            }
+        });
+        graph.FindHighChurnAsync(null, 3, Arg.Any<CancellationToken>())
+            .Returns([
+                (Node("t1", "Build", CodeNodeType.Method, "tests/ServiceTests.cs"), 20),
+                (Node("p1", "RealService", CodeNodeType.Class, "src/RealService.cs"), 3)
+            ]);
+
+        var result = await sut.FindHighChurnAsync();
+
+        result.IndexOf("RealService", StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(result.IndexOf("Build", StringComparison.Ordinal));
+    }
+
     // ── GetPageRankAsync ──────────────────────────────────────────────────────
 
     [Fact]
@@ -1177,6 +1209,54 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().NotContain("axios.post");
         result.Should().NotContain("meridian.json");
         result.Should().NotContain("TypeScript");
+    }
+
+    [Fact]
+    public async Task FindStaleKnowledgeAsync_WithConfiguredSkipPrefix_SkipsHeuristicMentionScanning()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            StaleKnowledge = new StaleKnowledgeOptions
+            {
+                SkipHeuristicSourcePrefixes = ["docs/custom/"]
+            }
+        });
+        var vector = Substitute.For<IVectorRepository>();
+        sut = new CodebaseQueryService(graph, vector, Options.Create(new CodebaseAnalysisOptions
+        {
+            StaleKnowledge = new StaleKnowledgeOptions
+            {
+                SkipHeuristicSourcePrefixes = ["docs/custom/"]
+            }
+        }));
+
+        vector
+            .ListAsync(Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new KnowledgeDocument
+                {
+                    Id = "doc-custom",
+                    Content = "MissingThingService should not be scanned because this source prefix is configured as planning/example docs.",
+                    Source = "docs/custom/example.md",
+                    ProjectContext = "Shop",
+                    UpdatedAt = DateTimeOffset.UtcNow
+                }
+            ]);
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindUnreferencedAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .GetMostRecentCodeUpdateAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns(DateTimeOffset.UtcNow);
+
+        var result = await sut.FindStaleKnowledgeAsync("Shop");
+
+        result.Should().Contain("No obvious stale knowledge found");
+        result.Should().NotContain("MissingThingService");
     }
 
     [Fact]

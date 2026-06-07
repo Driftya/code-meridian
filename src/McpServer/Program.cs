@@ -7,13 +7,14 @@ using System.Security.Cryptography;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("meridian.json", optional: true, reloadOnChange: true);
 builder.Logging.AddJsonConsole();
 
 // ── Neo4j knowledge graph ────────────────────────────────────────────────────
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // ── Application services (no LLM — reasoning lives in GitHub Copilot) ────────
-builder.Services.AddApplication();
+builder.Services.AddApplication(builder.Configuration);
 
 // ── MCP server — GitHub Copilot connects here via .vscode/mcp.json ───────────
 // Copilot discovers and calls these tools automatically during chat.

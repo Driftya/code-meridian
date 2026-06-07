@@ -23,6 +23,7 @@ public sealed class InitCommandTests : IDisposable
         exitCode.Should().Be(0);
         var meridianJsonPath = Path.Combine(_root, "meridian.json");
         File.Exists(meridianJsonPath).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian.schema.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".env")).Should().BeFalse();

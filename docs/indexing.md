@@ -300,6 +300,17 @@ Useful variables:
 | `project` | Optional project context name used by the indexer when `--project` is omitted |
 | `codeMeridianUrl` | Optional CodeMeridian server URL used when `CodeMeridian_Url` is not set |
 | `allowRepoScripts` | When `true`, repo-controlled build and lint diagnostics are enabled by default |
+| `$schema` | Optional JSON schema reference. `codemeridian init` writes `./meridian.schema.json` |
+| `analysis.staleKnowledge.skipHeuristicSourcePrefixes` | Documentation source prefixes where stale-knowledge uses explicit links only |
+| `analysis.staleKnowledge.ignoredMentionTokens` | Exact tokens ignored by stale-knowledge heuristic scanning |
+| `analysis.staleKnowledge.codeLikeSuffixes` | Suffixes used to decide whether single PascalCase words are likely code symbols |
+| `analysis.staleKnowledge.ignoredDottedSuffixes` | Dotted suffixes treated as filenames, domains, or config names rather than code |
+| `analysis.ranking.preferProductionOverTests` | Rank production nodes ahead of test/namespaces/boilerplate in tool output |
+| `analysis.ranking.testPathContains` | Case-insensitive substrings used to classify test nodes |
+| `analysis.ranking.infrastructureNameSuffixes` | Node name suffixes treated as lower-priority infrastructure boilerplate |
+| `analysis.ranking.infrastructureNames` | Exact node names treated as lower-priority infrastructure boilerplate |
+
+If an analysis section is omitted, CodeMeridian uses built-in defaults. These settings affect MCP analysis output such as stale-knowledge, coverage-gap, high-churn, hotspot, PageRank, and betweenness ranking.
 
 When `CodeMeridian_Auth_ApiKey` is set, clients must send:
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
+using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Application.Services;
 
@@ -9,10 +10,29 @@ namespace CodeMeridian.Application.Services;
 /// Pure query service — no LLM inside.
 /// Copilot (via MCP) supplies the reasoning; this service supplies the facts.
 /// </summary>
-public sealed partial class CodebaseQueryService(
-    ICodeGraphRepository codeGraph,
-    IVectorRepository vectorStore) : ICodebaseQueryService
+public sealed partial class CodebaseQueryService : ICodebaseQueryService
 {
+    private readonly ICodeGraphRepository codeGraph;
+    private readonly IVectorRepository vectorStore;
+    private readonly CodebaseAnalysisOptions analysisOptions;
+
+    public CodebaseQueryService(
+        ICodeGraphRepository codeGraph,
+        IVectorRepository vectorStore)
+        : this(codeGraph, vectorStore, Options.Create(new CodebaseAnalysisOptions()))
+    {
+    }
+
+    public CodebaseQueryService(
+        ICodeGraphRepository codeGraph,
+        IVectorRepository vectorStore,
+        IOptions<CodebaseAnalysisOptions> analysisOptions)
+    {
+        this.codeGraph = codeGraph;
+        this.vectorStore = vectorStore;
+        this.analysisOptions = analysisOptions.Value;
+    }
+
     public async Task<string> QueryStructureAsync(
         string query,
         string? projectContext = null,

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codemeridian.local/schemas/meridian.schema.json",
+  "title": "CodeMeridian project configuration",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string",
+      "description": "Project context name used when indexing and querying CodeMeridian."
+    },
+    "codeMeridianUrl": {
+      "type": "string",
+      "description": "CodeMeridian server URL."
+    },
+    "url": {
+      "type": "string",
+      "description": "Alias for codeMeridianUrl."
+    },
+    "allowRepoScripts": {
+      "type": "boolean",
+      "default": true,
+      "description": "Allow diagnostics indexing to run repo-controlled build/lint scripts."
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "staleKnowledge": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "skipHeuristicSourcePrefixes": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Documentation source prefixes where stale-knowledge should only trust explicit metadata links."
+            },
+            "ignoredMentionTokens": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Exact mention tokens ignored by stale-knowledge heuristic scanning."
+            },
+            "codeLikeSuffixes": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Single PascalCase tokens must end with one of these suffixes to count as code-like."
+            },
+            "ignoredDottedSuffixes": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Dotted tokens ending with these suffixes are treated as files/domains/config names, not code references."
+            }
+          }
+        },
+        "ranking": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "preferProductionOverTests": {
+              "type": "boolean",
+              "default": true,
+              "description": "Rank production nodes ahead of tests/namespaces/boilerplate in graph-tool output."
+            },
+            "testPathContains": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Case-insensitive substrings used to classify test nodes."
+            },
+            "infrastructureNameSuffixes": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Node name suffixes treated as lower-priority infrastructure boilerplate."
+            },
+            "infrastructureNames": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Exact node names treated as lower-priority infrastructure boilerplate."
+            }
+          }
+        }
+      }
+    }
+  }
+}

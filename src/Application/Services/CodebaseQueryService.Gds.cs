@@ -37,7 +37,9 @@ public partial class CodebaseQueryService
         sb.AppendLine("|------|-------|------|------|------|");
 
         var rank = 1;
-        foreach (var (node, score) in results)
+        foreach (var (node, score) in results
+                     .OrderBy(item => NodeDisplayRank(item.Node))
+                     .ThenByDescending(item => item.Score))
         {
             var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
             sb.AppendLine($"| {rank++} | {score.ToString("F4", CultureInfo.InvariantCulture)} | {node.Type} | `{node.Name}` | {file} |");
@@ -75,7 +77,9 @@ public partial class CodebaseQueryService
         sb.AppendLine("|------|-------|------|------|------|");
 
         var rank = 1;
-        foreach (var (node, score) in results)
+        foreach (var (node, score) in results
+                     .OrderBy(item => NodeDisplayRank(item.Node))
+                     .ThenByDescending(item => item.Score))
         {
             var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
             sb.AppendLine($"| {rank++} | {score.ToString("F0", CultureInfo.InvariantCulture)} | {node.Type} | `{node.Name}` | {file} |");

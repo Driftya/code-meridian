@@ -1,0 +1,109 @@
+{
+  "$schema": "./meridian.schema.json",
+  "project": "CodeMeridian",
+  "codeMeridianUrl": "http://localhost:5100",
+  "allowRepoScripts": true,
+  "analysis": {
+    "staleKnowledge": {
+      "skipHeuristicSourcePrefixes": [
+        "docs/plan/",
+        "docs/features/"
+      ],
+      "ignoredMentionTokens": [
+        "ASP",
+        "ASP.NET",
+        "CodeMeridian.Indexer",
+        "CodeMeridian.Indexer.Tests",
+        "TypeScript",
+        "JavaScript",
+        "Node.js",
+        "Neo4j",
+        "Docker",
+        "README",
+        "README.md",
+        "meridian.json",
+        "mcp.json",
+        "config.toml",
+        "compose.codemeridian.yml",
+        "docker-compose.yml",
+        "ApiEndpoint",
+        "Controller",
+        "Command",
+        "Import",
+        "Identify",
+        "Configure",
+        "Constants",
+        "Resolve",
+        "MapGet",
+        "MapPost",
+        "MapPut",
+        "MapDelete",
+        "Expected",
+        "Actual",
+        "Example",
+        "Examples",
+        "Warning",
+        "Warnings",
+        "Notes"
+      ],
+      "codeLikeSuffixes": [
+        "Service",
+        "Repository",
+        "Controller",
+        "Handler",
+        "Provider",
+        "Factory",
+        "Client",
+        "Command",
+        "Query",
+        "Endpoint",
+        "Endpoints",
+        "Tool",
+        "Tools",
+        "Options",
+        "Registry",
+        "Context",
+        "Builder",
+        "Mapper",
+        "Validator",
+        "Exception",
+        "Reader",
+        "Writer",
+        "Parser",
+        "Resolver",
+        "Indexer",
+        "Ingester"
+      ],
+      "ignoredDottedSuffixes": [
+        ".com",
+        ".org",
+        ".net",
+        ".md",
+        ".json",
+        ".toml",
+        ".yml",
+        ".yaml",
+        ".txt",
+        ".sln",
+        ".csproj",
+        ".tsproj"
+      ]
+    },
+    "ranking": {
+      "preferProductionOverTests": true,
+      "testPathContains": [
+        "test",
+        ".spec.",
+        ".test."
+      ],
+      "infrastructureNameSuffixes": [
+        "Options",
+        "Endpoints",
+        "Tools"
+      ],
+      "infrastructureNames": [
+        "DependencyInjection"
+      ]
+    }
+  }
+}

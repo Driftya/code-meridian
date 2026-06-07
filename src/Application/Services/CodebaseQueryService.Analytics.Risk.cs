@@ -292,7 +292,9 @@ public partial class CodebaseQueryService
         sb.AppendLine("| Churn | Type | Name | File |");
         sb.AppendLine("|-------|------|------|------|");
 
-        foreach (var (node, changeCount) in results)
+        foreach (var (node, changeCount) in results
+                     .OrderBy(item => NodeDisplayRank(item.Node))
+                     .ThenByDescending(item => item.ChangeCount))
         {
             var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
             sb.AppendLine($"| {changeCount}× | {node.Type} | `{node.Name}` | {file} |");
@@ -317,11 +319,11 @@ public partial class CodebaseQueryService
                || kind.Equals("note", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool ShouldScanHeuristicMentions(KnowledgeDocument document)
+    private bool ShouldScanHeuristicMentions(KnowledgeDocument document)
     {
         var source = document.Source ?? string.Empty;
-        return !source.StartsWith("docs/plan/", StringComparison.OrdinalIgnoreCase)
-               && !source.StartsWith("docs/features/", StringComparison.OrdinalIgnoreCase);
+        return !analysisOptions.StaleKnowledge.SkipHeuristicSourcePrefixes
+            .Any(prefix => source.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string GetMetadataValue(IReadOnlyDictionary<string, string> metadata, string key) =>
@@ -343,7 +345,7 @@ public partial class CodebaseQueryService
         return [];
     }
 
-    private static IEnumerable<string> ExtractSymbolMentions(string content)
+    private IEnumerable<string> ExtractSymbolMentions(string content)
     {
         var dotted = DottedSymbolRegex().Matches(content)
             .Select(match => match.Value)
@@ -360,15 +362,15 @@ public partial class CodebaseQueryService
         return dotted.Concat(memberLike);
     }
 
-    private static bool IsLikelySingleSymbolMention(string value)
+    private bool IsLikelySingleSymbolMention(string value)
     {
         if (value.Contains('.', StringComparison.Ordinal))
             return true;
 
-        return CodeLikeSuffixes.Any(suffix => value.EndsWith(suffix, StringComparison.Ordinal));
+        return analysisOptions.StaleKnowledge.CodeLikeSuffixes.Any(suffix => value.EndsWith(suffix, StringComparison.Ordinal));
     }
 
-    private static bool IsLikelySymbolMention(string value)
+    private bool IsLikelySymbolMention(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return false;
@@ -377,7 +379,7 @@ public partial class CodebaseQueryService
         if (normalized.Length < 4)
             return false;
 
-        if (IgnoredKnowledgeMentionTokens.Contains(normalized))
+        if (analysisOptions.StaleKnowledge.IgnoredMentionTokens.Contains(normalized, StringComparer.OrdinalIgnoreCase))
             return false;
 
         if (normalized.Contains('.', StringComparison.Ordinal))
@@ -390,18 +392,7 @@ public partial class CodebaseQueryService
             if (lower.Contains("example.com", StringComparison.Ordinal)
                 || lower.Contains("localhost", StringComparison.Ordinal)
                 || lower.StartsWith("www.", StringComparison.Ordinal)
-                || lower.EndsWith(".com", StringComparison.Ordinal)
-                || lower.EndsWith(".org", StringComparison.Ordinal)
-                || lower.EndsWith(".net", StringComparison.Ordinal)
-                || lower.EndsWith(".md", StringComparison.Ordinal)
-                || lower.EndsWith(".json", StringComparison.Ordinal)
-                || lower.EndsWith(".toml", StringComparison.Ordinal)
-                || lower.EndsWith(".yml", StringComparison.Ordinal)
-                || lower.EndsWith(".yaml", StringComparison.Ordinal)
-                || lower.EndsWith(".txt", StringComparison.Ordinal)
-                || lower.EndsWith(".sln", StringComparison.Ordinal)
-                || lower.EndsWith(".csproj", StringComparison.Ordinal)
-                || lower.EndsWith(".tsproj", StringComparison.Ordinal))
+                || analysisOptions.StaleKnowledge.IgnoredDottedSuffixes.Any(suffix => lower.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)))
             {
                 return false;
             }
@@ -409,74 +400,6 @@ public partial class CodebaseQueryService
 
         return true;
     }
-
-    private static readonly HashSet<string> IgnoredKnowledgeMentionTokens = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "ASP",
-        "ASP.NET",
-        "CodeMeridian.Indexer",
-        "CodeMeridian.Indexer.Tests",
-        "TypeScript",
-        "JavaScript",
-        "Neo4j",
-        "Docker",
-        "ApiEndpoint",
-        "Controller",
-        "Command",
-        "README",
-        "README.md",
-        "meridian.json",
-        "mcp.json",
-        "config.toml",
-        "compose.codemeridian.yml",
-        "docker-compose.yml",
-        "Import",
-        "Identify",
-        "Configure",
-        "Constants",
-        "Resolve",
-        "MapGet",
-        "MapPost",
-        "MapPut",
-        "MapDelete",
-        "Expected",
-        "Actual",
-        "Example",
-        "Examples",
-        "Warning",
-        "Warnings",
-        "Notes"
-    };
-
-    private static readonly string[] CodeLikeSuffixes =
-    [
-        "Service",
-        "Repository",
-        "Controller",
-        "Handler",
-        "Provider",
-        "Factory",
-        "Client",
-        "Command",
-        "Query",
-        "Endpoint",
-        "Endpoints",
-        "Tool",
-        "Tools",
-        "Options",
-        "Registry",
-        "Context",
-        "Builder",
-        "Mapper",
-        "Validator",
-        "Exception",
-        "Reader",
-        "Writer",
-        "Parser",
-        "Resolver",
-        "Indexer",
-        "Ingester"
-    ];
 
     private static bool IsLikelyMatch(CodeNode node) =>
         node.Type is CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.Method or CodeNodeType.ExternalConcept;

@@ -62,8 +62,12 @@ public sealed class IndexerConfigTests : IDisposable
         var json = File.ReadAllText(Path.Combine(_root, "meridian.json"));
 
         json.Should().Contain("\"project\": \"MyApi\"");
+        json.Should().Contain("\"$schema\": \"./meridian.schema.json\"");
         json.Should().Contain("\"codeMeridianUrl\": \"http://localhost:5100\"");
         json.Should().Contain("\"allowRepoScripts\": true");
+        json.Should().Contain("\"analysis\"");
+        json.Should().Contain("\"skipHeuristicSourcePrefixes\"");
+        json.Should().Contain("\"preferProductionOverTests\": true");
         json.Should().Contain("Enabled by default so repo-controlled build and lint diagnostics can run on trusted repos.");
     }
 

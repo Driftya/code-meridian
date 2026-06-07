@@ -43,14 +43,100 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, b
 
         var json = $$"""
             {
+              "$schema": "./meridian.schema.json",
               "project": "{{project}}",
               "codeMeridianUrl": "{{codeMeridianUrl}}",
               // Enabled by default so repo-controlled build and lint diagnostics can run on trusted repos.
-              "allowRepoScripts": true
+              "allowRepoScripts": true,
+              "analysis": {
+                "staleKnowledge": {
+                  "skipHeuristicSourcePrefixes": [
+                    "docs/plan/",
+                    "docs/features/"
+                  ],
+                  "ignoredMentionTokens": [
+                    "ASP",
+                    "ASP.NET",
+                    "TypeScript",
+                    "JavaScript",
+                    "Node.js",
+                    "Neo4j",
+                    "Docker",
+                    "README",
+                    "README.md",
+                    "meridian.json",
+                    "mcp.json",
+                    "config.toml"
+                  ],
+                  "codeLikeSuffixes": [
+                    "Service",
+                    "Repository",
+                    "Controller",
+                    "Handler",
+                    "Provider",
+                    "Factory",
+                    "Client",
+                    "Command",
+                    "Query",
+                    "Endpoint",
+                    "Options",
+                    "Registry",
+                    "Context",
+                    "Builder",
+                    "Parser",
+                    "Resolver",
+                    "Indexer",
+                    "Ingester"
+                  ],
+                  "ignoredDottedSuffixes": [
+                    ".com",
+                    ".org",
+                    ".net",
+                    ".md",
+                    ".json",
+                    ".toml",
+                    ".yml",
+                    ".yaml",
+                    ".txt",
+                    ".sln",
+                    ".csproj"
+                  ]
+                },
+                "ranking": {
+                  "preferProductionOverTests": true,
+                  "testPathContains": [
+                    "test",
+                    ".spec.",
+                    ".test."
+                  ],
+                  "infrastructureNameSuffixes": [
+                    "Options",
+                    "Endpoints",
+                    "Tools"
+                  ],
+                  "infrastructureNames": [
+                    "DependencyInjection"
+                  ]
+                }
+              }
             }
             """;
 
         File.WriteAllText(filePath, json + Environment.NewLine);
+        WriteSchemaFile(rootDirectory, overwrite);
+    }
+
+    private static void WriteSchemaFile(DirectoryInfo rootDirectory, bool overwrite)
+    {
+        var targetPath = Path.Combine(rootDirectory.FullName, "meridian.schema.json");
+        if (File.Exists(targetPath) && !overwrite)
+            return;
+
+        var sourcePath = Path.Combine(AppContext.BaseDirectory, "meridian.schema.json");
+        if (File.Exists(sourcePath))
+        {
+            File.Copy(sourcePath, targetPath, overwrite: true);
+        }
     }
 
     private static FileInfo? FindMeridianConfig(DirectoryInfo directory)
