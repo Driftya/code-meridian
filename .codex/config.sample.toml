@@ -3,9 +3,9 @@
 # See: https://developers.openai.com/codex/mcp
 
 # CodeMeridian — persistent Neo4j code knowledge graph exposed as an MCP server.
-# Run `docker compose up -d` first to start the server on port 5100.
+# Run `codemeridian serve` first to start the server.
 [mcp_servers.CodeMeridian]
-url = "http://localhost:5100/sse"
+url = "{{mcpUrl}}"
 default_tools_approval_mode = "auto"
 startup_timeout_sec = 15
 tool_timeout_sec = 60

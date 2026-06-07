@@ -7,6 +7,8 @@ namespace CodeMeridian.Indexer.Cli;
 internal sealed class ServeWriter
 {
     private const string AuthEnvVar = "CodeMeridian_Auth_ApiKey";
+    private const string EnvSampleFileName = ".env.sample";
+    private const string ComposeSampleFileName = "docker-compose.sample.yaml";
 
     public ServeApplyResult Apply(ServeOptions options)
     {
@@ -43,6 +45,7 @@ internal sealed class ServeWriter
         {
             ["CODEMERIDIAN_PORT"] = options.Port.ToString(),
             ["CodeMeridian_Url"] = $"http://{options.Host}:{options.Port}",
+            ["CodeMeridian_Project"] = string.Empty,
             ["NEO4J_HTTP_PORT"] = options.Neo4jHttpPort.ToString(),
             ["NEO4J_BOLT_PORT"] = options.Neo4jBoltPort.ToString(),
             ["NEO4J_PASSWORD"] = "CodeMeridian",
@@ -53,8 +56,7 @@ internal sealed class ServeWriter
 
         if (!File.Exists(path))
         {
-            var content = string.Join(Environment.NewLine, defaults.Select(pair => $"{pair.Key}={pair.Value}")) + Environment.NewLine;
-            File.WriteAllText(path, content);
+            File.WriteAllText(path, BuildEnvContent(options, defaults));
             return new ServeFileChange(path, "created");
         }
 
@@ -105,41 +107,30 @@ internal sealed class ServeWriter
         Directory.CreateDirectory(directory);
 
         var path = Path.Combine(directory, "mcp.json");
-        var server = new JsonObject
+        if (!File.Exists(path))
         {
-            ["type"] = "sse",
-            ["url"] = mcpUrl,
-            ["headers"] = new JsonObject
-            {
-                ["Authorization"] = $"Bearer ${{env:{AuthEnvVar}}}"
-            }
-        };
+            File.WriteAllText(path, BuildMcpJsonContent(mcpUrl));
+            return new ServeFileChange(path, "created");
+        }
 
         JsonObject root;
-        var existed = File.Exists(path);
-        if (existed)
+        var existed = true;
+        try
         {
-            try
-            {
-                root = JsonNode.Parse(
-                    File.ReadAllText(path),
-                    new JsonNodeOptions { PropertyNameCaseInsensitive = false },
-                    new JsonDocumentOptions
-                    {
-                        AllowTrailingCommas = true,
-                        CommentHandling = JsonCommentHandling.Skip,
-                    })?.AsObject() ?? [];
-            }
-            catch when (force)
-            {
-                Backup(path);
-                root = [];
-                existed = false;
-            }
+            root = JsonNode.Parse(
+                File.ReadAllText(path),
+                new JsonNodeOptions { PropertyNameCaseInsensitive = false },
+                new JsonDocumentOptions
+                {
+                    AllowTrailingCommas = true,
+                    CommentHandling = JsonCommentHandling.Skip,
+                })?.AsObject() ?? [];
         }
-        else
+        catch when (force)
         {
+            Backup(path);
             root = [];
+            existed = false;
         }
 
         if (root["servers"] is not JsonObject servers)
@@ -148,7 +139,7 @@ internal sealed class ServeWriter
             root["servers"] = servers;
         }
 
-        servers["CodeMeridian"] = server;
+        servers["CodeMeridian"] = BuildMcpServerNode(mcpUrl);
         var content = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
 
         return WriteMergedFile(path, content, existed, force);
@@ -165,18 +156,11 @@ internal sealed class ServeWriter
         Directory.CreateDirectory(directory);
 
         var path = Path.Combine(directory, "config.toml");
-        var section = $"""
-            [mcp_servers.CodeMeridian]
-            url = "{mcpUrl}"
-            default_tools_approval_mode = "auto"
-            startup_timeout_sec = 15
-            tool_timeout_sec = 60
-            bearer_token_env_var = "{AuthEnvVar}"
-            """;
+        var section = ExtractTomlSection(BuildCodexConfigContent(mcpUrl), "mcp_servers.CodeMeridian");
 
         if (!File.Exists(path))
         {
-            File.WriteAllText(path, section + Environment.NewLine);
+            File.WriteAllText(path, BuildCodexConfigContent(mcpUrl));
             return new ServeFileChange(path, "created");
         }
 
@@ -355,59 +339,119 @@ internal sealed class ServeWriter
             : $"{trimmed}/sse";
     }
 
-    private static string BuildCompose(ServeOptions options) =>
-        $$"""
-        services:
-          neo4j:
-            image: neo4j:5.20
-            container_name: codemeridian-neo4j
-            ports:
-              - "${NEO4J_HTTP_PORT:-{{options.Neo4jHttpPort}}}:7474"
-              - "${NEO4J_BOLT_PORT:-{{options.Neo4jBoltPort}}}:7687"
-            environment:
-              NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-CodeMeridian}
-              NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
-              NEO4J_dbms_memory_heap_initial__size: 512m
-              NEO4J_dbms_memory_heap_max__size: 2G
-              NEO4J_server_default__listen__address: 0.0.0.0
-            volumes:
-              - codemeridian_neo4j_data:/data
-              - codemeridian_neo4j_logs:/logs
-            healthcheck:
-              test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:7474 || exit 1"]
-              interval: 30s
-              timeout: 10s
-              retries: 5
-              start_period: 40s
+    private static string BuildEnvContent(ServeOptions options, IReadOnlyDictionary<string, string> defaults)
+    {
+        return RenderServeTemplate(
+            ReadRequiredTemplate(EnvSampleFileName),
+            options,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["apiKey"] = defaults[AuthEnvVar]
+            });
+    }
 
-          codemeridian-mcp:
-            image: {{options.Image}}
-            container_name: codemeridian-mcp
-            extra_hosts:
-              - "host.docker.internal:host-gateway"
-            ports:
-              - "${CODEMERIDIAN_PORT:-{{options.Port}}}:8080"
-            environment:
-              Neo4j__Uri: bolt://neo4j:7687
-              Neo4j__Username: neo4j
-              Neo4j__Password: ${NEO4J_PASSWORD:-CodeMeridian}
-              Neo4j__EmbeddingDimensions: ${Neo4j__EmbeddingDimensions:-1536}
-              CodeMeridian_Auth_ApiKey: ${CodeMeridian_Auth_ApiKey:-}
-              Embedding__Enabled: ${Embedding__Enabled:-false}
-              Embedding__Provider: ${Embedding__Provider:-Ollama}
-              Embedding__OllamaBaseUrl: ${Embedding__OllamaBaseUrl:-http://host.docker.internal:11434}
-              Embedding__OllamaModel: ${Embedding__OllamaModel:-nomic-embed-text}
-              Embedding__OpenAiApiKey: ${Embedding__OpenAiApiKey:-}
-              Embedding__OpenAiModel: ${Embedding__OpenAiModel:-text-embedding-3-small}
-              Embedding__BatchSize: ${Embedding__BatchSize:-50}
-            depends_on:
-              neo4j:
-                condition: service_healthy
+    private static string BuildMcpJsonContent(string mcpUrl)
+    {
+        return RenderTemplate(
+            ReadRequiredTemplate(Path.Combine(".vscode", "mcp.sample.json")),
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["mcpUrl"] = mcpUrl
+            });
+    }
 
-        volumes:
-          codemeridian_neo4j_data:
-          codemeridian_neo4j_logs:
-        """;
+    private static string BuildCodexConfigContent(string mcpUrl)
+    {
+        return RenderTemplate(
+            ReadRequiredTemplate(Path.Combine(".codex", "config.sample.toml")),
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["mcpUrl"] = mcpUrl
+            });
+    }
+
+    private static string BuildCompose(ServeOptions options)
+    {
+        return RenderServeTemplate(ReadRequiredTemplate(ComposeSampleFileName), options);
+    }
+
+    private static string RenderServeTemplate(
+        string template,
+        ServeOptions options,
+        IReadOnlyDictionary<string, string>? extraValues = null)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["host"] = options.Host,
+            ["port"] = options.Port.ToString(),
+            ["neo4jHttpPort"] = options.Neo4jHttpPort.ToString(),
+            ["neo4jBoltPort"] = options.Neo4jBoltPort.ToString(),
+            ["image"] = options.Image
+        };
+
+        if (extraValues is not null)
+        {
+            foreach (var pair in extraValues)
+                values[pair.Key] = pair.Value;
+        }
+
+        return RenderTemplate(template, values);
+    }
+
+    private static string RenderTemplate(string template, IReadOnlyDictionary<string, string> values)
+    {
+        var rendered = values.Aggregate(
+            template,
+            (current, pair) => current.Replace($"{{{{{pair.Key}}}}}", pair.Value, StringComparison.Ordinal));
+
+        return rendered.TrimEnd() + Environment.NewLine;
+    }
+
+    private static JsonNode BuildMcpServerNode(string mcpUrl)
+    {
+        var root = JsonNode.Parse(
+            BuildMcpJsonContent(mcpUrl),
+            new JsonNodeOptions { PropertyNameCaseInsensitive = false },
+            new JsonDocumentOptions
+            {
+                AllowTrailingCommas = true,
+                CommentHandling = JsonCommentHandling.Skip,
+            })?.AsObject();
+
+        if (root?["servers"] is JsonObject servers && servers["CodeMeridian"] is JsonNode server)
+            return server.DeepClone();
+
+        throw new InvalidOperationException("Template .vscode/mcp.sample.json must define servers.CodeMeridian.");
+    }
+
+    private static string ExtractTomlSection(string content, string sectionName)
+    {
+        var lines = content.Split(["\r\n", "\n"], StringSplitOptions.None).ToList();
+        var start = lines.FindIndex(line => IsTomlSection(line, sectionName));
+        if (start < 0)
+            throw new InvalidOperationException($"Template .codex/config.sample.toml must define [{sectionName}].");
+
+        var end = lines.Count;
+        for (var i = start + 1; i < lines.Count; i++)
+        {
+            if (IsAnyTomlSection(lines[i]))
+            {
+                end = i;
+                break;
+            }
+        }
+
+        return string.Join(Environment.NewLine, lines.Skip(start).Take(end - start)).TrimEnd();
+    }
+
+    private static string ReadRequiredTemplate(string fileName)
+    {
+        var sourcePath = Path.Combine(AppContext.BaseDirectory, fileName);
+        if (File.Exists(sourcePath))
+            return File.ReadAllText(sourcePath);
+
+        throw new InvalidOperationException($"Required template file is missing: {sourcePath}");
+    }
 }
 
 internal sealed record ServeApplyResult(string ComposePath, IReadOnlyList<ServeFileChange> Changes);

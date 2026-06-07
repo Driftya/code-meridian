@@ -296,7 +296,7 @@ docker compose up -d --build codemeridian-mcp
 | `NEO4J__PASSWORD` | `CodeMeridian` | Neo4j password |
 | `CODEMERIDIAN_PORT` | `5100` | Host port for the MCP server |
 
-Copy `.env.example` to `.env` to override defaults.
+Copy `.env.sample` to `.env` to override defaults.
 
 ---
 

@@ -18,7 +18,7 @@ docker network create observability-net
 
 ## 2) Configure environment
 
-Copy `.docker/observability/.env.example` to `.docker/observability/.env` and update values as needed.
+Copy `.docker/observability/.env.sample` to `.docker/observability/.env` and update values as needed.
 
 Minimum recommended values:
 

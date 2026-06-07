@@ -78,7 +78,7 @@ codemeridian index . --clear
 If you are running from a source checkout before installing the global tool:
 
 ```powershell
-Copy-Item .env.example .env
+Copy-Item .env.sample .env
 docker compose up -d
 dotnet run --project tools/Indexer -- . --clear
 ```

@@ -38,6 +38,31 @@
           Pack="true"
           PackagePath=""
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\meridian.sample.json"
+          Link="meridian.sample.json"
+          Pack="true"
+          PackagePath=""
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\.env.sample"
+          Link=".env.sample"
+          Pack="true"
+          PackagePath=""
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\docker-compose.sample.yaml"
+          Link="docker-compose.sample.yaml"
+          Pack="true"
+          PackagePath=""
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\.vscode\mcp.sample.json"
+          Link=".vscode\mcp.sample.json"
+          Pack="true"
+          PackagePath=".vscode\"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\.codex\config.sample.toml"
+          Link=".codex\config.sample.toml"
+          Pack="true"
+          PackagePath=".codex\"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

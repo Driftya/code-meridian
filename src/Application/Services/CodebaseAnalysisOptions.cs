@@ -120,6 +120,15 @@ public sealed class RankingOptions
 
     public List<string> InfrastructureNames { get; set; } =
     [
-        "DependencyInjection"
+        "DependencyInjection",
+        "Program",
+        "Startup",
+        "CompositionRoot",
+        "ServiceCollectionExtensions",
+        "StartupExtensions",
+        "ConfigureServices",
+        "Module",
+        "AppModule",
+        "ContainerModule"
     ];
 }

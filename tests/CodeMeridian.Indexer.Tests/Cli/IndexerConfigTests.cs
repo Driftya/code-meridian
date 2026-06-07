@@ -68,7 +68,9 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"analysis\"");
         json.Should().Contain("\"skipHeuristicSourcePrefixes\"");
         json.Should().Contain("\"preferProductionOverTests\": true");
-        json.Should().Contain("Enabled by default so repo-controlled build and lint diagnostics can run on trusted repos.");
+        json.Should().Contain("\"DependencyInjection\"");
+        json.Should().Contain("\"Startup\"");
+        json.Should().Contain("\"CompositionRoot\"");
     }
 
     public void Dispose()

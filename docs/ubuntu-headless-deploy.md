@@ -41,7 +41,7 @@ Clone or copy this repository onto the Ubuntu server:
 ```bash
 git clone <your-repo-url> ~/code-meridian
 cd ~/code-meridian
-cp .env.example .env
+cp .env.sample .env
 ```
 
 Edit `.env`:
@@ -56,7 +56,7 @@ Recommended server values:
 NEO4J_PASSWORD=replace-with-a-strong-password
 NEO4J_HTTP_PORT=47474
 NEO4J_BOLT_PORT=47687
-CodeMeridian_PORT=5100
+CODEMERIDIAN_PORT=5100
 CodeMeridian_Url=http://192.168.10.70:5100
 CodeMeridian_Auth_ApiKey=replace-with-a-long-random-token
 ```

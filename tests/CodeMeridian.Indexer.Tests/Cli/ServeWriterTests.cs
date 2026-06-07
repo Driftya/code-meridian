@@ -36,6 +36,7 @@ public sealed class ServeWriterTests : IDisposable
 
         compose.Should().Contain("image: ghcr.io/example/codemeridian-mcp:test");
         compose.Should().NotContain("build:");
+        compose.Should().Contain("${CODEMERIDIAN_PORT:-5100}:8080");
     }
 
     [Fact]
@@ -130,6 +131,7 @@ public sealed class ServeWriterTests : IDisposable
         env.Should().Contain("NEO4J_PASSWORD=CustomPassword");
         env.Should().Contain("CodeMeridian_Auth_ApiKey=ExistingToken");
         env.Should().Contain("CODEMERIDIAN_PORT=5100");
+        env.Should().Contain("CodeMeridian_Project=");
         env.Should().Contain("Embedding__Enabled=false");
     }
 

@@ -4,6 +4,8 @@ namespace CodeMeridian.Indexer.Cli;
 
 internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, bool AllowRepoScripts)
 {
+    private const string MeridianSampleFileName = "meridian.sample.json";
+
     public static IndexerConfig? Load(DirectoryInfo startDirectory)
     {
         var configFile = FindMeridianConfig(startDirectory);
@@ -41,89 +43,18 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, b
         if (File.Exists(filePath) && !overwrite)
             throw new InvalidOperationException($"Config file already exists: {filePath}. Use --force to overwrite it.");
 
-        var json = $$"""
-            {
-              "$schema": "./meridian.schema.json",
-              "project": "{{project}}",
-              "codeMeridianUrl": "{{codeMeridianUrl}}",
-              // Enabled by default so repo-controlled build and lint diagnostics can run on trusted repos.
-              "allowRepoScripts": true,
-              "analysis": {
-                "staleKnowledge": {
-                  "skipHeuristicSourcePrefixes": [
-                    "docs/plan/",
-                    "docs/features/"
-                  ],
-                  "ignoredMentionTokens": [
-                    "ASP",
-                    "ASP.NET",
-                    "TypeScript",
-                    "JavaScript",
-                    "Node.js",
-                    "Neo4j",
-                    "Docker",
-                    "README",
-                    "README.md",
-                    "meridian.json",
-                    "mcp.json",
-                    "config.toml"
-                  ],
-                  "codeLikeSuffixes": [
-                    "Service",
-                    "Repository",
-                    "Controller",
-                    "Handler",
-                    "Provider",
-                    "Factory",
-                    "Client",
-                    "Command",
-                    "Query",
-                    "Endpoint",
-                    "Options",
-                    "Registry",
-                    "Context",
-                    "Builder",
-                    "Parser",
-                    "Resolver",
-                    "Indexer",
-                    "Ingester"
-                  ],
-                  "ignoredDottedSuffixes": [
-                    ".com",
-                    ".org",
-                    ".net",
-                    ".md",
-                    ".json",
-                    ".toml",
-                    ".yml",
-                    ".yaml",
-                    ".txt",
-                    ".sln",
-                    ".csproj"
-                  ]
-                },
-                "ranking": {
-                  "preferProductionOverTests": true,
-                  "testPathContains": [
-                    "test",
-                    ".spec.",
-                    ".test."
-                  ],
-                  "infrastructureNameSuffixes": [
-                    "Options",
-                    "Endpoints",
-                    "Tools"
-                  ],
-                  "infrastructureNames": [
-                    "DependencyInjection"
-                  ]
-                }
-              }
-            }
-            """;
-
+        var json = BuildMeridianJson(project, codeMeridianUrl);
         File.WriteAllText(filePath, json + Environment.NewLine);
         WriteSchemaFile(rootDirectory, overwrite);
+    }
+
+    private static string BuildMeridianJson(string project, string codeMeridianUrl)
+    {
+        var template = ReadRequiredTemplate(MeridianSampleFileName);
+        return template
+            .Replace("{{project}}", JsonEncodedText.Encode(project).ToString(), StringComparison.Ordinal)
+            .Replace("{{codeMeridianUrl}}", JsonEncodedText.Encode(codeMeridianUrl).ToString(), StringComparison.Ordinal)
+            .TrimEnd();
     }
 
     private static void WriteSchemaFile(DirectoryInfo rootDirectory, bool overwrite)
@@ -137,6 +68,15 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, b
         {
             File.Copy(sourcePath, targetPath, overwrite: true);
         }
+    }
+
+    private static string ReadRequiredTemplate(string fileName)
+    {
+        var sourcePath = Path.Combine(AppContext.BaseDirectory, fileName);
+        if (File.Exists(sourcePath))
+            return File.ReadAllText(sourcePath);
+
+        throw new InvalidOperationException($"Required template file is missing: {sourcePath}");
     }
 
     private static FileInfo? FindMeridianConfig(DirectoryInfo directory)

@@ -77,7 +77,21 @@
             "infrastructureNames": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Exact node names treated as lower-priority infrastructure boilerplate."
+              "description": "Exact node names treated as lower-priority infrastructure boilerplate.",
+              "examples": [
+                [
+                  "DependencyInjection",
+                  "Program",
+                  "Startup",
+                  "CompositionRoot",
+                  "ServiceCollectionExtensions",
+                  "StartupExtensions",
+                  "ConfigureServices",
+                  "Module",
+                  "AppModule",
+                  "ContainerModule"
+                ]
+              ]
             }
           }
         }

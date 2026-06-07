@@ -279,7 +279,17 @@ You can generate `meridian.json` plus MCP client config with:
 codemeridian init .
 ```
 
-`codemeridian init` writes `meridian.json` and merges `.vscode/mcp.json` plus `.codex/config.toml`. The generated `meridian.json` enables `allowRepoScripts` by default so trusted repos can run repo-controlled diagnostics without an extra flag. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
+`codemeridian init` writes `meridian.json` from `meridian.sample.json` and merges `.vscode/mcp.json` plus `.codex/config.toml` from their sample files. The generated `meridian.json` enables `allowRepoScripts` by default so trusted repos can run repo-controlled diagnostics without an extra flag. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
+
+Template files use the `*.sample.*` convention:
+
+| Template | Generated file |
+|----------|----------------|
+| `meridian.sample.json` | `meridian.json` |
+| `.env.sample` | `.env` |
+| `docker-compose.sample.yaml` | `docker-compose.codemeridian.yml` |
+| `.vscode/mcp.sample.json` | `.vscode/mcp.json` |
+| `.codex/config.sample.toml` | `.codex/config.toml` |
 
 Useful variables:
 

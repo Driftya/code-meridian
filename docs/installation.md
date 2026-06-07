@@ -57,7 +57,7 @@ Create the local server config and start the containers:
 codemeridian serve
 ```
 
-This creates or merges `.env`, `.vscode/mcp.json`, `.codex/config.toml`, and `docker-compose.codemeridian.yml`, then runs `docker compose -f docker-compose.codemeridian.yml up -d`.
+This creates or merges `.env`, `.vscode/mcp.json`, `.codex/config.toml`, and `docker-compose.codemeridian.yml` from the repo's `*.sample.*` templates, then runs `docker compose -f docker-compose.codemeridian.yml up -d`.
 
 To generate the files without starting Docker:
 
@@ -76,7 +76,7 @@ Open this repository in VS Code. The included `.vscode/mcp.json` registers the M
 For source-checkout development, you can still start the repository compose file directly:
 
 ```powershell
-Copy-Item .env.example .env
+Copy-Item .env.sample .env
 docker compose up -d
 ```
 
@@ -148,7 +148,7 @@ Generate a project-local `meridian.json` plus MCP client config with:
 codemeridian init .
 ```
 
-`codemeridian init` writes the project indexing config, enables `allowRepoScripts` by default in `meridian.json`, and merges `.vscode/mcp.json` plus `.codex/config.toml`. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
+`codemeridian init` writes the project indexing config from `meridian.sample.json`, enables `allowRepoScripts` by default in `meridian.json`, and merges `.vscode/mcp.json` plus `.codex/config.toml` from their sample files. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
 
 The API key still comes from `.env` or your shell environment and is sent as:
 

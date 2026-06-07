@@ -267,11 +267,11 @@ public partial class CodebaseQueryService
         return score;
     }
 
-    private static int ScoreRouteNode(CodeNode node, string goal, IReadOnlyCollection<string> concepts)
+    private int ScoreRouteNode(CodeNode node, string goal, IReadOnlyCollection<string> concepts)
     {
         var score = ScoreSurfaceNode(node, goal, concepts);
         if (IsContractNode(node)) score += 2;
-        if (IsTestNode(node)) score += 2;
+        if (IsConfiguredTestNode(node)) score += 2;
         if (IsApiNode(node) || IsInfrastructureNode(node)) score += 1;
         return score;
     }
@@ -385,7 +385,7 @@ public partial class CodebaseQueryService
         && !string.IsNullOrWhiteSpace(needle)
         && haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
 
-    private static IReadOnlyList<EditRouteStep> BuildEditRouteSteps(
+    private IReadOnlyList<EditRouteStep> BuildEditRouteSteps(
         IReadOnlyCollection<CodeNode> nodes,
         CodeNode anchor,
         string goal)
@@ -394,7 +394,7 @@ public partial class CodebaseQueryService
         var appDomain = nodes.Where(n => !IsContractNode(n) && (IsApplicationNode(n) || IsDomainNode(n))).ToArray();
         var infrastructure = nodes.Where(IsInfrastructureNode).ToArray();
         var composition = nodes.Where(n => IsCompositionNode(n) || IsApiNode(n)).ToArray();
-        var tests = nodes.Where(IsTestNode).ToArray();
+        var tests = nodes.Where(IsConfiguredTestNode).ToArray();
         var fallback = nodes
             .Where(n => !contracts.Contains(n)
                 && !appDomain.Contains(n)
@@ -413,7 +413,7 @@ public partial class CodebaseQueryService
             new EditRouteStep(
                 "Application / domain behavior",
                 "Change the use case or domain behavior before wiring outer layers.",
-                appDomain.Length == 0 && !IsInfrastructureNode(anchor) && !IsTestNode(anchor) ? [anchor] : appDomain),
+                appDomain.Length == 0 && !IsInfrastructureNode(anchor) && !IsConfiguredTestNode(anchor) ? [anchor] : appDomain),
             new EditRouteStep(
                 "Infrastructure implementation",
                 "Update adapters and persistence/API implementations after the contract is clear.",
@@ -458,11 +458,9 @@ public partial class CodebaseQueryService
         || TextMatches(node.FilePath, "\\Infrastructure\\")
         || TextMatches(node.Namespace, ".Infrastructure");
 
-    private static bool IsCompositionNode(CodeNode node) =>
-        TextMatches(node.Name, "Program")
-        || TextMatches(node.Name, "DependencyInjection")
-        || TextMatches(node.FilePath, "Program.cs")
-        || TextMatches(node.FilePath, "DependencyInjection");
+    private bool IsCompositionNode(CodeNode node) =>
+        analysisOptions.Ranking.InfrastructureNames.Any(name =>
+            TextMatches(node.Name, name) || TextMatches(node.FilePath, name));
 
     private static bool IsApiNode(CodeNode node) =>
         TextMatches(node.FilePath, "/Api/")
@@ -471,11 +469,6 @@ public partial class CodebaseQueryService
         || TextMatches(node.FilePath, "\\Controllers\\")
         || TextMatches(node.Name, "Endpoint")
         || TextMatches(node.Name, "Controller");
-
-    private static bool IsTestNode(CodeNode node) =>
-        TextMatches(node.FilePath, "test")
-        || TextMatches(node.Namespace, "test")
-        || TextMatches(node.Name, "test");
 
     private static string FormatRouteNode(CodeNode node)
     {

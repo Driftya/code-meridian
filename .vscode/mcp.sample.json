@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "CodeMeridian": {
+      "type": "sse",
+      "url": "{{mcpUrl}}",
+      // Required only when CodeMeridian_Auth_ApiKey is set in .env / your shell.
+      "headers": {
+        "Authorization": "Bearer ${env:CodeMeridian_Auth_ApiKey}"
+      }
+    }
+  }
+}
