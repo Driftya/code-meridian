@@ -6,7 +6,7 @@
   "analysis": {
     "staleKnowledge": {
       "skipHeuristicSourcePrefixes": [
-        "docs/plan/",
+        "docs/plans/",
         "docs/features/"
       ],
       "ignoredMentionTokens": [
