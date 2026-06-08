@@ -7,7 +7,7 @@ internal static class InitCommand
         Directory.CreateDirectory(rootPath.FullName);
 
         var project = projectOverride
-            ?? IndexerConfig.Load(rootPath)?.Project
+            ?? IndexerConfig.LoadLocal(rootPath)?.Project
             ?? IndexerDiscovery.ResolveProjectName(rootPath);
 
         try
@@ -31,6 +31,32 @@ internal static class InitCommand
         Console.WriteLine("Client MCP config:");
         foreach (var change in clientConfigChanges)
             Console.WriteLine($"  {change.Status,-11} {change.Path}");
+        Console.WriteLine();
+        Console.WriteLine("Next step:");
+        Console.WriteLine("  codemeridian index .");
+
+        return 0;
+    }
+
+    public static int RunGlobal(string codeMeridianUrl, bool force, DirectoryInfo? globalConfigDirectory = null)
+    {
+        try
+        {
+            IndexerConfig.WriteGlobal(codeMeridianUrl, overwrite: force, globalConfigDirectory);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"error: {ex.Message}");
+            return 1;
+        }
+
+        var configPath = IndexerConfig.GetGlobalConfigFile(globalConfigDirectory).FullName;
+
+        Console.WriteLine("Initialized global CodeMeridian indexer config:");
+        Console.WriteLine($"  Path   : {configPath}");
+        Console.WriteLine($"  Server : {codeMeridianUrl}");
+        Console.WriteLine();
+        Console.WriteLine("Project names remain auto-detected unless a project-local meridian.json, .env, or --project overrides them.");
         Console.WriteLine();
         Console.WriteLine("Next step:");
         Console.WriteLine("  codemeridian index .");

@@ -58,6 +58,7 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Use `--allow-repo-scripts` only on trusted repos when you want `dotnet build` and repo lint commands to run.
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
 - Use `codemeridian init .` to generate `meridian.json`, `.vscode/mcp.json`, and `.codex/config.toml` for a project. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.
+- Use `codemeridian init --global --url http://localhost:5100` to create a user-level fallback config when you want the CLI to work across many repos without project-local config.
 - Use `codemeridian serve` to create `.env`, `.vscode/mcp.json`, `.codex/config.toml`, and `docker-compose.codemeridian.yml`, then start the backend stack.
 - Use `codemeridian serve --no-start` when you only want to write or merge those files.
 - The global tool does not include Neo4j. It starts Neo4j and the MCP server through Docker using the published MCP server image.

@@ -263,15 +263,16 @@ Severity thresholds:
 
 ## Authentication and Configuration
 
-The indexers read `.env` from the current directory or a parent directory first. If no environment variable is set, they fall back to `meridian.json` in the target root or a parent directory.
+The indexers read `.env` from the current directory or a parent directory first. If no environment variable is set, they fall back to project-local `meridian.json`, then the user-level global config.
 
 Precedence for non-secret settings:
 
 1. Explicit CLI flags such as `--project` and `--url`
 2. Shell environment variables
 3. Values loaded from `.env`
-4. Values in `meridian.json`
-5. Auto-detected defaults
+4. Values in project-local `meridian.json`
+5. Values in global `%APPDATA%\CodeMeridian\meridian.json`
+6. Auto-detected defaults
 
 You can generate `meridian.json` plus MCP client config with:
 
@@ -280,6 +281,14 @@ codemeridian init .
 ```
 
 `codemeridian init` writes `meridian.json` from `meridian.sample.json` and merges `.vscode/mcp.json` plus `.codex/config.toml` from their sample files. The generated `meridian.json` enables `allowRepoScripts` by default so trusted repos can run repo-controlled diagnostics without an extra flag. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
+
+You can generate a user-level fallback config with:
+
+```powershell
+codemeridian init --global --url http://localhost:5100
+```
+
+See [Global CodeMeridian Configuration](installation-global.md) for VS Code and Codex user-profile MCP registration.
 
 Template files use the `*.sample.*` convention:
 

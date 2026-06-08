@@ -150,6 +150,8 @@ codemeridian init .
 
 `codemeridian init` writes the project indexing config from `meridian.sample.json`, enables `allowRepoScripts` by default in `meridian.json`, and merges `.vscode/mcp.json` plus `.codex/config.toml` from their sample files. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
 
+For a machine-wide fallback config, see [Global CodeMeridian Configuration](installation-global.md).
+
 The API key still comes from `.env` or your shell environment and is sent as:
 
 ```http

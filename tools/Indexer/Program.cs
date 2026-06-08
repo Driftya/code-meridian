@@ -49,6 +49,7 @@ string? project = null;
 string? codeMeridianUrlOverride = null;
 var clear = false;
 var initForce = false;
+var initGlobal = false;
 var includeDocs = true;
 var watch = false;
 var dryRun = false;
@@ -81,6 +82,9 @@ for (var i = 0; i < rawArgs.Count; i++)
             break;
         case "--force":
             initForce = true;
+            break;
+        case "--global":
+            initGlobal = true;
             break;
         case "--no-docs":
         case "--skip-docs":
@@ -146,6 +150,9 @@ var codeMeridianUrl = ResolveCodeMeridianUrl(codeMeridianUrlOverride, meridianCo
 var apiKey = Environment.GetEnvironmentVariable("CodeMeridian_Auth_ApiKey");
 var environmentProject = Environment.GetEnvironmentVariable("CodeMeridian_Project");
 allowRepoScripts |= meridianConfig?.AllowRepoScripts ?? false;
+
+if (command == "init" && initGlobal)
+    return InitCommand.RunGlobal(codeMeridianUrl, initForce);
 
 if (command == "init")
     return InitCommand.Run(rootPath, project ?? environmentProject, codeMeridianUrl, initForce);
@@ -756,6 +763,7 @@ static void PrintCapabilities()
     Console.WriteLine("  codemeridian index . --project MyProject --watch");
     Console.WriteLine("  codemeridian index . --dry-run");
     Console.WriteLine("  codemeridian init .");
+    Console.WriteLine("  codemeridian init --global");
     Console.WriteLine("  codemeridian serve");
     Console.WriteLine("  codemeridian doctor --project MyProject");
     Console.WriteLine("  codemeridian check-drift --project MyProject --fail-on high");
@@ -840,6 +848,7 @@ static void PrintUsage()
         USAGE:
           codemeridian index [path] [--project <name>] [options]
           codemeridian init [path] [--project <name>] [--url <url>] [--force]
+          codemeridian init --global [--url <url>] [--force]
           codemeridian serve [path] [--host <host>] [--port <port>] [--no-start]
           codemeridian doctor [--project <name>] [--url <url>]
           codemeridian check-drift [path] [--project <name>] [--url <url>] [--fail-on <severity>]
@@ -849,6 +858,7 @@ static void PrintUsage()
         BACKWARD-COMPATIBLE SOURCE USAGE:
           dotnet run --project tools/Indexer -- [path] [--project <name>] [options]
           dotnet run --project tools/Indexer -- init [path] [--project <name>] [--url <url>] [--force]
+          dotnet run --project tools/Indexer -- init --global [--url <url>] [--force]
           dotnet run --project tools/Indexer -- serve [path] [--no-start]
           dotnet run --project tools/Indexer -- doctor [--project <name>] [--url <url>]
           dotnet run --project tools/Indexer -- check-drift [path] [--project <name>] [--url <url>] [--fail-on <severity>]
@@ -863,6 +873,7 @@ static void PrintUsage()
           --CodeMeridian <url>   CodeMeridian server URL.
           --clear                Remove existing knowledge before indexing. Applied only once.
           --force                Overwrite generated config when running init or serve.
+          --global               With init, write the user-level fallback config instead of project-local files.
           --skip-csharp          Skip C# indexing.
           --skip-typescript      Skip TypeScript/TSX indexing.
           --no-docs              Skip documentation ingestion. Alias: --skip-docs.
@@ -881,6 +892,7 @@ static void PrintUsage()
           codemeridian index . --clear
           codemeridian index C:\Projects\MyApi --project MyApi --clear
           codemeridian init C:\Projects\MyApi
+          codemeridian init --global --url http://localhost:5100
           codemeridian serve C:\Projects\MyApi --no-start
           codemeridian doctor --project CodeMeridian
           codemeridian check-drift --project CodeMeridian --fail-on high
