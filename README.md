@@ -4,6 +4,9 @@
 
 # CodeMeridian
 
+[![NuGet](https://img.shields.io/nuget/v/CodeMeridian.Indexer.svg)](https://www.nuget.org/packages/CodeMeridian.Indexer)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/CodeMeridian.Indexer.svg)](https://www.nuget.org/packages/CodeMeridian.Indexer)
+
 CodeMeridian is a persistent code knowledge graph for AI coding tools. It indexes your codebase into Neo4j and exposes that structure through MCP, so GitHub Copilot, Codex, Claude Code, and other MCP-compatible clients can ask precise questions before editing instead of guessing from open files.
 
 It is built to be the deterministic context layer for large codebases: callers, dependencies, tests, documentation, hotspots, dead code, and cross-project relationships stay available across sessions.
