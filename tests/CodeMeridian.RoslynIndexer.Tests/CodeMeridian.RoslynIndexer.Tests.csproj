@@ -11,7 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\tools\Indexer\CodeMeridian.Indexer.csproj" />
+    <ProjectReference Include="..\..\tools\RoslynIndexer\CodeMeridian.RoslynIndexer.csproj" />
+    <ProjectReference Include="..\..\src\Sdk\CodeMeridian.Sdk.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
     <PackageReference Include="xunit" Version="2.*" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.*" />

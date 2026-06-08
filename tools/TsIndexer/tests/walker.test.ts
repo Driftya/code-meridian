@@ -1,0 +1,192 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { walkTypeScript } from '../src/walker.js';
+
+let rootPath: string;
+
+beforeEach(() => {
+  rootPath = fs.mkdtempSync(path.join(os.tmpdir(), 'codemeridian-ts-indexer-'));
+});
+
+afterEach(() => {
+  fs.rmSync(rootPath, { recursive: true, force: true });
+});
+
+describe('walkTypeScript', () => {
+  it('indexes classes, methods, line metadata, and contains edges', () => {
+    writeFile(
+      'editor.ts',
+      `export class TextSlideVideoEditorState {
+  snapshot() {
+    return {};
+  }
+}
+`,
+    );
+
+    const result = walkTypeScript(rootPath, 'Proj');
+
+    expect(result.nodes).toContainEqual(
+      expect.objectContaining({
+        id: 'Proj:Class:editor.ts:TextSlideVideoEditorState',
+        type: 'Class',
+        lineNumber: 1,
+        lineCount: 5,
+      }),
+    );
+    expect(result.nodes).toContainEqual(
+      expect.objectContaining({
+        id: 'Proj:Method:editor.ts:TextSlideVideoEditorState.snapshot',
+        type: 'Method',
+        lineNumber: 2,
+        lineCount: 3,
+      }),
+    );
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:File:editor.ts',
+      targetId: 'Proj:Class:editor.ts:TextSlideVideoEditorState',
+      type: 'Contains',
+    });
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Class:editor.ts:TextSlideVideoEditorState',
+      targetId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.snapshot',
+      type: 'Contains',
+    });
+  });
+
+  it('resolves same-class method calls', () => {
+    writeFile(
+      'editor.ts',
+      `export class TextSlideVideoEditorState {
+  snapshot() {
+    return {};
+  }
+
+  addCaption() {
+    this.snapshot();
+  }
+}
+`,
+    );
+
+    const result = walkTypeScript(rootPath, 'Proj');
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.addCaption',
+      targetId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.snapshot',
+      type: 'Calls',
+    });
+  });
+
+  it('resolves top-level function calls in the same file', () => {
+    writeFile(
+      'math.ts',
+      `export function calculate() {
+  return format();
+}
+
+function format() {
+  return 'ok';
+}
+`,
+    );
+
+    const result = walkTypeScript(rootPath, 'Proj');
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:math.ts:calculate',
+      targetId: 'Proj:Method:math.ts:format',
+      type: 'Calls',
+    });
+  });
+
+  it('emits implements and inherits edges for local types', () => {
+    writeFile(
+      'types.ts',
+      `export interface BasePort {
+}
+
+export interface EditorPort extends BasePort {
+}
+
+export class BaseEditor {
+}
+
+export class Editor extends BaseEditor implements EditorPort {
+}
+`,
+    );
+
+    const result = walkTypeScript(rootPath, 'Proj');
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Interface:types.ts:EditorPort',
+      targetId: 'Proj:Interface:types.ts:BasePort',
+      type: 'Inherits',
+    });
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Class:types.ts:Editor',
+      targetId: 'Proj:Class:types.ts:BaseEditor',
+      type: 'Inherits',
+    });
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Class:types.ts:Editor',
+      targetId: 'Proj:Interface:types.ts:EditorPort',
+      type: 'Implements',
+    });
+  });
+
+  it('emits depends-on edges for local imports', () => {
+    writeFile('state.ts', 'export class State {}\n');
+    writeFile('consumer.ts', "import { State } from './state';\nexport const state = new State();\n");
+
+    const result = walkTypeScript(rootPath, 'Proj');
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:File:consumer.ts',
+      targetId: 'Proj:File:state.ts',
+      type: 'DependsOn',
+    });
+  });
+
+  it('skips ambiguous method calls instead of creating noisy edges', () => {
+    writeFile(
+      'one.ts',
+      `export class One {
+  run() {}
+}
+`,
+    );
+    writeFile(
+      'two.ts',
+      `export class Two {
+  run() {}
+}
+`,
+    );
+    writeFile(
+      'caller.ts',
+      `export function caller(value: { run(): void }) {
+  value.run();
+}
+`,
+    );
+
+    const result = walkTypeScript(rootPath, 'Proj');
+
+    expect(result.edges).not.toContainEqual(
+      expect.objectContaining({
+        sourceId: 'Proj:Method:caller.ts:caller',
+        type: 'Calls',
+      }),
+    );
+  });
+});
+
+function writeFile(relativePath: string, content: string): void {
+  const filePath = path.join(rootPath, relativePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content);
+}

@@ -6,7 +6,7 @@ using CodeMeridian.Sdk;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CodeMeridian.Indexer.Tests.Pipeline;
+namespace CodeMeridian.RoslynIndexer.Tests.Pipeline;
 
 public sealed class CSharpIndexerTests : IDisposable
 {
@@ -139,6 +139,50 @@ public sealed class CSharpIndexerTests : IDisposable
         usesEdges.Should().Contain(request =>
             request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Class::Demo.Services.ChainService"
             && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::Interface::Demo.Data.IChainRepository");
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::Method::Demo.Services.ChainService(IChainRepository)"
+            && request.Body.GetProperty("type").GetString() == "Method");
+    }
+
+    [Fact]
+    public async Task IndexAsync_ResolvesPropertyTypeToUsesEdge()
+    {
+        var service = WriteFile(
+            "src/Service.cs",
+            """
+            namespace Demo.Services;
+
+            using Demo.Data;
+
+            public class ChainService
+            {
+                public ChainState State { get; set; } = new();
+            }
+            """);
+        var state = WriteFile(
+            "src/ChainState.cs",
+            """
+            namespace Demo.Data;
+
+            public class ChainState
+            {
+            }
+            """);
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([service, state], "CodeMeridian", _root);
+
+        var usesEdges = handler.Requests
+            .Where(request => request.Path == "/api/v1/knowledge/nodes/edges"
+                              && request.Body.GetProperty("type").GetString() == "Uses")
+            .ToArray();
+
+        usesEdges.Should().Contain(request =>
+            request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Class::Demo.Services.ChainService"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::Class::Demo.Data.ChainState");
     }
 
     private FileInfo WriteFile(string relativePath, string content)
