@@ -119,6 +119,10 @@ Build a minimal context pack before I change OrderService.PlaceOrderAsync.
 How is this TypeScript component connected to the backend?
 ```
 
+## Usage
+
+See [USAGE.md](docs/USAGE.md) for copy-paste prompts that help AI coding assistants use CodeMeridian safely before editing.
+
 ## Core Tools
 
 | Tool | What it does |

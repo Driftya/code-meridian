@@ -318,3 +318,8 @@ What changed in the last 7 days?
 ```
 
 These work because `copilot-instructions.md` instructs Copilot to call the relevant tools automatically.
+
+
+## Commit messages
+
+Commit messages are enforced by .githooks/commit-msg.
