@@ -1,0 +1,11 @@
+name: CodeMeridian
+version: 0.0.1
+schema: v1
+
+mcpServers:
+  - name: CodeMeridian
+    type: streamable-http
+    url: http://localhost:5100/sse
+    requestOptions:
+      headers:
+        Authorization: Bearer YOUR_CODE_MERIDIAN_TOKEN
