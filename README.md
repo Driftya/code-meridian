@@ -195,6 +195,7 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 
 - [Installation](docs/installation.md)
 - [How CodeMeridian works](docs/how-it-works.md)
+- [Usage](docs/usage.md)
 - [Indexing projects](docs/indexing.md)
 - [Feature reference](docs/features.md)
 - [Code embeddings and semantic search](docs/embeddings.md)
