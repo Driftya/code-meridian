@@ -1,0 +1,61 @@
+name: MCP/client setup help
+description: Get help connecting CodeMeridian to an MCP-compatible client.
+title: "[MCP]: "
+labels: ["mcp", "question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when CodeMeridian runs, but your MCP client cannot connect or cannot see tools.
+
+  - type: dropdown
+    id: client
+    attributes:
+      label: MCP client
+      options:
+        - GitHub Copilot
+        - Claude Code
+        - Continue.dev
+        - Cline
+        - Cursor
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: MCP config
+      description: Remove tokens, secrets, and private URLs before pasting.
+      render: yaml
+      placeholder: |
+        mcpServers:
+          - name: CodeMeridian
+            type: sse
+            url: http://localhost:5100/sse
+            requestOptions:
+              headers:
+                Authorization: Bearer REDACTED
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is not working?
+      placeholder: Continue.dev starts but does not show CodeMeridian tools...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error output
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I can open the CodeMeridian endpoint in the same environment as my MCP client.
+        - label: I removed or redacted bearer tokens before posting.
+        - label: I restarted the editor/client after changing MCP config.

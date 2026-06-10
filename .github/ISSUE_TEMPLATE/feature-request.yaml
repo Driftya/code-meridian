@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest a new feature, tool, indexer, or workflow.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest a feature that would make CodeMeridian more useful for AI coding agents.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      placeholder: I want my agent to understand how React components connect to API endpoints...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: Add an HTML/CSS/SCSS indexer that connects class names, components, and style files.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - MCP tools
+        - Indexing
+        - C# / Roslyn
+        - TypeScript / TSX
+        - HTML / CSS / SCSS
+        - Embeddings
+        - Neo4j graph model
+        - CLI
+        - Documentation
+        - Other
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example agent prompt or workflow
+      placeholder: |
+        Use CodeMeridian to find which frontend components call this backend endpoint.
