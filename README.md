@@ -8,11 +8,15 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/CodeMeridian.Indexer.svg)](https://www.nuget.org/packages/CodeMeridian.Indexer)
 [![CodeQL](https://github.com/Driftya/code-meridian/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Driftya/code-meridian/actions/workflows/codeql.yml)
 
-CodeMeridian is a persistent code knowledge graph for AI coding tools. It indexes your codebase into Neo4j and exposes that structure through MCP, so GitHub Copilot, Codex, Claude Code, and other MCP-compatible clients can ask precise questions before editing instead of guessing from open files.
+CodeMeridian is a local graph memory layer for AI coding agents.
 
-It is built to be the deterministic context layer for large codebases: callers, dependencies, tests, documentation, hotspots, dead code, and cross-project relationships stay available across sessions.
+It indexes your codebase into Neo4j and exposes that structure through MCP, so AI coding tools can ask precise questions before editing instead of guessing from open files. It works with MCP-compatible clients such as GitHub Copilot, Claude Code, Continue.dev, Codex-style agents, Cline, and local agent workflows.
 
-No LLM API key required. The assistant is the AI; CodeMeridian is the knowledge engine.
+It is built to be the deterministic context layer for large codebases: callers, dependencies, tests, documentation, hotspots, dead code, diagnostics, and cross-project relationships stay available across sessions.
+
+This is especially useful for local or smaller coding models, where every token matters. CodeMeridian does not try to replace the model. It makes the model’s job smaller by giving it the smallest useful slice of architecture before it writes code.
+
+Core usage requires no LLM API key. Optional semantic features can use local Ollama or a cloud embedding provider. The assistant is the AI; CodeMeridian is the knowledge engine.
 
 ## Why CodeMeridian?
 
@@ -22,12 +26,13 @@ The graph is yours. CodeMeridian stores indexed code structure, documentation, d
 
 | Without CodeMeridian | With CodeMeridian |
 |---------------------|------------------|
-| Copilot loads files ad hoc as it searches for context | Copilot queries a graph of your entire codebase |
+| The assistant loads files ad hoc as it searches for context | The assistant queries a graph of your entire codebase |
 | Context disappears between sessions | Knowledge persists locally in Neo4j |
 | "What calls this method?" requires manual searching | `find_impact` answers from the call graph |
 | Refactors can miss hidden callers | Blast radius is known before edits |
 | Dead code and test gaps stay invisible | `find_unreferenced` and `find_coverage_gaps` surface them |
-| Large context windows get filled with noise | Copilot gets the smallest useful architecture slice |
+| Large context windows get filled with noise | The agent gets the smallest useful architecture slice |
+| Small local models struggle with broad repository context | Graph-backed context makes the task smaller |
 | Assistants guess which model/context size is enough | Context packs include token estimates and model guidance |
 | Stale indexes quietly mislead agents | Freshness and drift checks say when to re-index |
 | Docs and decisions live outside the code graph | Knowledge, docs, diagnostics, and code links can be queried together |
@@ -40,6 +45,46 @@ What this gives you in practice:
 - **Safer edits:** impact, downstream dependencies, diagnostics, drift, and missing tests are visible before implementation.
 - **Model-aware context:** `build_minimal_context` estimates token cost and suggests when a small model is enough.
 - **Explainable results:** exact, heuristic, stale, and file-only matches are labeled so the assistant can say what it trusted.
+
+## Built for agent-first workflows
+
+AI coding agents are powerful, but they often work from incomplete or temporary context. They may search files repeatedly, miss hidden callers, forget previous discoveries, or fill their context window with noisy whole-file dumps.
+
+CodeMeridian gives those agents a persistent graph-backed map of the repository. Instead of asking the model to rediscover the codebase every session, the agent can query CodeMeridian for the specific architecture slice it needs.
+
+Typical workflow:
+
+1. Start CodeMeridian locally.
+2. Index your repository.
+3. Connect an MCP-compatible coding agent.
+4. Ask the agent to build a minimal context pack before editing.
+5. Let the agent use impact, freshness, documentation, and test-coverage checks while it works.
+
+Example prompt:
+
+```text
+Use CodeMeridian to build a minimal context pack for the authentication flow before changing login behavior.
+```
+
+## Why this helps smaller local models
+
+Small local coding models are most useful when the context is precise. CodeMeridian helps by turning a repository into a graph-backed memory layer, so agents can retrieve the smallest useful context instead of scanning the whole codebase.
+
+This is useful for 7B-class models, low-memory machines, and local-first workflows where context size, privacy, and repeatable code understanding matter.
+
+Without CodeMeridian, the model may need to infer architecture from file names and ad hoc searches. With CodeMeridian, the agent can ask targeted questions:
+
+```text
+What calls this method?
+Which tests cover this service?
+Which frontend components use this endpoint?
+What docs mention this symbol?
+Is the graph fresh enough to trust?
+What is the smallest context needed for this edit?
+```
+
+CodeMeridian does not make a small model magically perfect. It reduces the amount of guessing the model has to do.
+
 
 ## What It Indexes
 
