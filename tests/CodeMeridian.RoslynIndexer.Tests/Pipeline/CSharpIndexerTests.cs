@@ -245,6 +245,42 @@ public sealed class CSharpIndexerTests : IDisposable
             && edge.Body.GetProperty("callSite").GetString() == "src/Routes.cs:16");
     }
 
+    [Fact]
+    public async Task IndexAsync_ReplacesControllerAndActionTokensInControllerRoutes()
+    {
+        var file = WriteFile(
+            "src/TokenRoutes.cs",
+            """
+            using Microsoft.AspNetCore.Mvc;
+
+            namespace Demo.Api;
+
+            [Route("api/[controller]")]
+            public class OrdersController : ControllerBase
+            {
+                [HttpPost("[action]/{id}")]
+                public IActionResult Create(int id) => Ok();
+            }
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([file], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::ApiEndpoint::POST /api/orders/create/{param}"
+            && request.Body.GetProperty("type").GetString() == "ApiEndpoint");
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "Uses"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.Create(int)"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::POST /api/orders/create/{param}");
+    }
+
     private FileInfo WriteFile(string relativePath, string content)
     {
         var file = new FileInfo(Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar)));

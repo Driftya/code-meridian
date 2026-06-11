@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Indexer.Tests.Cli;
 
+[Collection(EnvironmentVariableTestCollection.Name)]
 public sealed class InitCommandTests : IDisposable
 {
     private readonly string _root = Path.Combine(

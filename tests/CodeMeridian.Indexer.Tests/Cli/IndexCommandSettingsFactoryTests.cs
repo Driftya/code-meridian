@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Indexer.Tests.Cli;
 
+[Collection(EnvironmentVariableTestCollection.Name)]
 public sealed class IndexCommandSettingsFactoryTests : IDisposable
 {
     private readonly string _root = Path.Combine(

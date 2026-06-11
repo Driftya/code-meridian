@@ -81,6 +81,32 @@ public sealed class DocumentIndexerPipelineTests : IDisposable
     }
 
     [Fact]
+    public async Task IngestAsync_ResolvesNestedRelativeDocumentLinksAndNormalizesTypedRouteMentions()
+    {
+        var document = WriteFile(
+            "docs/features/19-improve-cross-language-connection-quality.md",
+            """
+            Plan: [route matching](../plans/2026-06-05-cross-language-route-matching.md)
+
+            Expected route link:
+            POST /api/orders/{id:int}?expand=items
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new DocumentIndexerPipeline(client, NullLogger<DocumentIndexerPipeline>.Instance);
+
+        await sut.IngestAsync([document], "CodeMeridian", _root);
+
+        handler.Requests.Should().ContainSingle();
+        var request = handler.Requests[0].Body;
+        HasDocumentReferences(
+            request.GetProperty("relatedDocumentIdsCsv").GetString(),
+            "docs/plans/2026-06-05-cross-language-route-matching.md").Should().BeTrue();
+        request.GetProperty("relatedNodeIdsCsv").GetString().Should().Contain("CodeMeridian::ApiEndpoint::POST /api/orders/{param}");
+    }
+
+    [Fact]
     public async Task IngestAsync_InfersApiEndpointAndMcpToolMentions()
     {
         WriteFile(

@@ -234,6 +234,74 @@ export const current: AppState = { id: '1' };
       }),
     );
   });
+
+  it('indexes fetch, axios, and request-style HTTP routes as ApiEndpoint links', () => {
+    writeFile(
+      'api.ts',
+      `const routes = { orders: '/api/orders' };
+const orderRoute = '/api/orders';
+
+export async function loadOrders() {
+  return fetch(routes.orders, { method: 'POST' });
+}
+
+export async function createOrder() {
+  return await axios.post(orderRoute);
+}
+
+export async function loadOrder(id: string) {
+  return client.get(\`/api/orders/\${id}\`);
+}
+
+export function deleteOrder(id: string) {
+  return client.request({
+    method: 'DELETE',
+    url: \`/api/orders/\${id}\`
+  });
+}
+`,
+    );
+
+    const result = walkTypeScript(rootPath, 'Proj');
+
+    expect(result.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'Proj::ApiEndpoint::POST /api/orders',
+          type: 'ApiEndpoint',
+        }),
+        expect.objectContaining({
+          id: 'Proj::ApiEndpoint::GET /api/orders/{param}',
+          type: 'ApiEndpoint',
+        }),
+        expect.objectContaining({
+          id: 'Proj::ApiEndpoint::DELETE /api/orders/{param}',
+          type: 'ApiEndpoint',
+        }),
+      ]),
+    );
+
+    const routeEdges = result.edges.filter(edge => edge.targetId.includes('::ApiEndpoint::'));
+    expect(routeEdges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'Calls',
+          targetId: 'Proj::ApiEndpoint::POST /api/orders',
+          confidence: 0.95,
+        }),
+        expect.objectContaining({
+          type: 'Calls',
+          targetId: 'Proj::ApiEndpoint::GET /api/orders/{param}',
+          confidence: 0.9,
+        }),
+        expect.objectContaining({
+          type: 'Calls',
+          targetId: 'Proj::ApiEndpoint::DELETE /api/orders/{param}',
+          confidence: 0.9,
+        }),
+      ]),
+    );
+  });
 });
 
 function writeFile(relativePath: string, content: string): void {
