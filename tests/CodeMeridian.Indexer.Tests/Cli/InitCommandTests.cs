@@ -1,5 +1,9 @@
 using CodeMeridian.Indexer.Cli;
+using CodeMeridian.Indexer.Cli.Commands;
+using CodeMeridian.Tooling.Configuration;
+using CodeMeridian.Tooling.Discovery;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Indexer.Tests.Cli;
 
@@ -18,7 +22,12 @@ public sealed class InitCommandTests : IDisposable
     [Fact]
     public void Run_CreatesMeridianJsonAndMcpClientConfigs()
     {
-        var exitCode = InitCommand.Run(new DirectoryInfo(_root), "MyApi", "http://localhost:5100", force: false);
+        var exitCode = CreateCommand().Run(new InitCommandOptions(
+            Path: _root,
+            Project: "MyApi",
+            CodeMeridianUrl: "http://localhost:5100",
+            Force: false,
+            Global: false));
 
         exitCode.Should().Be(0);
         var meridianJsonPath = Path.Combine(_root, "meridian.json");
@@ -37,8 +46,14 @@ public sealed class InitCommandTests : IDisposable
     public void RunGlobal_CreatesGlobalMeridianJsonOnly()
     {
         var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
+        Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", globalRoot.FullName);
 
-        var exitCode = InitCommand.RunGlobal("http://global:5100", force: false, globalRoot);
+        var exitCode = CreateCommand().Run(new InitCommandOptions(
+            Path: _root,
+            Project: null,
+            CodeMeridianUrl: "http://global:5100",
+            Force: false,
+            Global: true));
 
         exitCode.Should().Be(0);
         var meridianJsonPath = Path.Combine(globalRoot.FullName, "meridian.json");
@@ -54,7 +69,20 @@ public sealed class InitCommandTests : IDisposable
 
     public void Dispose()
     {
+        Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", null);
         if (Directory.Exists(_root))
             Directory.Delete(_root, recursive: true);
+    }
+
+    private static InitCommand CreateCommand()
+    {
+        var fileStore = new CodeMeridianConfigFileStore();
+        var discovery = new ProjectDiscoveryService();
+        var configuration = new ToolConfigurationService(
+            fileStore,
+            discovery,
+            Options.Create(new ToolCliDefaults()));
+
+        return new InitCommand(configuration, fileStore, discovery, new ServeWriter());
     }
 }

@@ -16,6 +16,6 @@
       MCP SDK — exposes this service as a tool provider that GitHub Copilot
       (or any MCP-compatible client) can call directly. No LLM API key needed.
     -->
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.*" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.*" />
   </ItemGroup>
 </Project>

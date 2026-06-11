@@ -1,0 +1,39 @@
+namespace CodeMeridian.Indexer.Cli.Commands;
+
+internal sealed record IndexCommandOptions(
+    string? Path,
+    string? Project,
+    string? CodeMeridianUrl,
+    bool Clear,
+    bool IncludeDocs,
+    bool Watch,
+    bool DryRun,
+    bool ListCapabilities,
+    bool SkipCSharp,
+    bool SkipTypeScript,
+    bool SkipDiagnostics,
+    bool AllowRepoScripts,
+    bool Incremental);
+
+internal sealed record ClearCommandOptions(
+    string? Project,
+    string? CodeMeridianUrl,
+    bool ClearAllCodeGraph);
+
+internal sealed record InitCommandOptions(
+    string? Path,
+    string? Project,
+    string? CodeMeridianUrl,
+    bool Force,
+    bool Global);
+
+internal sealed record DoctorCommandOptions(
+    string? Path,
+    string? Project,
+    string? CodeMeridianUrl);
+
+internal sealed record CheckDriftCommandOptions(
+    string? Path,
+    string? Project,
+    string? CodeMeridianUrl,
+    string FailOn);

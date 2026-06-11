@@ -1,11 +1,11 @@
 using System.Net.Http.Headers;
 using CodeMeridian.Sdk;
 
-namespace CodeMeridian.Indexer.Cli;
+namespace CodeMeridian.Indexer.Cli.Commands;
 
-internal static class StatusCommand
+internal sealed class StatusCommand
 {
-    public static async Task<int> RunDoctorAsync(
+    public async Task<int> RunDoctorAsync(
         string? project,
         string codeMeridianUrl,
         string? apiKey)
@@ -31,7 +31,7 @@ internal static class StatusCommand
         return status.Neo4jReachable ? 0 : 1;
     }
 
-    public static async Task<int> RunDriftVerificationAsync(
+    public async Task<int> RunDriftVerificationAsync(
         string? project,
         string codeMeridianUrl,
         string? apiKey,

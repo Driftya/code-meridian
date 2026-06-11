@@ -12,12 +12,15 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\CodeMeridian.Core.csproj" />
     <ProjectReference Include="..\..\src\Sdk\CodeMeridian.Sdk.csproj" />
+    <ProjectReference Include="..\..\src\Tooling\CodeMeridian.Tooling.csproj" />
 
     <!-- Roslyn — parses C# AST without needing a full build -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.*" />
 
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.*" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="9.*" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.*" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.*" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.*" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.*" />
+    <PackageReference Include="System.CommandLine" Version="2.*" />
   </ItemGroup>
 </Project>

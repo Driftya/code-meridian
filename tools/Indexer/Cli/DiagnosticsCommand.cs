@@ -4,12 +4,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using CodeMeridian.Sdk;
+using CodeMeridian.Tooling.Discovery;
 
-namespace CodeMeridian.Indexer.Cli;
+namespace CodeMeridian.Indexer.Cli.Commands;
 
-internal static class DiagnosticsCommand
+internal sealed class DiagnosticsCommand(IProjectDiscoveryService projectDiscoveryService)
 {
-    public static async Task<int> RunAsync(
+    public async Task<int> RunAsync(
         DirectoryInfo rootPath,
         IReadOnlyCollection<DirectoryInfo> typeScriptRoots,
         string project,
@@ -34,14 +35,14 @@ internal static class DiagnosticsCommand
 
         var findings = new List<DiagnosticFinding>();
 
-        if (allowRepoScripts && IndexerDiscovery.ContainsFile(rootPath, ".cs"))
+        if (allowRepoScripts && projectDiscoveryService.ContainsFile(rootPath, ".cs"))
         {
             var build = await RunCaptureAsync("dotnet", ["build", "--no-restore", "--nologo"], rootPath);
             var dotnetFindings = ParseDotnetDiagnostics(build.Output, rootPath, project);
             findings.AddRange(dotnetFindings);
             Console.WriteLine($"  dotnet build exit code {build.ExitCode}; parsed {dotnetFindings.Count} diagnostics.");
         }
-        else if (IndexerDiscovery.ContainsFile(rootPath, ".cs"))
+        else if (projectDiscoveryService.ContainsFile(rootPath, ".cs"))
         {
             Console.WriteLine("  C# build diagnostics skipped. Use --allow-repo-scripts to run repo-controlled build steps.");
         }
@@ -293,36 +294,7 @@ internal static class DiagnosticsCommand
         return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
     }
 
-    private static string NpmCommand() => ResolveCommandFromPath(OperatingSystem.IsWindows() ? "npm.cmd" : "npm");
-
-    private static string ResolveCommandFromPath(string command)
-    {
-        if (Path.IsPathRooted(command))
-            return command;
-
-        var path = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrWhiteSpace(path))
-            return command;
-
-        foreach (var directory in path.Split(Path.PathSeparator))
-        {
-            if (string.IsNullOrWhiteSpace(directory))
-                continue;
-
-            try
-            {
-                var candidate = Path.Combine(directory.Trim('"'), command);
-                if (File.Exists(candidate))
-                    return candidate;
-            }
-            catch
-            {
-                // Ignore malformed PATH entries.
-            }
-        }
-
-        return command;
-    }
+    private static string NpmCommand() => ExternalCommandResolver.NpmCommand();
 
     private sealed record DiagnosticFinding(
         string Id,

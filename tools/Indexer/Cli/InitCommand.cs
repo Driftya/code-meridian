@@ -1,18 +1,35 @@
-namespace CodeMeridian.Indexer.Cli;
+using CodeMeridian.Indexer.Cli.Configuration;
+using CodeMeridian.Indexer.Cli;
+using CodeMeridian.Tooling.Configuration;
+using CodeMeridian.Tooling.Discovery;
 
-internal static class InitCommand
+namespace CodeMeridian.Indexer.Cli.Commands;
+
+internal sealed class InitCommand(
+    IToolConfigurationService configurationService,
+    CodeMeridianConfigFileStore configFileStore,
+    IProjectDiscoveryService projectDiscoveryService,
+    ServeWriter serveWriter)
 {
-    public static int Run(DirectoryInfo rootPath, string? projectOverride, string codeMeridianUrl, bool force)
+    public int Run(InitCommandOptions options)
     {
+        if (options.Global)
+            return RunGlobal(options);
+
+        var context = configurationService.CreateContext(options.Path);
+        var rootPath = context.RootPath;
+        var codeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, options.CodeMeridianUrl);
+
         Directory.CreateDirectory(rootPath.FullName);
 
-        var project = projectOverride
-            ?? IndexerConfig.LoadLocal(rootPath)?.Project
-            ?? IndexerDiscovery.ResolveProjectName(rootPath);
+        var project = NormalizeOptionalString(options.Project)
+            ?? context.LocalConfig?.Project
+            ?? context.GlobalConfig?.Project
+            ?? projectDiscoveryService.ResolveProjectName(rootPath);
 
         try
         {
-            IndexerConfig.Write(rootPath, project, codeMeridianUrl, overwrite: force);
+            configFileStore.Write(rootPath, project, codeMeridianUrl, overwrite: options.Force);
         }
         catch (Exception ex)
         {
@@ -21,7 +38,7 @@ internal static class InitCommand
         }
 
         var configPath = Path.Combine(rootPath.FullName, "meridian.json");
-        var clientConfigChanges = new ServeWriter().ApplyClientConfig(rootPath, codeMeridianUrl, force);
+        var clientConfigChanges = serveWriter.ApplyClientConfig(rootPath, codeMeridianUrl, options.Force);
 
         Console.WriteLine("Initialized CodeMeridian indexer config:");
         Console.WriteLine($"  Path    : {configPath}");
@@ -38,11 +55,14 @@ internal static class InitCommand
         return 0;
     }
 
-    public static int RunGlobal(string codeMeridianUrl, bool force, DirectoryInfo? globalConfigDirectory = null)
+    public int RunGlobal(InitCommandOptions options, DirectoryInfo? globalConfigDirectory = null)
     {
+        var context = configurationService.CreateContext(options.Path);
+        var codeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, options.CodeMeridianUrl);
+
         try
         {
-            IndexerConfig.WriteGlobal(codeMeridianUrl, overwrite: force, globalConfigDirectory);
+            configFileStore.WriteGlobal(codeMeridianUrl, overwrite: options.Force, globalConfigDirectory);
         }
         catch (Exception ex)
         {
@@ -50,7 +70,7 @@ internal static class InitCommand
             return 1;
         }
 
-        var configPath = IndexerConfig.GetGlobalConfigFile(globalConfigDirectory).FullName;
+        var configPath = configFileStore.GetGlobalConfigFile(globalConfigDirectory).FullName;
 
         Console.WriteLine("Initialized global CodeMeridian indexer config:");
         Console.WriteLine($"  Path   : {configPath}");
@@ -63,4 +83,7 @@ internal static class InitCommand
 
         return 0;
     }
+
+    private static string? NormalizeOptionalString(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

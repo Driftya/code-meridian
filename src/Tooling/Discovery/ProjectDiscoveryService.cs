@@ -1,8 +1,10 @@
-namespace CodeMeridian.Indexer.Cli;
+using Microsoft.Extensions.Configuration;
 
-internal static class IndexerDiscovery
+namespace CodeMeridian.Tooling.Discovery;
+
+public sealed class ProjectDiscoveryService : IProjectDiscoveryService
 {
-    public static bool ContainsFile(DirectoryInfo root, params string[] extensions)
+    public bool ContainsFile(DirectoryInfo root, params string[] extensions)
     {
         var pending = new Stack<DirectoryInfo>();
         pending.Push(root);
@@ -29,7 +31,7 @@ internal static class IndexerDiscovery
         return false;
     }
 
-    public static IReadOnlyList<DirectoryInfo> FindTypeScriptRoots(DirectoryInfo root)
+    public IReadOnlyList<DirectoryInfo> FindTypeScriptRoots(DirectoryInfo root)
     {
         var roots = new List<DirectoryInfo>();
 
@@ -50,13 +52,12 @@ internal static class IndexerDiscovery
 
         return roots
             .Where(candidate => !roots.Any(other =>
-                !ReferenceEquals(candidate, other)
-                && IsSubdirectoryOf(candidate, other)))
+                !ReferenceEquals(candidate, other) && IsSubdirectoryOf(candidate, other)))
             .OrderBy(directory => directory.FullName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
-    public static DirectoryInfo? FindRepositoryRoot(DirectoryInfo start)
+    public DirectoryInfo? FindRepositoryRoot(DirectoryInfo start)
     {
         for (var current = start; current is not null; current = current.Parent)
         {
@@ -67,14 +68,19 @@ internal static class IndexerDiscovery
         return null;
     }
 
-    public static string ResolveProjectName(DirectoryInfo root)
+    public string ResolveProjectName(DirectoryInfo root)
     {
         var packageJson = new FileInfo(Path.Combine(root.FullName, "package.json"));
         if (packageJson.Exists)
         {
-            var name = TryReadPackageName(packageJson);
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(root.FullName)
+                .AddJsonFile(packageJson.Name, optional: false, reloadOnChange: false)
+                .Build();
+
+            var name = configuration["name"];
             if (!string.IsNullOrWhiteSpace(name))
-                return name;
+                return name.Trim();
         }
 
         var sln = root.GetFiles("*.sln").FirstOrDefault();
@@ -89,20 +95,7 @@ internal static class IndexerDiscovery
         return root.Name;
     }
 
-    public static string? TryReadPackageName(FileInfo packageJson)
-    {
-        try
-        {
-            using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(packageJson.FullName));
-            return document.RootElement.TryGetProperty("name", out var name) ? name.GetString() : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    public static bool ShouldSkipDirectory(DirectoryInfo directory)
+    private static bool ShouldSkipDirectory(DirectoryInfo directory)
     {
         var name = directory.Name;
         return name is ".git" or ".vs" or ".vscode" or "bin" or "obj" or "node_modules" or "dist" or "build" or "coverage";

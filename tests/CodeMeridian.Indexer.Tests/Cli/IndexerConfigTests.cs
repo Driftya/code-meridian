@@ -1,10 +1,11 @@
-using CodeMeridian.Indexer.Cli;
+using CodeMeridian.Tooling.Configuration;
 using FluentAssertions;
 
 namespace CodeMeridian.Indexer.Tests.Cli;
 
 public sealed class IndexerConfigTests : IDisposable
 {
+    private readonly CodeMeridianConfigFileStore _store = new();
     private readonly string _root = Path.Combine(
         Path.GetTempPath(),
         "codemeridian-indexer-config-tests",
@@ -28,7 +29,7 @@ public sealed class IndexerConfigTests : IDisposable
             }
             """);
 
-        var result = IndexerConfig.Load(new DirectoryInfo(_root));
+        var result = _store.LoadLocal(new DirectoryInfo(_root));
 
         result.Should().NotBeNull();
         result!.Project.Should().Be("MyApi");
@@ -48,55 +49,46 @@ public sealed class IndexerConfigTests : IDisposable
             }
             """);
 
-        var result = IndexerConfig.Load(new DirectoryInfo(_root));
+        var result = _store.LoadLocal(new DirectoryInfo(_root));
 
         result.Should().NotBeNull();
         result!.CodeMeridianUrl.Should().Be("http://192.168.1.10:5100");
     }
 
     [Fact]
-    public void Load_FallsBackToGlobalConfigWhenLocalConfigIsMissing()
+    public void LoadGlobal_UsesProjectAndUrlFromGlobalMeridianJson()
     {
         var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
         File.WriteAllText(
             Path.Combine(globalRoot.FullName, "meridian.json"),
             """
             {
-              "project": "ShouldBeIgnored",
+              "project": "GlobalProject",
               "codeMeridianUrl": "http://global:5100",
               "allowRepoScripts": true
             }
             """);
 
-        var result = IndexerConfig.Load(new DirectoryInfo(Path.Combine(_root, "project")), globalRoot);
+        var result = _store.LoadGlobal(globalRoot);
 
         result.Should().NotBeNull();
-        result!.Project.Should().BeNull();
+        result!.Project.Should().Be("GlobalProject");
         result.CodeMeridianUrl.Should().Be("http://global:5100");
         result.AllowRepoScripts.Should().BeTrue();
     }
 
     [Fact]
-    public void Load_PrefersLocalConfigOverGlobalConfig()
+    public void LoadLocal_ReadsNearestLocalConfig()
     {
-        var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
-        File.WriteAllText(
-            Path.Combine(globalRoot.FullName, "meridian.json"),
-            """
-            {
-              "codeMeridianUrl": "http://global:5100"
-            }
-            """);
-        File.WriteAllText(
-            Path.Combine(_root, "meridian.json"),
-            """
+        var child = Directory.CreateDirectory(Path.Combine(_root, "src", "app"));
+        File.WriteAllText(Path.Combine(_root, "meridian.json"), """
             {
               "project": "LocalApi",
               "codeMeridianUrl": "http://local:5100"
             }
             """);
 
-        var result = IndexerConfig.Load(new DirectoryInfo(_root), globalRoot);
+        var result = _store.LoadLocal(child);
 
         result.Should().NotBeNull();
         result!.Project.Should().Be("LocalApi");
@@ -106,7 +98,7 @@ public sealed class IndexerConfigTests : IDisposable
     [Fact]
     public void Write_CreatesMeridianJson()
     {
-        IndexerConfig.Write(new DirectoryInfo(_root), "MyApi", "http://localhost:5100", overwrite: false);
+        _store.Write(new DirectoryInfo(_root), "MyApi", "http://localhost:5100", overwrite: false);
 
         var json = File.ReadAllText(Path.Combine(_root, "meridian.json"));
 
@@ -127,7 +119,7 @@ public sealed class IndexerConfigTests : IDisposable
     {
         var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
 
-        IndexerConfig.WriteGlobal("http://global:5100", overwrite: false, globalRoot);
+        _store.WriteGlobal("http://global:5100", overwrite: false, globalRoot);
 
         var json = File.ReadAllText(Path.Combine(globalRoot.FullName, "meridian.json"));
         json.Should().Contain("\"project\": \"\"");

@@ -1,29 +1,26 @@
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 
-namespace CodeMeridian.Indexer.Cli;
+namespace CodeMeridian.Tooling.Configuration;
 
-internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, bool AllowRepoScripts)
+public sealed class CodeMeridianConfigFileStore
 {
     private const string MeridianSampleFileName = "meridian.sample.json";
     private const string ConfigFileName = "meridian.json";
 
-    public static IndexerConfig? Load(DirectoryInfo startDirectory, DirectoryInfo? globalConfigDirectory = null)
+    public CodeMeridianConfigSnapshot? LoadLocal(DirectoryInfo startDirectory)
     {
-        var localConfigFile = FindLocalMeridianConfig(startDirectory);
-        if (localConfigFile is not null)
-            return LoadFile(localConfigFile, ignoreProject: false);
-
-        var globalConfigFile = FindGlobalMeridianConfig(globalConfigDirectory);
-        return globalConfigFile is null ? null : LoadFile(globalConfigFile, ignoreProject: true);
-    }
-
-    public static IndexerConfig? LoadLocal(DirectoryInfo startDirectory)
-    {
-        var configFile = FindLocalMeridianConfig(startDirectory);
+        var configFile = FindLocalConfig(startDirectory);
         return configFile is null ? null : LoadFile(configFile, ignoreProject: false);
     }
 
-    public static DirectoryInfo GetGlobalConfigDirectory()
+    public CodeMeridianConfigSnapshot? LoadGlobal(DirectoryInfo? globalConfigDirectory = null)
+    {
+        var configFile = FindGlobalConfig(globalConfigDirectory);
+        return configFile is null ? null : LoadFile(configFile, ignoreProject: false);
+    }
+
+    public DirectoryInfo GetGlobalConfigDirectory()
     {
         var overridePath = Environment.GetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME");
         if (!string.IsNullOrWhiteSpace(overridePath))
@@ -39,40 +36,15 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, b
             "codemeridian"));
     }
 
-    public static FileInfo GetGlobalConfigFile(DirectoryInfo? globalConfigDirectory = null) =>
+    public FileInfo GetGlobalConfigFile(DirectoryInfo? globalConfigDirectory = null) =>
         new(Path.Combine((globalConfigDirectory ?? GetGlobalConfigDirectory()).FullName, ConfigFileName));
 
-    public static void WriteGlobal(string codeMeridianUrl, bool overwrite = false, DirectoryInfo? globalConfigDirectory = null)
+    public void WriteGlobal(string codeMeridianUrl, bool overwrite = false, DirectoryInfo? globalConfigDirectory = null)
     {
         Write(globalConfigDirectory ?? GetGlobalConfigDirectory(), project: null, codeMeridianUrl, overwrite);
     }
 
-    private static IndexerConfig? LoadFile(FileInfo configFile, bool ignoreProject)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(
-                File.ReadAllText(configFile.FullName),
-                new JsonDocumentOptions
-                {
-                    CommentHandling = JsonCommentHandling.Skip,
-                    AllowTrailingCommas = true
-                });
-            var root = document.RootElement;
-
-            return new IndexerConfig(
-                ignoreProject ? null : ReadString(root, "project"),
-                ReadString(root, "codeMeridianUrl")
-                ?? ReadString(root, "url"),
-                ReadBoolean(root, "allowRepoScripts") ?? false);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    public static void Write(DirectoryInfo rootDirectory, string? project, string codeMeridianUrl, bool overwrite = false)
+    public void Write(DirectoryInfo rootDirectory, string? project, string codeMeridianUrl, bool overwrite = false)
     {
         Directory.CreateDirectory(rootDirectory.FullName);
 
@@ -83,6 +55,34 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, b
         var json = BuildMeridianJson(project, codeMeridianUrl);
         File.WriteAllText(filePath, json + Environment.NewLine);
         WriteSchemaFile(rootDirectory, overwrite);
+    }
+
+    private CodeMeridianConfigSnapshot? LoadFile(FileInfo configFile, bool ignoreProject)
+    {
+        try
+        {
+            var directoryPath = configFile.DirectoryName;
+            if (string.IsNullOrWhiteSpace(directoryPath))
+                return null;
+
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(directoryPath)
+                .AddJsonFile(configFile.Name, optional: false, reloadOnChange: false)
+                .Build();
+
+            var options = configuration.Get<CodeMeridianConfigFileOptions>();
+            if (options is null)
+                return null;
+
+            return new CodeMeridianConfigSnapshot(
+                ignoreProject ? null : NormalizeOptionalString(options.Project),
+                NormalizeOptionalString(options.CodeMeridianUrl) ?? NormalizeOptionalString(options.Url),
+                options.AllowRepoScripts);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string BuildMeridianJson(string? project, string codeMeridianUrl)
@@ -102,9 +102,7 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, b
 
         var sourcePath = Path.Combine(AppContext.BaseDirectory, "meridian.schema.json");
         if (File.Exists(sourcePath))
-        {
             File.Copy(sourcePath, targetPath, overwrite: true);
-        }
     }
 
     private static string ReadRequiredTemplate(string fileName)
@@ -116,7 +114,7 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, b
         throw new InvalidOperationException($"Required template file is missing: {sourcePath}");
     }
 
-    private static FileInfo? FindLocalMeridianConfig(DirectoryInfo directory)
+    private static FileInfo? FindLocalConfig(DirectoryInfo directory)
     {
         for (var current = directory; current is not null; current = current.Parent)
         {
@@ -128,31 +126,12 @@ internal sealed record IndexerConfig(string? Project, string? CodeMeridianUrl, b
         return null;
     }
 
-    private static FileInfo? FindGlobalMeridianConfig(DirectoryInfo? globalConfigDirectory)
+    private FileInfo? FindGlobalConfig(DirectoryInfo? globalConfigDirectory)
     {
         var configFile = GetGlobalConfigFile(globalConfigDirectory);
         return configFile.Exists ? configFile : null;
     }
 
-    private static string? ReadString(JsonElement root, string propertyName)
-    {
-        if (!root.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.String)
-            return null;
-
-        var result = value.GetString();
-        return string.IsNullOrWhiteSpace(result) ? null : result;
-    }
-
-    private static bool? ReadBoolean(JsonElement root, string propertyName)
-    {
-        if (!root.TryGetProperty(propertyName, out var value))
-            return null;
-
-        return value.ValueKind switch
-        {
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            _ => null
-        };
-    }
+    private static string? NormalizeOptionalString(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
