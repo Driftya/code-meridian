@@ -183,6 +183,20 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
             projectContext: projectName,
         });
     }
+    for (const testCase of extractIndexedTestCases(sourceFile, projectName, relPath)) {
+        addNode(nodes, knownIds, {
+            id: testCase.id,
+            name: testCase.name,
+            type: 'Method',
+            namespace,
+            filePath: relPath,
+            lineNumber: testCase.lineNumber,
+            lineCount: testCase.lineCount,
+            sourceSnippet: sourceSnippet(sourceFile, testCase.lineNumber, testCase.lineNumber + testCase.lineCount - 1),
+            sourceHash: sourceHash(sourceFile, testCase.lineNumber, testCase.lineNumber + testCase.lineCount - 1),
+            projectContext: projectName,
+        });
+    }
     // Enums
     for (const enumDecl of sourceFile.getEnums()) {
         const name = enumDecl.getName();
@@ -270,6 +284,12 @@ function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds,
             filePath: relPath,
         });
         addTypeUseEdges(projectName, rootPath, relPath, fn, fnId, edges, knownIds);
+    }
+    for (const testCase of extractIndexedTestCases(sourceFile, projectName, relPath)) {
+        if (knownIds.has(testCase.id)) {
+            edges.push({ sourceId: fId, targetId: testCase.id, type: 'Contains' });
+        }
+        addCallEdges(testCase.id, testCase.callback.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, { filePath: relPath });
     }
     for (const enumDecl of sourceFile.getEnums()) {
         const eId = nodeId(projectName, relPath, enumDecl.getName(), 'Enum');
@@ -703,6 +723,54 @@ function getNamespaceForPath(relPath, isTestFile) {
     if (!isTestFile)
         return namespace;
     return namespace ? `test/${namespace}` : 'test';
+}
+function extractIndexedTestCases(sourceFile, projectName, relPath) {
+    if (!isTestFilePath(relPath))
+        return [];
+    const testCases = [];
+    for (const call of sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+        const testInvoker = getTestInvokerName(call.getExpression());
+        if (!testInvoker)
+            continue;
+        const callback = [...call.getArguments()]
+            .reverse()
+            .find(arg => arg.getKind() === SyntaxKind.ArrowFunction || arg.getKind() === SyntaxKind.FunctionExpression);
+        if (!callback)
+            continue;
+        const label = resolveStringLiteralValue(call.getArguments()[0]) ?? `line-${call.getStartLineNumber()}`;
+        const lineNumber = callback.getStartLineNumber();
+        const endLineNumber = callback.getEndLineNumber();
+        const stableName = buildSyntheticTestCaseName(testInvoker, label, lineNumber);
+        testCases.push({
+            callback,
+            id: syntheticTestMethodId(projectName, relPath, stableName),
+            lineNumber,
+            lineCount: endLineNumber - lineNumber + 1,
+            name: stableName,
+        });
+    }
+    return testCases;
+}
+function getTestInvokerName(node) {
+    if (node.getKind() === SyntaxKind.Identifier) {
+        const name = node.getText();
+        return name === 'it' || name === 'test' ? name : undefined;
+    }
+    if (node.getKind() === SyntaxKind.PropertyAccessExpression) {
+        const propertyAccess = node.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+        return getTestInvokerName(propertyAccess.getExpression());
+    }
+    if (node.getKind() === SyntaxKind.CallExpression) {
+        return getTestInvokerName(node.asKindOrThrow(SyntaxKind.CallExpression).getExpression());
+    }
+    return undefined;
+}
+function buildSyntheticTestCaseName(testInvoker, label, lineNumber) {
+    const normalizedLabel = label.replace(/\s+/g, ' ').trim();
+    return `__testcase__.${testInvoker}.${normalizedLabel}@L${lineNumber}`;
+}
+function syntheticTestMethodId(projectName, relPath, name) {
+    return `${projectName}:Method:${sanitize(relPath)}:${sanitize(name)}`;
 }
 function resolveSymbolTargetId(projectName, rootPath, symbol, fallbackName, knownIds) {
     const visited = new Set();

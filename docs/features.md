@@ -97,6 +97,8 @@ The report separates:
 - Indirect shield: tests that protect callers/path nodes or only heuristic matches.
 - Unshielded path nodes: target-adjacent callers or route nodes with no obvious test protection.
 
+For TypeScript, direct shield detection now includes frontend test callback bodies in `.test.ts`, `.spec.ts`, and `tests` folders, so Jest and Vitest cases can protect application code even when the callback itself is anonymous.
+
 ```text
 Show the test shield for OrderService.PlaceOrderAsync.
 ```

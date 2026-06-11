@@ -1,0 +1,14 @@
+{
+  "name": "codemeridian",
+  "private": true,
+  "workspaces": [
+    "tools/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace codemeridian-ts-indexer",
+    "test": "npm run test --workspace codemeridian-ts-indexer",
+    "test:tools": "npm run test --workspaces --if-present",
+    "start:ts-indexer": "npm run start --workspace codemeridian-ts-indexer",
+    "index:ts": "npm run index --workspace codemeridian-ts-indexer"
+  }
+}

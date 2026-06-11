@@ -224,6 +224,21 @@ function collectNodes(
     });
   }
 
+  for (const testCase of extractIndexedTestCases(sourceFile, projectName, relPath)) {
+    addNode(nodes, knownIds, {
+      id: testCase.id,
+      name: testCase.name,
+      type: 'Method',
+      namespace,
+      filePath: relPath,
+      lineNumber: testCase.lineNumber,
+      lineCount: testCase.lineCount,
+      sourceSnippet: sourceSnippet(sourceFile, testCase.lineNumber, testCase.lineNumber + testCase.lineCount - 1),
+      sourceHash: sourceHash(sourceFile, testCase.lineNumber, testCase.lineNumber + testCase.lineCount - 1),
+      projectContext: projectName,
+    });
+  }
+
   // Enums
   for (const enumDecl of sourceFile.getEnums()) {
     const name = enumDecl.getName();
@@ -323,6 +338,20 @@ function collectEdges(
     addTypeUseEdges(projectName, rootPath, relPath, fn, fnId, edges, knownIds);
   }
 
+  for (const testCase of extractIndexedTestCases(sourceFile, projectName, relPath)) {
+    if (knownIds.has(testCase.id)) {
+      edges.push({ sourceId: fId, targetId: testCase.id, type: 'Contains' });
+    }
+
+    addCallEdges(
+      testCase.id,
+      testCase.callback.getDescendantsOfKind(SyntaxKind.CallExpression),
+      edges,
+      methodIndex,
+      { filePath: relPath },
+    );
+  }
+
   for (const enumDecl of sourceFile.getEnums()) {
     const eId = nodeId(projectName, relPath, enumDecl.getName(), 'Enum');
     if (knownIds.has(eId)) edges.push({ sourceId: fId, targetId: eId, type: 'Contains' });
@@ -416,6 +445,14 @@ interface RouteResolution {
   routeTemplate: string;
   confidence: number;
   source: string;
+}
+
+interface IndexedTestCase {
+  callback: Node;
+  id: string;
+  lineCount: number;
+  lineNumber: number;
+  name: string;
 }
 
 function indexMethods(nodes: CodeNodeDto[], methodIndex: Map<string, string[]>): void {
@@ -894,6 +931,66 @@ function getNamespaceForPath(relPath: string, isTestFile: boolean): string | und
   const namespace = dir === '.' ? undefined : dir;
   if (!isTestFile) return namespace;
   return namespace ? `test/${namespace}` : 'test';
+}
+
+function extractIndexedTestCases(
+  sourceFile: SourceFile,
+  projectName: string,
+  relPath: string,
+): IndexedTestCase[] {
+  if (!isTestFilePath(relPath)) return [];
+
+  const testCases: IndexedTestCase[] = [];
+  for (const call of sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+    const testInvoker = getTestInvokerName(call.getExpression());
+    if (!testInvoker) continue;
+
+    const callback = [...call.getArguments()]
+      .reverse()
+      .find(arg => arg.getKind() === SyntaxKind.ArrowFunction || arg.getKind() === SyntaxKind.FunctionExpression);
+    if (!callback) continue;
+
+    const label = resolveStringLiteralValue(call.getArguments()[0]) ?? `line-${call.getStartLineNumber()}`;
+    const lineNumber = callback.getStartLineNumber();
+    const endLineNumber = callback.getEndLineNumber();
+    const stableName = buildSyntheticTestCaseName(testInvoker, label, lineNumber);
+    testCases.push({
+      callback,
+      id: syntheticTestMethodId(projectName, relPath, stableName),
+      lineNumber,
+      lineCount: endLineNumber - lineNumber + 1,
+      name: stableName,
+    });
+  }
+
+  return testCases;
+}
+
+function getTestInvokerName(node: Node): 'it' | 'test' | undefined {
+  if (node.getKind() === SyntaxKind.Identifier) {
+    const name = node.getText();
+    return name === 'it' || name === 'test' ? name : undefined;
+  }
+
+  if (node.getKind() === SyntaxKind.PropertyAccessExpression) {
+    const propertyAccess = node.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+    return getTestInvokerName(propertyAccess.getExpression());
+  }
+
+  if (node.getKind() === SyntaxKind.CallExpression) {
+    return getTestInvokerName(node.asKindOrThrow(SyntaxKind.CallExpression).getExpression());
+  }
+
+  return undefined;
+}
+
+function buildSyntheticTestCaseName(testInvoker: 'it' | 'test', label: string, lineNumber: number): string {
+  const normalizedLabel = label.replace(/\s+/g, ' ').trim();
+  return `__testcase__.${testInvoker}.${normalizedLabel}@L${lineNumber}`;
+}
+
+function syntheticTestMethodId(projectName: string, relPath: string, name: string): string {
+  return `${projectName}:Method:${sanitize(relPath)}:${sanitize(name)}`;
 }
 
 function resolveSymbolTargetId(

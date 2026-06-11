@@ -302,6 +302,83 @@ export function deleteOrder(id: string) {
       ]),
     );
   });
+
+  it('indexes jest or vitest test callbacks as synthetic method nodes with call edges', () => {
+    writeFile(
+      'src/math.ts',
+      `export function calculate() {
+  return format();
+}
+
+export function format() {
+  return 'ok';
+}
+`,
+    );
+    writeFile(
+      'src/math.test.ts',
+      `import { calculate } from './math';
+
+it('calculates formatted output', () => {
+  calculate();
+});
+`,
+    );
+
+    const result = walkTypeScript(rootPath, 'Proj');
+    const testCaseNode = result.nodes.find(node => node.name === '__testcase__.it.calculates formatted output@L3');
+
+    expect(testCaseNode).toEqual(
+      expect.objectContaining({
+        type: 'Method',
+        filePath: 'src/math.test.ts',
+      }),
+    );
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:File:src_math.test.ts',
+      targetId: testCaseNode!.id,
+      type: 'Contains',
+    });
+    expect(result.edges).toContainEqual({
+      sourceId: testCaseNode!.id,
+      targetId: 'Proj:Method:src_math.ts:calculate',
+      type: 'Calls',
+    });
+  });
+
+  it('indexes chained test invocations such as test.each callbacks', () => {
+    writeFile(
+      'src/orders.ts',
+      `export function submitOrder() {
+  return true;
+}
+`,
+    );
+    writeFile(
+      'src/orders.spec.ts',
+      `import { submitOrder } from './orders';
+
+test.each([[1]])('submits order %s', () => {
+  submitOrder();
+});
+`,
+    );
+
+    const result = walkTypeScript(rootPath, 'Proj');
+    const testCaseNode = result.nodes.find(node => node.name === '__testcase__.test.submits order %s@L3');
+
+    expect(testCaseNode).toEqual(
+      expect.objectContaining({
+        type: 'Method',
+        filePath: 'src/orders.spec.ts',
+      }),
+    );
+    expect(result.edges).toContainEqual({
+      sourceId: testCaseNode!.id,
+      targetId: 'Proj:Method:src_orders.ts:submitOrder',
+      type: 'Calls',
+    });
+  });
 });
 
 function writeFile(relativePath: string, content: string): void {
