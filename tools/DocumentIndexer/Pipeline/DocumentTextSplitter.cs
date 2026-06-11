@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace CodeMeridian.Tooling.Documents;
+namespace CodeMeridian.DocumentIndexer.Pipeline;
 
 public static class DocumentTextSplitter
 {

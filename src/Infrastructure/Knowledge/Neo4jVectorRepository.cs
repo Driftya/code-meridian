@@ -160,6 +160,24 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                         targetIds = relatedDocumentIds
                     })).ConsumeAsync();
             }
+
+            await (await tx.RunAsync(
+                """
+                MATCH (t:KnowledgeDocument {id: $id})
+                WITH t, [value IN [$id, $source] WHERE value IS NOT NULL AND value <> ""] AS targetKeys
+                MATCH (d:KnowledgeDocument)
+                WHERE d.id <> $id
+                  AND d.projectContextNormalized = $projectContextNormalized
+                  AND d.relatedDocumentIds IS NOT NULL
+                  AND ANY(targetKey IN targetKeys WHERE targetKey IN split(d.relatedDocumentIds, ','))
+                MERGE (d)-[:References]->(t)
+                """,
+                new
+                {
+                    id = document.Id,
+                    source = document.Source,
+                    projectContextNormalized = Normalize(document.ProjectContext)
+                })).ConsumeAsync();
         });
     }
 
@@ -369,6 +387,9 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 
         if (props.TryGetValue("relatedNodeIds", out var relatedNodeIds) && relatedNodeIds is not null)
             metadata["relatedNodeIds"] = relatedNodeIds.As<string>();
+
+        if (props.TryGetValue("relatedDocumentIds", out var relatedDocumentIds) && relatedDocumentIds is not null)
+            metadata["relatedDocumentIds"] = relatedDocumentIds.As<string>();
 
         if (props.TryGetValue("metadataKind", out var metadataKind) && metadataKind is not null)
             metadata["kind"] = metadataKind.As<string>();

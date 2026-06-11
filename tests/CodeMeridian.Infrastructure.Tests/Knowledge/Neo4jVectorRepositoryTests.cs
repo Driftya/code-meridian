@@ -23,6 +23,7 @@ public sealed class Neo4jVectorRepositoryTests
         var props = new Dictionary<string, object?>
         {
             ["relatedNodeIds"] = "Method:Foo.Bar,Method:Baz.Qux",
+            ["relatedDocumentIds"] = "docs/features/01.md,docs/features/02.md",
             ["metadataKind"] = "agent-note"
         };
 
@@ -30,6 +31,8 @@ public sealed class Neo4jVectorRepositoryTests
 
         result.Should().ContainKey("relatedNodeIds");
         result["relatedNodeIds"].Should().Be("Method:Foo.Bar,Method:Baz.Qux");
+        result.Should().ContainKey("relatedDocumentIds");
+        result["relatedDocumentIds"].Should().Be("docs/features/01.md,docs/features/02.md");
         result.Should().ContainKey("kind");
         result["kind"].Should().Be("agent-note");
     }

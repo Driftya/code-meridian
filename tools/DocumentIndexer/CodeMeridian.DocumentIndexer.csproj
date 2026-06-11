@@ -10,7 +10,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Tooling\CodeMeridian.Tooling.csproj" />
     <ProjectReference Include="..\..\src\Sdk\CodeMeridian.Sdk.csproj" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.*" />

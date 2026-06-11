@@ -1,5 +1,4 @@
 using CodeMeridian.Sdk;
-using CodeMeridian.Tooling.Documents;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 
@@ -27,14 +26,13 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
 
                 var chunks = DocumentTextSplitter.SplitIntoChunks(content);
                 var relatedDocuments = ExtractDocumentReferences(content, relPath);
-                var relatedNodes = ExtractCodeFileReferences(content, rootPath, projectContext);
+                var relatedNodes = ExtractCodeFileReferences(content, projectContext, relPath);
                 logger.LogInformation("  {File} -> {Chunks} chunk(s)", relPath, chunks.Count);
 
                 for (var i = 0; i < chunks.Count; i++)
                 {
-                    var id = chunks.Count == 1
-                        ? $"{projectContext}::doc::{relPath}"
-                        : $"{projectContext}::doc::{relPath}::part{i + 1}";
+                    var id = BuildChunkDocumentId(projectContext, relPath, chunks.Count, i);
+                    var relatedChunkIds = BuildAdjacentChunkIds(projectContext, relPath, chunks.Count, i);
 
                     await client.IngestDocumentAsync(
                         content: chunks[i],
@@ -42,7 +40,7 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
                         projectContext: projectContext,
                         id: id,
                         relatedNodeIdsCsv: relatedNodes.Count > 0 ? string.Join(",", relatedNodes) : null,
-                        relatedDocumentIdsCsv: relatedDocuments.Count > 0 ? string.Join(",", relatedDocuments) : null,
+                        relatedDocumentIdsCsv: BuildRelatedDocumentIdsCsv(relatedDocuments, relatedChunkIds),
                         cancellationToken: cancellationToken);
 
                     count++;
@@ -69,8 +67,8 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
             if (target.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || target.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var normalized = target.TrimStart('.', '/').Replace('\\', '/');
-            if (normalized.Length == 0)
+            var normalized = NormalizeLinkTarget(target, sourcePath);
+            if (normalized is null)
                 continue;
 
             if (normalized.StartsWith('#'))
@@ -82,7 +80,7 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
         return references.ToList();
     }
 
-    private static List<string> ExtractCodeFileReferences(string content, string rootPath, string projectContext)
+    private static List<string> ExtractCodeFileReferences(string content, string projectContext, string sourcePath)
     {
         var references = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -95,7 +93,7 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
             if (target.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || target.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var normalized = NormalizeLinkTarget(target);
+            var normalized = NormalizeLinkTarget(target, sourcePath);
             if (normalized is null || !IsCodeFile(normalized))
                 continue;
 
@@ -104,7 +102,7 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
 
         foreach (Match match in InlineCodePathRegex().Matches(content))
         {
-            var normalized = NormalizeLinkTarget(match.Value);
+            var normalized = NormalizeLinkTarget(match.Value, sourcePath: null);
             if (normalized is null || !IsCodeFile(normalized))
                 continue;
 
@@ -120,11 +118,78 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
         references.Add($"{projectContext}::File::{relativePath}");
     }
 
-    private static string? NormalizeLinkTarget(string target)
+    private static string BuildChunkDocumentId(string projectContext, string relPath, int chunkCount, int chunkIndex) =>
+        chunkCount == 1
+            ? $"{projectContext}::doc::{relPath}"
+            : $"{projectContext}::doc::{relPath}::part{chunkIndex + 1}";
+
+    private static List<string> BuildAdjacentChunkIds(string projectContext, string relPath, int chunkCount, int chunkIndex)
+    {
+        var related = new List<string>(2);
+        if (chunkCount <= 1)
+            return related;
+
+        if (chunkIndex > 0)
+            related.Add(BuildChunkDocumentId(projectContext, relPath, chunkCount, chunkIndex - 1));
+
+        if (chunkIndex + 1 < chunkCount)
+            related.Add(BuildChunkDocumentId(projectContext, relPath, chunkCount, chunkIndex + 1));
+
+        return related;
+    }
+
+    private static string? BuildRelatedDocumentIdsCsv(List<string> relatedDocuments, List<string> relatedChunkIds)
+    {
+        var references = new List<string>(relatedDocuments);
+        references.AddRange(relatedChunkIds);
+
+        return references.Count == 0 ? null : string.Join(",", references.Distinct(StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static string? NormalizeLinkTarget(string target, string? sourcePath)
     {
         var normalized = target.Split('#', '?')[0].Trim();
-        normalized = normalized.TrimStart('.', '/').Replace('\\', '/');
-        return normalized.Length == 0 ? null : normalized;
+        if (normalized.Length == 0)
+            return null;
+
+        var isRootRelative = normalized.StartsWith('/') || normalized.StartsWith('\\');
+        normalized = normalized.Replace('\\', '/');
+        if (isRootRelative)
+            normalized = normalized.TrimStart('/');
+        else if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            var sourceDirectory = Path.GetDirectoryName(sourcePath.Replace('/', Path.DirectorySeparatorChar))
+                ?.Replace('\\', '/');
+            if (!string.IsNullOrWhiteSpace(sourceDirectory))
+                normalized = $"{sourceDirectory}/{normalized}";
+        }
+
+        var collapsed = CollapseRelativePath(normalized);
+        return collapsed.Length == 0 ? null : collapsed;
+    }
+
+    private static string CollapseRelativePath(string path)
+    {
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var collapsed = new List<string>(segments.Length);
+
+        foreach (var segment in segments)
+        {
+            if (segment == ".")
+                continue;
+
+            if (segment == "..")
+            {
+                if (collapsed.Count > 0)
+                    collapsed.RemoveAt(collapsed.Count - 1);
+
+                continue;
+            }
+
+            collapsed.Add(segment);
+        }
+
+        return string.Join("/", collapsed);
     }
 
     private static bool IsCodeFile(string path) =>
@@ -137,7 +202,7 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
     [GeneratedRegex(@"\[[^\]]+\]\((?<target>[^)]+)\)", RegexOptions.Compiled)]
     private static partial Regex MarkdownLinkRegex();
 
-    [GeneratedRegex(@"\b(?:[A-Za-z]:)?(?:[./\\][^\s`'""<>|]+)+\.(?:cs|ts|tsx|js|jsx)\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"(?<![\w])(?:[A-Za-z]:)?(?:\.{1,2}[\\/])?(?:[^\s`'""<>|:/\\]+[\\/])+[^\s`'""<>|:/\\]+\.(?:cs|ts|tsx|js|jsx)\b", RegexOptions.Compiled)]
     private static partial Regex InlineCodePathRegex();
 }
 

@@ -21,14 +21,17 @@ public sealed class DocumentIndexerPipelineTests : IDisposable
     }
 
     [Fact]
-    public async Task IngestAsync_InfersCodeAndDocumentReferencesFromMarkdown()
+    public async Task IngestAsync_ResolvesRootAndRelativeDocumentReferencesFromMarkdown()
     {
         var document = WriteFile(
             "docs/architecture.md",
             """
             # Architecture
 
-            See [payments implementation](../src/Payments/PaymentGateway.cs) and [design note](./design-note.md).
+            See [payments implementation](../src/Payments/PaymentGateway.cs),
+            [design note](./design-note.md),
+            [feature backlog](../features/01-add-build-minimal-context.md),
+            and [roadmap](/docs/features/34-add-safe-replacement-surface-guidance.md).
 
             Also reference `src/Orders/OrderService.ts` for the frontend integration path.
             """);
@@ -39,12 +42,77 @@ public sealed class DocumentIndexerPipelineTests : IDisposable
 
         await sut.IngestAsync([document], "DemoProject", _root);
 
+        handler.Requests.Should().ContainSingle();
+        var request = handler.Requests[0];
+
+        request.Path.Should().Be("/api/v1/knowledge/documents");
+        request.Body.GetProperty("relatedNodeIdsCsv").GetString().Should().Contain("DemoProject:File:src/Payments/PaymentGateway.cs");
+        request.Body.GetProperty("relatedNodeIdsCsv").GetString().Should().Contain("DemoProject::File::src/Payments/PaymentGateway.cs");
+        request.Body.GetProperty("relatedNodeIdsCsv").GetString().Should().Contain("DemoProject:File:src/Orders/OrderService.ts");
+        HasDocumentReferences(
+            request.Body.GetProperty("relatedDocumentIdsCsv").GetString(),
+            "docs/design-note.md",
+            "features/01-add-build-minimal-context.md",
+            "docs/features/34-add-safe-replacement-surface-guidance.md").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task IngestAsync_UsesSourceRelativeResolutionForTodoStyleRootLinks()
+    {
+        var document = WriteFile(
+            "TODO.md",
+            """
+            - [Feature 1](docs/features/01-add-build-minimal-context.md)
+            - [Feature 35](docs/features/35-add-knowledge-decay-graph.md)
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new DocumentIndexerPipeline(client, NullLogger<DocumentIndexerPipeline>.Instance);
+
+        await sut.IngestAsync([document], "DemoProject", _root);
+
         handler.Requests.Should().ContainSingle(request =>
             request.Path == "/api/v1/knowledge/documents"
-            && request.Body.GetProperty("relatedNodeIdsCsv").GetString()!.Contains("DemoProject:File:src/Payments/PaymentGateway.cs")
-            && request.Body.GetProperty("relatedNodeIdsCsv").GetString()!.Contains("DemoProject::File::src/Payments/PaymentGateway.cs")
-            && request.Body.GetProperty("relatedNodeIdsCsv").GetString()!.Contains("DemoProject:File:src/Orders/OrderService.ts")
-            && request.Body.GetProperty("relatedDocumentIdsCsv").GetString() == "design-note.md");
+            && HasDocumentReferences(
+                request.Body.GetProperty("relatedDocumentIdsCsv").GetString(),
+                "docs/features/01-add-build-minimal-context.md",
+                "docs/features/35-add-knowledge-decay-graph.md"));
+    }
+
+    [Fact]
+    public async Task IngestAsync_AddsAdjacentChunkReferences()
+    {
+        var paragraphOne = new string('A', 3_900);
+        var paragraphTwo = new string('B', 3_900);
+        var document = WriteFile(
+            "docs/large.md",
+            $"""
+            {paragraphOne}
+
+            {paragraphTwo}
+
+            [feature](./feature.md)
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new DocumentIndexerPipeline(client, NullLogger<DocumentIndexerPipeline>.Instance);
+
+        await sut.IngestAsync([document], "DemoProject", _root);
+
+        handler.Requests.Should().HaveCount(2);
+        handler.Requests[0].Body.GetProperty("id").GetString().Should().Be("DemoProject::doc::docs/large.md::part1");
+        HasDocumentReferences(
+            handler.Requests[0].Body.GetProperty("relatedDocumentIdsCsv").GetString(),
+            "docs/feature.md",
+            "DemoProject::doc::docs/large.md::part2").Should().BeTrue();
+
+        handler.Requests[1].Body.GetProperty("id").GetString().Should().Be("DemoProject::doc::docs/large.md::part2");
+        HasDocumentReferences(
+            handler.Requests[1].Body.GetProperty("relatedDocumentIdsCsv").GetString(),
+            "docs/feature.md",
+            "DemoProject::doc::docs/large.md::part1").Should().BeTrue();
     }
 
     private FileInfo WriteFile(string relativePath, string content)
@@ -59,6 +127,16 @@ public sealed class DocumentIndexerPipelineTests : IDisposable
     {
         if (Directory.Exists(_root))
             Directory.Delete(_root, recursive: true);
+    }
+
+    private static bool HasDocumentReferences(string? csv, params string[] expected)
+    {
+        csv.Should().NotBeNull();
+        var values = csv!
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return expected.All(values.Contains);
     }
 
     private sealed class RecordingHandler : HttpMessageHandler

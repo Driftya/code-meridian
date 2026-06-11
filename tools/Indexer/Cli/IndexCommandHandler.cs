@@ -6,7 +6,6 @@ using CodeMeridian.Indexer.Cli;
 using CodeMeridian.DocumentIndexer.Pipeline;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
-using CodeMeridian.Tooling.Documents;
 using CodeMeridian.Tooling.Discovery;
 using CodeMeridian.Tooling.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -295,7 +294,6 @@ internal sealed class IndexCommandHandler(
             .SetMinimumLevel(LogLevel.Information));
 
         services.AddCodeMeridianClient(_settings.CodeMeridianUrl, _settings.ApiKey);
-        services.AddTransient<DocumentIngestionService>();
         services.AddTransient<DocumentIndexerPipeline>();
 
         await using var provider = services.BuildServiceProvider();
