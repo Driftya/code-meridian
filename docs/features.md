@@ -254,7 +254,7 @@ Should I re-index before implementing this change?
 
 Detects knowledge that may be out of date after renames, reindexing, or documentation drift. It looks for unresolved document mentions, orphaned external concepts, stale notes, and orphaned code nodes.
 
-Documents can optionally include weak `relatedNodeIds` metadata when ingested; CodeMeridian stores that as `Mentions` edges from the document to current code nodes.
+Documents can optionally include weak `relatedNodeIds` metadata when ingested; CodeMeridian stores that as `Mentions` edges from the document to current code nodes. The document indexer also auto-infers likely code targets from Markdown links and inline file references, so most docs do not need manual `relatedNodeIds` authoring.
 
 ```text
 What CodeMeridian knowledge might be stale?
@@ -274,7 +274,7 @@ Manually add an edge between nodes.
 
 Ingest a documentation snippet so future sessions can find it with `search_documentation`.
 
-If you already know the code nodes a document should point to, pass weak mention metadata such as `relatedNodeIds` so CodeMeridian can create explicit `Mentions` links.
+If you already know the code nodes a document should point to, pass weak mention metadata such as `relatedNodeIds` so CodeMeridian can create explicit `Mentions` links. The document indexer also derives `relatedNodeIds` automatically from code-file links and inline file references when it can, which keeps the UX lightweight for normal docs.
 
 ### `link_external_concept`
 

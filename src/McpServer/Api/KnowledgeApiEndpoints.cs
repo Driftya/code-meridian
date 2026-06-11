@@ -108,7 +108,7 @@ public static class KnowledgeApiEndpoints
             Content = req.Content,
             Source = req.Source,
             ProjectContext = req.ProjectContext,
-            Metadata = ParseMetadata(req.RelatedNodeIdsCsv)
+            Metadata = ParseMetadata(req.RelatedNodeIdsCsv, req.RelatedDocumentIdsCsv)
         }, ct);
 
         return Results.Created("/api/v1/knowledge/documents", null);
@@ -176,19 +176,48 @@ public static class KnowledgeApiEndpoints
         nodeType is CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.Method or CodeNodeType.Enum or CodeNodeType.Diagnostic;
 
     private static string GenerateEmbeddingText(IngestNodeRequest req) =>
-        $"{req.Type} {req.Name}" +
-        (req.Summary is not null ? $" - {req.Summary}" : "") +
-        (req.Namespace is not null ? $" in {req.Namespace}" : "");
+        string.Join(" ",
+            new[]
+            {
+                $"{req.Type} {req.Name}",
+                req.Namespace is not null ? $"in {req.Namespace}" : null,
+                req.Summary is not null ? $"- {req.Summary}" : null,
+                NormalizeEmbeddingText(req.SourceSnippet)
+            }.Where(part => !string.IsNullOrWhiteSpace(part)));
 
-    private static Dictionary<string, string> ParseMetadata(string? relatedNodeIdsCsv)
+    private static string? NormalizeEmbeddingText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var normalized = value
+            .ReplaceLineEndings(" ")
+            .Trim();
+
+        return normalized.Length > 1_500
+            ? normalized[..1_500]
+            : normalized;
+    }
+
+    private static Dictionary<string, string> ParseMetadata(string? relatedNodeIdsCsv, string? relatedDocumentIdsCsv)
     {
         if (string.IsNullOrWhiteSpace(relatedNodeIdsCsv))
-            return [];
+        {
+            var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(relatedDocumentIdsCsv))
+                metadata["relatedDocumentIds"] = relatedDocumentIdsCsv;
+            return metadata;
+        }
 
-        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["relatedNodeIds"] = relatedNodeIdsCsv
         };
+
+        if (!string.IsNullOrWhiteSpace(relatedDocumentIdsCsv))
+            result["relatedDocumentIds"] = relatedDocumentIdsCsv;
+
+        return result;
     }
 }
 
@@ -262,7 +291,8 @@ internal sealed record IngestDocumentRequest(
     string? Id = null,
     string? Source = null,
     string? ProjectContext = null,
-    string? RelatedNodeIdsCsv = null);
+    string? RelatedNodeIdsCsv = null,
+    string? RelatedDocumentIdsCsv = null);
 
 internal sealed record EmbeddingRequest(string Text);
 

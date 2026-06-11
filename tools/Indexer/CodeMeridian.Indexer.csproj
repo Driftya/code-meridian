@@ -26,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Tooling\CodeMeridian.Tooling.csproj" />
     <ProjectReference Include="..\RoslynIndexer\CodeMeridian.RoslynIndexer.csproj" />
+    <ProjectReference Include="..\DocumentIndexer\CodeMeridian.DocumentIndexer.csproj" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.*" />
@@ -85,6 +86,13 @@
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\TsIndexer\src\**\*"
           Link="tools\TsIndexer\src\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\DocumentIndexer\**\*"
+          Exclude="..\DocumentIndexer\bin\**;..\DocumentIndexer\obj\**"
+          Link="tools\DocumentIndexer\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

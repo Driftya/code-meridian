@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <RootNamespace>CodeMeridian.DocumentIndexer</RootNamespace>
+    <AssemblyName>CodeMeridian.DocumentIndexer</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Tooling\CodeMeridian.Tooling.csproj" />
+    <ProjectReference Include="..\..\src\Sdk\CodeMeridian.Sdk.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.*" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.*" />
+    <PackageReference Include="System.CommandLine" Version="2.*" />
+  </ItemGroup>
+</Project>

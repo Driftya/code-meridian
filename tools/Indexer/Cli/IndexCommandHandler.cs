@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using CodeMeridian.Indexer.Cli;
+using CodeMeridian.DocumentIndexer.Pipeline;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
 using CodeMeridian.Tooling.Discovery;
@@ -38,6 +39,7 @@ internal sealed class IndexCommandHandler(
         var hasCSharp = !_settings.SkipCSharp && projectDiscoveryService.ContainsFile(_settings.RootPath, ".cs");
         var typeScriptRoots = _settings.SkipTypeScript ? [] : projectDiscoveryService.FindTypeScriptRoots(_settings.RootPath);
         var hasTypeScript = typeScriptRoots.Count > 0;
+        var documentFiles = _settings.IncludeDocs ? EnumerateIndexableFiles(_settings.RootPath, includeCSharp: false, includeTypeScript: false, includeDocs: true).ToArray() : [];
         var cacheDirectory = storagePathService.ResolveCacheDirectory(_settings.RootPath, _settings.Project, _settings.StorageMode);
         var cache = IncrementalIndexCache.Load(cacheDirectory, _settings.Project);
         var indexableFiles = EnumerateIndexableFiles(_settings.RootPath, hasCSharp, hasTypeScript, _settings.IncludeDocs).ToArray();
@@ -143,6 +145,13 @@ internal sealed class IndexCommandHandler(
 
                 clearNextIndexer = false;
             }
+        }
+
+        if (documentFiles.Length > 0)
+        {
+            exitCode = await RunDocumentIndexerAsync(documentFiles);
+            if (exitCode != 0)
+                return exitCode;
         }
 
         if (!_settings.SkipDiagnostics)
@@ -273,6 +282,23 @@ internal sealed class IndexCommandHandler(
         }
 
         logger.LogInformation("Watch mode stopped.");
+        return 0;
+    }
+
+    private async Task<int> RunDocumentIndexerAsync(FileInfo[] documentFiles)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging(builder => builder
+            .AddConsole()
+            .AddFilter("System.Net.Http.HttpClient", LogLevel.Warning)
+            .AddFilter("Microsoft", LogLevel.Warning)
+            .SetMinimumLevel(LogLevel.Information));
+        services.AddCodeMeridianClient(_settings.CodeMeridianUrl, _settings.ApiKey);
+        services.AddTransient<DocumentIndexerPipeline>();
+
+        await using var provider = services.BuildServiceProvider();
+        var pipeline = provider.GetRequiredService<DocumentIndexerPipeline>();
+        await pipeline.IngestAsync(documentFiles, _settings.Project, _settings.RootPath.FullName);
         return 0;
     }
 

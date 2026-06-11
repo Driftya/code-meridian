@@ -85,13 +85,16 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                 d.projectContextNormalized = $projectContextNormalized,
                 d.embedding      = $embedding,
                 d.relatedNodeIds = $relatedNodeIds,
+                d.relatedDocumentIds = $relatedDocumentIds,
                 d.metadataKind   = $metadataKind,
                 d.updatedAt      = $now
             """;
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var mentionIds = ExtractMentionIds(document.Metadata);
+        var relatedDocumentIds = ExtractRelatedDocumentIds(document.Metadata);
         var relatedNodeIds = mentionIds.Count > 0 ? string.Join(",", mentionIds) : null;
+        var relatedDocsCsv = relatedDocumentIds.Count > 0 ? string.Join(",", relatedDocumentIds) : null;
         var metadataKind = document.Metadata.TryGetValue("kind", out var kind) ? kind : null;
 
         await session.ExecuteWriteAsync(async tx =>
@@ -105,6 +108,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                 projectContextNormalized = Normalize(document.ProjectContext),
                 embedding = document.Embedding,
                 relatedNodeIds,
+                relatedDocumentIds = relatedDocsCsv,
                 metadataKind,
                 now
             });
@@ -130,6 +134,29 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                     {
                         id = document.Id,
                         mentionIds
+                    })).ConsumeAsync();
+            }
+
+            await (await tx.RunAsync(
+                """
+                MATCH (d:KnowledgeDocument {id: $id})-[r:References]->()
+                DELETE r
+                """,
+                new { id = document.Id })).ConsumeAsync();
+
+            if (relatedDocumentIds.Count > 0)
+            {
+                await (await tx.RunAsync(
+                    """
+                    UNWIND $targetIds AS targetId
+                    MATCH (d:KnowledgeDocument {id: $id})
+                    MATCH (t:KnowledgeDocument {source: targetId})
+                    MERGE (d)-[:References]->(t)
+                    """,
+                    new
+                    {
+                        id = document.Id,
+                        targetIds = relatedDocumentIds
                     })).ConsumeAsync();
             }
         });
@@ -333,6 +360,22 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
     private static List<string> ExtractMentionIds(IReadOnlyDictionary<string, string> metadata)
     {
         foreach (var key in new[] { "relatedNodeIds", "relatedNodes", "mentions" })
+        {
+            if (!metadata.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+                continue;
+
+            return raw
+                .Split(new[] { ',', ';', '|', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        return [];
+    }
+
+    private static List<string> ExtractRelatedDocumentIds(IReadOnlyDictionary<string, string> metadata)
+    {
+        foreach (var key in new[] { "relatedDocumentIds", "references", "relatedDocuments" })
         {
             if (!metadata.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
                 continue;
