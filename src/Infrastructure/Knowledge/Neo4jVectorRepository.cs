@@ -247,6 +247,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         await using var session = _driver.AsyncSession();
+        var luceneQuery = EscapeLuceneQuery(query);
 
         const string cypher = """
             CALL db.index.fulltext.queryNodes('knowledge_fulltext', $query)
@@ -259,7 +260,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 
         var cursor = await session.RunAsync(cypher, new
         {
-            query,
+            query = luceneQuery,
             projectContextNormalized = (object?)Normalize(projectContext),
             topK
         });
@@ -270,6 +271,23 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             results.Add(MapToDocument(record["node"].As<INode>()));
 
         return results;
+    }
+
+    private static string EscapeLuceneQuery(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return string.Empty;
+
+        var sb = new System.Text.StringBuilder(query.Length * 2);
+        foreach (var ch in query.Trim())
+        {
+            if ("+-!(){}[]^\"~*?:\\/".Contains(ch))
+                sb.Append('\\');
+
+            sb.Append(ch);
+        }
+
+        return sb.ToString();
     }
 
     public async Task DeleteAsync(string id, CancellationToken cancellationToken = default)

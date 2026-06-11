@@ -521,6 +521,8 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         CodeGraphQuery query,
         CancellationToken cancellationToken)
     {
+        var luceneQuery = EscapeLuceneQuery(query.SemanticQuery);
+
         // Full-text query; project filter applied post-retrieval if needed
         const string cypher = """
             CALL db.index.fulltext.queryNodes('codenode_fulltext', $query)
@@ -533,7 +535,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
         var cursor = await session.RunAsync(cypher, new
         {
-            query = query.SemanticQuery,
+            query = luceneQuery,
             projectContextNormalized = (object?)Normalize(query.ProjectContext),
             limit = query.Limit
         });
@@ -543,6 +545,23 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             nodes.Add(MapToCodeNode(record["node"].As<INode>()));
 
         return nodes;
+    }
+
+    private static string EscapeLuceneQuery(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return string.Empty;
+
+        var sb = new StringBuilder(query.Length * 2);
+        foreach (var ch in query.Trim())
+        {
+            if ("+-!(){}[]^\"~*?:\\/".Contains(ch))
+                sb.Append('\\');
+
+            sb.Append(ch);
+        }
+
+        return sb.ToString();
     }
 
     private static async Task<IReadOnlyList<CodeNode>> FilteredQueryAsync(

@@ -1,4 +1,3 @@
-using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
 using Microsoft.Extensions.Logging;
 
@@ -12,7 +11,6 @@ namespace CodeMeridian.RoslynIndexer.Pipeline;
 /// </summary>
 public sealed class IndexerPipeline(
     CSharpIndexer csharpIndexer,
-    DocumentIngester documentIngester,
     CodeMeridianClient client,
     ILogger<IndexerPipeline> logger)
 {
@@ -20,7 +18,6 @@ public sealed class IndexerPipeline(
         DirectoryInfo root,
         string projectContext,
         bool clear,
-        bool includeDocs,
         IReadOnlyCollection<string>? changedFiles = null,
         IReadOnlyCollection<string>? deletedFiles = null,
         CancellationToken cancellationToken = default)
@@ -73,32 +70,6 @@ public sealed class IndexerPipeline(
             "Code graph: {Nodes} nodes, {Edges} edges ingested.",
             stats.Nodes, stats.Edges);
 
-        // -- Phase 2: Documentation --------------------------------------------
-        if (includeDocs)
-        {
-            var docFiles = root
-                .EnumerateFiles("*.*", SearchOption.AllDirectories)
-                .Where(f => IsDocFile(f.Name) && !IsGenerated(f.FullName))
-                .Where(f => changedFiles is null || changedFiles.Contains(RelativePath(root, f), StringComparer.OrdinalIgnoreCase))
-                .ToArray();
-
-            logger.LogInformation("Found {Count} documentation files to ingest.", docFiles.Length);
-
-            if (changedFiles is not null)
-            {
-                foreach (var file in docFiles)
-                {
-                    var relPath = RelativePath(root, file);
-                    logger.LogInformation("Removing stale document chunks for {File} before re-ingesting...", relPath);
-                    await client.DeleteProjectFileAsync(projectContext, relPath, cancellationToken);
-                }
-            }
-
-            var docStats = await documentIngester.IngestAsync(docFiles, projectContext, root.FullName, cancellationToken);
-
-            logger.LogInformation("{Count} documents ingested.", docStats.Documents);
-        }
-
         logger.LogInformation("=== Indexing complete for '{Project}' ===", projectContext);
     }
 
@@ -125,11 +96,6 @@ public sealed class IndexerPipeline(
             segment.Equals("build", StringComparison.OrdinalIgnoreCase) ||
             segment.Equals("coverage", StringComparison.OrdinalIgnoreCase));
     }
-
-    private static bool IsDocFile(string name) =>
-        name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
-        name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) ||
-        name is "agents.md" or "README.md" or "ARCHITECTURE.md" or "CHANGELOG.md";
 
     private static string RelativePath(DirectoryInfo root, FileInfo file) =>
         Path.GetRelativePath(root.FullName, file.FullName).Replace('\\', '/');

@@ -28,14 +28,12 @@ internal sealed class RoslynRootCommandFactory(
         var urlOption = new Option<string?>("--url") { Description = "CodeMeridian base URL." };
         urlOption.Aliases.Add("--CodeMeridian");
         var clearOption = new Option<bool>("--clear") { Description = "Remove existing knowledge before indexing." };
-        var noDocsOption = new Option<bool>("--no-docs") { Description = "Skip ingestion of .md/.txt files." };
-        var watchOption = new Option<bool>("--watch") { Description = "Stay running and re-index when .cs or .md files change." };
+        var watchOption = new Option<bool>("--watch") { Description = "Stay running and re-index when .cs files change." };
 
         root.Add(pathArgument);
         root.Add(projectOption);
         root.Add(urlOption);
         root.Add(clearOption);
-        root.Add(noDocsOption);
         root.Add(watchOption);
 
         root.SetAction(async parseResult =>
@@ -48,7 +46,6 @@ internal sealed class RoslynRootCommandFactory(
                 CodeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, parseResult.GetValue(urlOption)),
                 ApiKey = context.ApiKey,
                 Clear = parseResult.GetValue(clearOption),
-                IncludeDocs = !parseResult.GetValue(noDocsOption),
                 Watch = parseResult.GetValue(watchOption)
             };
 
@@ -75,7 +72,6 @@ internal sealed class RoslynIndexerSettings
     public required string CodeMeridianUrl { get; init; }
     public string? ApiKey { get; init; }
     public bool Clear { get; init; }
-    public bool IncludeDocs { get; init; } = true;
     public bool Watch { get; init; }
 }
 
@@ -93,13 +89,12 @@ internal sealed class RoslynIndexCommandHandler(IOptions<RoslynIndexerSettings> 
 
         services.AddCodeMeridianClient(_settings.CodeMeridianUrl, _settings.ApiKey);
         services.AddTransient<CSharpIndexer>();
-        services.AddTransient<DocumentIngester>();
         services.AddTransient<IndexerPipeline>();
 
         await using var provider = services.BuildServiceProvider();
         var pipeline = provider.GetRequiredService<IndexerPipeline>();
 
-        await pipeline.RunAsync(_settings.RootPath, _settings.Project, _settings.Clear, _settings.IncludeDocs);
+        await pipeline.RunAsync(_settings.RootPath, _settings.Project, _settings.Clear);
 
         if (!_settings.Watch)
             return 0;
@@ -138,7 +133,6 @@ internal sealed class RoslynIndexCommandHandler(IOptions<RoslynIndexerSettings> 
                         _settings.RootPath,
                         _settings.Project,
                         clear: false,
-                        includeDocs: _settings.IncludeDocs,
                         changedFiles: changedBatch,
                         deletedFiles: deletedBatch,
                         cancellationToken: cts.Token);
@@ -159,7 +153,6 @@ internal sealed class RoslynIndexCommandHandler(IOptions<RoslynIndexerSettings> 
         };
 
         fsWatcher.Filters.Add("*.cs");
-        fsWatcher.Filters.Add("*.md");
         fsWatcher.Changed += (_, e) => ScheduleReindex(e.FullPath, deleted: false);
         fsWatcher.Created += (_, e) => ScheduleReindex(e.FullPath, deleted: false);
         fsWatcher.Deleted += (_, e) => ScheduleReindex(e.FullPath, deleted: true);
