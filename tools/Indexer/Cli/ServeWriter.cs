@@ -20,6 +20,7 @@ internal sealed class ServeWriter
             WriteCompose(options),
             WriteMcpJson(options),
             WriteCodexToml(options),
+            WriteContinueMcpServer(options),
         };
 
         var composePath = Path.Combine(options.RootDirectory.FullName, options.ComposeFileName);
@@ -35,6 +36,7 @@ internal sealed class ServeWriter
         [
             WriteMcpJson(rootDirectory, mcpUrl, force),
             WriteCodexToml(rootDirectory, mcpUrl, force),
+            WriteContinueMcpServer(rootDirectory, mcpUrl, force),
         ];
     }
 
@@ -167,6 +169,19 @@ internal sealed class ServeWriter
         var original = File.ReadAllText(path);
         var content = ReplaceTomlSection(original, "mcp_servers.CodeMeridian", section);
         return WriteMergedFile(path, content, existed: true, force);
+    }
+
+    private static ServeFileChange WriteContinueMcpServer(ServeOptions options) =>
+        WriteContinueMcpServer(options.RootDirectory, $"http://{options.Host}:{options.Port}/sse", options.Force);
+
+    private static ServeFileChange WriteContinueMcpServer(DirectoryInfo rootDirectory, string mcpUrl, bool force)
+    {
+        var directory = Path.Combine(rootDirectory.FullName, ".continue", "mcpServers");
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(directory, "code-meridian.yaml");
+        var content = BuildContinueMcpServerContent(mcpUrl);
+        return WriteWholeFile(path, content, force);
     }
 
     private static ServeFileChange WriteWholeFile(string path, string content, bool force)
@@ -364,6 +379,16 @@ internal sealed class ServeWriter
     {
         return RenderTemplate(
             ReadRequiredTemplate(Path.Combine(".codex", "config.sample.toml")),
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["mcpUrl"] = mcpUrl
+            });
+    }
+
+    private static string BuildContinueMcpServerContent(string mcpUrl)
+    {
+        return RenderTemplate(
+            ReadRequiredTemplate(Path.Combine(".continue", "mcpServers", "code-meridian.sample.yaml")),
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["mcpUrl"] = mcpUrl

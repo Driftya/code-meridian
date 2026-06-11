@@ -24,6 +24,18 @@ afterEach(() => {
 });
 
 describe('parseCommandLine', () => {
+  it('uses the repository root for repo-local cache storage', async () => {
+    const repoRoot = path.join(rootPath, 'repo');
+    const projectRoot = path.join(repoRoot, 'tools', 'TsIndexer');
+    fs.mkdirSync(projectRoot, { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, 'CodeMeridian.sln'), '');
+
+    const result = await parseCommandLine(['node', 'codemeridian-ts-indexer', projectRoot]);
+
+    expect(result.storageMode).toBe('repo');
+    expect(result.cacheDirectory).toBe(path.join(repoRoot, '.meridian', 'cache'));
+  });
+
   it('loads server url and global storage mode from global meridian config', async () => {
     fs.writeFileSync(
       path.join(globalConfigRoot, 'meridian.json'),

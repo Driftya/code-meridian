@@ -66,6 +66,11 @@
           Pack="true"
           PackagePath=".codex\"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\.continue\mcpServers\code-meridian.sample.yaml"
+          Link=".continue\mcpServers\code-meridian.sample.yaml"
+          Pack="true"
+          PackagePath=".continue\mcpServers\"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

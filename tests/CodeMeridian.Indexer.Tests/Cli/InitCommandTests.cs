@@ -35,6 +35,7 @@ public sealed class InitCommandTests : IDisposable
         File.Exists(Path.Combine(_root, "meridian.schema.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".continue", "mcpServers", "code-meridian.yaml")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".env")).Should().BeFalse();
         File.Exists(Path.Combine(_root, "docker-compose.codemeridian.yml")).Should().BeFalse();
 
@@ -62,6 +63,7 @@ public sealed class InitCommandTests : IDisposable
         File.Exists(Path.Combine(_root, "meridian.json")).Should().BeFalse();
         File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeFalse();
         File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeFalse();
+        File.Exists(Path.Combine(_root, ".continue", "mcpServers", "code-meridian.yaml")).Should().BeFalse();
 
         var meridianJson = File.ReadAllText(meridianJsonPath);
         meridianJson.Should().Contain("\"project\": \"\"");

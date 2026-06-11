@@ -39,6 +39,7 @@ function resolveOptions(options) {
     }
     loadEnvironmentForInvocation(rootPath);
     const meridianConfig = loadMeridianConfigForInvocation(rootPath);
+    const repositoryRoot = findRepositoryRoot(rootPath) ?? rootPath;
     const projectName = normalizeOptionalString(options.project)
         ?? normalizeOptionalString(process.env.CodeMeridian_Project)
         ?? normalizeOptionalString(meridianConfig.local?.project)
@@ -52,7 +53,7 @@ function resolveOptions(options) {
     const useGlobalCache = meridianConfig.local?.useGlobalCache ?? meridianConfig.global?.useGlobalCache ?? false;
     const cacheDirectory = useGlobalCache
         ? path.join(resolveGlobalConfigDirectory(), 'projects', resolveCacheProjectKey(rootPath, projectName), 'cache')
-        : path.join(rootPath, '.meridian', 'cache');
+        : path.join(repositoryRoot, '.meridian', 'cache');
     return {
         rootPath,
         projectName,
@@ -73,4 +74,17 @@ function resolveCacheProjectKey(rootPath, projectName) {
     const normalized = projectName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const hash = crypto.createHash('sha256').update(rootPath.replace(/\\/g, '/').toLowerCase()).digest('hex').slice(0, 12);
     return `${normalized || 'project'}-${hash}`;
+}
+function findRepositoryRoot(startPath) {
+    for (let current = path.resolve(startPath);; current = path.dirname(current)) {
+        if (fs.existsSync(path.join(current, '.git')) ||
+            fs.existsSync(path.join(current, 'CodeMeridian.sln')) ||
+            fs.existsSync(path.join(current, 'CodeMeridian.slnx'))) {
+            return current;
+        }
+        const parent = path.dirname(current);
+        if (parent === current) {
+            return undefined;
+        }
+    }
 }
