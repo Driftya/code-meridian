@@ -1,6 +1,6 @@
 {
   "name": "codemeridian-ts-indexer",
-  "version": "1.0.0",
+  "version": "1.0.12",
   "description": "TypeScript codebase indexer for CodeMeridian — walks TS/TSX files with ts-morph and pushes the structural graph into Neo4j via the CodeMeridian REST API.",
   "private": true,
   "type": "module",
@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "chokidar": "^4.0.0",
-    "node-fetch": "^3.3.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7",
+    "find-up": "^7.0.0",
     "ts-morph": "^24.0.0"
   },
   "devDependencies": {
