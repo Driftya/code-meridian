@@ -73,6 +73,23 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindCoverageGapsAsync(projectContext, detailLevel, cancellationToken);
 
+    [McpServerTool(Name = "find_test_shield")]
+    [Description(
+        "Show which tests protect a target change path. " +
+        "Use this before risky edits to separate direct test callers, indirect shields on callers/path nodes, " +
+        "and unshielded path nodes that currently have little or no test protection.")]
+    public Task<string> FindTestShieldAsync(
+        [Description("Target node ID to analyse, preferably an exact method/class ID.")]
+        string nodeId,
+        [Description("Optional project name to scope related-test lookups when the node itself has no project context.")]
+        string? projectContext = null,
+        [Description("How many caller hops to inspect for shield coverage. Default 2.")]
+        int depth = 2,
+        [Description("Maximum number of path findings to include per section. Default 20.")]
+        int limit = 20,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindTestShieldAsync(nodeId, projectContext, depth, limit, cancellationToken);
+
     [McpServerTool(Name = "find_recently_changed")]
     [Description(
         "Find code nodes created or updated within a time window. " +

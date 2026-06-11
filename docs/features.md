@@ -87,6 +87,20 @@ Which parts of MyApi have no test coverage?
 
 Test detection is heuristic: nodes are treated as tests when their namespace or file path contains `test`.
 
+### `find_test_shield`
+
+Shows which tests protect a target change path.
+
+The report separates:
+
+- Direct shield: tests with a direct `Calls` edge to the target.
+- Indirect shield: tests that protect callers/path nodes or only heuristic matches.
+- Unshielded path nodes: target-adjacent callers or route nodes with no obvious test protection.
+
+```text
+Show the test shield for OrderService.PlaceOrderAsync.
+```
+
 ### `find_recently_changed`
 
 Finds nodes created or updated within a time window such as `24h`, `7d`, `2h`, or `30m`.

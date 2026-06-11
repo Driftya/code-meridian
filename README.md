@@ -180,6 +180,7 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `find_connection` | Shortest path between two code elements |
 | `find_unreferenced` | Dead-code candidates |
 | `find_coverage_gaps` | Production code not called by tests |
+| `find_test_shield` | Map direct test protection, indirect shields, and unshielded change-path nodes |
 | `find_similar_nodes` | Find duplicate code patterns (requires embeddings enabled) |
 | `find_duplicate_candidates` | Review likely duplicate methods/classes with refactor-risk signals |
 | `search_documentation` | Search indexed README/ADR/documentation content |

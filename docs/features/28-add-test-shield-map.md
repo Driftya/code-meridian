@@ -1,6 +1,6 @@
 ﻿# Add Test Shield Map
 
-- Status: pending
+- Status: done
 - Priority: P2
 - Note: Show which tests protect a change path.
 
@@ -11,3 +11,5 @@
 **Expected output:**
 
 - Direct test shield, indirect shield, and unshielded paths for the target.
+
+**Implemented:** Added `find_test_shield`, which combines exact target context, caller-path impact, and existing related-test signals to show how well a change path is protected. The output separates direct test callers to the target from indirect shields on caller/path nodes or heuristic matches, then highlights unshielded path nodes where tests should be added before risky behavior changes.

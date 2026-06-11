@@ -177,6 +177,25 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindConnectionAsync_WithRouteLinkedPath_IncludesApiEndpointHop()
+    {
+        var (sut, graph) = Build();
+        graph.FindConnectionAsync("frontend", "backend", Arg.Any<CancellationToken>())
+             .Returns([
+                 (Node("frontend", "loadOrders", CodeNodeType.Method, "src/web/orders.ts", project: "Shop.Web"), (string?)null),
+                 (Node("route", "POST /api/orders", CodeNodeType.ApiEndpoint, project: "Shop.Api"), "Calls"),
+                 (Node("backend", "CreateOrder", CodeNodeType.Method, "src/api/OrdersController.cs", project: "Shop.Api"), "Uses")
+             ]);
+
+        var result = await sut.FindConnectionAsync("frontend", "backend");
+
+        result.Should().Contain("POST /api/orders");
+        result.Should().Contain("**ApiEndpoint**");
+        result.Should().Contain("loadOrders");
+        result.Should().Contain("CreateOrder");
+    }
+
+    [Fact]
     public async Task FindUnreferencedAsync_WithResults_GroupsByTypeAndIncludesDisclaimer()
     {
         var (sut, graph) = Build();
@@ -278,6 +297,55 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     // ── FindRecentlyChangedAsync ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task FindTestShieldAsync_WithDirectIndirectAndUnshieldedPath_RendersShieldSections()
+    {
+        var (sut, graph) = Build();
+        var target = Node("m1", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop");
+        var endpoint = Node("e1", "POST /api/orders", CodeNodeType.ApiEndpoint, project: "Shop");
+        var frontendCaller = Node("w1", "submitOrder", CodeNodeType.Method, "src/web/orders-client.ts", 22, "Shop.Web");
+        var directTest = Node("t1", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 5, "Shop");
+        var routeShield = Node("t2", "OrdersEndpointTests", CodeNodeType.Class, "tests/Api/OrdersEndpointTests.cs", 8, "Shop");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [endpoint], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([(endpoint, 1), (frontendCaller, 2)]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([(directTest, "direct")]);
+        graph.FindRelatedTestsAsync(endpoint.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([(routeShield, "direct")]);
+        graph.FindRelatedTestsAsync(frontendCaller.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+
+        var result = await sut.FindTestShieldAsync(target.Id, depth: 2);
+
+        result.Should().Contain("## Test Shield Map");
+        result.Should().Contain("1 direct, 1 indirect, 1 unshielded path nodes");
+        result.Should().Contain("### Direct test shield (1)");
+        result.Should().Contain("OrderServiceTests");
+        result.Should().Contain("direct `Calls` edge to `PlaceOrder`");
+        result.Should().Contain("### Indirect test shield (1)");
+        result.Should().Contain("OrdersEndpointTests");
+        result.Should().Contain("directly protects `POST /api/orders` on the caller path");
+        result.Should().Contain("### Unshielded path nodes (1)");
+        result.Should().Contain("submitOrder");
+        result.Should().Contain("no direct or heuristic related tests found");
+    }
+
+    [Fact]
+    public async Task FindTestShieldAsync_WhenNodeMissing_ReturnsGuidance()
+    {
+        var (sut, graph) = Build();
+        graph.GetContextForEditingAsync("missing", Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(null, [], [], []));
+
+        var result = await sut.FindTestShieldAsync("missing");
+
+        result.Should().Contain("Node `missing` not found");
+        result.Should().Contain("resolve_exact_symbol");
+    }
 
     [Fact]
     public async Task FindRecentlyChangedAsync_WhenEmpty_ReturnsNoChangesMessage()
@@ -1085,6 +1153,54 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("10 downstream dependencies");
         result.Should().Contain("nearby coverage gaps");
         result.Should().Contain("no related tests found");
+    }
+
+    [Fact]
+    public async Task BuildMinimalContextAsync_WithRouteLinkedGraphData_IncludesApiEndpointsAndCrossProjectCallers()
+    {
+        var (sut, graph) = Build();
+        var target = Node(
+            "Method:Shop.Api.OrdersController.CreateOrder",
+            "CreateOrder",
+            CodeNodeType.Method,
+            "src/api/OrdersController.cs",
+            18,
+            "Shop.Api",
+            lineCount: 20);
+        var frontendCaller = Node(
+            "Method:Shop.Web.OrdersClient.submitOrder",
+            "submitOrder",
+            CodeNodeType.Method,
+            "src/web/orders-client.ts",
+            27,
+            "Shop.Web");
+        var apiEndpoint = Node(
+            "Shop.Api::ApiEndpoint::POST /api/orders",
+            "POST /api/orders",
+            CodeNodeType.ApiEndpoint,
+            project: "Shop.Api");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [apiEndpoint], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([(apiEndpoint, 1), (frontendCaller, 2)]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([(apiEndpoint, 1)]);
+        graph.FindCoverageGapsAsync("Shop.Api", Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop.Api", Arg.Any<CancellationToken>())
+             .Returns([]);
+
+        var result = await sut.BuildMinimalContextAsync(target.Id);
+
+        result.Should().Contain("### Direct callers (1)");
+        result.Should().Contain("**ApiEndpoint** `POST /api/orders`");
+        result.Should().Contain("### Near impact (2)");
+        result.Should().Contain("submitOrder");
+        result.Should().Contain("src/web/orders-client.ts");
+        result.Should().Contain("### Near downstream (1)");
+        result.Should().Contain("POST /api/orders");
+        result.Should().Contain("1 cross-project edges");
     }
 
     [Fact]

@@ -11,6 +11,7 @@ public interface ICodebaseQueryService
     Task<string> FindUnreferencedAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindCrossProjectDependenciesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindCoverageGapsAsync(string? projectContext = null, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
+    Task<string> FindTestShieldAsync(string nodeId, string? projectContext = null, int depth = 2, int limit = 20, CancellationToken cancellationToken = default);
     Task<string> FindRecentlyChangedAsync(string? projectContext = null, string window = "24h", CancellationToken cancellationToken = default);
     Task<string> FindLargeNodesAsync(string? projectContext = null, int classThreshold = 400, int methodThreshold = 40, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
     Task<string> GetContextForEditingAsync(string nodeId, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);

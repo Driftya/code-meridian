@@ -202,6 +202,131 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
+    public async Task<string> FindTestShieldAsync(
+        string nodeId,
+        string? projectContext = null,
+        int depth = 2,
+        int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
+        if (ctx.Node is null)
+            return $"Node `{nodeId}` not found in the graph. Run `query_codebase` or `resolve_exact_symbol` to find the correct target before checking its test shield.";
+
+        var scope = ctx.Node.ProjectContext ?? projectContext;
+        var impact = await codeGraph.FindImpactAsync(ctx.Node.Id, Math.Clamp(depth, 1, 8), cancellationToken);
+        var directAndHeuristicTargetTests = await codeGraph.FindRelatedTestsAsync(ctx.Node.Id, scope, cancellationToken);
+
+        var pathNodes = new[] { ctx.Node }
+            .Concat(ctx.Callers)
+            .Concat(impact.Select(i => i.Node))
+            .Where(node => !IsConfiguredTestNode(node))
+            .DistinctBy(node => node.Id)
+            .Take(Math.Clamp(limit * 2, 10, 100))
+            .ToArray();
+
+        var directShield = directAndHeuristicTargetTests
+            .Where(match => match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
+            .Select(match => match.Node)
+            .DistinctBy(node => node.Id)
+            .Take(Math.Clamp(limit, 1, 50))
+            .ToArray();
+
+        var indirectShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
+        foreach (var match in directAndHeuristicTargetTests.Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase)))
+        {
+            indirectShield[match.Node.Id] = new ShieldEntry(
+                match.Node,
+                $"heuristic match for target `{ctx.Node.Name}`",
+                ctx.Node,
+                "heuristic");
+        }
+
+        var unshielded = new List<CodeNode>();
+        foreach (var pathNode in pathNodes)
+        {
+            var relatedTests = pathNode.Id == ctx.Node.Id
+                ? directAndHeuristicTargetTests
+                : await codeGraph.FindRelatedTestsAsync(pathNode.Id, scope, cancellationToken);
+
+            var hasShield = false;
+            foreach (var match in relatedTests)
+            {
+                hasShield = true;
+                if (pathNode.Id == ctx.Node.Id && match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (directShield.Any(test => test.Id == match.Node.Id))
+                    continue;
+
+                var reason = match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase)
+                    ? $"directly protects `{pathNode.Name}` on the caller path"
+                    : $"heuristic match for `{pathNode.Name}` on the caller path";
+                indirectShield[match.Node.Id] = new ShieldEntry(
+                    match.Node,
+                    reason,
+                    pathNode,
+                    match.MatchType);
+            }
+
+            if (!hasShield)
+                unshielded.Add(pathNode);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Test Shield Map - `{ctx.Node.Name}`");
+        sb.AppendLine($"**Target:** {ctx.Node.Type} `{ctx.Node.Name}`");
+        sb.AppendLine($"**File:** `{ctx.Node.FilePath ?? "—"}`{(ctx.Node.LineNumber.HasValue ? $":{ctx.Node.LineNumber}" : "")}");
+        sb.AppendLine($"**Path depth:** {Math.Clamp(depth, 1, 8)}");
+        sb.AppendLine($"**Shield summary:** {directShield.Length} direct, {indirectShield.Count} indirect, {unshielded.Count} unshielded path nodes");
+        sb.AppendLine();
+
+        sb.AppendLine($"### Direct test shield ({directShield.Length})");
+        if (directShield.Length == 0)
+        {
+            sb.AppendLine("- none");
+        }
+        else
+        {
+            foreach (var test in directShield)
+                sb.AppendLine($"- **{test.Type}** `{test.Name}`{FormatLocation(test)} — direct `Calls` edge to `{ctx.Node.Name}`");
+        }
+        sb.AppendLine();
+
+        sb.AppendLine($"### Indirect test shield ({indirectShield.Count})");
+        if (indirectShield.Count == 0)
+        {
+            sb.AppendLine("- none");
+        }
+        else
+        {
+            foreach (var shield in indirectShield.Values
+                         .OrderBy(entry => entry.ProtectedNode.Id == ctx.Node.Id ? 0 : 1)
+                         .ThenBy(entry => entry.TestNode.Name, StringComparer.OrdinalIgnoreCase)
+                         .Take(Math.Clamp(limit, 1, 50)))
+            {
+                sb.AppendLine($"- **{shield.TestNode.Type}** `{shield.TestNode.Name}`{FormatLocation(shield.TestNode)} — {shield.Reason}");
+            }
+        }
+        sb.AppendLine();
+
+        sb.AppendLine($"### Unshielded path nodes ({unshielded.Count})");
+        if (unshielded.Count == 0)
+        {
+            sb.AppendLine("- none");
+        }
+        else
+        {
+            foreach (var node in unshielded.Take(Math.Clamp(limit, 1, 50)))
+                sb.AppendLine($"- **{node.Type}** `{node.Name}`{FormatLocation(node)} — no direct or heuristic related tests found");
+        }
+        sb.AppendLine();
+
+        sb.AppendLine("> Direct shield means a test directly calls the target. Indirect shield means tests protect callers or nearby path nodes, or only heuristic matches exist. Unshielded path nodes are the highest-priority places to add tests before changing behavior.");
+
+        return sb.ToString();
+    }
+
     public async Task<string> FindRecentlyChangedAsync(
         string? projectContext = null,
         string window = "24h",
@@ -341,6 +466,12 @@ public partial class CodebaseQueryService
 
         return sb.ToString();
     }
+
+    private sealed record ShieldEntry(
+        CodeNode TestNode,
+        string Reason,
+        CodeNode ProtectedNode,
+        string MatchType);
 
     public async Task<string> BuildMinimalContextAsync(
         string target,
