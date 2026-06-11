@@ -146,9 +146,10 @@ async function runCaptureAsync(
   arguments_: string[],
   workingDirectory: string,
 ): Promise<{ exitCode: number; output: string }> {
+  const useShell = process.platform === 'win32' && fileName.endsWith('.cmd');
   const child = spawn(fileName, arguments_, {
     cwd: workingDirectory,
-    shell: false,
+    shell: useShell,
     windowsHide: true,
   });
 
@@ -162,6 +163,10 @@ async function runCaptureAsync(
   });
 
   const exitCode = await new Promise<number>(resolve => {
+    child.on('error', error => {
+      stderr += `${error.message}\n`;
+      resolve(1);
+    });
     child.on('close', code => resolve(code ?? 0));
   });
 

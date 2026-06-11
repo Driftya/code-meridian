@@ -6,6 +6,7 @@ using CodeMeridian.Indexer.Cli;
 using CodeMeridian.DocumentIndexer.Pipeline;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
+using CodeMeridian.Tooling.Documents;
 using CodeMeridian.Tooling.Discovery;
 using CodeMeridian.Tooling.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,7 +40,6 @@ internal sealed class IndexCommandHandler(
         var hasCSharp = !_settings.SkipCSharp && projectDiscoveryService.ContainsFile(_settings.RootPath, ".cs");
         var typeScriptRoots = _settings.SkipTypeScript ? [] : projectDiscoveryService.FindTypeScriptRoots(_settings.RootPath);
         var hasTypeScript = typeScriptRoots.Count > 0;
-        var documentFiles = _settings.IncludeDocs ? EnumerateIndexableFiles(_settings.RootPath, includeCSharp: false, includeTypeScript: false, includeDocs: true).ToArray() : [];
         var cacheDirectory = storagePathService.ResolveCacheDirectory(_settings.RootPath, _settings.Project, _settings.StorageMode);
         var cache = IncrementalIndexCache.Load(cacheDirectory, _settings.Project);
         var indexableFiles = EnumerateIndexableFiles(_settings.RootPath, hasCSharp, hasTypeScript, _settings.IncludeDocs).ToArray();
@@ -147,10 +147,10 @@ internal sealed class IndexCommandHandler(
             }
         }
 
-        if (documentFiles.Length > 0)
+        if (_settings.IncludeDocs)
         {
-            exitCode = await RunDocumentIndexerAsync(documentFiles);
-            if (exitCode != 0)
+            exitCode = await RunDocumentIndexerAsync(changedFiles, deletedFiles);
+            if (exitCode != 0 || _settings.Watch)
                 return exitCode;
         }
 
@@ -188,13 +188,12 @@ internal sealed class IndexCommandHandler(
 
         services.AddCodeMeridianClient(_settings.CodeMeridianUrl, _settings.ApiKey);
         services.AddTransient<CSharpIndexer>();
-        services.AddTransient<DocumentIngester>();
         services.AddTransient<IndexerPipeline>();
 
         await using var provider = services.BuildServiceProvider();
         var pipeline = provider.GetRequiredService<IndexerPipeline>();
 
-        await pipeline.RunAsync(_settings.RootPath, _settings.Project, clear, _settings.IncludeDocs, changedFiles, deletedFiles);
+        await pipeline.RunAsync(_settings.RootPath, _settings.Project, clear, changedFiles, deletedFiles);
 
         if (!_settings.Watch)
             return 0;
@@ -240,7 +239,6 @@ internal sealed class IndexCommandHandler(
                         _settings.RootPath,
                         _settings.Project,
                         clear: false,
-                        _settings.IncludeDocs,
                         changedFiles: changedBatch,
                         deletedFiles: deletedBatch,
                         cancellationToken: cts.Token);
@@ -285,7 +283,9 @@ internal sealed class IndexCommandHandler(
         return 0;
     }
 
-    private async Task<int> RunDocumentIndexerAsync(FileInfo[] documentFiles)
+    private async Task<int> RunDocumentIndexerAsync(
+        IReadOnlyCollection<string>? changedFiles,
+        IReadOnlyCollection<string> deletedFiles)
     {
         var services = new ServiceCollection();
         services.AddLogging(builder => builder
@@ -293,12 +293,35 @@ internal sealed class IndexCommandHandler(
             .AddFilter("System.Net.Http.HttpClient", LogLevel.Warning)
             .AddFilter("Microsoft", LogLevel.Warning)
             .SetMinimumLevel(LogLevel.Information));
+
         services.AddCodeMeridianClient(_settings.CodeMeridianUrl, _settings.ApiKey);
+        services.AddTransient<DocumentIngestionService>();
         services.AddTransient<DocumentIndexerPipeline>();
 
         await using var provider = services.BuildServiceProvider();
         var pipeline = provider.GetRequiredService<DocumentIndexerPipeline>();
-        await pipeline.IngestAsync(documentFiles, _settings.Project, _settings.RootPath.FullName);
+
+        var documentFiles = EnumerateIndexableFiles(
+                _settings.RootPath,
+                includeCSharp: false,
+                includeTypeScript: false,
+                includeDocs: true)
+            .ToArray();
+
+        if (documentFiles.Length == 0)
+            return 0;
+
+        var logger = provider.GetRequiredService<ILogger<DocumentIndexerPipeline>>();
+        logger.LogInformation("Found {Count} documentation files to ingest.", documentFiles.Length);
+
+        foreach (var file in documentFiles)
+        {
+            var relPath = Path.GetRelativePath(_settings.RootPath.FullName, file.FullName).Replace('\\', '/');
+            logger.LogInformation("Removing stale document chunks for {File} before re-ingesting...", relPath);
+            await DeleteProjectFilesAsync([relPath]);
+        }
+
+        await pipeline.IngestAsync(documentFiles, _settings.Project, _settings.RootPath.FullName, CancellationToken.None);
         return 0;
     }
 
