@@ -157,4 +157,73 @@ export async function loadOrder() {
     expect(result.nodes.filter(node => node.type === 'ApiEndpoint')).toHaveLength(0);
     expect(result.edges.filter(edge => edge.targetId.includes('::ApiEndpoint::'))).toHaveLength(0);
   });
+
+  it('defaults fetch calls without an init object to GET endpoints', () => {
+    project.writeFile(
+      'api.ts',
+      `export async function loadOrders() {
+  return fetch('/api/orders');
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj');
+
+    expect(result.nodes).toContainEqual(
+      expect.objectContaining({
+        id: 'Proj::ApiEndpoint::GET /api/orders',
+        type: 'ApiEndpoint',
+      }),
+    );
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({
+        sourceId: 'Proj:Method:api.ts:loadOrders',
+        targetId: 'Proj::ApiEndpoint::GET /api/orders',
+        type: 'Calls',
+      }),
+    );
+  });
+
+  it('deduplicates repeated route calls to the same normalized endpoint from one source line', () => {
+    project.writeFile(
+      'api.ts',
+      `const route = '/api/orders';
+
+export function loadOrders() {
+  fetch(route);
+  fetch(route);
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const routeEdges = result.edges.filter(edge =>
+      edge.sourceId === 'Proj:Method:api.ts:loadOrders'
+      && edge.targetId === 'Proj::ApiEndpoint::GET /api/orders'
+      && edge.type === 'Calls');
+
+    expect(routeEdges).toHaveLength(2);
+    expect(result.nodes.filter(node => node.id === 'Proj::ApiEndpoint::GET /api/orders')).toHaveLength(1);
+  });
+
+  it('marks awaited http client calls as async route edges', () => {
+    project.writeFile(
+      'api.ts',
+      `export async function loadOrders() {
+  return await axios.get('/api/orders');
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj');
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({
+        sourceId: 'Proj:Method:api.ts:loadOrders',
+        targetId: 'Proj::ApiEndpoint::GET /api/orders',
+        type: 'Calls',
+        isAsync: true,
+      }),
+    );
+  });
 });

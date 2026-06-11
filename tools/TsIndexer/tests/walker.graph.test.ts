@@ -92,6 +92,63 @@ function format() {
     });
   });
 
+  it('gives same-named top-level functions stable distinct ids across files', () => {
+    project.writeFile(
+      'src/frontend/auth.ts',
+      `export function isAuthorized() {
+  return true;
+}
+`,
+    );
+    project.writeFile(
+      'src/backend/auth.ts',
+      `export function isAuthorized() {
+  return true;
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const authMethods = result.nodes.filter(node => node.type === 'Method' && node.name === 'isAuthorized');
+
+    expect(authMethods).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'Proj:Method:src_frontend_auth.ts:isAuthorized',
+        }),
+        expect.objectContaining({
+          id: 'Proj:Method:src_backend_auth.ts:isAuthorized',
+        }),
+      ]),
+    );
+    expect(new Set(authMethods.map(node => node.id)).size).toBe(authMethods.length);
+  });
+
+  it('captures source snippets for methods', () => {
+    project.writeFile(
+      'orders.ts',
+      `export class OrderService {
+  placeOrder() {
+    this.validateOrder();
+  }
+
+  validateOrder() {
+  }
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const method = result.nodes.find(node => node.id === 'Proj:Method:orders.ts:OrderService.placeOrder');
+
+    expect(method).toEqual(
+      expect.objectContaining({
+        sourceSnippet: expect.stringContaining('placeOrder()'),
+      }),
+    );
+    expect(method?.sourceSnippet).toContain('this.validateOrder();');
+  });
+
   it('resolves imported function calls across files when the callee is unambiguous', () => {
     project.writeFile(
       'shared/format.ts',
@@ -142,6 +199,145 @@ export function renderTotal() {
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
       targetId: 'Proj:Method:shared_format.ts:formatAmount',
+      type: 'Calls',
+    });
+  });
+
+  it('resolves function calls imported through re-export barrels', () => {
+    project.writeFile(
+      'shared/format.ts',
+      `export function formatAmount() {
+  return '$10';
+}
+`,
+    );
+    project.writeFile('shared/index.ts', "export { formatAmount } from './format';\n");
+    project.writeFile(
+      'consumer.ts',
+      `import { formatAmount } from './shared';
+
+export function renderTotal() {
+  return formatAmount();
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj');
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:consumer.ts:renderTotal',
+      targetId: 'Proj:Method:shared_format.ts:formatAmount',
+      type: 'Calls',
+    });
+  });
+
+  it('resolves calls to default-exported functions across files', () => {
+    project.writeFile(
+      'shared/format.ts',
+      `export default function formatAmount() {
+  return '$10';
+}
+`,
+    );
+    project.writeFile(
+      'consumer.ts',
+      `import formatAmount from './shared/format';
+
+export function renderTotal() {
+  return formatAmount();
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj');
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:consumer.ts:renderTotal',
+      targetId: 'Proj:Method:shared_format.ts:formatAmount',
+      type: 'Calls',
+    });
+  });
+
+  it('resolves calls to default-exported functions through barrel re-exports', () => {
+    project.writeFile(
+      'shared/format.ts',
+      `export default function formatAmount() {
+  return '$10';
+}
+`,
+    );
+    project.writeFile('shared/index.ts', "export { default as formatAmount } from './format';\n");
+    project.writeFile(
+      'consumer.ts',
+      `import { formatAmount } from './shared';
+
+export function renderTotal() {
+  return formatAmount();
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj');
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:consumer.ts:renderTotal',
+      targetId: 'Proj:Method:shared_format.ts:formatAmount',
+      type: 'Calls',
+    });
+  });
+
+  it('resolves calls through namespace imports to exported functions', () => {
+    project.writeFile(
+      'shared/format.ts',
+      `export function formatAmount() {
+  return '$10';
+}
+`,
+    );
+    project.writeFile(
+      'consumer.ts',
+      `import * as money from './shared/format';
+
+export function renderTotal() {
+  return money.formatAmount();
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj');
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:consumer.ts:renderTotal',
+      targetId: 'Proj:Method:shared_format.ts:formatAmount',
+      type: 'Calls',
+    });
+  });
+
+  it('resolves calls to imported class methods through constructed instances', () => {
+    project.writeFile(
+      'shared/editor.ts',
+      `export class Editor {
+  format() {
+    return 'ok';
+  }
+}
+`,
+    );
+    project.writeFile(
+      'consumer.ts',
+      `import { Editor } from './shared/editor';
+
+export function renderTotal() {
+  return new Editor().format();
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj');
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:consumer.ts:renderTotal',
+      targetId: 'Proj:Method:shared_editor.ts:Editor.format',
       type: 'Calls',
     });
   });
