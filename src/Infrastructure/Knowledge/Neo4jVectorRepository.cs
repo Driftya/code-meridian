@@ -150,7 +150,8 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                     """
                     UNWIND $targetIds AS targetId
                     MATCH (d:KnowledgeDocument {id: $id})
-                    MATCH (t:KnowledgeDocument {source: targetId})
+                    MATCH (t:KnowledgeDocument)
+                    WHERE t.id = targetId OR t.source = targetId
                     MERGE (d)-[:References]->(t)
                     """,
                     new

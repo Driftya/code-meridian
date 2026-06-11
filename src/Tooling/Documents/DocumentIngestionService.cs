@@ -33,9 +33,13 @@ public sealed partial class DocumentIngestionService(CodeMeridianClient client, 
 
                 for (var i = 0; i < chunks.Count; i++)
                 {
+                    var rootDocumentId = $"{projectContext}::doc::{relPath}";
                     var id = chunks.Count == 1
-                        ? $"{projectContext}::doc::{relPath}"
-                        : $"{projectContext}::doc::{relPath}::part{i + 1}";
+                        ? rootDocumentId
+                        : $"{rootDocumentId}::part{i + 1}";
+                    var relatedChunkIds = chunks.Count > 1 && i > 0
+                        ? rootDocumentId
+                        : null;
 
                     await client.IngestDocumentAsync(
                         content: chunks[i],
@@ -43,7 +47,7 @@ public sealed partial class DocumentIngestionService(CodeMeridianClient client, 
                         projectContext: projectContext,
                         id: id,
                         relatedNodeIdsCsv: relatedNodes.Count > 0 ? string.Join(",", relatedNodes) : null,
-                        relatedDocumentIdsCsv: relatedDocuments.Count > 0 ? string.Join(",", relatedDocuments) : null,
+                        relatedDocumentIdsCsv: BuildRelatedDocumentIdsCsv(relatedDocuments, relatedChunkIds),
                         cancellationToken: cancellationToken);
 
                     count++;
@@ -122,6 +126,15 @@ public sealed partial class DocumentIngestionService(CodeMeridianClient client, 
     {
         references.Add($"{projectContext}:File:{relativePath}");
         references.Add($"{projectContext}::File::{relativePath}");
+    }
+
+    private static string? BuildRelatedDocumentIdsCsv(List<string> relatedDocuments, string? relatedChunkId)
+    {
+        var references = new List<string>(relatedDocuments);
+        if (!string.IsNullOrWhiteSpace(relatedChunkId))
+            references.Add(relatedChunkId);
+
+        return references.Count == 0 ? null : string.Join(",", references.Distinct(StringComparer.OrdinalIgnoreCase));
     }
 
     private static string? NormalizeLinkTarget(string target)
