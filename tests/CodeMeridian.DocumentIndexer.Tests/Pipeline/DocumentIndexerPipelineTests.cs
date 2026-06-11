@@ -81,6 +81,37 @@ public sealed class DocumentIndexerPipelineTests : IDisposable
     }
 
     [Fact]
+    public async Task IngestAsync_InfersApiEndpointAndMcpToolMentions()
+    {
+        WriteFile(
+            "src/McpServer/Tools/CodebaseTools.Analytics.cs",
+            """
+            [McpServerTool(Name = "find_connection")]
+            public Task<string> FindConnectionAsync() => Task.FromResult(string.Empty);
+            """);
+        var document = WriteFile(
+            "docs/plan.md",
+            """
+            Route to trace: POST /api/orders
+
+            Tool surface:
+            [McpServerTool(Name = "find_connection")]
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new DocumentIndexerPipeline(client, NullLogger<DocumentIndexerPipeline>.Instance);
+
+        await sut.IngestAsync([document], "CodeMeridian", _root);
+
+        handler.Requests.Should().ContainSingle();
+        var relatedNodeIds = handler.Requests[0].Body.GetProperty("relatedNodeIdsCsv").GetString();
+        relatedNodeIds.Should().Contain("CodeMeridian::ApiEndpoint::POST /api/orders");
+        relatedNodeIds.Should().Contain("CodeMeridian:File:src/McpServer/Tools/CodebaseTools.Analytics.cs");
+        relatedNodeIds.Should().Contain("CodeMeridian::File::src/McpServer/Tools/CodebaseTools.Analytics.cs");
+    }
+
+    [Fact]
     public async Task IngestAsync_AddsAdjacentChunkReferences()
     {
         var paragraphOne = new string('A', 3_900);

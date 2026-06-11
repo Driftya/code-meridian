@@ -53,6 +53,8 @@ Which parts of MyApi are most risky to change?
 
 Finds the shortest relationship path between two nodes.
 
+This now includes route-linked full-stack paths when the project has been re-indexed with the updated C# and TypeScript indexers. Static frontend HTTP calls can connect through shared `ApiEndpoint` nodes to backend ASP.NET handlers or controller actions.
+
 ```text
 How is CustomerController connected to IEmailService?
 ```
@@ -114,6 +116,8 @@ Use this before `find_impact` for a quick local view. Use `find_impact` for full
 ### `build_minimal_context`
 
 Builds a bounded context pack for one target node. The pack combines local editing context, near impact, downstream dependencies, likely files, token estimate, complexity tier, model guidance, expansion risk, optional test context, and optional source snippets.
+
+When route-linking data exists, downstream and impact sections can include `ApiEndpoint` nodes and cross-language callers, which helps context packs cover frontend-to-backend request paths instead of only same-language structure.
 
 The token estimate is intentionally approximate. It counts target metadata, relationship rows, summaries, likely files, optional source snippets, and relevant test context. The model guidance uses that estimate plus graph complexity signals such as affected nodes, downstream dependencies, cross-project edges, missing tests, target size, and churn.
 
@@ -276,6 +280,11 @@ Ingest a documentation snippet so future sessions can find it with `search_docum
 
 If you already know the code nodes a document should point to, pass weak mention metadata such as `relatedNodeIds` so CodeMeridian can create explicit `Mentions` links. The document indexer also derives `relatedNodeIds` automatically from code-file links and inline file references when it can, which keeps the UX lightweight for normal docs.
 
+The document indexer also infers weak mentions for:
+
+- Explicit route mentions such as `POST /api/orders`, which can link docs to indexed `ApiEndpoint` nodes.
+- Explicit MCP tool attribute snippets such as `[McpServerTool(Name = "find_connection")]`, which can link docs to the relevant MCP tool source files.
+
 ### `link_external_concept`
 
 Creates an external concept node and links it to code. Supported external concepts include:
@@ -319,6 +328,12 @@ Sends a question directly to a registered extension agent.
 
 C# and TypeScript / TSX indexers write into the same Neo4j graph. Future language indexers can do the same by emitting the shared CodeMeridian node and edge model.
 
+Cross-language route matching is now supported for a conservative first slice:
+
+- ASP.NET controller and minimal API routes are indexed as `ApiEndpoint` nodes.
+- TypeScript `fetch`, `axios`, and HTTP-like wrapper calls can link to those same `ApiEndpoint` nodes when the route can be resolved statically.
+- Docs can mention explicit routes and MCP tool attributes so knowledge lookups can connect plans and notes to implementation surfaces.
+
 ```powershell
 codemeridian index C:\Projects\MyApp\Api --project MyApp.Api --clear
 codemeridian index C:\Projects\MyApp\web --project MyApp.Web --clear
@@ -327,6 +342,7 @@ codemeridian index C:\Projects\MyApp\web --project MyApp.Web --clear
 This enables workflows like:
 
 - Trace from a frontend component toward backend code.
+- Trace from a frontend HTTP call to a backend ASP.NET endpoint through shared route nodes.
 - Find cross-project dependencies.
 - Generate architecture overviews per project or across a workspace.
 

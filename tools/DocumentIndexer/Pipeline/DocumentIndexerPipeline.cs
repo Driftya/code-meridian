@@ -13,6 +13,7 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
         CancellationToken cancellationToken = default)
     {
         var count = 0;
+        var mcpToolFiles = BuildMcpToolFileMap(rootPath, projectContext);
 
         foreach (var file in files)
         {
@@ -27,6 +28,8 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
                 var chunks = DocumentTextSplitter.SplitIntoChunks(content);
                 var relatedDocuments = ExtractDocumentReferences(content, relPath);
                 var relatedNodes = ExtractCodeFileReferences(content, projectContext, relPath);
+                relatedNodes.AddRange(ExtractRouteReferences(content, projectContext));
+                relatedNodes.AddRange(ExtractMcpToolReferences(content, mcpToolFiles));
                 logger.LogInformation("  {File} -> {Chunks} chunk(s)", relPath, chunks.Count);
 
                 for (var i = 0; i < chunks.Count; i++)
@@ -118,6 +121,72 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
         references.Add($"{projectContext}::File::{relativePath}");
     }
 
+    private static List<string> ExtractRouteReferences(string content, string projectContext)
+    {
+        var references = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in HttpRouteRegex().Matches(content))
+        {
+            var method = match.Groups["method"].Value.Trim().ToUpperInvariant();
+            var route = match.Groups["route"].Value.Trim();
+            if (method.Length == 0 || route.Length == 0)
+                continue;
+
+            references.Add($"{projectContext}::ApiEndpoint::{method} {NormalizeRouteTemplate(route)}");
+        }
+
+        return references.ToList();
+    }
+
+    private static List<string> ExtractMcpToolReferences(string content, IReadOnlyDictionary<string, List<string>> toolFileMap)
+    {
+        var references = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in McpToolAttributeRegex().Matches(content))
+        {
+            var toolName = match.Groups["tool"].Value.Trim();
+            if (toolName.Length == 0)
+                continue;
+
+            if (!toolFileMap.TryGetValue(toolName, out var nodeIds))
+                continue;
+
+            foreach (var nodeId in nodeIds)
+                references.Add(nodeId);
+        }
+
+        return references.ToList();
+    }
+
+    private static Dictionary<string, List<string>> BuildMcpToolFileMap(string rootPath, string projectContext)
+    {
+        var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var toolsRoot = Path.Combine(rootPath, "src", "McpServer", "Tools");
+        if (!Directory.Exists(toolsRoot))
+            return result;
+
+        foreach (var file in Directory.EnumerateFiles(toolsRoot, "*.cs", SearchOption.AllDirectories))
+        {
+            var relPath = Path.GetRelativePath(rootPath, file).Replace('\\', '/');
+            var content = File.ReadAllText(file);
+            foreach (Match match in McpToolAttributeRegex().Matches(content))
+            {
+                var toolName = match.Groups["tool"].Value.Trim();
+                if (toolName.Length == 0)
+                    continue;
+
+                if (!result.TryGetValue(toolName, out var nodeIds))
+                {
+                    nodeIds = [];
+                    result[toolName] = nodeIds;
+                }
+
+                nodeIds.Add($"{projectContext}:File:{relPath}");
+                nodeIds.Add($"{projectContext}::File::{relPath}");
+            }
+        }
+
+        return result;
+    }
+
     private static string BuildChunkDocumentId(string projectContext, string relPath, int chunkCount, int chunkIndex) =>
         chunkCount == 1
             ? $"{projectContext}::doc::{relPath}"
@@ -192,6 +261,27 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
         return string.Join("/", collapsed);
     }
 
+    private static string NormalizeRouteTemplate(string template)
+    {
+        var normalized = template.Trim();
+        if (Uri.TryCreate(normalized, UriKind.Absolute, out var absoluteUri))
+            normalized = absoluteUri.AbsolutePath;
+
+        var queryIndex = normalized.IndexOfAny(['?', '#']);
+        if (queryIndex >= 0)
+            normalized = normalized[..queryIndex];
+
+        normalized = normalized.Replace('\\', '/');
+        normalized = DuplicateSlashRegex().Replace(normalized, "/");
+        normalized = RoutePlaceholderRegex().Replace(normalized, "{param}");
+        normalized = ColonParameterRegex().Replace(normalized, "/{param}");
+        if (!normalized.StartsWith('/'))
+            normalized = "/" + normalized;
+
+        normalized = normalized.TrimEnd('/');
+        return normalized.Length == 0 ? "/" : normalized.ToLowerInvariant();
+    }
+
     private static bool IsCodeFile(string path) =>
         path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
         path.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) ||
@@ -204,6 +294,21 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
 
     [GeneratedRegex(@"(?<![\w])(?:[A-Za-z]:)?(?:\.{1,2}[\\/])?(?:[^\s`'""<>|:/\\]+[\\/])+[^\s`'""<>|:/\\]+\.(?:cs|ts|tsx|js|jsx)\b", RegexOptions.Compiled)]
     private static partial Regex InlineCodePathRegex();
+
+    [GeneratedRegex(@"\b(?<method>GET|POST|PUT|PATCH|DELETE)\s+(?<route>/(?:[^\s`<>)]+))", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex HttpRouteRegex();
+
+    [GeneratedRegex(@"McpServerTool\s*\(\s*Name\s*=\s*""(?<tool>[^""]+)""\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex McpToolAttributeRegex();
+
+    [GeneratedRegex("/{2,}")]
+    private static partial Regex DuplicateSlashRegex();
+
+    [GeneratedRegex(@"/:[A-Za-z_][A-Za-z0-9_]*")]
+    private static partial Regex ColonParameterRegex();
+
+    [GeneratedRegex(@"\{[^}]+\}")]
+    private static partial Regex RoutePlaceholderRegex();
 }
 
 public sealed record DocumentStats(int DocumentsIndexed);

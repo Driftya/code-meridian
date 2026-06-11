@@ -91,7 +91,11 @@ public static class KnowledgeApiEndpoints
         {
             SourceId = req.SourceId,
             TargetId = req.TargetId,
-            Type = edgeType
+            Type = edgeType,
+            IsAsync = req.IsAsync,
+            CallSite = req.CallSite,
+            ParamCount = req.ParamCount,
+            Confidence = req.Confidence
         }, ct);
 
         return Results.Created("/api/v1/knowledge/nodes/edges", null);
@@ -284,7 +288,11 @@ internal sealed record IngestNodeRequest(
 internal sealed record IngestEdgeRequest(
     string SourceId,
     string TargetId,
-    string Type);
+    string Type,
+    bool? IsAsync = null,
+    string? CallSite = null,
+    int? ParamCount = null,
+    double? Confidence = null);
 
 internal sealed record IngestDocumentRequest(
     string Content,

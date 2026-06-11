@@ -77,6 +77,32 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task IngestRelationshipAsync_SendsEdgeMetadata()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.IngestRelationshipAsync(
+            sourceId: "frontend",
+            targetId: "endpoint",
+            relationshipType: "Calls",
+            isAsync: true,
+            callSite: "src/app.ts:42",
+            paramCount: 2,
+            confidence: 0.95);
+
+        var body = await handler.ReadBodyAsync();
+        body.GetProperty("isAsync").GetBoolean().Should().BeTrue();
+        body.GetProperty("callSite").GetString().Should().Be("src/app.ts:42");
+        body.GetProperty("paramCount").GetInt32().Should().Be(2);
+        body.GetProperty("confidence").GetDouble().Should().Be(0.95);
+    }
+
+    [Fact]
     public async Task GetDoctorStatusAsync_SendsProjectContextQuery()
     {
         var handler = new CapturingHandler();

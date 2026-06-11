@@ -85,6 +85,7 @@ public sealed class CSharpIndexer(
         var relPath = Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/');
         var walker = new CSharpAstWalker(relPath, projectContext, nodes, edges);
         walker.Visit(root);
+        CSharpRouteExtractor.Extract(root, relPath, projectContext, nodes, edges);
     }
 
     // -- Batch ingestion -------------------------------------------------------
@@ -133,6 +134,10 @@ public sealed class CSharpIndexer(
 
             var tasks = batches[i].Select(e => client.IngestRelationshipAsync(
                 e.SourceId, e.TargetId, e.RelationshipType,
+                isAsync: e.IsAsync,
+                callSite: e.CallSite,
+                paramCount: e.ParamCount,
+                confidence: e.Confidence,
                 cancellationToken: cancellationToken));
 
             await Task.WhenAll(tasks);
@@ -328,7 +333,10 @@ internal sealed record IngestEdgeRequest(
     string? CallName = null,
     int? ParamCount = null,
     string? TargetName = null,
-    string? TargetType = null);
+    string? TargetType = null,
+    bool? IsAsync = null,
+    string? CallSite = null,
+    double? Confidence = null);
 
 // -- Roslyn AST walker ---------------------------------------------------------
 

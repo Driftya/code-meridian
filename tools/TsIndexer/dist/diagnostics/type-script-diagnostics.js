@@ -78,9 +78,10 @@ export function parseLintDiagnostics(output, rootPath, workingDirectory, project
     return findings;
 }
 async function runCaptureAsync(fileName, arguments_, workingDirectory) {
+    const useShell = process.platform === 'win32' && fileName.endsWith('.cmd');
     const child = spawn(fileName, arguments_, {
         cwd: workingDirectory,
-        shell: false,
+        shell: useShell,
         windowsHide: true,
     });
     let stdout = '';
@@ -92,6 +93,10 @@ async function runCaptureAsync(fileName, arguments_, workingDirectory) {
         stderr += chunk.toString();
     });
     const exitCode = await new Promise(resolve => {
+        child.on('error', error => {
+            stderr += `${error.message}\n`;
+            resolve(1);
+        });
         child.on('close', code => resolve(code ?? 0));
     });
     return { exitCode, output: `${stdout}\n${stderr}`.trim() };

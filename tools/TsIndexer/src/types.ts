@@ -10,6 +10,11 @@ export type CodeNodeType =
   | 'Enum'
   | 'File'
   | 'Module'
+  | 'ExternalConcept'
+  | 'DatabaseTable'
+  | 'ApiEndpoint'
+  | 'MessageTopic'
+  | 'ExternalService'
   | 'Diagnostic';
 
 export type CodeEdgeType =
@@ -19,7 +24,11 @@ export type CodeEdgeType =
   | 'Inherits'
   | 'Uses'
   | 'DependsOn'
-  | 'Overrides';
+  | 'Overrides'
+  | 'Reads'
+  | 'Writes'
+  | 'PublishesTo'
+  | 'SubscribesTo';
 
 export interface CodeNodeDto {
   id: string;
@@ -40,6 +49,10 @@ export interface CodeEdgeDto {
   sourceId: string;
   targetId: string;
   type: CodeEdgeType;
+  isAsync?: boolean;
+  callSite?: string;
+  paramCount?: number;
+  confidence?: number;
 }
 
 export interface DocumentDto {

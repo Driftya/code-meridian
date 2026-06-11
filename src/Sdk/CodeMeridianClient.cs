@@ -112,11 +112,24 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         string sourceId,
         string targetId,
         string relationshipType,
+        bool? isAsync = null,
+        string? callSite = null,
+        int? paramCount = null,
+        double? confidence = null,
         CancellationToken cancellationToken = default)
     {
         var response = await httpClient.PostAsJsonAsync(
             "/api/v1/knowledge/nodes/edges",
-            new { SourceId = sourceId, TargetId = targetId, Type = relationshipType },
+            new
+            {
+                SourceId = sourceId,
+                TargetId = targetId,
+                Type = relationshipType,
+                IsAsync = isAsync,
+                CallSite = callSite,
+                ParamCount = paramCount,
+                Confidence = confidence
+            },
             cancellationToken);
 
         response.EnsureSuccessStatusCode();
