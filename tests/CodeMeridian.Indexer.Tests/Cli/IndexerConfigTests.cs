@@ -135,6 +135,31 @@ public sealed class IndexerConfigTests : IDisposable
         File.Exists(Path.Combine(globalRoot.FullName, "meridian.schema.json")).Should().BeTrue();
     }
 
+    [Fact]
+    public void WriteGlobal_UpdatesExistingGlobalConfigAndPreservesUnrelatedFields()
+    {
+        var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
+        File.WriteAllText(
+            Path.Combine(globalRoot.FullName, "meridian.json"),
+            """
+            {
+              "project": "OldProject",
+              "codeMeridianUrl": "http://old:5100",
+              "allowRepoScripts": true,
+              "customSetting": "keep-me"
+            }
+            """);
+
+        _store.WriteGlobal("http://new:5100", overwrite: false, globalRoot);
+
+        var json = File.ReadAllText(Path.Combine(globalRoot.FullName, "meridian.json"));
+        json.Should().Contain("\"project\": \"\"");
+        json.Should().Contain("\"codeMeridianUrl\": \"http://new:5100\"");
+        json.Should().Contain("\"useGlobalCache\": true");
+        json.Should().Contain("\"allowRepoScripts\": true");
+        json.Should().Contain("\"customSetting\": \"keep-me\"");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

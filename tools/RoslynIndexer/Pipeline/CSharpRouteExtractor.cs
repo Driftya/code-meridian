@@ -152,7 +152,7 @@ internal static partial class CSharpRouteExtractor
             var fullRoute = CombineRoutes(prefix, routeTemplate);
             var lineNumber = invocation.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
             var sourceId = ResolveMinimalApiSourceId(invocation, relPath, nodes, projectContext);
-            var confidence = routeTemplate.Contains("{param}", StringComparison.Ordinal) ? 0.9 : 1.0;
+            var confidence = NormalizeRouteTemplate(fullRoute).Contains("{param}", StringComparison.Ordinal) ? 0.9 : 1.0;
 
             foreach (var method in methods)
                 AddEndpoint(nodes, edges, projectContext, sourceId, method, fullRoute, "aspnet-minimal-api", confidence, relPath, lineNumber);
@@ -179,7 +179,7 @@ internal static partial class CSharpRouteExtractor
         };
 
         if (handlerName is null)
-            return fileId;
+            return TryResolveContainingMethodId(invocation, nodes, relPath) ?? fileId;
 
         var matches = nodes
             .Where(node => node.Type == "Method"
@@ -387,6 +387,13 @@ internal static partial class CSharpRouteExtractor
                 .ToList() ?? [],
             ImplicitArrayCreationExpressionSyntax implicitArray => implicitArray.Initializer.Expressions
                 .Select(expr => ResolveStringExpression(expr, constants)?.ToUpperInvariant())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Cast<string>()
+                .Distinct(StringComparer.Ordinal)
+                .ToList(),
+            CollectionExpressionSyntax collectionExpression => collectionExpression.Elements
+                .OfType<ExpressionElementSyntax>()
+                .Select(element => ResolveStringExpression(element.Expression, constants)?.ToUpperInvariant())
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Cast<string>()
                 .Distinct(StringComparer.Ordinal)

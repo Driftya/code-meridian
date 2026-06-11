@@ -138,6 +138,39 @@ public sealed class DocumentIndexerPipelineTests : IDisposable
     }
 
     [Fact]
+    public async Task IngestAsync_IgnoresExternalAndAnchorLinksAndDeduplicatesResolvedReferences()
+    {
+        var document = WriteFile(
+            "docs/guide.md",
+            """
+            [feature](./feature.md)
+            [feature duplicate](feature.md#details)
+            [external](https://example.com/docs/features/feature.md)
+            [anchor only](#local-section)
+
+            See `src/Orders/OrderService.ts` and [service](../src/Orders/OrderService.ts?plain=1).
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new DocumentIndexerPipeline(client, NullLogger<DocumentIndexerPipeline>.Instance);
+
+        await sut.IngestAsync([document], "DemoProject", _root);
+
+        handler.Requests.Should().ContainSingle();
+        var request = handler.Requests[0].Body;
+
+        var relatedDocuments = request.GetProperty("relatedDocumentIdsCsv").GetString()!
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        relatedDocuments.Should().ContainSingle(value => string.Equals(value, "docs/feature.md", StringComparison.OrdinalIgnoreCase));
+
+        var relatedNodes = request.GetProperty("relatedNodeIdsCsv").GetString()!
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        relatedNodes.Should().ContainSingle(value => string.Equals(value, "DemoProject:File:src/Orders/OrderService.ts", StringComparison.OrdinalIgnoreCase));
+        relatedNodes.Should().ContainSingle(value => string.Equals(value, "DemoProject::File::src/Orders/OrderService.ts", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task IngestAsync_AddsAdjacentChunkReferences()
     {
         var paragraphOne = new string('A', 3_900);

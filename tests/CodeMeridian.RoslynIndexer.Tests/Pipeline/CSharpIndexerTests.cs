@@ -281,6 +281,59 @@ public sealed class CSharpIndexerTests : IDisposable
             && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::POST /api/orders/create/{param}");
     }
 
+    [Fact]
+    public async Task IndexAsync_ExtractsMapMethodsRoutesAndFallsBackToContainingMethodForLambdaHandlers()
+    {
+        var file = WriteFile(
+            "src/MapMethodsRoutes.cs",
+            """
+            using Microsoft.AspNetCore.Builder;
+
+            namespace Demo.Api;
+
+            public static class RouteRegistration
+            {
+                public static void Register(WebApplication app)
+                {
+                    app.MapGroup("/api").MapMethods("/orders/{id}", ["PUT", "PATCH"], () => Results.Ok());
+                }
+            }
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([file], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::ApiEndpoint::PUT /api/orders/{param}"
+            && request.Body.GetProperty("type").GetString() == "ApiEndpoint");
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::ApiEndpoint::PATCH /api/orders/{param}"
+            && request.Body.GetProperty("type").GetString() == "ApiEndpoint");
+
+        var routeEdges = handler.Requests
+            .Where(request => request.Path == "/api/v1/knowledge/nodes/edges"
+                && request.Body.GetProperty("type").GetString() == "Uses")
+            .ToArray();
+
+        routeEdges.Should().Contain(edge =>
+            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.Register(WebApplication)"
+            && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::PUT /api/orders/{param}"
+            && edge.Body.GetProperty("callSite").GetString() == "src/MapMethodsRoutes.cs:9"
+            && edge.Body.GetProperty("confidence").GetDouble() == 0.9);
+
+        routeEdges.Should().Contain(edge =>
+            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.Register(WebApplication)"
+            && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::PATCH /api/orders/{param}"
+            && edge.Body.GetProperty("callSite").GetString() == "src/MapMethodsRoutes.cs:9"
+            && edge.Body.GetProperty("confidence").GetDouble() == 0.9);
+    }
+
     private FileInfo WriteFile(string relativePath, string content)
     {
         var file = new FileInfo(Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar)));

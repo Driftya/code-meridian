@@ -166,11 +166,28 @@ public sealed class ServeWriterTests : IDisposable
 
         var json = File.ReadAllText(Path.Combine(_root, ".vscode", "mcp.json"));
         var toml = File.ReadAllText(Path.Combine(_root, ".codex", "config.toml"));
+        var yaml = File.ReadAllText(Path.Combine(_root, ".continue", "mcpServers", "code-meridian.yaml"));
 
         json.Should().Contain("\"url\": \"http://localhost:5100/sse\"");
         toml.Should().Contain("url = \"http://localhost:5100/sse\"");
+        yaml.Should().Contain("http://localhost:5100/sse");
         json.Should().NotContain("/sse/sse");
         toml.Should().NotContain("/sse/sse");
+        yaml.Should().NotContain("/sse/sse");
+    }
+
+    [Fact]
+    public void ApplyClientConfig_ForceOverwritesContinueConfigAndCreatesBackup()
+    {
+        var continueDirectory = Path.Combine(_root, ".continue", "mcpServers");
+        Directory.CreateDirectory(continueDirectory);
+        var yamlPath = Path.Combine(continueDirectory, "code-meridian.yaml");
+        File.WriteAllText(yamlPath, "name: old" + Environment.NewLine);
+
+        new ServeWriter().ApplyClientConfig(new DirectoryInfo(_root), "http://localhost:5100", force: true);
+
+        File.ReadAllText(yamlPath).Should().Contain("http://localhost:5100/sse");
+        Directory.GetFiles(continueDirectory, "code-meridian.yaml.*.bak").Should().ContainSingle();
     }
 
     private ServeApplyResult Apply(
