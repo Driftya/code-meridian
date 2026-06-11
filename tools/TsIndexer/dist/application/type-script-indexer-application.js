@@ -4,6 +4,8 @@ import { watch as chokidarWatch } from 'chokidar';
 import { CodeMeridianClient } from '../client.js';
 import { walkTypeScript } from '../walker.js';
 import { buildTsIndexerPlan, loadTsIndexerCache, saveTsIndexerCache, } from '../storage/indexer-cache.js';
+import { indexTypeScriptDiagnostics } from '../diagnostics/type-script-diagnostics.js';
+import { analyzeTypeScriptBoundaries } from '../analysis/type-script-boundaries.js';
 import { isDocumentationFile, isTypeScriptSourceFile, readFilesList, resolveDocumentFiles, resolveInputFile, } from '../services/project-discovery.js';
 export class TypeScriptIndexerApplication {
     async run(options) {
@@ -23,6 +25,10 @@ export class TypeScriptIndexerApplication {
     }
     async runIndexPass(options, client) {
         console.log(`Walking TypeScript files in ${options.rootPath}...`);
+        const boundaries = analyzeTypeScriptBoundaries(options.rootPath);
+        if (boundaries.length > 0) {
+            console.log(`  Detected ${boundaries.length} TypeScript project boundary/boundaries`);
+        }
         const files = options.filesListPath ? readFilesList(options.filesListPath) : undefined;
         if (files) {
             console.log(`  Incremental file list: ${files.length} file(s)`);
@@ -89,6 +95,8 @@ export class TypeScriptIndexerApplication {
             }
             console.log(`  Removed ${plan.deletedFiles.length} deleted file(s) from the project graph`);
         }
+        const diagnosticsCount = await indexTypeScriptDiagnostics(client, options.rootPath, options.projectName);
+        console.log(`  Indexed ${diagnosticsCount} TypeScript diagnostic(s)`);
         saveTsIndexerCache(options.cacheDirectory, options.projectName, plan.nextState);
         console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
     }
@@ -128,6 +136,7 @@ export class TypeScriptIndexerApplication {
                     for (const edge of result.edges) {
                         await client.ingestEdge(edge).catch(() => { });
                     }
+                    const diagnosticsCount = await indexTypeScriptDiagnostics(client, options.rootPath, options.projectName).catch(() => 0);
                     let docCount = 0;
                     if (options.includeDocs) {
                         for (const docPath of changedBatch.filter(file => isDocumentationFile(file) && fs.existsSync(file))) {
@@ -144,7 +153,7 @@ export class TypeScriptIndexerApplication {
                             docCount++;
                         }
                     }
-                    console.log(`[watch] Done: ${result.nodes.length} nodes, ${result.edges.length} edges, ${docCount} docs`);
+                    console.log(`[watch] Done: ${result.nodes.length} nodes, ${result.edges.length} edges, ${docCount} docs, ${diagnosticsCount} diagnostics`);
                 }
                 catch (error) {
                     console.error('[watch] Re-index failed:', error);

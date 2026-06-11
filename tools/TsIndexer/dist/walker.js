@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { createHash } from 'crypto';
-import { Project, SyntaxKind } from 'ts-morph';
+import { Project, SyntaxKind, } from 'ts-morph';
 // ── ID helpers ────────────────────────────────────────────────────────────────
 function sanitize(s) {
     return s.replace(/[\\/:*?"<>|]/g, '_');
@@ -54,11 +54,26 @@ export function walkTypeScript(rootPath, projectName, files) {
 // ── Node collection ───────────────────────────────────────────────────────────
 function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
     const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
+    const namespace = getNamespaceForPath(relPath, isTestFilePath(relPath));
     const fId = fileId(projectName, relPath);
+    if (namespace) {
+        const moduleId = `${projectName}:Module:${sanitize(namespace)}`;
+        addNode(nodes, knownIds, {
+            id: moduleId,
+            name: namespace,
+            type: 'Module',
+            namespace,
+            filePath: relPath,
+            lineNumber: 1,
+            lineCount: sourceFile.getEndLineNumber(),
+            projectContext: projectName,
+        });
+    }
     addNode(nodes, knownIds, {
         id: fId,
         name: path.basename(relPath),
         type: 'File',
+        namespace,
         filePath: relPath,
         lineNumber: 1,
         lineCount: sourceFile.getEndLineNumber(),
@@ -73,6 +88,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
             id,
             name,
             type: 'Class',
+            namespace,
             filePath: relPath,
             lineNumber: cls.getStartLineNumber(),
             lineCount: cls.getEndLineNumber() - cls.getStartLineNumber() + 1,
@@ -87,6 +103,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
                 id: mId,
                 name: mName,
                 type: 'Method',
+                namespace,
                 filePath: relPath,
                 lineNumber: method.getStartLineNumber(),
                 lineCount: method.getEndLineNumber() - method.getStartLineNumber() + 1,
@@ -102,6 +119,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
                 id: pId,
                 name: pName,
                 type: 'Property',
+                namespace,
                 filePath: relPath,
                 lineNumber: prop.getStartLineNumber(),
                 lineCount: prop.getEndLineNumber() - prop.getStartLineNumber() + 1,
@@ -119,6 +137,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
             id,
             name,
             type: 'Interface',
+            namespace,
             filePath: relPath,
             lineNumber: iface.getStartLineNumber(),
             lineCount: iface.getEndLineNumber() - iface.getStartLineNumber() + 1,
@@ -133,6 +152,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
                 id: mId,
                 name: mName,
                 type: 'Method',
+                namespace,
                 filePath: relPath,
                 lineNumber: method.getStartLineNumber(),
                 lineCount: method.getEndLineNumber() - method.getStartLineNumber() + 1,
@@ -150,6 +170,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
             id,
             name,
             type: 'Method',
+            namespace,
             filePath: relPath,
             lineNumber: fn.getStartLineNumber(),
             lineCount: fn.getEndLineNumber() - fn.getStartLineNumber() + 1,
@@ -166,6 +187,7 @@ function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
             id,
             name,
             type: 'Enum',
+            namespace,
             filePath: relPath,
             lineNumber: enumDecl.getStartLineNumber(),
             lineCount: enumDecl.getEndLineNumber() - enumDecl.getStartLineNumber() + 1,
@@ -193,23 +215,20 @@ function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds,
                 filePath: relPath,
                 className: name,
             });
+            addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds);
         }
         for (const prop of cls.getProperties()) {
             const pId = nodeId(projectName, relPath, `${name}.${prop.getName()}`, 'Property');
             if (knownIds.has(pId))
                 edges.push({ sourceId: cId, targetId: pId, type: 'Contains' });
+            addTypeUseEdges(projectName, rootPath, relPath, prop, pId, edges, knownIds);
         }
         // Inherits — only within indexed project
         const baseClass = cls.getBaseClass();
         if (baseClass) {
-            const baseName = baseClass.getName();
-            if (baseName) {
-                const baseSourceFile = baseClass.getSourceFile();
-                const baseRelPath = path.relative(rootPath, baseSourceFile.getFilePath()).replace(/\\/g, '/');
-                const baseId = nodeId(projectName, baseRelPath, baseName, 'Class');
-                if (knownIds.has(baseId))
-                    edges.push({ sourceId: cId, targetId: baseId, type: 'Inherits' });
-            }
+            const baseId = resolveHeritageTargetId(projectName, rootPath, baseClass, knownIds);
+            if (baseId)
+                edges.push({ sourceId: cId, targetId: baseId, type: 'Inherits' });
         }
         // Implements — only within indexed project
         for (const impl of cls.getImplements()) {
@@ -229,11 +248,11 @@ function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds,
             const mId = nodeId(projectName, relPath, `${name}.${method.getName()}`, 'Method');
             if (knownIds.has(mId))
                 edges.push({ sourceId: iId, targetId: mId, type: 'Contains' });
+            addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds);
         }
         // Interface extends interface
         for (const ext of iface.getExtends()) {
-            const extName = ext.getExpression().getText().split('<')[0];
-            const matchingId = findInterfaceId(extName, projectName, knownIds);
+            const matchingId = resolveHeritageTargetId(projectName, rootPath, ext, knownIds);
             if (matchingId)
                 edges.push({ sourceId: iId, targetId: matchingId, type: 'Inherits' });
         }
@@ -246,6 +265,7 @@ function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds,
         addCallEdges(fnId, fn.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, {
             filePath: relPath,
         });
+        addTypeUseEdges(projectName, rootPath, relPath, fn, fnId, edges, knownIds);
     }
     for (const enumDecl of sourceFile.getEnums()) {
         const eId = nodeId(projectName, relPath, enumDecl.getName(), 'Enum');
@@ -263,6 +283,17 @@ function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds,
         const targetId = fileId(projectName, targetRelPath);
         if (knownIds.has(targetId))
             edges.push({ sourceId: fId, targetId: targetId, type: 'DependsOn' });
+        const importClause = importDecl.getImportClause();
+        const namedBindings = importClause?.getNamedBindings();
+        if (namedBindings?.isKind(SyntaxKind.NamedImports)) {
+            for (const specifier of namedBindings.getElements()) {
+                const importedName = specifier.getNameNode().getText();
+                const importedTargetId = resolveExportedTypeNodeId(projectName, rootPath, resolved, importedName, knownIds);
+                if (importedTargetId) {
+                    edges.push({ sourceId: fId, targetId: importedTargetId, type: 'Uses' });
+                }
+            }
+        }
     }
 }
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -344,4 +375,138 @@ function findInterfaceId(shortName, projectName, knownIds) {
         }
     }
     return undefined;
+}
+function addTypeUseEdges(projectName, rootPath, relPath, node, sourceId, edges, knownIds) {
+    const typeReferences = node.getDescendantsOfKind(SyntaxKind.TypeReference);
+    for (const typeRef of typeReferences) {
+        const targetId = resolveTypeReference(projectName, rootPath, relPath, typeRef, knownIds);
+        if (targetId && targetId !== sourceId) {
+            edges.push({ sourceId, targetId, type: 'Uses' });
+        }
+    }
+}
+function resolveTypeReference(projectName, rootPath, relPath, typeRef, knownIds) {
+    const symbol = typeRef.getTypeName().getSymbol();
+    return resolveSymbolTargetId(projectName, rootPath, symbol, typeRef.getText(), knownIds);
+}
+function resolveExportedTypeNodeId(projectName, rootPath, sourceFile, exportedName, knownIds) {
+    const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
+    for (const type of ['Class', 'Interface', 'Enum']) {
+        const targetId = nodeId(projectName, relPath, exportedName, type);
+        if (knownIds.has(targetId))
+            return targetId;
+    }
+    for (const exportDecl of sourceFile.getExportDeclarations()) {
+        const namedExports = exportDecl.getNamedExports();
+        for (const namedExport of namedExports) {
+            const alias = namedExport.getAliasNode()?.getText();
+            const name = namedExport.getNameNode().getText();
+            if (alias !== exportedName && name !== exportedName)
+                continue;
+            const resolved = exportDecl.getModuleSpecifierSourceFile();
+            if (!resolved)
+                continue;
+            const resolvedId = resolveExportedTypeNodeId(projectName, rootPath, resolved, name, knownIds);
+            if (resolvedId)
+                return resolvedId;
+        }
+    }
+    return undefined;
+}
+function getNamespaceForPath(relPath, isTestFile) {
+    const dir = path.posix.dirname(relPath.replace(/\\/g, '/'));
+    const namespace = dir === '.' ? undefined : dir;
+    if (!isTestFile)
+        return namespace;
+    return namespace ? `test/${namespace}` : 'test';
+}
+function resolveSymbolTargetId(projectName, rootPath, symbol, fallbackName, knownIds) {
+    const visited = new Set();
+    return resolveSymbolTargetIdCore(projectName, rootPath, symbol, fallbackName, knownIds, visited);
+}
+function resolveSymbolTargetIdCore(projectName, rootPath, symbol, fallbackName, knownIds, visited) {
+    if (!symbol)
+        return undefined;
+    const key = symbol.getFullyQualifiedName();
+    if (visited.has(key))
+        return undefined;
+    visited.add(key);
+    const aliased = symbol.getAliasedSymbol?.();
+    if (aliased && aliased !== symbol) {
+        const resolved = resolveSymbolTargetIdCore(projectName, rootPath, aliased, fallbackName, knownIds, visited);
+        if (resolved)
+            return resolved;
+    }
+    for (const declaration of symbol.getDeclarations()) {
+        const declarationId = resolveDeclarationTargetId(projectName, rootPath, declaration, knownIds);
+        if (declarationId)
+            return declarationId;
+    }
+    const sourceDeclarations = symbol.getDeclarations();
+    if (sourceDeclarations.length > 0) {
+        const first = sourceDeclarations[0];
+        const relPath = path.relative(rootPath, first.getSourceFile().getFilePath()).replace(/\\/g, '/');
+        for (const type of ['Class', 'Interface', 'Enum']) {
+            const targetId = nodeId(projectName, relPath, fallbackName, type);
+            if (knownIds.has(targetId))
+                return targetId;
+        }
+    }
+    return undefined;
+}
+function resolveDeclarationTargetId(projectName, rootPath, declaration, knownIds) {
+    const sourceFile = declaration.getSourceFile();
+    const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
+    const name = declaration.getSymbol()?.getName() ?? declaration.getText().split(/\s+/)[0];
+    const kind = declaration.getKindName();
+    const targetType = kind === 'InterfaceDeclaration'
+        ? 'Interface'
+        : kind === 'ClassDeclaration'
+            ? 'Class'
+            : kind === 'EnumDeclaration'
+                ? 'Enum'
+                : kind === 'TypeAliasDeclaration'
+                    ? 'Interface'
+                    : undefined;
+    if (!targetType)
+        return undefined;
+    const targetId = nodeId(projectName, relPath, name, targetType);
+    return knownIds.has(targetId) ? targetId : undefined;
+}
+function resolveHeritageTargetId(projectName, rootPath, heritageClause, knownIds) {
+    const expressionText = getHeritageExpressionText(heritageClause);
+    const symbol = getHeritageExpressionSymbol(heritageClause);
+    const resolved = resolveSymbolTargetId(projectName, rootPath, symbol, expressionText.split('<')[0], knownIds);
+    if (resolved)
+        return resolved;
+    const fallbackName = expressionText.split('<')[0];
+    return findInterfaceId(fallbackName, projectName, knownIds) ?? resolveClassIdByName(projectName, rootPath, fallbackName, knownIds);
+}
+function resolveClassIdByName(projectName, rootPath, name, knownIds) {
+    for (const id of knownIds) {
+        if (id.startsWith(`${projectName}:Class:`) && id.endsWith(`:${name}`)) {
+            return id;
+        }
+    }
+    return undefined;
+}
+function isTestFilePath(relPath) {
+    const normalized = relPath.replace(/\\/g, '/').toLowerCase();
+    return normalized.includes('/test/') ||
+        normalized.includes('/tests/') ||
+        normalized.includes('/__tests__/') ||
+        normalized.includes('.test.') ||
+        normalized.includes('.spec.');
+}
+function getHeritageExpressionText(node) {
+    if ('getExpression' in node && typeof node.getExpression === 'function') {
+        return node.getExpression().getText();
+    }
+    return node.getText();
+}
+function getHeritageExpressionSymbol(node) {
+    if ('getExpression' in node && typeof node.getExpression === 'function') {
+        return node.getExpression().getSymbol();
+    }
+    return node.getSymbol();
 }

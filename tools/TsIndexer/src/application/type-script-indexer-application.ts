@@ -9,6 +9,8 @@ import {
   loadTsIndexerCache,
   saveTsIndexerCache,
 } from '../storage/indexer-cache.js';
+import { indexTypeScriptDiagnostics } from '../diagnostics/type-script-diagnostics.js';
+import { analyzeTypeScriptBoundaries } from '../analysis/type-script-boundaries.js';
 import {
   isDocumentationFile,
   isTypeScriptSourceFile,
@@ -44,6 +46,10 @@ export class TypeScriptIndexerApplication {
     client: CodeMeridianClient,
   ): Promise<void> {
     console.log(`Walking TypeScript files in ${options.rootPath}...`);
+    const boundaries = analyzeTypeScriptBoundaries(options.rootPath);
+    if (boundaries.length > 0) {
+      console.log(`  Detected ${boundaries.length} TypeScript project boundary/boundaries`);
+    }
 
     const files = options.filesListPath ? readFilesList(options.filesListPath) : undefined;
     if (files) {
@@ -114,6 +120,9 @@ export class TypeScriptIndexerApplication {
       console.log(`  Removed ${plan.deletedFiles.length} deleted file(s) from the project graph`);
     }
 
+    const diagnosticsCount = await indexTypeScriptDiagnostics(client, options.rootPath, options.projectName);
+    console.log(`  Indexed ${diagnosticsCount} TypeScript diagnostic(s)`);
+
     saveTsIndexerCache(options.cacheDirectory, options.projectName, plan.nextState);
 
     console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
@@ -165,6 +174,8 @@ export class TypeScriptIndexerApplication {
             await client.ingestEdge(edge).catch(() => {});
           }
 
+          const diagnosticsCount = await indexTypeScriptDiagnostics(client, options.rootPath, options.projectName).catch(() => 0);
+
           let docCount = 0;
           if (options.includeDocs) {
             for (const docPath of changedBatch.filter(file => isDocumentationFile(file) && fs.existsSync(file))) {
@@ -182,7 +193,7 @@ export class TypeScriptIndexerApplication {
             }
           }
 
-          console.log(`[watch] Done: ${result.nodes.length} nodes, ${result.edges.length} edges, ${docCount} docs`);
+          console.log(`[watch] Done: ${result.nodes.length} nodes, ${result.edges.length} edges, ${docCount} docs, ${diagnosticsCount} diagnostics`);
         } catch (error) {
           console.error('[watch] Re-index failed:', error);
         }

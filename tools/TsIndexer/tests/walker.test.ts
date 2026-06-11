@@ -151,6 +151,57 @@ export class Editor extends BaseEditor implements EditorPort {
     });
   });
 
+  it('emits uses edges for referenced local types and module nodes for folders', () => {
+    writeFile('models/state.ts', 'export interface State { id: string }\n');
+    writeFile(
+      'services/consumer.ts',
+      `import type { State } from '../models/state';
+
+export function useState(state: State): string {
+  return state.id;
+}
+`,
+    );
+
+    const result = walkTypeScript(rootPath, 'Proj');
+
+    expect(result.nodes).toContainEqual(
+      expect.objectContaining({
+        id: 'Proj:Module:models',
+        type: 'Module',
+      }),
+    );
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({
+        sourceId: 'Proj:File:services_consumer.ts',
+        targetId: 'Proj:Interface:models_state.ts:State',
+        type: 'Uses',
+      }),
+    );
+  });
+
+  it('resolves aliased imports and re-export barrels to the underlying type', () => {
+    writeFile('models/state.ts', 'export interface State { id: string }\n');
+    writeFile('models/index.ts', "export { State as AppState } from './state';\n");
+    writeFile(
+      'services/consumer.ts',
+      `import { AppState } from '../models';
+
+export const current: AppState = { id: '1' };
+`,
+    );
+
+    const result = walkTypeScript(rootPath, 'Proj');
+
+    expect(result.edges).toContainEqual(
+      expect.objectContaining({
+        sourceId: 'Proj:File:services_consumer.ts',
+        targetId: 'Proj:Interface:models_state.ts:State',
+        type: 'Uses',
+      }),
+    );
+  });
+
   it('skips ambiguous method calls instead of creating noisy edges', () => {
     writeFile(
       'one.ts',

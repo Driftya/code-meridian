@@ -9,7 +9,8 @@ export type CodeNodeType =
   | 'Field'
   | 'Enum'
   | 'File'
-  | 'Module';
+  | 'Module'
+  | 'Diagnostic';
 
 export type CodeEdgeType =
   | 'Contains'

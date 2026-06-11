@@ -54,6 +54,8 @@ public sealed partial class Neo4jCodeGraphRepository
               AND ($projectContextNormalized IS NULL OR prod.projectContextNormalized = $projectContextNormalized)
               AND NOT coalesce(prod.namespaceNormalized CONTAINS 'test', false)
               AND NOT coalesce(prod.filePathNormalized CONTAINS 'test', false)
+              AND NOT coalesce(prod.filePathNormalized CONTAINS '.test.', false)
+              AND NOT coalesce(prod.filePathNormalized CONTAINS '.spec.', false)
               AND NOT coalesce(prod.filePathNormalized CONTAINS '/obj/', false)
               AND NOT coalesce(prod.filePathNormalized CONTAINS '/bin/', false)
               AND NOT EXISTS {
