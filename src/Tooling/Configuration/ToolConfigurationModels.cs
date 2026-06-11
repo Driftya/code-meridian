@@ -1,6 +1,10 @@
 namespace CodeMeridian.Tooling.Configuration;
 
-public sealed record CodeMeridianConfigSnapshot(string? Project, string? CodeMeridianUrl, bool? AllowRepoScripts);
+public sealed record CodeMeridianConfigSnapshot(
+    string? Project,
+    string? CodeMeridianUrl,
+    bool? AllowRepoScripts,
+    bool? UseGlobalCache);
 
 public sealed record ToolConfigurationContext(
     DirectoryInfo RootPath,
@@ -16,4 +20,5 @@ public sealed class CodeMeridianConfigFileOptions
     public string? CodeMeridianUrl { get; set; }
     public string? Url { get; set; }
     public bool? AllowRepoScripts { get; set; }
+    public bool? UseGlobalCache { get; set; }
 }

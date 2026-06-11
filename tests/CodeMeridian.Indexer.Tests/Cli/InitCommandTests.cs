@@ -43,7 +43,7 @@ public sealed class InitCommandTests : IDisposable
     }
 
     [Fact]
-    public void RunGlobal_CreatesGlobalMeridianJsonOnly()
+    public void RunGlobal_EnablesGlobalCacheInProjectConfig()
     {
         var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
         Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", globalRoot.FullName);
@@ -59,19 +59,30 @@ public sealed class InitCommandTests : IDisposable
         var meridianJsonPath = Path.Combine(globalRoot.FullName, "meridian.json");
         File.Exists(meridianJsonPath).Should().BeTrue();
         File.Exists(Path.Combine(globalRoot.FullName, "meridian.schema.json")).Should().BeTrue();
-        File.Exists(Path.Combine(globalRoot.FullName, ".vscode", "mcp.json")).Should().BeFalse();
-        File.Exists(Path.Combine(globalRoot.FullName, ".codex", "config.toml")).Should().BeFalse();
+        File.Exists(Path.Combine(_root, "meridian.json")).Should().BeFalse();
+        File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeFalse();
+        File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeFalse();
 
         var meridianJson = File.ReadAllText(meridianJsonPath);
         meridianJson.Should().Contain("\"project\": \"\"");
         meridianJson.Should().Contain("\"codeMeridianUrl\": \"http://global:5100\"");
+        meridianJson.Should().Contain("\"useGlobalCache\": true");
     }
 
     public void Dispose()
     {
         Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", null);
-        if (Directory.Exists(_root))
+        if (!Directory.Exists(_root))
+            return;
+
+        try
+        {
             Directory.Delete(_root, recursive: true);
+        }
+        catch (IOException)
+        {
+            // Windows can briefly lock the generated config file; the temp tree is disposable.
+        }
     }
 
     private static InitCommand CreateCommand()

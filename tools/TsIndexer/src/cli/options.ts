@@ -17,4 +17,6 @@ export interface ResolvedIndexCommandOptions {
   includeDocs: boolean;
   watch: boolean;
   filesListPath?: string;
+  storageMode: 'repo' | 'global';
+  cacheDirectory: string;
 }

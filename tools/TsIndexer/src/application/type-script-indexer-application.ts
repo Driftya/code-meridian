@@ -5,6 +5,11 @@ import { CodeMeridianClient } from '../client.js';
 import { walkTypeScript } from '../walker.js';
 import type { ResolvedIndexCommandOptions } from '../cli/options.js';
 import {
+  buildTsIndexerPlan,
+  loadTsIndexerCache,
+  saveTsIndexerCache,
+} from '../storage/indexer-cache.js';
+import {
   isDocumentationFile,
   isTypeScriptSourceFile,
   readFilesList,
@@ -15,6 +20,8 @@ import {
 export class TypeScriptIndexerApplication {
   async run(options: ResolvedIndexCommandOptions): Promise<number> {
     const client = new CodeMeridianClient(options.serverUrl, options.apiKey);
+
+    console.log(`Storage mode: ${options.storageMode}`);
 
     if (options.clear) {
       process.stdout.write(`Clearing existing knowledge for '${options.projectName}'... `);
@@ -43,10 +50,15 @@ export class TypeScriptIndexerApplication {
       console.log(`  Incremental file list: ${files.length} file(s)`);
     }
 
-    const typeScriptFiles = files
-      ?.map(file => resolveInputFile(options.rootPath, file))
-      .filter(isTypeScriptSourceFile);
+    const allTypeScriptFiles = files
+      ? files.map(file => resolveInputFile(options.rootPath, file)).filter(isTypeScriptSourceFile)
+      : discoverTypeScriptFiles(options.rootPath);
     const docFiles = options.includeDocs ? resolveDocumentFiles(options.rootPath, files) : [];
+    const existingState = loadTsIndexerCache(options.cacheDirectory, options.projectName);
+    const plan = buildTsIndexerPlan(options.rootPath, allTypeScriptFiles, existingState);
+    const typeScriptFiles = files
+      ? allTypeScriptFiles
+      : plan.changedFiles.map(file => resolveInputFile(options.rootPath, file));
     const { nodes, edges } = walkTypeScript(options.rootPath, options.projectName, typeScriptFiles);
 
     console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
@@ -94,6 +106,15 @@ export class TypeScriptIndexerApplication {
       }
       console.log(`  Ingested ${docCount} document(s)`);
     }
+
+    if (plan.deletedFiles.length > 0) {
+      for (const deletedPath of plan.deletedFiles) {
+        await client.deleteProjectFile(options.projectName, deletedPath).catch(() => {});
+      }
+      console.log(`  Removed ${plan.deletedFiles.length} deleted file(s) from the project graph`);
+    }
+
+    saveTsIndexerCache(options.cacheDirectory, options.projectName, plan.nextState);
 
     console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
   }
@@ -191,4 +212,29 @@ export class TypeScriptIndexerApplication {
       process.on('SIGTERM', () => resolve());
     });
   }
+}
+
+function discoverTypeScriptFiles(rootPath: string): string[] {
+  const results: string[] = [];
+  const pending = [rootPath];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) continue;
+
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === '.git' || entry.name === '.vs' || entry.name === '.vscode' || entry.name === '.meridian' || entry.name === 'bin' || entry.name === 'obj' || entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'build' || entry.name === 'coverage') {
+          continue;
+        }
+        pending.push(fullPath);
+      } else if (entry.isFile() && isTypeScriptSourceFile(fullPath)) {
+        results.push(fullPath);
+      }
+    }
+  }
+
+  return results;
 }

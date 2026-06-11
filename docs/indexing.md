@@ -271,7 +271,7 @@ Precedence for non-secret settings:
 2. Shell environment variables
 3. Values loaded from `.env`
 4. Values in project-local `meridian.json`
-5. Values in global `%APPDATA%\CodeMeridian\meridian.json`
+5. Values in global `%LOCALAPPDATA%\CodeMeridian\meridian.json`
 6. Auto-detected defaults
 
 You can generate `meridian.json` plus MCP client config with:
@@ -319,6 +319,7 @@ Useful variables:
 | `project` | Optional project context name used by the indexer when `--project` is omitted |
 | `codeMeridianUrl` | Optional CodeMeridian server URL used when `CodeMeridian_Url` is not set |
 | `allowRepoScripts` | When `true`, repo-controlled build and lint diagnostics are enabled by default |
+| `useGlobalCache` | When `true`, runtime cache is stored outside the repository |
 | `$schema` | Optional JSON schema reference. `codemeridian init` writes `./meridian.schema.json` |
 | `analysis.staleKnowledge.skipHeuristicSourcePrefixes` | Documentation source prefixes where stale-knowledge uses explicit links only |
 | `analysis.staleKnowledge.ignoredMentionTokens` | Exact tokens ignored by stale-knowledge heuristic scanning |

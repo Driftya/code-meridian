@@ -6,6 +6,7 @@ using CodeMeridian.Indexer.Cli;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
 using CodeMeridian.Tooling.Discovery;
+using CodeMeridian.Tooling.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -15,6 +16,7 @@ namespace CodeMeridian.Indexer.Cli.Commands;
 internal sealed class IndexCommandHandler(
     IOptions<ResolvedIndexerSettings> settings,
     IProjectDiscoveryService projectDiscoveryService,
+    IIndexerStoragePathService storagePathService,
     DiagnosticsCommand diagnosticsCommand)
 {
     private readonly ResolvedIndexerSettings _settings = settings.Value;
@@ -36,7 +38,8 @@ internal sealed class IndexCommandHandler(
         var hasCSharp = !_settings.SkipCSharp && projectDiscoveryService.ContainsFile(_settings.RootPath, ".cs");
         var typeScriptRoots = _settings.SkipTypeScript ? [] : projectDiscoveryService.FindTypeScriptRoots(_settings.RootPath);
         var hasTypeScript = typeScriptRoots.Count > 0;
-        var cache = IncrementalIndexCache.Load(_settings.RootPath, _settings.Project);
+        var cacheDirectory = storagePathService.ResolveCacheDirectory(_settings.RootPath, _settings.Project, _settings.StorageMode);
+        var cache = IncrementalIndexCache.Load(cacheDirectory, _settings.Project);
         var indexableFiles = EnumerateIndexableFiles(_settings.RootPath, hasCSharp, hasTypeScript, _settings.IncludeDocs).ToArray();
         var incrementalPlan = cache.BuildPlan(_settings.RootPath, indexableFiles, forceFull: _settings.Clear || !_settings.Incremental);
         var changedFiles = _settings.Incremental && !_settings.Clear ? incrementalPlan.ChangedFiles : null;
@@ -46,6 +49,8 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Root    : {_settings.RootPath.FullName}");
         Console.WriteLine($"  Project : {_settings.Project}");
         Console.WriteLine($"  Server  : {_settings.CodeMeridianUrl}");
+        Console.WriteLine($"  Storage : {_settings.StorageMode.ToString().ToLowerInvariant()}");
+        Console.WriteLine($"  Cache   : {cacheDirectory.FullName}");
         Console.WriteLine($"  Mode    : {(_settings.Incremental && !_settings.Clear ? "incremental" : "full")}");
 
         if (!hasCSharp && !hasTypeScript)
@@ -123,7 +128,7 @@ internal sealed class IndexCommandHandler(
 
                 var filesList = changedTypeScriptFiles is null
                     ? null
-                    : WriteFilesList(typeScriptRoot, changedTypeScriptFiles);
+                    : WriteFilesList(cacheDirectory, typeScriptRoot, changedTypeScriptFiles);
 
                 var tsArgs = BuildTypeScriptIndexerArgs(tsIndexerRoot, typeScriptRoot);
                 AddTypeScriptIndexerOptions(
@@ -372,13 +377,13 @@ internal sealed class IndexCommandHandler(
     }
 
     private FileInfo WriteFilesList(
+        DirectoryInfo cacheDirectory,
         DirectoryInfo languageRoot,
         IReadOnlyCollection<string> fullPaths)
     {
-        var cacheDir = new DirectoryInfo(Path.Combine(_settings.RootPath.FullName, ".meridian", "cache"));
-        cacheDir.Create();
+        cacheDirectory.Create();
         var file = new FileInfo(Path.Combine(
-            cacheDir.FullName,
+            cacheDirectory.FullName,
             $"ts-files-{Hash($"{_settings.Project}|{languageRoot.FullName}")}.txt"));
 
         File.WriteAllLines(file.FullName, fullPaths.Order(StringComparer.OrdinalIgnoreCase));
@@ -541,6 +546,8 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  codemeridian index . --clear");
+        Console.WriteLine("  codemeridian index . --storage global");
+        Console.WriteLine("  codemeridian index . --storage repo");
         Console.WriteLine("  codemeridian index . --project MyProject --watch");
         Console.WriteLine("  codemeridian index . --dry-run");
         Console.WriteLine("  codemeridian init .");

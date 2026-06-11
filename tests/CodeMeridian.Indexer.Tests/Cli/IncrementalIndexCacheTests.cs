@@ -10,8 +10,9 @@ public sealed class IncrementalIndexCacheTests
     {
         using var workspace = TestWorkspace.Create();
         var file = workspace.WriteFile("src/App.cs", "class App {}");
+        var cacheDirectory = workspace.GetRepoCacheDirectory();
 
-        var sut = IncrementalIndexCache.Load(workspace.Root, "Project");
+        var sut = IncrementalIndexCache.Load(cacheDirectory, "Project");
 
         var plan = sut.BuildPlan(workspace.Root, [file], forceFull: false);
 
@@ -26,8 +27,9 @@ public sealed class IncrementalIndexCacheTests
         var unchanged = workspace.WriteFile("src/Unchanged.cs", "class Unchanged {}");
         var changed = workspace.WriteFile("src/Changed.cs", "class Changed {}");
         var deleted = workspace.WriteFile("src/Deleted.cs", "class Deleted {}");
+        var cacheDirectory = workspace.GetRepoCacheDirectory();
 
-        var sut = IncrementalIndexCache.Load(workspace.Root, "Project");
+        var sut = IncrementalIndexCache.Load(cacheDirectory, "Project");
         var firstPlan = sut.BuildPlan(workspace.Root, [unchanged, changed, deleted], forceFull: false);
         sut.Save(firstPlan);
 
@@ -35,7 +37,7 @@ public sealed class IncrementalIndexCacheTests
         changed = workspace.WriteFile("src/Changed.cs", "class Changed { void M() {} }");
         File.Delete(deleted.FullName);
 
-        var reloaded = IncrementalIndexCache.Load(workspace.Root, "Project");
+        var reloaded = IncrementalIndexCache.Load(cacheDirectory, "Project");
         var nextPlan = reloaded.BuildPlan(workspace.Root, [unchanged, changed], forceFull: false);
 
         nextPlan.ChangedFiles.Should().ContainSingle("src/Changed.cs");
@@ -47,15 +49,16 @@ public sealed class IncrementalIndexCacheTests
     {
         using var workspace = TestWorkspace.Create();
         var file = workspace.WriteFile("src/App.cs", "class App {}");
+        var cacheDirectory = workspace.GetRepoCacheDirectory();
 
-        var sut = IncrementalIndexCache.Load(workspace.Root, "Project");
+        var sut = IncrementalIndexCache.Load(cacheDirectory, "Project");
         var firstPlan = sut.BuildPlan(workspace.Root, [file], forceFull: false);
         sut.Save(firstPlan);
 
         file.LastWriteTimeUtc = file.LastWriteTimeUtc.AddDays(1);
         file.Refresh();
 
-        var reloaded = IncrementalIndexCache.Load(workspace.Root, "Project");
+        var reloaded = IncrementalIndexCache.Load(cacheDirectory, "Project");
         var nextPlan = reloaded.BuildPlan(workspace.Root, [file], forceFull: false);
 
         nextPlan.ChangedFiles.Should().BeEmpty();
@@ -85,6 +88,13 @@ public sealed class IncrementalIndexCacheTests
             File.WriteAllText(file.FullName, content);
             file.Refresh();
             return file;
+        }
+
+        public DirectoryInfo GetRepoCacheDirectory()
+        {
+            var directory = new DirectoryInfo(Path.Combine(Root.FullName, ".meridian", "cache"));
+            directory.Create();
+            return directory;
         }
 
         public void Dispose()

@@ -2,6 +2,7 @@ using System.CommandLine;
 using CodeMeridian.Indexer.Cli;
 using CodeMeridian.Indexer.Cli.Configuration;
 using CodeMeridian.Tooling.Configuration;
+using CodeMeridian.Tooling.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -56,6 +57,7 @@ internal sealed class RootCommandFactory(
         var allowRepoScriptsOption = new Option<bool>("--allow-repo-scripts") { Description = "Allow repo-controlled build and lint commands during diagnostics." };
         var noIncrementalOption = new Option<bool>("--no-incremental") { Description = "Ignore .meridian/cache and scan all enabled files." };
         noIncrementalOption.Aliases.Add("--force-full");
+        var storageOption = new Option<string?>("--storage") { Description = "Cache storage mode for this run: repo or global." };
 
         command.Add(pathArgument);
         command.Add(projectOption);
@@ -70,12 +72,25 @@ internal sealed class RootCommandFactory(
         command.Add(skipDiagnosticsOption);
         command.Add(allowRepoScriptsOption);
         command.Add(noIncrementalOption);
+        command.Add(storageOption);
 
         command.SetAction(async parseResult =>
         {
             ResolvedIndexerSettings settings;
             try
             {
+                IndexerStorageMode? storageMode = null;
+                var storageValue = parseResult.GetValue(storageOption);
+                if (!string.IsNullOrWhiteSpace(storageValue))
+                {
+                    storageMode = storageValue.Trim().ToLowerInvariant() switch
+                    {
+                        "repo" or "repository" => IndexerStorageMode.Repository,
+                        "global" => IndexerStorageMode.Global,
+                        _ => throw new InvalidOperationException("Invalid --storage value. Use repo or global."),
+                    };
+                }
+
                 settings = settingsFactory.Create(new IndexCommandOptions(
                     parseResult.GetValue(pathArgument),
                     parseResult.GetValue(projectOption),
@@ -89,7 +104,8 @@ internal sealed class RootCommandFactory(
                     SkipTypeScript: parseResult.GetValue(skipTypeScriptOption),
                     SkipDiagnostics: parseResult.GetValue(skipDiagnosticsOption),
                     AllowRepoScripts: parseResult.GetValue(allowRepoScriptsOption),
-                    Incremental: !parseResult.GetValue(noIncrementalOption)));
+                    Incremental: !parseResult.GetValue(noIncrementalOption),
+                    Storage: storageMode));
             }
             catch (Exception ex)
             {
@@ -108,13 +124,13 @@ internal sealed class RootCommandFactory(
 
     private Command CreateInitCommand()
     {
-        var command = new Command("init", "Create CodeMeridian config for the current project or globally.");
+        var command = new Command("init", "Create CodeMeridian config for the current project.");
         var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory to initialize. Defaults to the current directory." };
         var projectOption = new Option<string?>("--project") { Description = "Project context name." };
         var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
         urlOption.Aliases.Add("--CodeMeridian");
         var forceOption = new Option<bool>("--force") { Description = "Overwrite generated config if it already exists." };
-        var globalOption = new Option<bool>("--global") { Description = "Write the user-level fallback config instead of project-local files." };
+        var globalOption = new Option<bool>("--global") { Description = "Enable global cache/storage for this project." };
 
         command.Add(pathArgument);
         command.Add(projectOption);

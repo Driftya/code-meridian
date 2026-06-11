@@ -25,7 +25,8 @@ public sealed class IndexerConfigTests : IDisposable
             {
               "project": "MyApi",
               "codeMeridianUrl": "http://localhost:5100",
-              "allowRepoScripts": true
+              "allowRepoScripts": true,
+              "useGlobalCache": true
             }
             """);
 
@@ -35,6 +36,7 @@ public sealed class IndexerConfigTests : IDisposable
         result!.Project.Should().Be("MyApi");
         result.CodeMeridianUrl.Should().Be("http://localhost:5100");
         result.AllowRepoScripts.Should().BeTrue();
+        result.UseGlobalCache.Should().BeTrue();
     }
 
     [Fact]
@@ -45,7 +47,8 @@ public sealed class IndexerConfigTests : IDisposable
             """
             {
               "project": "MyApi",
-              "url": "http://192.168.1.10:5100"
+              "url": "http://192.168.1.10:5100",
+              "useGlobalCache": false
             }
             """);
 
@@ -53,6 +56,7 @@ public sealed class IndexerConfigTests : IDisposable
 
         result.Should().NotBeNull();
         result!.CodeMeridianUrl.Should().Be("http://192.168.1.10:5100");
+        result.UseGlobalCache.Should().BeFalse();
     }
 
     [Fact]
@@ -65,7 +69,8 @@ public sealed class IndexerConfigTests : IDisposable
             {
               "project": "GlobalProject",
               "codeMeridianUrl": "http://global:5100",
-              "allowRepoScripts": true
+              "allowRepoScripts": true,
+              "useGlobalCache": true
             }
             """);
 
@@ -75,6 +80,7 @@ public sealed class IndexerConfigTests : IDisposable
         result!.Project.Should().Be("GlobalProject");
         result.CodeMeridianUrl.Should().Be("http://global:5100");
         result.AllowRepoScripts.Should().BeTrue();
+        result.UseGlobalCache.Should().BeTrue();
     }
 
     [Fact]
@@ -106,6 +112,7 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"$schema\": \"./meridian.schema.json\"");
         json.Should().Contain("\"codeMeridianUrl\": \"http://localhost:5100\"");
         json.Should().Contain("\"allowRepoScripts\": true");
+        json.Should().Contain("\"useGlobalCache\": false");
         json.Should().Contain("\"analysis\"");
         json.Should().Contain("\"skipHeuristicSourcePrefixes\"");
         json.Should().Contain("\"preferProductionOverTests\": true");
@@ -124,6 +131,7 @@ public sealed class IndexerConfigTests : IDisposable
         var json = File.ReadAllText(Path.Combine(globalRoot.FullName, "meridian.json"));
         json.Should().Contain("\"project\": \"\"");
         json.Should().Contain("\"codeMeridianUrl\": \"http://global:5100\"");
+        json.Should().Contain("\"useGlobalCache\": true");
         File.Exists(Path.Combine(globalRoot.FullName, "meridian.schema.json")).Should().BeTrue();
     }
 

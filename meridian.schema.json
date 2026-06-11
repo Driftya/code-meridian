@@ -25,6 +25,11 @@
       "default": true,
       "description": "Allow diagnostics indexing to run repo-controlled build/lint scripts."
     },
+    "useGlobalCache": {
+      "type": "boolean",
+      "default": false,
+      "description": "Store indexer runtime cache and generated files outside the repository."
+    },
     "analysis": {
       "type": "object",
       "additionalProperties": true,

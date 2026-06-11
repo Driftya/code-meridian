@@ -1,5 +1,6 @@
 using CodeMeridian.Indexer.Cli.Commands;
 using CodeMeridian.Tooling.Configuration;
+using CodeMeridian.Tooling.Storage;
 
 namespace CodeMeridian.Indexer.Cli.Configuration;
 
@@ -28,7 +29,11 @@ internal sealed class IndexCommandSettingsFactory(IToolConfigurationService conf
             SkipTypeScript = options.SkipTypeScript,
             SkipDiagnostics = options.SkipDiagnostics,
             AllowRepoScripts = configurationService.ResolveAllowRepoScripts(context, options.AllowRepoScripts),
-            Incremental = options.Incremental
+            Incremental = options.Incremental,
+            StorageMode = options.Storage
+                ?? ((context.LocalConfig?.UseGlobalCache ?? context.GlobalConfig?.UseGlobalCache) == true
+                    ? IndexerStorageMode.Global
+                    : IndexerStorageMode.Repository)
         };
     }
 }

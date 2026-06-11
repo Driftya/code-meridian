@@ -1,3 +1,5 @@
+using CodeMeridian.Tooling.Storage;
+
 namespace CodeMeridian.Indexer.Cli.Commands;
 
 internal sealed record IndexCommandOptions(
@@ -13,7 +15,8 @@ internal sealed record IndexCommandOptions(
     bool SkipTypeScript,
     bool SkipDiagnostics,
     bool AllowRepoScripts,
-    bool Incremental);
+    bool Incremental,
+    IndexerStorageMode? Storage);
 
 internal sealed record ClearCommandOptions(
     string? Project,

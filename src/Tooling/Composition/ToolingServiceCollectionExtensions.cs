@@ -1,5 +1,6 @@
 using CodeMeridian.Tooling.Configuration;
 using CodeMeridian.Tooling.Discovery;
+using CodeMeridian.Tooling.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -13,6 +14,7 @@ public static class ToolingServiceCollectionExtensions
         services.AddSingleton<IConfigureOptions<ToolCliDefaults>, ConfigureToolCliDefaults>();
         services.AddSingleton<CodeMeridianConfigFileStore>();
         services.AddSingleton<IProjectDiscoveryService, ProjectDiscoveryService>();
+        services.AddSingleton<IIndexerStoragePathService, IndexerStoragePathService>();
         services.AddSingleton<IToolConfigurationService, ToolConfigurationService>();
         return services;
     }

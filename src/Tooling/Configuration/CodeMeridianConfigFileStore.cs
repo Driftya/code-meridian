@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 
 namespace CodeMeridian.Tooling.Configuration;
@@ -26,14 +27,13 @@ public sealed class CodeMeridianConfigFileStore
         if (!string.IsNullOrWhiteSpace(overridePath))
             return new DirectoryInfo(overridePath);
 
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (!string.IsNullOrWhiteSpace(appData))
-            return new DirectoryInfo(Path.Combine(appData, "CodeMeridian"));
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localAppData))
+            return new DirectoryInfo(Path.Combine(localAppData, "CodeMeridian"));
 
         return new DirectoryInfo(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".config",
-            "codemeridian"));
+            ".codemeridian"));
     }
 
     public FileInfo GetGlobalConfigFile(DirectoryInfo? globalConfigDirectory = null) =>
@@ -41,10 +41,24 @@ public sealed class CodeMeridianConfigFileStore
 
     public void WriteGlobal(string codeMeridianUrl, bool overwrite = false, DirectoryInfo? globalConfigDirectory = null)
     {
-        Write(globalConfigDirectory ?? GetGlobalConfigDirectory(), project: null, codeMeridianUrl, overwrite);
+        var rootDirectory = globalConfigDirectory ?? GetGlobalConfigDirectory();
+        Directory.CreateDirectory(rootDirectory.FullName);
+
+        var filePath = Path.Combine(rootDirectory.FullName, ConfigFileName);
+        var json = File.Exists(filePath) && !overwrite
+            ? UpdateGlobalMeridianJson(File.ReadAllText(filePath), codeMeridianUrl)
+            : BuildMeridianJson(project: null, codeMeridianUrl, useGlobalCache: true);
+
+        File.WriteAllText(filePath, json + Environment.NewLine);
+        WriteSchemaFile(rootDirectory, overwrite);
     }
 
-    public void Write(DirectoryInfo rootDirectory, string? project, string codeMeridianUrl, bool overwrite = false)
+    public void Write(
+        DirectoryInfo rootDirectory,
+        string? project,
+        string codeMeridianUrl,
+        bool useGlobalCache = false,
+        bool overwrite = false)
     {
         Directory.CreateDirectory(rootDirectory.FullName);
 
@@ -52,7 +66,7 @@ public sealed class CodeMeridianConfigFileStore
         if (File.Exists(filePath) && !overwrite)
             throw new InvalidOperationException($"Config file already exists: {filePath}. Use --force to overwrite it.");
 
-        var json = BuildMeridianJson(project, codeMeridianUrl);
+        var json = BuildMeridianJson(project, codeMeridianUrl, useGlobalCache);
         File.WriteAllText(filePath, json + Environment.NewLine);
         WriteSchemaFile(rootDirectory, overwrite);
     }
@@ -77,7 +91,8 @@ public sealed class CodeMeridianConfigFileStore
             return new CodeMeridianConfigSnapshot(
                 ignoreProject ? null : NormalizeOptionalString(options.Project),
                 NormalizeOptionalString(options.CodeMeridianUrl) ?? NormalizeOptionalString(options.Url),
-                options.AllowRepoScripts);
+                options.AllowRepoScripts,
+                options.UseGlobalCache);
         }
         catch
         {
@@ -85,13 +100,41 @@ public sealed class CodeMeridianConfigFileStore
         }
     }
 
-    private static string BuildMeridianJson(string? project, string codeMeridianUrl)
+    private static string BuildMeridianJson(string? project, string codeMeridianUrl, bool useGlobalCache)
     {
         var template = ReadRequiredTemplate(MeridianSampleFileName);
         return template
             .Replace("{{project}}", JsonEncodedText.Encode(project ?? string.Empty).ToString(), StringComparison.Ordinal)
             .Replace("{{codeMeridianUrl}}", JsonEncodedText.Encode(codeMeridianUrl).ToString(), StringComparison.Ordinal)
+            .Replace("{{useGlobalCache}}", useGlobalCache ? "true" : "false", StringComparison.Ordinal)
             .TrimEnd();
+    }
+
+    private static string UpdateGlobalMeridianJson(string existingJson, string codeMeridianUrl)
+    {
+        JsonObject? root;
+        try
+        {
+            root = JsonNode.Parse(
+                existingJson,
+                new JsonNodeOptions { PropertyNameCaseInsensitive = false },
+                new JsonDocumentOptions
+                {
+                    AllowTrailingCommas = true,
+                    CommentHandling = JsonCommentHandling.Skip,
+                })?.AsObject();
+        }
+        catch
+        {
+            root = null;
+        }
+
+        root ??= [];
+        root["project"] = string.Empty;
+        root["codeMeridianUrl"] = codeMeridianUrl;
+        root["useGlobalCache"] = true;
+
+        return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
     private static void WriteSchemaFile(DirectoryInfo rootDirectory, bool overwrite)

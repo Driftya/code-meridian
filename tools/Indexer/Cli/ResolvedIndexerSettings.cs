@@ -1,3 +1,5 @@
+using CodeMeridian.Tooling.Storage;
+
 namespace CodeMeridian.Indexer.Cli.Commands;
 
 internal sealed class ResolvedIndexerSettings
@@ -16,4 +18,5 @@ internal sealed class ResolvedIndexerSettings
     public bool SkipDiagnostics { get; init; }
     public bool AllowRepoScripts { get; init; }
     public bool Incremental { get; init; } = true;
+    public required IndexerStorageMode StorageMode { get; init; }
 }

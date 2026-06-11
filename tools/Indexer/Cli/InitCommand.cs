@@ -29,7 +29,12 @@ internal sealed class InitCommand(
 
         try
         {
-            configFileStore.Write(rootPath, project, codeMeridianUrl, overwrite: options.Force);
+            configFileStore.Write(
+                rootPath,
+                project,
+                codeMeridianUrl,
+                useGlobalCache: false,
+                overwrite: options.Force);
         }
         catch (Exception ex)
         {
@@ -62,7 +67,10 @@ internal sealed class InitCommand(
 
         try
         {
-            configFileStore.WriteGlobal(codeMeridianUrl, overwrite: options.Force, globalConfigDirectory);
+            configFileStore.WriteGlobal(
+                codeMeridianUrl,
+                overwrite: options.Force,
+                globalConfigDirectory);
         }
         catch (Exception ex)
         {
@@ -76,7 +84,7 @@ internal sealed class InitCommand(
         Console.WriteLine($"  Path   : {configPath}");
         Console.WriteLine($"  Server : {codeMeridianUrl}");
         Console.WriteLine();
-        Console.WriteLine("Project names remain auto-detected unless a project-local meridian.json, .env, or --project overrides them.");
+        Console.WriteLine("Runtime cache and generated files will be stored outside the repository.");
         Console.WriteLine();
         Console.WriteLine("Next step:");
         Console.WriteLine("  codemeridian index .");

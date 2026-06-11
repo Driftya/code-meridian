@@ -15,10 +15,9 @@ public sealed class IncrementalIndexCache
         _state = state;
     }
 
-    public static IncrementalIndexCache Load(DirectoryInfo root, string projectContext)
+    public static IncrementalIndexCache Load(DirectoryInfo cacheDirectory, string projectContext)
     {
-        var cacheDir = new DirectoryInfo(Path.Combine(root.FullName, ".meridian", "cache"));
-        var cacheFile = new FileInfo(Path.Combine(cacheDir.FullName, $"indexer-files-{Hash(projectContext)}.json"));
+        var cacheFile = new FileInfo(Path.Combine(cacheDirectory.FullName, $"indexer-files-{Hash(projectContext)}.json"));
 
         if (!cacheFile.Exists)
             return new IncrementalIndexCache(cacheFile, new CacheState());

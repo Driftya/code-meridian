@@ -11,8 +11,8 @@ codemeridian init --global --url http://localhost:5100
 On Windows this writes:
 
 ```text
-%APPDATA%\CodeMeridian\meridian.json
-%APPDATA%\CodeMeridian\meridian.schema.json
+%LOCALAPPDATA%\CodeMeridian\meridian.json
+%LOCALAPPDATA%\CodeMeridian\meridian.schema.json
 ```
 
 The global config intentionally leaves `project` empty. Project names are still auto-detected from the repository folder unless you override them with:

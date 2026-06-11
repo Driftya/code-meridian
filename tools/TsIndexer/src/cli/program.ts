@@ -1,9 +1,12 @@
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { Command } from 'commander';
 import type { IndexCommandOptions, ResolvedIndexCommandOptions } from './options.js';
 import { loadEnvironmentForInvocation } from '../config/load-environment.js';
+import { loadMeridianConfigForInvocation } from '../config/meridian-config.js';
 import { resolveProjectName } from '../services/project-discovery.js';
+import { resolveGlobalConfigDirectory } from '../config/meridian-config.js';
 
 export async function parseCommandLine(argv: string[]): Promise<ResolvedIndexCommandOptions> {
   const program = new Command()
@@ -50,13 +53,22 @@ function resolveOptions(options: IndexCommandOptions): ResolvedIndexCommandOptio
   }
 
   loadEnvironmentForInvocation(rootPath);
+  const meridianConfig = loadMeridianConfigForInvocation(rootPath);
 
   const projectName = normalizeOptionalString(options.project)
     ?? normalizeOptionalString(process.env.CodeMeridian_Project)
+    ?? normalizeOptionalString(meridianConfig.local?.project)
+    ?? normalizeOptionalString(meridianConfig.global?.project)
     ?? resolveProjectName(rootPath);
   const serverUrl = normalizeOptionalString(options.url)
     ?? normalizeOptionalString(process.env.CodeMeridian_Url)
+    ?? normalizeOptionalString(meridianConfig.local?.codeMeridianUrl ?? meridianConfig.local?.url)
+    ?? normalizeOptionalString(meridianConfig.global?.codeMeridianUrl ?? meridianConfig.global?.url)
     ?? 'http://localhost:5100';
+  const useGlobalCache = meridianConfig.local?.useGlobalCache ?? meridianConfig.global?.useGlobalCache ?? false;
+  const cacheDirectory = useGlobalCache
+    ? path.join(resolveGlobalConfigDirectory(), 'projects', resolveCacheProjectKey(rootPath, projectName), 'cache')
+    : path.join(rootPath, '.meridian', 'cache');
 
   return {
     rootPath,
@@ -67,9 +79,17 @@ function resolveOptions(options: IndexCommandOptions): ResolvedIndexCommandOptio
     includeDocs: options.includeDocs,
     watch: options.watch,
     filesListPath: options.filesList ? path.resolve(options.filesList) : undefined,
+    storageMode: useGlobalCache ? 'global' : 'repo',
+    cacheDirectory,
   };
 }
 
 function normalizeOptionalString(value?: string): string | undefined {
   return value && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function resolveCacheProjectKey(rootPath: string, projectName: string): string {
+  const normalized = projectName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const hash = crypto.createHash('sha256').update(rootPath.replace(/\\/g, '/').toLowerCase()).digest('hex').slice(0, 12);
+  return `${normalized || 'project'}-${hash}`;
 }

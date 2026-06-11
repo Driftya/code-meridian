@@ -2,6 +2,7 @@ using CodeMeridian.Indexer.Cli.Commands;
 using CodeMeridian.Indexer.Cli.Configuration;
 using CodeMeridian.Tooling.Configuration;
 using CodeMeridian.Tooling.Discovery;
+using CodeMeridian.Tooling.Storage;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 
@@ -17,6 +18,7 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
     public IndexCommandSettingsFactoryTests()
     {
         Directory.CreateDirectory(_root);
+        Environment.SetEnvironmentVariable("CodeMeridian_Project", null);
         Environment.SetEnvironmentVariable("CodeMeridian_Url", null);
     }
 
@@ -57,10 +59,12 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
             SkipTypeScript: false,
             SkipDiagnostics: false,
             AllowRepoScripts: false,
-            Incremental: true));
+            Incremental: true,
+            Storage: null));
 
         settings.Project.Should().Be("GlobalProject");
         settings.CodeMeridianUrl.Should().Be("http://override:5100");
+        settings.StorageMode.Should().Be(IndexerStorageMode.Repository);
     }
 
     [Fact]
@@ -82,9 +86,42 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
             SkipTypeScript: false,
             SkipDiagnostics: false,
             AllowRepoScripts: false,
-            Incremental: true));
+            Incremental: true,
+            Storage: null));
 
         settings.Project.Should().Be("Project");
+    }
+
+    [Fact]
+    public void Create_UsesGlobalStorageWhenConfigRequestsIt()
+    {
+        File.WriteAllText(
+            Path.Combine(_root, "meridian.json"),
+            """
+            {
+              "project": "MyApi",
+              "codeMeridianUrl": "http://local:5100",
+              "useGlobalCache": true
+            }
+            """);
+
+        var settings = CreateFactory().Create(new IndexCommandOptions(
+            Path: _root,
+            Project: null,
+            CodeMeridianUrl: null,
+            Clear: false,
+            IncludeDocs: true,
+            Watch: false,
+            DryRun: false,
+            ListCapabilities: false,
+            SkipCSharp: false,
+            SkipTypeScript: false,
+            SkipDiagnostics: false,
+            AllowRepoScripts: false,
+            Incremental: true,
+            Storage: null));
+
+        settings.StorageMode.Should().Be(IndexerStorageMode.Global);
     }
 
     public void Dispose()
