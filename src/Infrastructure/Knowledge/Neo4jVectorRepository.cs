@@ -331,7 +331,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         const string cypher = """
             MATCH (d:KnowledgeDocument)
             WHERE d.projectContextNormalized = $projectContextNormalized
-            DELETE d
+            DETACH DELETE d
             """;
         await session.ExecuteWriteAsync(async tx =>
         {
