@@ -44,9 +44,17 @@ internal static class CSharpCallEdgeResolver
         }
 
         return resolved
-            .DistinctBy(edge => (edge.SourceId, edge.TargetId, edge.RelationshipType))
+            .DistinctBy(BuildEdgeIdentity, StringComparer.Ordinal)
             .ToList();
     }
+
+    private static string BuildEdgeIdentity(IngestEdgeRequest edge) =>
+        edge.RelationshipType is "ReadsConfig" or "BindsConfig"
+            ? $"{edge.SourceId}|{edge.TargetId}|{edge.RelationshipType}|{ReadProperty(edge, "accessPattern")}"
+            : $"{edge.SourceId}|{edge.TargetId}|{edge.RelationshipType}";
+
+    private static string? ReadProperty(IngestEdgeRequest edge, string key) =>
+        edge.Properties is not null && edge.Properties.TryGetValue(key, out var value) ? value : null;
 
     private static MethodCandidate? SelectBestCandidate(
         IngestNodeRequest source,

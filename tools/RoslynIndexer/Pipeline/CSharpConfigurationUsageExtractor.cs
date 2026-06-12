@@ -10,11 +10,12 @@ internal static class CSharpConfigurationUsageExtractor
         string relativePath,
         string projectContext,
         List<IngestNodeRequest> nodes,
-        List<IngestEdgeRequest> edges)
+        List<IngestEdgeRequest> edges,
+        CSharpConfigurationConstantRegistry constants)
     {
         foreach (var access in root.DescendantNodes().OfType<ElementAccessExpressionSyntax>())
         {
-            var rawKey = TryGetStringLiteral(access.ArgumentList.Arguments.SingleOrDefault()?.Expression);
+            var rawKey = ResolveStringExpression(access.ArgumentList.Arguments.SingleOrDefault()?.Expression, constants);
             if (rawKey is null || !LooksLikeConfigurationAccessor(access.Expression))
                 continue;
 
@@ -23,13 +24,24 @@ internal static class CSharpConfigurationUsageExtractor
 
         foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
+            if (invocation.Expression is MemberAccessExpressionSyntax { Name: GenericNameSyntax genericName } &&
+                genericName.Identifier.ValueText == "Get")
+            {
+                var rawKey = FindSectionKey(invocation, constants);
+                var optionsType = genericName.TypeArgumentList.Arguments.FirstOrDefault()?.ToString();
+                if (rawKey is not null && optionsType is not null)
+                    AddConfigurationUsage(nodes, edges, invocation, relativePath, projectContext, rawKey, "BindsConfig", "Get", optionsType);
+
+                continue;
+            }
+
             var memberName = GetMemberName(invocation.Expression);
             if (memberName is null)
                 continue;
 
             if (memberName is "GetSection" or "GetRequiredSection")
             {
-                var rawKey = TryGetStringLiteral(invocation.ArgumentList.Arguments.SingleOrDefault()?.Expression);
+                var rawKey = ResolveStringExpression(invocation.ArgumentList.Arguments.SingleOrDefault()?.Expression, constants);
                 if (rawKey is not null)
                     AddConfigurationUsage(nodes, edges, invocation, relativePath, projectContext, rawKey, "ReadsConfig", memberName);
 
@@ -38,7 +50,7 @@ internal static class CSharpConfigurationUsageExtractor
 
             if (memberName == "Configure")
             {
-                var rawKey = FindSectionKey(invocation);
+                var rawKey = FindSectionKey(invocation, constants);
                 if (rawKey is null)
                     continue;
 
@@ -49,7 +61,7 @@ internal static class CSharpConfigurationUsageExtractor
 
             if (memberName == "Bind")
             {
-                var rawKey = FindSectionKey(invocation);
+                var rawKey = FindSectionKey(invocation, constants);
                 if (rawKey is null)
                     continue;
 
@@ -158,7 +170,7 @@ internal static class CSharpConfigurationUsageExtractor
     private static string BuildSignature(string methodName, SeparatedSyntaxList<ParameterSyntax> parameters) =>
         $"{methodName}({string.Join(",", parameters.Select(parameter => parameter.Type?.ToString() ?? "?"))})";
 
-    private static string? FindSectionKey(InvocationExpressionSyntax invocation)
+    private static string? FindSectionKey(InvocationExpressionSyntax invocation, CSharpConfigurationConstantRegistry constants)
     {
         foreach (var nestedInvocation in invocation.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
         {
@@ -166,7 +178,7 @@ internal static class CSharpConfigurationUsageExtractor
             if (memberName is not "GetSection" and not "GetRequiredSection")
                 continue;
 
-            var rawKey = TryGetStringLiteral(nestedInvocation.ArgumentList.Arguments.SingleOrDefault()?.Expression);
+            var rawKey = ResolveStringExpression(nestedInvocation.ArgumentList.Arguments.SingleOrDefault()?.Expression, constants);
             if (rawKey is not null)
                 return rawKey;
         }
@@ -188,12 +200,40 @@ internal static class CSharpConfigurationUsageExtractor
             _ => null
         };
 
-    private static string? TryGetStringLiteral(ExpressionSyntax? expression) =>
-        expression switch
+    private static string? ResolveStringExpression(ExpressionSyntax? expression, CSharpConfigurationConstantRegistry constants)
+    {
+        switch (expression)
         {
-            LiteralExpressionSyntax literal when literal.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StringLiteralExpression) => literal.Token.ValueText,
-            _ => null
-        };
+            case LiteralExpressionSyntax literal when literal.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.StringLiteralExpression):
+                return literal.Token.ValueText;
+            case InterpolatedStringExpressionSyntax interpolated:
+                var parts = new List<string>();
+                foreach (var content in interpolated.Contents)
+                {
+                    if (content is InterpolatedStringTextSyntax text)
+                    {
+                        parts.Add(text.TextToken.ValueText);
+                        continue;
+                    }
+
+                    if (content is InterpolationSyntax interpolation)
+                    {
+                        var resolvedPart = ResolveStringExpression(interpolation.Expression, constants);
+                        if (resolvedPart is null)
+                            return null;
+
+                        parts.Add(resolvedPart);
+                    }
+                }
+
+                return string.Concat(parts);
+            case MemberAccessExpressionSyntax:
+            case IdentifierNameSyntax:
+                return constants.TryResolve(expression, out var resolved) ? resolved : null;
+            default:
+                return null;
+        }
+    }
 
     private static bool LooksLikeConfigurationAccessor(ExpressionSyntax expression)
     {

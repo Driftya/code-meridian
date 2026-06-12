@@ -19,12 +19,13 @@ public sealed class CSharpIndexer(
     {
         var nodes = new List<IngestNodeRequest>();
         var edges = new List<IngestEdgeRequest>();
+        var configurationConstants = CSharpConfigurationConstantRegistry.Build(files);
 
         foreach (var file in files)
         {
             try
             {
-                ExtractFromFile(file, rootPath, projectContext, nodes, edges);
+                ExtractFromFile(file, rootPath, projectContext, nodes, edges, configurationConstants);
             }
             catch (Exception ex)
             {
@@ -64,7 +65,8 @@ public sealed class CSharpIndexer(
         string rootPath,
         string projectContext,
         List<IngestNodeRequest> nodes,
-        List<IngestEdgeRequest> edges)
+        List<IngestEdgeRequest> edges,
+        CSharpConfigurationConstantRegistry configurationConstants)
     {
         var source = File.ReadAllText(file.FullName);
         var tree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source, path: file.FullName);
@@ -74,6 +76,6 @@ public sealed class CSharpIndexer(
         var walker = new CSharpAstWalker(relPath, projectContext, nodes, edges);
         walker.Visit(root);
         CSharpRouteExtractor.Extract(root, relPath, projectContext, nodes, edges);
-        CSharpConfigurationUsageExtractor.Extract(root, relPath, projectContext, nodes, edges);
+        CSharpConfigurationUsageExtractor.Extract(root, relPath, projectContext, nodes, edges, configurationConstants);
     }
 }

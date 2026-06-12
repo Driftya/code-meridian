@@ -322,17 +322,10 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         await using var session = _driver.AsyncSession();
 
         // Edge type is an enum value — safe to interpolate (no user input)
-        var cypher = $$"""
-            MATCH (s:CodeNode {id: $sourceId})
-            MATCH (t:CodeNode {id: $targetId})
-            MERGE (s)-[r:{{edge.Type}}]->(t)
-            SET r.isAsync     = $isAsync,
-                r.callSite    = $callSite,
-                r.paramCount  = $paramCount,
-                r.confidence  = $confidence
-            SET r += $properties
-            RETURN count(r) AS edgeCount
-            """;
+        var cypher = BuildUpsertEdgeCypher(edge);
+        var mergeCallSite = IsConfigurationUsageEdge(edge) ? edge.CallSite ?? string.Empty : null;
+        var mergeAccessPattern = IsConfigurationUsageEdge(edge) ? GetEdgeProperty(edge, "accessPattern") ?? string.Empty : null;
+        var mergeRawKey = IsConfigurationUsageEdge(edge) ? GetEdgeProperty(edge, "rawKey") ?? string.Empty : null;
 
         var edgeCount = await session.ExecuteWriteAsync(async tx =>
         {
@@ -344,7 +337,10 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 callSite   = (object?)edge.CallSite,
                 paramCount = (object?)edge.ParamCount,
                 confidence = (object?)edge.Confidence,
-                properties = edge.Properties
+                properties = edge.Properties,
+                mergeCallSite = (object?)mergeCallSite,
+                mergeAccessPattern = (object?)mergeAccessPattern,
+                mergeRawKey = (object?)mergeRawKey
             });
             var record = await cursor.SingleAsync();
             await cursor.ConsumeAsync();
@@ -650,6 +646,31 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.ToLowerInvariant();
+
+    private static string BuildUpsertEdgeCypher(CodeEdge edge)
+    {
+        var relationshipPattern = IsConfigurationUsageEdge(edge)
+            ? $"[r:{edge.Type} {{callSite: $mergeCallSite, accessPattern: $mergeAccessPattern, rawKey: $mergeRawKey}}]"
+            : $"[r:{edge.Type}]";
+
+        return $@"
+            MATCH (s:CodeNode {{id: $sourceId}})
+            MATCH (t:CodeNode {{id: $targetId}})
+            MERGE (s)-{relationshipPattern}->(t)
+            SET r.isAsync     = $isAsync,
+                r.callSite    = $callSite,
+                r.paramCount  = $paramCount,
+                r.confidence  = $confidence
+            SET r += $properties
+            RETURN count(r) AS edgeCount
+            ";
+    }
+
+    private static bool IsConfigurationUsageEdge(CodeEdge edge) =>
+        edge.Type is CodeEdgeType.ReadsConfig or CodeEdgeType.BindsConfig;
+
+    private static string? GetEdgeProperty(CodeEdge edge, string key) =>
+        edge.Properties is not null && edge.Properties.TryGetValue(key, out var value) ? value : null;
 
     private static CodeEdge MapToCodeEdge(IRelationship rel)
     {

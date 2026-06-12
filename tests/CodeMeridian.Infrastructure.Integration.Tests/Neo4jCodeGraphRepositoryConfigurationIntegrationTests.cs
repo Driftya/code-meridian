@@ -122,7 +122,7 @@ public sealed class Neo4jCodeGraphRepositoryConfigurationIntegrationTests : IAsy
     }
 
     [Fact]
-    public async Task FindConfigUsageAsync_WithTemporaryFixture_ReturnsReadAndBindEdges()
+    public async Task FindConfigUsageAsync_WithTemporaryFixture_ReturnsReadAndDistinctBindEdges()
     {
         var projectContext = $"Integration.ConfigUsage.{Guid.NewGuid():N}";
         var keyNode = ConfigNode($"{projectContext}.Key", "Neo4j:Uri", CodeNodeType.ConfigurationKey, projectContext)
@@ -168,10 +168,23 @@ public sealed class Neo4jCodeGraphRepositoryConfigurationIntegrationTests : IAsy
                     ["optionsType"] = "Neo4jOptions"
                 }
             });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = binder.Id,
+                TargetId = keyNode.Id,
+                Type = CodeEdgeType.BindsConfig,
+                Confidence = 0.9d,
+                Properties = new Dictionary<string, string>
+                {
+                    ["rawKey"] = "Neo4j",
+                    ["accessPattern"] = "Get",
+                    ["optionsType"] = "Neo4jOptions"
+                }
+            });
 
             var usage = await _repository.FindConfigUsageAsync("Neo4j:Uri", projectContext);
 
-            usage.Should().HaveCount(2);
+            usage.Should().HaveCount(3);
             usage.Should().Contain(item =>
                 item.RelationshipType == "ReadsConfig" &&
                 item.ConsumerNode.Id == reader.Id &&
@@ -179,6 +192,12 @@ public sealed class Neo4jCodeGraphRepositoryConfigurationIntegrationTests : IAsy
             usage.Should().Contain(item =>
                 item.RelationshipType == "BindsConfig" &&
                 item.ConsumerNode.Id == binder.Id &&
+                item.AccessPattern == "Configure" &&
+                item.OptionsType == "Neo4jOptions");
+            usage.Should().Contain(item =>
+                item.RelationshipType == "BindsConfig" &&
+                item.ConsumerNode.Id == binder.Id &&
+                item.AccessPattern == "Get" &&
                 item.OptionsType == "Neo4jOptions");
         }
         finally

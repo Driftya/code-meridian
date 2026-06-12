@@ -86,7 +86,138 @@ public sealed class CSharpConfigurationUsageExtractorTests : IDisposable
             && request.Body.GetProperty("type").GetString() == "BindsConfig"
             && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Add(IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)"
             && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::Neo4j"
+            && request.Body.GetProperty("properties").GetProperty("accessPattern").GetString() == "Configure"
             && request.Body.GetProperty("properties").GetProperty("optionsType").GetString() == "Neo4jOptions");
+    }
+
+    [Fact]
+    public async Task IndexAsync_ResolvesSectionNameConstantsAndGetBindings()
+    {
+        var optionsFile = WriteFile(
+            "src/EmbeddingOptions.cs",
+            """
+            namespace Demo;
+
+            public sealed class EmbeddingOptions
+            {
+                public const string SectionName = "Embedding";
+            }
+            """);
+        var dependencyInjectionFile = WriteFile(
+            "src/DependencyInjection.cs",
+            """
+            namespace Demo;
+
+            public static class DependencyInjection
+            {
+                public static void Add(IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
+                {
+                    services.Configure<EmbeddingOptions>(configuration.GetSection(EmbeddingOptions.SectionName));
+                    var options = configuration.GetSection(EmbeddingOptions.SectionName).Get<EmbeddingOptions>() ?? new();
+                }
+            }
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([optionsFile, dependencyInjectionFile], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "BindsConfig"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::Embedding"
+            && request.Body.GetProperty("properties").GetProperty("optionsType").GetString() == "EmbeddingOptions");
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "BindsConfig"
+            && request.Body.GetProperty("properties").GetProperty("accessPattern").GetString() == "Get"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::Embedding");
+    }
+
+    [Fact]
+    public async Task IndexAsync_ResolvesInterpolatedSectionNamesFromCodeMeridianSolutionPattern()
+    {
+        var optionsFile = WriteFile(
+            "src/KeywordEnrichmentOptions.cs",
+            """
+            namespace Demo;
+
+            public sealed class KeywordEnrichmentOptions
+            {
+                public const string SectionName = "KeywordEnrichment";
+            }
+            """);
+        var dependencyInjectionFile = WriteFile(
+            "src/ApplicationDependencyInjection.cs",
+            """
+            namespace Demo;
+
+            public static class DependencyInjection
+            {
+                public static void Add(IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
+                {
+                    services.Configure<KeywordEnrichmentOptions>(configuration.GetSection($"CodeMeridian:{KeywordEnrichmentOptions.SectionName}"));
+                }
+            }
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([optionsFile, dependencyInjectionFile], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "BindsConfig"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::CodeMeridian:KeywordEnrichment");
+    }
+
+    [Fact]
+    public async Task IndexAsync_OnRealCodeMeridianDependencyInjectionFiles_ExtractsExpectedTypedConfigEdges()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var files = new[]
+        {
+            new FileInfo(Path.Combine(repoRoot, "src", "Infrastructure", "DependencyInjection.cs")),
+            new FileInfo(Path.Combine(repoRoot, "src", "Infrastructure", "Configuration", "Neo4jOptions.cs")),
+            new FileInfo(Path.Combine(repoRoot, "src", "Core", "Knowledge", "EmbeddingOptions.cs")),
+            new FileInfo(Path.Combine(repoRoot, "src", "Application", "DependencyInjection.cs")),
+            new FileInfo(Path.Combine(repoRoot, "src", "Application", "Services", "KeywordEnrichmentOptions.cs")),
+            new FileInfo(Path.Combine(repoRoot, "src", "Application", "Services", "KeywordClassificationOptions.cs")),
+        };
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync(files, "CodeMeridian", repoRoot);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "BindsConfig"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::Neo4j");
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "BindsConfig"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::Embedding");
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "BindsConfig"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::Embedding"
+            && request.Body.GetProperty("properties").GetProperty("accessPattern").GetString() == "Get"
+            && request.Body.GetProperty("properties").GetProperty("optionsType").GetString() == "EmbeddingOptions");
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "BindsConfig"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::CodeMeridian:KeywordEnrichment");
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "BindsConfig"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::CodeMeridian:KeywordClassification");
     }
 
     private FileInfo WriteFile(string relativePath, string content)
@@ -101,6 +232,20 @@ public sealed class CSharpConfigurationUsageExtractorTests : IDisposable
     {
         if (Directory.Exists(_root))
             Directory.Delete(_root, recursive: true);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "CodeMeridian.sln")))
+                return current.FullName;
+
+            current = current.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root from the test runtime directory.");
     }
 
     private sealed class RecordingHandler : HttpMessageHandler

@@ -119,6 +119,7 @@ Start CodeMeridian:
 
 ```powershell
 codemeridian serve
+codemeridian init
 ```
 
 Index this repository:
@@ -134,7 +135,7 @@ Copy-Item .env.sample .env
 docker compose up -d
 dotnet run --project tools/Indexer -- . --clear
 dotnet run --project tools/Indexer -- config rebuild --project CodeMeridian
-dotnet run --project tools/Indexer -- keywords classify --project CodeMeridian
+dotnet run --project tools/Indexer -- keywords rebuild --project CodeMeridian
 ```
 
 To create a local project config and MCP client config, run:
