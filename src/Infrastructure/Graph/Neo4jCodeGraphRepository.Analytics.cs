@@ -452,7 +452,8 @@ public sealed partial class Neo4jCodeGraphRepository
             OPTIONAL MATCH (caller:CodeNode)-[:Calls|Uses|DependsOn|Implements|Inherits]->(n)
             WITH n, lineCount, collect(DISTINCT caller) AS directCallers, members
             OPTIONAL MATCH (memberCaller:CodeNode)-[:Calls|Uses|DependsOn]->(member)
-            WITH n, lineCount, directCallers + collect(DISTINCT memberCaller) AS callers
+            WITH n, lineCount, directCallers, collect(DISTINCT memberCaller) AS memberCallers
+            WITH n, lineCount, directCallers + memberCallers AS callers
             UNWIND callers AS caller
             WITH n, lineCount, count(DISTINCT caller) AS fanIn
             WHERE fanIn > $fanInThreshold

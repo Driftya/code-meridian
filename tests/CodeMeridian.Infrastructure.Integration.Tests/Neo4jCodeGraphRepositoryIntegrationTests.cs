@@ -528,6 +528,118 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FindGodClassesAsync_WithLargeClassAndHighFanIn_ReturnsThatClass()
+    {
+        var projectContext = $"Integration.GodClasses.{Guid.NewGuid():N}";
+        var target = CreateNode(
+            id: $"{projectContext}.OrderWorkflow",
+            name: "OrderWorkflow",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrderWorkflow.cs",
+            namespaceName: $"{projectContext}.Production")
+        with
+        {
+            LineCount = 360
+        };
+        var targetMember = CreateNode(
+            id: $"{projectContext}.OrderWorkflow.Run",
+            name: "OrderWorkflow.Run",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrderWorkflow.cs",
+            namespaceName: $"{projectContext}.Production")
+        with
+        {
+            LineCount = 40
+        };
+        var callerOne = CreateNode(
+            id: $"{projectContext}.CallerOne",
+            name: "CallerOne",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CallerOne.cs",
+            namespaceName: $"{projectContext}.Production");
+        var callerTwo = CreateNode(
+            id: $"{projectContext}.CallerTwo",
+            name: "CallerTwo",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CallerTwo.cs",
+            namespaceName: $"{projectContext}.Production");
+        var callerThree = CreateNode(
+            id: $"{projectContext}.CallerThree",
+            name: "CallerThree",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CallerThree.cs",
+            namespaceName: $"{projectContext}.Production");
+        var callerFour = CreateNode(
+            id: $"{projectContext}.CallerFour",
+            name: "CallerFour",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CallerFour.cs",
+            namespaceName: $"{projectContext}.Production");
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(target);
+            await _repository.UpsertNodeAsync(targetMember);
+            await _repository.UpsertNodeAsync(callerOne);
+            await _repository.UpsertNodeAsync(callerTwo);
+            await _repository.UpsertNodeAsync(callerThree);
+            await _repository.UpsertNodeAsync(callerFour);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = target.Id,
+                TargetId = targetMember.Id,
+                Type = CodeEdgeType.Contains
+            });
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = callerOne.Id,
+                TargetId = target.Id,
+                Type = CodeEdgeType.DependsOn
+            });
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = callerTwo.Id,
+                TargetId = targetMember.Id,
+                Type = CodeEdgeType.Calls
+            });
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = callerThree.Id,
+                TargetId = targetMember.Id,
+                Type = CodeEdgeType.Uses
+            });
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = callerFour.Id,
+                TargetId = targetMember.Id,
+                Type = CodeEdgeType.DependsOn
+            });
+
+            var results = await _repository.FindGodClassesAsync(projectContext, lineThreshold: 300, fanInThreshold: 3);
+
+            results.Should().ContainSingle(item =>
+                item.Node.Id == target.Id &&
+                item.LineCount == 360 &&
+                item.FanIn >= 4);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
     public async Task FindConnectionAsync_WithTemporaryFixture_ReturnsShortestPath()
     {
         var projectContext = $"Integration.Connection.{Guid.NewGuid():N}";

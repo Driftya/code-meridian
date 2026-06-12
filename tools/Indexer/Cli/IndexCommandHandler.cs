@@ -130,9 +130,11 @@ internal sealed class IndexCommandHandler(
                     ? null
                     : WriteFilesList(cacheDirectory, typeScriptRoot, changedTypeScriptFiles);
 
-                var tsArgs = BuildTypeScriptIndexerArgs(tsIndexerRoot, typeScriptRoot);
-                AddTypeScriptIndexerOptions(
+                var tsArgs = TypeScriptIndexerCommandBuilder.BuildTypeScriptIndexerArgs(tsIndexerRoot, typeScriptRoot, _settings.Project);
+                TypeScriptIndexerCommandBuilder.AddTypeScriptIndexerOptions(
                     tsArgs,
+                    _settings.CodeMeridianUrl,
+                    _settings.Watch,
                     clearNextIndexer,
                     _settings.IncludeDocs && !hasCSharp && typeScriptRoots.Count == 1,
                     filesList);
@@ -468,34 +470,6 @@ internal sealed class IndexCommandHandler(
         var client = new CodeMeridianClient(httpClient);
         foreach (var relativePath in distinct)
             await client.DeleteProjectFileAsync(_settings.Project, relativePath);
-    }
-
-    private List<string> BuildTypeScriptIndexerArgs(DirectoryInfo tsIndexerRoot, DirectoryInfo rootPath)
-    {
-        return
-        [
-            Path.Combine(tsIndexerRoot.FullName, "src", "index.ts"),
-            rootPath.FullName,
-            "--project",
-            _settings.Project,
-        ];
-    }
-
-    private void AddTypeScriptIndexerOptions(
-        List<string> arguments,
-        bool clear,
-        bool includeDocs,
-        FileInfo? filesList)
-    {
-        arguments.AddRange(["--url", _settings.CodeMeridianUrl]);
-        if (clear)
-            arguments.Add("--clear");
-        if (!includeDocs)
-            arguments.Add("--no-docs");
-        if (_settings.Watch)
-            arguments.Add("--watch");
-        if (filesList is not null)
-            arguments.AddRange(["--files-list", filesList.FullName]);
     }
 
     private static async Task<int> EnsureTypeScriptIndexerDependenciesAsync(DirectoryInfo tsIndexerRoot)
