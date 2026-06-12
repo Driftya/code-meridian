@@ -113,13 +113,13 @@ Target extraction shape:
 
 Checklist:
 
-- [ ] Extract route normalization into a dedicated component with focused tests.
-- [ ] Extract controller route parsing from minimal API parsing.
-- [ ] Extract string/const route resolution into its own helper/service.
-- [ ] Extract source-method resolution into its own helper/service.
-- [ ] Keep a thin top-level route extraction façade that coordinates the subcomponents.
-- [ ] Add regression tests for existing bugs already found in normalization and absolute URL handling.
-- [ ] Re-run Roslyn indexer tests and full repo tests.
+- [x] Extract route normalization into a dedicated component with focused tests.
+- [x] Extract controller route parsing from minimal API parsing.
+- [x] Extract string/const route resolution into its own helper/service.
+- [x] Extract source-method resolution into its own helper/service.
+- [x] Keep a thin top-level route extraction façade that coordinates the subcomponents.
+- [x] Add regression tests for existing bugs already found in normalization and absolute URL handling.
+- [x] Re-run Roslyn indexer tests and full repo tests.
 
 ## Target 3: ServeWriter
 
