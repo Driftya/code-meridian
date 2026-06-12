@@ -1,6 +1,6 @@
 services:
   neo4j:
-    image: neo4j:5.20
+    image: neo4j:2026.05.0
     container_name: codemeridian-neo4j
     ports:
       - "${NEO4J_HTTP_PORT:-{{neo4jHttpPort}}}:7474"
