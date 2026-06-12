@@ -132,6 +132,7 @@ If you are running from a source checkout before installing the global tool:
 Copy-Item .env.sample .env
 docker compose up -d
 dotnet run --project tools/Indexer -- . --clear
+dotnet run --project tools/Indexer -- keywords classify --project CodeMeridian
 ```
 
 To create a local project config and MCP client config, run:
@@ -226,6 +227,13 @@ Typical workflow:
 2. Run rebuild_keyword_graph.
 3. Run classify_keywords if you want to suppress noise/common terms and improve lexical ranking.
 4. Use find_related_knowledge on a node ID when you want explainable lexical matches.
+```
+
+CLI equivalents:
+
+```powershell
+codemeridian keywords rebuild --project CodeMeridian
+codemeridian keywords classify --project CodeMeridian
 ```
 
 Keyword classification is configured under `KeywordClassification`. It can mark keywords as `Noise`, `CommonProjectTerm`, `TechnicalConcept`, `ToolingConcept`, `ArchitectureConcept`, `DiagnosticConcept`, `DomainConcept`, or `Unknown`.

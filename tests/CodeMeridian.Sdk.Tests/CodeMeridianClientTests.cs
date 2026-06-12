@@ -142,6 +142,26 @@ public sealed class CodeMeridianClientTests
         body.GetProperty("projectContext").GetString().Should().Be("CodeMeridian");
     }
 
+    [Fact]
+    public async Task ClassifyKeywordsAsync_SendsProjectContextBody()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.ClassifyKeywordsAsync("CodeMeridian");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Post);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/keywords/classify");
+
+        var body = await handler.ReadBodyAsync();
+        body.GetProperty("projectContext").GetString().Should().Be("CodeMeridian");
+    }
+
     private sealed class CapturingHandler : HttpMessageHandler
     {
         public HttpRequestMessage? Request { get; private set; }

@@ -25,6 +25,16 @@ internal sealed class KeywordCommand(IToolConfigurationService configurationServ
 
         try
         {
+            if (options.Action == KeywordCommandAction.Classify)
+            {
+                Console.WriteLine($"Classifying keywords at {codeMeridianUrl}{(string.IsNullOrWhiteSpace(project) ? " for all projects" : $" for '{project}'")}...");
+                await client.ClassifyKeywordsAsync(project);
+                Console.WriteLine(string.IsNullOrWhiteSpace(project)
+                    ? "Keywords classified for all indexed projects."
+                    : $"Keywords classified for '{project}'.");
+                return 0;
+            }
+
             Console.WriteLine($"Rebuilding keyword graph at {codeMeridianUrl}{(string.IsNullOrWhiteSpace(project) ? " for all projects" : $" for '{project}'")}...");
             await client.RebuildKeywordGraphAsync(project);
             Console.WriteLine(string.IsNullOrWhiteSpace(project)
@@ -34,7 +44,10 @@ internal sealed class KeywordCommand(IToolConfigurationService configurationServ
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"error: keyword graph rebuild failed: {ex.Message}");
+            var operation = options.Action == KeywordCommandAction.Classify
+                ? "keyword classification"
+                : "keyword graph rebuild";
+            Console.Error.WriteLine($"error: {operation} failed: {ex.Message}");
             return 1;
         }
     }

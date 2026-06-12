@@ -114,4 +114,29 @@ public sealed class KnowledgeIngestionTests
         await keywordGraphService.Received(1).RebuildKeywordGraphAsync("CodeMeridian", Arg.Any<CancellationToken>());
         result.Should().NotBeNull();
     }
+
+    [Fact]
+    public async Task KnowledgeApiEndpoints_ClassifyKeywords_ForwardsProjectContext()
+    {
+        var keywordGraphService = Substitute.For<IKeywordGraphService>();
+        keywordGraphService
+            .ClassifyKeywordsAsync("CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns("classification complete");
+
+        var routeHandler = typeof(KnowledgeApiEndpoints)
+            .GetMethod("ClassifyKeywords", BindingFlags.NonPublic | BindingFlags.Static);
+
+        routeHandler.Should().NotBeNull();
+
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.ClassifyKeywordsRequest");
+        requestType.Should().NotBeNull();
+
+        var request = Activator.CreateInstance(requestType!, "CodeMeridian");
+
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [request, keywordGraphService, CancellationToken.None])!;
+        var result = await task;
+
+        await keywordGraphService.Received(1).ClassifyKeywordsAsync("CodeMeridian", Arg.Any<CancellationToken>());
+        result.Should().NotBeNull();
+    }
 }

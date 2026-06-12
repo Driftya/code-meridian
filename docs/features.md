@@ -51,6 +51,12 @@ Configure the rules through `KeywordClassification` in `appsettings.json`.
 Classify the derived keywords for CodeMeridian.
 ```
 
+CLI equivalent:
+
+```powershell
+codemeridian keywords classify --project CodeMeridian
+```
+
 ### `find_related_knowledge`
 
 Finds lexically related nodes by shared derived keywords. Results include score, shared keyword count, matched keywords, and explicit `lexical` confidence so callers can distinguish heuristic overlap from structural graph edges.

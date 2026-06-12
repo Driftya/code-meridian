@@ -158,6 +158,7 @@ internal sealed class RootCommandFactory(
         var command = new Command("keywords", "Manage the derived keyword graph without running a full index.");
         var rebuildCommand = new Command("rebuild", "Rebuild the derived keyword graph for one project or for all indexed projects.");
         rebuildCommand.Aliases.Add("index");
+        var classifyCommand = new Command("classify", "Classify derived keywords without rebuilding the keyword graph relationships.");
 
         var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults. Defaults to the current directory." };
         var projectOption = new Option<string?>("--project") { Description = "Project context name. Omit to rebuild for all indexed projects." };
@@ -171,17 +172,30 @@ internal sealed class RootCommandFactory(
         rebuildCommand.SetAction(async parseResult => await keywordCommand.RunAsync(new KeywordCommandOptions(
             parseResult.GetValue(pathArgument),
             parseResult.GetValue(projectOption),
-            parseResult.GetValue(urlOption))));
+            parseResult.GetValue(urlOption),
+            KeywordCommandAction.Rebuild)));
+
+        classifyCommand.Add(pathArgument);
+        classifyCommand.Add(projectOption);
+        classifyCommand.Add(urlOption);
+
+        classifyCommand.SetAction(async parseResult => await keywordCommand.RunAsync(new KeywordCommandOptions(
+            parseResult.GetValue(pathArgument),
+            parseResult.GetValue(projectOption),
+            parseResult.GetValue(urlOption),
+            KeywordCommandAction.Classify)));
 
         command.Add(pathArgument);
         command.Add(projectOption);
         command.Add(urlOption);
         command.Add(rebuildCommand);
+        command.Add(classifyCommand);
 
         command.SetAction(async parseResult => await keywordCommand.RunAsync(new KeywordCommandOptions(
             parseResult.GetValue(pathArgument),
             parseResult.GetValue(projectOption),
-            parseResult.GetValue(urlOption))));
+            parseResult.GetValue(urlOption),
+            KeywordCommandAction.Rebuild)));
 
         return command;
     }

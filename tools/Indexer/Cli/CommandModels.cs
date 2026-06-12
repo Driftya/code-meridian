@@ -45,4 +45,11 @@ internal sealed record CheckDriftCommandOptions(
 internal sealed record KeywordCommandOptions(
     string? Path,
     string? Project,
-    string? CodeMeridianUrl);
+    string? CodeMeridianUrl,
+    KeywordCommandAction Action = KeywordCommandAction.Rebuild);
+
+internal enum KeywordCommandAction
+{
+    Rebuild = 0,
+    Classify = 1
+}

@@ -23,6 +23,7 @@ codemeridian index . --keywords
 codemeridian keywords --project MyApp
 codemeridian keywords rebuild --project MyApp
 codemeridian keywords index --project MyApp
+codemeridian keywords classify --project MyApp
 codemeridian index . --skip-csharp --skip-docs --skip-diagnostics
 codemeridian index . --watch
 codemeridian init .
@@ -39,6 +40,7 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Can run compiler, TypeScript, and lint diagnostics unless you skip them.
 - Can trigger a backend keyword-graph rebuild after indexing with `--keywords`.
 - Can rebuild the keyword graph on demand without indexing through `codemeridian keywords`.
+- Can classify already-built keywords on demand through `codemeridian keywords classify`.
 - Repo-controlled build and lint diagnostics are opt-in via `--allow-repo-scripts`.
 - Can query the backend for a `doctor` status report without talking to Neo4j directly from the client.
 - Can verify graph drift with `codemeridian check-drift` or `codemeridian index --verify`.
@@ -65,6 +67,7 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Use `codemeridian keywords --project <name>` as the short form when you only want the rebuild.
 - Use `codemeridian keywords rebuild --project <name>` when you want an explicit maintenance command name.
 - Use `codemeridian keywords index --project <name>` if you prefer `index` terminology; it is an alias of `rebuild`.
+- Use `codemeridian keywords classify --project <name>` when you only want to classify existing derived keywords without rebuilding relationships.
 - Use `--allow-repo-scripts` only on trusted repos when you want `dotnet build` and repo lint commands to run.
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
 - Use `codemeridian init .` to generate `meridian.json`, `.vscode/mcp.json`, and `.codex/config.toml` for a project. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.
