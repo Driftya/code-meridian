@@ -12,9 +12,10 @@ Before making a non-trivial change:
 
 1. Read `README.md`.
 2. Read `AGENTS.md`.
-3. Check the existing feature documentation.
-4. Inspect the current code before proposing edits.
-5. Use CodeMeridian itself when possible to understand impacted files, symbols, tests, and docs.
+3. Read `docs/agent/README.md` for the detailed references.
+4. Check the existing feature documentation.
+5. Inspect the current code before proposing edits.
+6. Use CodeMeridian itself when possible to understand impacted files, symbols, tests, and docs.
 
 Small typo fixes, documentation cleanup, and obvious maintenance changes do not need a full analysis step.
 
@@ -34,18 +35,17 @@ Good contributions should improve one or more of these areas:
 
 Keep changes focused. Avoid broad rewrites unless there is a clear issue or accepted design reason.
 
-## Architecture Guidelines
+## Detailed Guidance
 
-Keep responsibilities separated.
+The detailed contributor and agent references now live under `docs/agent/`.
 
-* Indexers collect source facts.
-* Application services coordinate use cases.
-* MCP tools expose focused queries.
-* Persistence code owns Neo4j-specific access.
-* CLI and host code should stay thin.
-* Tests should verify behavior, not implementation noise.
+- `AGENTS.md` for the short always-on rules
+- `docs/agent/codemeridian-usage.md` for when and how to use CodeMeridian tools
+- `docs/agent/architecture.md` for layer boundaries and Neo4j rules
+- `docs/agent/conventions.md` for file-size, coding, MCP, and testing conventions
+- `docs/agent/local-dev.md` for local commands and validation flows
 
-Avoid leaking persistence details into higher-level workflows unless the existing architecture already allows it.
+Keep those docs as the canonical source instead of duplicating the same rules in multiple places.
 
 ## AI-Assisted Development
 
@@ -74,7 +74,9 @@ After the change, list the checks that should be run.
 
 ## Coding Guidelines
 
-Use modern C# and .NET practices:
+Use modern C# and .NET practices, and follow the detailed conventions in `docs/agent/conventions.md`.
+
+In general:
 
 * prefer clear names over clever abstractions
 * keep methods small and focused
@@ -109,20 +111,7 @@ Inside loops, prefer `Trace` and log one summary outside the loop.
 
 ## Testing
 
-Add or update tests when changing behavior.
-
-Important areas to test:
-
-* symbol extraction
-* relationship creation
-* graph queries
-* MCP tool responses
-* configuration loading
-* CLI behavior
-* Neo4j persistence behavior
-* edge cases around missing files, partial projects, and stale indexes
-
-Prefer deterministic tests over broad snapshots when possible.
+Add or update tests when changing behavior. The detailed testing conventions and test-location guidance live in `docs/agent/conventions.md`.
 
 ## Documentation
 
@@ -142,7 +131,7 @@ Documentation is part of the product because CodeMeridian exists to reduce stale
 
 Before submitting a change, run the relevant checks for the area you changed.
 
-At minimum, use the existing solution/test commands documented in the repository.
+Use the documented local flows in `docs/agent/local-dev.md` and the relevant product docs.
 
 For code changes, prefer:
 

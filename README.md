@@ -209,6 +209,7 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 - [Publishing the indexer tool](docs/publishing.md)
 - [Ubuntu headless deployment](docs/ubuntu-headless-deploy.md)
 - [Contributor and agent guide](AGENTS.md)
+- [Detailed agent docs](docs/agent/README.md)
 
 ## Keyword Enrichment
 
