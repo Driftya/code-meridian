@@ -213,9 +213,9 @@ Current concern mix:
 
 Checklist:
 
-- [ ] Split mapping and normalization helpers from repository write/read operations.
-- [ ] Evaluate whether initialization belongs in a separate setup service.
-- [ ] Add targeted tests for mapping and normalization helpers if extracted.
+- [x] Split mapping and normalization helpers from repository write/read operations.
+- [x] Evaluate whether initialization belongs in a separate setup service.
+- [x] Add targeted tests for mapping and normalization helpers if extracted.
 
 ## Target 7: TypeScript walker.ts
 
@@ -231,6 +231,7 @@ Current concern mix:
 
 Target extraction shape:
 
+- `walker/common`
 - `walker/nodes`
 - `walker/edges`
 - `walker/routes`
@@ -239,11 +240,11 @@ Target extraction shape:
 
 Checklist:
 
-- [ ] Split route extraction from general graph walking.
-- [ ] Split node collection from edge collection.
-- [ ] Split symbol/call resolution from AST traversal.
-- [ ] Keep the public `walkTypeScript` entry point stable.
-- [ ] Preserve the expanded TS regression suite while moving code.
+- [x] Split route extraction from general graph walking.
+- [x] Split node collection from edge collection.
+- [x] Split symbol/call resolution from AST traversal.
+- [x] Keep the public `walkTypeScript` entry point stable.
+- [x] Preserve the expanded TS regression suite while moving code.
 
 ## Namespace And Folder Guidance
 

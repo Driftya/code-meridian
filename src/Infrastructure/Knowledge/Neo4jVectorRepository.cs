@@ -91,8 +91,8 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             """;
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var mentionIds = ExtractMentionIds(document.Metadata);
-        var relatedDocumentIds = ExtractRelatedDocumentIds(document.Metadata);
+        var mentionIds = Neo4jVectorRepositoryHelpers.ExtractMentionIds(document.Metadata);
+        var relatedDocumentIds = Neo4jVectorRepositoryHelpers.ExtractRelatedDocumentIds(document.Metadata);
         var relatedNodeIds = mentionIds.Count > 0 ? string.Join(",", mentionIds) : null;
         var relatedDocsCsv = relatedDocumentIds.Count > 0 ? string.Join(",", relatedDocumentIds) : null;
         var metadataKind = document.Metadata.TryGetValue("kind", out var kind) ? kind : null;
@@ -105,7 +105,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                 content = document.Content,
                 source = document.Source,
                 projectContext = document.ProjectContext,
-                projectContextNormalized = Normalize(document.ProjectContext),
+                projectContextNormalized = Neo4jVectorRepositoryHelpers.Normalize(document.ProjectContext),
                 embedding = document.Embedding,
                 relatedNodeIds,
                 relatedDocumentIds = relatedDocsCsv,
@@ -176,7 +176,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
                 {
                     id = document.Id,
                     source = document.Source,
-                    projectContextNormalized = Normalize(document.ProjectContext)
+                    projectContextNormalized = Neo4jVectorRepositoryHelpers.Normalize(document.ProjectContext)
                 })).ConsumeAsync();
         });
     }
@@ -198,13 +198,13 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 
         var cursor = await session.RunAsync(cypher, new
         {
-            projectContextNormalized = (object?)Normalize(projectContext),
+            projectContextNormalized = (object?)Neo4jVectorRepositoryHelpers.Normalize(projectContext),
             limit
         });
 
         var results = new List<KnowledgeDocument>();
         await foreach (var record in cursor.WithCancellation(cancellationToken))
-            results.Add(MapToDocument(record["d"].As<INode>()));
+            results.Add(Neo4jVectorRepositoryHelpers.MapToDocument(record["d"].As<INode>()));
 
         return results;
     }
@@ -219,7 +219,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             RETURN count(d) AS count
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Neo4jVectorRepositoryHelpers.Normalize(projectContext) });
         var record = await cursor.SingleAsync();
         return record["count"].As<long>();
     }
@@ -245,7 +245,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             indexName = IndexName,
             topK,
             embedding = queryEmbedding,
-            projectContextNormalized = (object?)Normalize(projectContext)
+            projectContextNormalized = (object?)Neo4jVectorRepositoryHelpers.Normalize(projectContext)
         });
 
         var results = new List<KnowledgeDocument>();
@@ -253,7 +253,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         await foreach (var record in cursor.WithCancellation(cancellationToken))
         {
             var node = record["node"].As<INode>();
-            results.Add(MapToDocument(node));
+            results.Add(Neo4jVectorRepositoryHelpers.MapToDocument(node));
         }
 
         return results;
@@ -266,7 +266,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         await using var session = _driver.AsyncSession();
-        var luceneQuery = EscapeLuceneQuery(query);
+        var luceneQuery = Neo4jVectorRepositoryHelpers.EscapeLuceneQuery(query);
 
         const string cypher = """
             CALL db.index.fulltext.queryNodes('knowledge_fulltext', $query)
@@ -280,33 +280,16 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         var cursor = await session.RunAsync(cypher, new
         {
             query = luceneQuery,
-            projectContextNormalized = (object?)Normalize(projectContext),
+            projectContextNormalized = (object?)Neo4jVectorRepositoryHelpers.Normalize(projectContext),
             topK
         });
 
         var results = new List<KnowledgeDocument>();
 
         await foreach (var record in cursor.WithCancellation(cancellationToken))
-            results.Add(MapToDocument(record["node"].As<INode>()));
+            results.Add(Neo4jVectorRepositoryHelpers.MapToDocument(record["node"].As<INode>()));
 
         return results;
-    }
-
-    private static string EscapeLuceneQuery(string? query)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return string.Empty;
-
-        var sb = new System.Text.StringBuilder(query.Length * 2);
-        foreach (var ch in query.Trim())
-        {
-            if ("+-!(){}[]^\"~*?:\\/".Contains(ch))
-                sb.Append('\\');
-
-            sb.Append(ch);
-        }
-
-        return sb.ToString();
     }
 
     public async Task DeleteAsync(string id, CancellationToken cancellationToken = default)
@@ -337,7 +320,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 
         await session.ExecuteWriteAsync(async tx =>
         {
-            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Normalize(projectContext), source });
+            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Neo4jVectorRepositoryHelpers.Normalize(projectContext), source });
             await cursor.ConsumeAsync();
         });
     }
@@ -353,84 +336,10 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             """;
         await session.ExecuteWriteAsync(async tx =>
         {
-            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Normalize(projectContext) });
+            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Neo4jVectorRepositoryHelpers.Normalize(projectContext) });
             await cursor.ConsumeAsync();
         });
     }
-
-    private static KnowledgeDocument MapToDocument(INode node)
-    {
-        var props = node.Properties;
-
-        DateTimeOffset? ReadTimestamp(string key)
-        {
-            if (!props.TryGetValue(key, out var raw) || raw is null) return null;
-            var ms = raw.As<long?>();
-            return ms.HasValue ? DateTimeOffset.FromUnixTimeMilliseconds(ms.Value) : null;
-        }
-
-        return new KnowledgeDocument
-        {
-            Id = props["id"].As<string>(),
-            Content = props["content"].As<string>(),
-            Source = props.TryGetValue("source", out var src) ? src?.As<string>() : null,
-            ProjectContext = props.TryGetValue("projectContext", out var pc) ? pc?.As<string>() : null,
-            CreatedAt = ReadTimestamp("createdAt"),
-            UpdatedAt = ReadTimestamp("updatedAt"),
-            Metadata = ReadMetadata(props)
-        };
-    }
-
-    private static Dictionary<string, string> ReadMetadata(IReadOnlyDictionary<string, object?> props)
-    {
-        var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        if (props.TryGetValue("relatedNodeIds", out var relatedNodeIds) && relatedNodeIds is not null)
-            metadata["relatedNodeIds"] = relatedNodeIds.As<string>();
-
-        if (props.TryGetValue("relatedDocumentIds", out var relatedDocumentIds) && relatedDocumentIds is not null)
-            metadata["relatedDocumentIds"] = relatedDocumentIds.As<string>();
-
-        if (props.TryGetValue("metadataKind", out var metadataKind) && metadataKind is not null)
-            metadata["kind"] = metadataKind.As<string>();
-
-        return metadata;
-    }
-
-    private static List<string> ExtractMentionIds(IReadOnlyDictionary<string, string> metadata)
-    {
-        foreach (var key in new[] { "relatedNodeIds", "relatedNodes", "mentions" })
-        {
-            if (!metadata.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
-                continue;
-
-            return raw
-                .Split(new[] { ',', ';', '|', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-
-        return [];
-    }
-
-    private static List<string> ExtractRelatedDocumentIds(IReadOnlyDictionary<string, string> metadata)
-    {
-        foreach (var key in new[] { "relatedDocumentIds", "references", "relatedDocuments" })
-        {
-            if (!metadata.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
-                continue;
-
-            return raw
-                .Split(new[] { ',', ';', '|', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-
-        return [];
-    }
-
-    private static string? Normalize(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.ToLowerInvariant();
 
     public async ValueTask DisposeAsync() => await _driver.DisposeAsync();
 }
