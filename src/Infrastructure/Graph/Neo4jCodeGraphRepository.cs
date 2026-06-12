@@ -424,8 +424,16 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         const string cypher = """
             MATCH (n:CodeNode)
             WHERE n.projectContextNormalized = $projectContextNormalized
-              AND n.type IN ['ConfigurationFile', 'ConfigurationKey', 'ConfigurationEntry']
+              AND n.type IN ['ConfigurationFile', 'ConfigurationEntry']
             DETACH DELETE n
+
+            WITH $projectContextNormalized AS projectContextNormalized
+            MATCH (key:CodeNode)
+            WHERE key.projectContextNormalized = projectContextNormalized
+              AND key.type = 'ConfigurationKey'
+              AND NOT (key)<-[:DefinesConfig|OverridesConfig]-(:CodeNode)
+              AND NOT (:CodeNode)-[:ReadsConfig|BindsConfig]->(key)
+            DETACH DELETE key
             """;
 
         await session.ExecuteWriteAsync(async tx =>

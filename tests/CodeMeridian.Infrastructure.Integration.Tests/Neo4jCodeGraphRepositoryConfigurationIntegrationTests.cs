@@ -206,6 +206,92 @@ public sealed class Neo4jCodeGraphRepositoryConfigurationIntegrationTests : IAsy
         }
     }
 
+    [Fact]
+    public async Task DeleteConfigurationAsync_PreservesConfigurationUsageEdges()
+    {
+        var projectContext = $"Integration.ConfigDelete.{Guid.NewGuid():N}";
+        var keyNode = ConfigNode($"{projectContext}.Key", "Neo4j:Uri", CodeNodeType.ConfigurationKey, projectContext)
+            with
+            {
+                Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["canonicalKey"] = "Neo4j:Uri",
+                    ["normalizedKey"] = "neo4j:uri"
+                }
+            };
+        var reader = ConfigNode($"{projectContext}.Reader", "Read", CodeNodeType.Method, projectContext, $"src/{projectContext}/Reader.cs");
+        var configFile = ConfigNode($"{projectContext}.File", "appsettings.json", CodeNodeType.ConfigurationFile, projectContext, "appsettings.json");
+        var configEntry = ConfigNode($"{projectContext}.Entry", "Neo4j:Uri", CodeNodeType.ConfigurationEntry, projectContext, "appsettings.json")
+            with
+            {
+                Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["rawKey"] = "Neo4j:Uri",
+                    ["rawValuePreview"] = "bolt://localhost:7687",
+                    ["sourceKind"] = "json-path"
+                }
+            };
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(keyNode);
+            await _repository.UpsertNodeAsync(reader);
+            await _repository.UpsertNodeAsync(configFile);
+            await _repository.UpsertNodeAsync(configEntry);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = reader.Id,
+                TargetId = keyNode.Id,
+                Type = CodeEdgeType.ReadsConfig,
+                Confidence = 0.95d,
+                Properties = new Dictionary<string, string>
+                {
+                    ["rawKey"] = "Neo4j:Uri",
+                    ["accessPattern"] = "indexer"
+                }
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = configFile.Id,
+                TargetId = configEntry.Id,
+                Type = CodeEdgeType.DefinesConfig,
+                Properties = new Dictionary<string, string>
+                {
+                    ["rawKey"] = "Neo4j:Uri",
+                    ["sourceKind"] = "json-path"
+                }
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = configEntry.Id,
+                TargetId = keyNode.Id,
+                Type = CodeEdgeType.DefinesConfig,
+                Properties = new Dictionary<string, string>
+                {
+                    ["rawKey"] = "Neo4j:Uri",
+                    ["sourceKind"] = "json-path",
+                    ["valuePreview"] = "bolt://localhost:7687"
+                }
+            });
+
+            await _repository.DeleteConfigurationAsync(projectContext);
+
+            var usage = await _repository.FindConfigUsageAsync("Neo4j:Uri", projectContext);
+            var definitions = await _repository.FindConfigDefinitionsAsync("Neo4j:Uri", projectContext);
+
+            usage.Should().ContainSingle(item =>
+                item.RelationshipType == "ReadsConfig" &&
+                item.ConsumerNode.Id == reader.Id &&
+                item.KeyNode.Id == keyNode.Id);
+            definitions.Should().BeEmpty();
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
     private static CodeNode ConfigNode(
         string id,
         string name,
