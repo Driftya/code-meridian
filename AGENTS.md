@@ -4,6 +4,19 @@ Short always-on guidance for automated agents working in this repository.
 
 Read this first. Use the detailed references under `docs/agent/` when the task needs more depth.
 
+## Behavior Expectations
+
+- Do not assume silently. State important assumptions.
+- If something is unclear, ask instead of guessing.
+- Prefer the simplest solution that solves the request.
+- Do not add speculative abstractions, flexibility, or features.
+- Make surgical changes only. Avoid unrelated refactors.
+- Match the existing style unless the task requires otherwise.
+- Remove only unused code introduced by your own change unless asked.
+- Define success criteria and verify them.
+- For bugs, prefer reproduce -> fix -> verify.
+- Every changed line should trace back to the request.
+
 ## Required CodeMeridian Usage
 
 Use CodeMeridian proactively. Prefer graph tools over terminal scans when the graph can answer the question.
@@ -54,6 +67,7 @@ Typical flow:
 
 - [Agent Docs Index](docs/agent/README.md)
 - [CodeMeridian Usage](docs/agent/codemeridian-usage.md)
+- [Behavior Expectations](docs/agent/behavior.md)
 - [Architecture Rules](docs/agent/architecture.md)
 - [Coding And Testing Conventions](docs/agent/conventions.md)
 - [Local Dev And Operations](docs/agent/local-dev.md)

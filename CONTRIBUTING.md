@@ -41,6 +41,7 @@ The detailed contributor and agent references now live under `docs/agent/`.
 
 - `AGENTS.md` for the short always-on rules
 - `docs/agent/codemeridian-usage.md` for when and how to use CodeMeridian tools
+- `docs/agent/behavior.md` for agent decision-making and change discipline
 - `docs/agent/architecture.md` for layer boundaries and Neo4j rules
 - `docs/agent/conventions.md` for file-size, coding, MCP, and testing conventions
 - `docs/agent/local-dev.md` for local commands and validation flows
