@@ -197,10 +197,10 @@ Target extraction shape:
 
 Checklist:
 
-- [ ] Split AST walking from post-processing resolution.
-- [ ] Split call-edge and reference-edge resolution into dedicated components.
-- [ ] Split ingestion batching/transport concerns from graph construction.
-- [ ] Add targeted resolver tests for ambiguous call and reference cases.
+- [x] Split AST walking from post-processing resolution.
+- [x] Split call-edge and reference-edge resolution into dedicated components.
+- [x] Split ingestion batching/transport concerns from graph construction.
+- [x] Add targeted resolver tests for ambiguous call and reference cases.
 
 ## Target 6: Neo4jVectorRepository
 
