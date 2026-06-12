@@ -123,7 +123,10 @@ internal static class ConfigurationFileParser
         {
             foreach (var child in mapping.Children)
             {
-                var key = ((YamlScalarNode)child.Key).Value ?? string.Empty;
+                var key = ReadYamlKey(child.Key);
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+
                 var value = (child.Value as YamlScalarNode)?.Value;
                 AddEntry(results, relativePath, "yaml", "yaml-environment", key, value, "string");
             }
@@ -151,7 +154,10 @@ internal static class ConfigurationFileParser
             case YamlMappingNode childMapping:
                 foreach (var child in childMapping.Children)
                 {
-                    var key = ((YamlScalarNode)child.Key).Value ?? string.Empty;
+                    var key = ReadYamlKey(child.Key);
+                    if (string.IsNullOrWhiteSpace(key))
+                        continue;
+
                     WalkYaml(child.Value, [.. path, key], relativePath, results);
                 }
                 break;
@@ -167,6 +173,13 @@ internal static class ConfigurationFileParser
 
     private static bool IsEnvironmentSection(IReadOnlyList<string> path) =>
         path.Count > 0 && path[^1].Equals("environment", StringComparison.OrdinalIgnoreCase);
+
+    private static string? ReadYamlKey(YamlNode keyNode) =>
+        keyNode switch
+        {
+            YamlScalarNode scalar => scalar.Value,
+            _ => null
+        };
 
     private static void AddEntry(
         List<ConfigurationEntryRecord> results,

@@ -73,6 +73,26 @@ public sealed class ConfigurationFileParserTests : IDisposable
             entry.ValuePreview == "bolt://neo4j:7687");
     }
 
+    [Fact]
+    public void ParseYaml_WithComplexKey_DoesNotThrowAndStillParsesScalarEntries()
+    {
+        var file = WriteFile(
+            "complex.yaml",
+            """
+            ? { nested: key }
+            : ignored
+            services:
+              api:
+                environment:
+                  Neo4j__Uri: bolt://neo4j:7687
+            """);
+
+        var act = () => ConfigurationFileParser.Parse(file, _root);
+
+        var entries = act.Should().NotThrow().Subject;
+        entries.Should().Contain(entry => entry.CanonicalKey == "Neo4j:Uri");
+    }
+
     private FileInfo WriteFile(string relativePath, string content)
     {
         var file = new FileInfo(Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
