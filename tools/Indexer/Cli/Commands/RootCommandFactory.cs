@@ -14,6 +14,7 @@ internal sealed class RootCommandFactory(
     IndexCommandSettingsFactory settingsFactory,
     InitCommand initCommand,
     KeywordCommand keywordCommand,
+    ConfigurationCommand configurationCommand,
     ClearCommand clearCommand,
     ServeCommand serveCommand,
     StatusCommand statusCommand)
@@ -26,6 +27,7 @@ internal sealed class RootCommandFactory(
         root.Add(CreateIndexCommand(asRootCommand: false));
         root.Add(CreateInitCommand());
         root.Add(CreateKeywordsCommand());
+        root.Add(CreateConfigurationCommand());
         root.Add(CreateServeCommand());
         root.Add(CreateDoctorCommand());
         root.Add(CreateCheckDriftCommand());
@@ -56,6 +58,7 @@ internal sealed class RootCommandFactory(
         var listCapabilitiesOption = new Option<bool>("--list-capabilities") { Description = "Show available indexers on this machine." };
         var skipCSharpOption = new Option<bool>("--skip-csharp") { Description = "Skip C# indexing." };
         var skipTypeScriptOption = new Option<bool>("--skip-typescript") { Description = "Skip TypeScript/TSX indexing." };
+        var skipConfigurationOption = new Option<bool>("--skip-config") { Description = "Skip configuration indexing." };
         var skipDiagnosticsOption = new Option<bool>("--skip-diagnostics") { Description = "Skip project-native compiler, TypeScript, and lint diagnostics indexing." };
         var allowRepoScriptsOption = new Option<bool>("--allow-repo-scripts") { Description = "Allow repo-controlled build and lint commands during diagnostics." };
         var noIncrementalOption = new Option<bool>("--no-incremental") { Description = "Ignore .meridian/cache and scan all enabled files." };
@@ -73,6 +76,7 @@ internal sealed class RootCommandFactory(
         command.Add(listCapabilitiesOption);
         command.Add(skipCSharpOption);
         command.Add(skipTypeScriptOption);
+        command.Add(skipConfigurationOption);
         command.Add(skipDiagnosticsOption);
         command.Add(allowRepoScriptsOption);
         command.Add(noIncrementalOption);
@@ -107,6 +111,7 @@ internal sealed class RootCommandFactory(
                     ListCapabilities: parseResult.GetValue(listCapabilitiesOption),
                     SkipCSharp: parseResult.GetValue(skipCSharpOption),
                     SkipTypeScript: parseResult.GetValue(skipTypeScriptOption),
+                    SkipConfiguration: parseResult.GetValue(skipConfigurationOption),
                     SkipDiagnostics: parseResult.GetValue(skipDiagnosticsOption),
                     AllowRepoScripts: parseResult.GetValue(allowRepoScriptsOption),
                     Incremental: !parseResult.GetValue(noIncrementalOption),
@@ -196,6 +201,38 @@ internal sealed class RootCommandFactory(
             parseResult.GetValue(projectOption),
             parseResult.GetValue(urlOption),
             KeywordCommandAction.Rebuild)));
+
+        return command;
+    }
+
+    private Command CreateConfigurationCommand()
+    {
+        var command = new Command("config", "Manage the derived configuration graph without running a full code index.");
+        var rebuildCommand = new Command("rebuild", "Rebuild configuration graph nodes and edges for one project.");
+
+        var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults. Defaults to the current directory." };
+        var projectOption = new Option<string?>("--project") { Description = "Project context name." };
+        var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
+        urlOption.Aliases.Add("--CodeMeridian");
+
+        rebuildCommand.Add(pathArgument);
+        rebuildCommand.Add(projectOption);
+        rebuildCommand.Add(urlOption);
+
+        rebuildCommand.SetAction(async parseResult => await configurationCommand.RunAsync(new ConfigurationCommandOptions(
+            parseResult.GetValue(pathArgument),
+            parseResult.GetValue(projectOption),
+            parseResult.GetValue(urlOption))));
+
+        command.Add(pathArgument);
+        command.Add(projectOption);
+        command.Add(urlOption);
+        command.Add(rebuildCommand);
+
+        command.SetAction(async parseResult => await configurationCommand.RunAsync(new ConfigurationCommandOptions(
+            parseResult.GetValue(pathArgument),
+            parseResult.GetValue(projectOption),
+            parseResult.GetValue(urlOption))));
 
         return command;
     }

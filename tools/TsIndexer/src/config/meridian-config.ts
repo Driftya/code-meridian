@@ -7,6 +7,7 @@ export interface MeridianConfig {
   codeMeridianUrl?: string;
   url?: string;
   useGlobalCache?: boolean;
+  configurationFiles?: string[];
 }
 
 export interface MeridianConfigContext {

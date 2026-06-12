@@ -15,6 +15,7 @@ internal static class IndexerCliServiceCollectionExtensions
         services.AddTransient<IndexCommandHandler>();
         services.AddTransient<DiagnosticsCommand>();
         services.AddTransient<KeywordCommand>();
+        services.AddTransient<ConfigurationCommand>();
         services.AddTransient<InitCommand>();
         services.AddTransient<ClearCommand>();
         services.AddTransient<ServeCommand>();

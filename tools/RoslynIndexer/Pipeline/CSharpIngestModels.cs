@@ -10,7 +10,8 @@ internal sealed record IngestNodeRequest(
     string? Summary,
     int? LineCount = null,
     string? SourceSnippet = null,
-    string? SourceHash = null);
+    string? SourceHash = null,
+    Dictionary<string, string>? Properties = null);
 
 internal sealed record IngestEdgeRequest(
     string SourceId,
@@ -22,7 +23,8 @@ internal sealed record IngestEdgeRequest(
     string? TargetType = null,
     bool? IsAsync = null,
     string? CallSite = null,
-    double? Confidence = null);
+    double? Confidence = null,
+    Dictionary<string, string>? Properties = null);
 
 internal sealed record MethodCandidate(string Id, string? Namespace, string? FilePath, string Name, int ParameterCount);
 

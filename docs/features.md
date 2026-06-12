@@ -57,6 +57,49 @@ CLI equivalent:
 codemeridian keywords classify --project CodeMeridian
 ```
 
+### Configuration graph indexing
+
+The CLI now indexes configuration structure as part of the normal `codemeridian index` flow.
+
+Current MVP support includes:
+
+- `appsettings.json`
+- `appsettings.*.json`
+- `meridian.json`
+- `meridian.sample.json`
+- `.env`
+- Docker Compose YAML environment sections
+
+Configuration indexing normalizes `__` to `:` for canonical keys, preserves the raw source spelling, masks secret-like values, and links exact C# and TypeScript configuration usage back to canonical config keys.
+
+Current code-usage extraction includes:
+
+- C#: `IConfiguration["A:B"]`, `GetSection("A:B")`, `Configure<T>(...)`, `Bind(...)`
+- TypeScript: `process.env.KEY`, `process.env["KEY"]`, `import.meta.env.KEY`, `import.meta.env["KEY"]`, env destructuring, and simple env-schema assignment patterns
+
+CLI equivalents:
+
+```powershell
+codemeridian index . --skip-config
+codemeridian config rebuild --project CodeMeridian
+```
+
+### `find_config_definitions`
+
+Finds where a canonical configuration key is defined or overridden across indexed configuration files.
+
+```text
+Where is Neo4j:Uri defined and overridden?
+```
+
+### `find_config_usage`
+
+Finds code nodes that directly read or bind a canonical configuration key.
+
+```text
+Which code reads or binds Neo4j:Uri?
+```
+
 ### `find_related_knowledge`
 
 Finds lexically related nodes by shared derived keywords. Results include score, shared keyword count, matched keywords, and explicit `lexical` confidence so callers can distinguish heuristic overlap from structural graph edges.

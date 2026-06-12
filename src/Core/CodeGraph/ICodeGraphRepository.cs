@@ -10,6 +10,7 @@ public interface ICodeGraphRepository
     Task DeleteProjectAsync(string projectContext, CancellationToken cancellationToken = default);
     Task DeleteFileAsync(string projectContext, string filePath, CancellationToken cancellationToken = default);
     Task DeleteDiagnosticsAsync(string projectContext, CancellationToken cancellationToken = default);
+    Task DeleteConfigurationAsync(string projectContext, CancellationToken cancellationToken = default);
     Task DeleteAllAsync(CancellationToken cancellationToken = default);
     Task<long> CountCodeNodesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<long> CountCallEdgesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
@@ -91,6 +92,12 @@ public interface ICodeGraphRepository
 
     /// <summary>Returns diagnostics attached to the same file as the target node.</summary>
     Task<IReadOnlyList<CodeNode>> FindDiagnosticsForNodeAsync(string nodeId, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns configuration-file definitions and overrides for one canonical configuration key.</summary>
+    Task<IReadOnlyList<ConfigurationDefinition>> FindConfigDefinitionsAsync(string canonicalKey, string? projectContext = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns code nodes that directly read or bind a canonical configuration key.</summary>
+    Task<IReadOnlyList<ConfigurationUsage>> FindConfigUsageAsync(string canonicalKey, string? projectContext = null, CancellationToken cancellationToken = default);
 
     /// <summary>Returns the most recent code-node update timestamp for a project, or null if no nodes exist.</summary>
     Task<DateTimeOffset?> GetMostRecentCodeUpdateAsync(string? projectContext = null, CancellationToken cancellationToken = default);

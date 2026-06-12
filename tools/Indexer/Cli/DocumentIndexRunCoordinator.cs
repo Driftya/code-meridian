@@ -15,7 +15,8 @@ internal static class DocumentIndexRunCoordinator
             rootPath,
             includeCSharp: false,
             includeTypeScript: false,
-            includeDocs: true);
+            includeDocs: true,
+            includeConfiguration: false);
 
         var changedDocumentFiles = DocumentIndexingSelection.SelectDocumentationFilesForIndexing(
             documentFiles,

@@ -74,5 +74,6 @@ public sealed class CSharpIndexer(
         var walker = new CSharpAstWalker(relPath, projectContext, nodes, edges);
         walker.Visit(root);
         CSharpRouteExtractor.Extract(root, relPath, projectContext, nodes, edges);
+        CSharpConfigurationUsageExtractor.Extract(root, relPath, projectContext, nodes, edges);
     }
 }

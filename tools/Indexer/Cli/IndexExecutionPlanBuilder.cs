@@ -27,7 +27,8 @@ internal static class IndexExecutionPlanBuilder
         DirectoryInfo rootPath,
         bool includeCSharp,
         bool includeTypeScript,
-        bool includeDocs)
+        bool includeDocs,
+        bool includeConfiguration = false)
     {
         return rootPath
             .EnumerateFiles("*.*", SearchOption.AllDirectories)
@@ -35,7 +36,8 @@ internal static class IndexExecutionPlanBuilder
             .Where(file =>
                 (includeCSharp && IsCSharpSourceFile(file)) ||
                 (includeTypeScript && IsTypeScriptSourceFile(file)) ||
-                (includeDocs && IsDocumentationFile(file)))
+                (includeDocs && IsDocumentationFile(file)) ||
+                (includeConfiguration && IsConfigurationFile(file)))
             .ToArray();
     }
 
@@ -55,7 +57,10 @@ internal static class IndexExecutionPlanBuilder
         file.Name.Equals("CHANGELOG.md", StringComparison.OrdinalIgnoreCase) ||
         file.Name.Equals("AGENTS.md", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsIgnoredPath(DirectoryInfo rootPath, FileInfo file)
+    public static bool IsConfigurationFile(FileInfo file) =>
+        Configuration.ConfigurationFilePatternMatcher.IsConfigurationFile(file);
+
+    internal static bool IsIgnoredPath(DirectoryInfo rootPath, FileInfo file)
     {
         var relPath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
         var segments = relPath.Split('/', StringSplitOptions.RemoveEmptyEntries);

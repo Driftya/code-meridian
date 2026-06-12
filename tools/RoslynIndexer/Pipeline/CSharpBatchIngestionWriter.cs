@@ -32,6 +32,7 @@ internal static class CSharpBatchIngestionWriter
                     sourceSnippet: n.SourceSnippet,
                     sourceHash: n.SourceHash,
                     projectContext: projectContext,
+                    properties: n.Properties,
                     cancellationToken: cancellationToken);
             }
         }
@@ -57,6 +58,7 @@ internal static class CSharpBatchIngestionWriter
                 callSite: e.CallSite,
                 paramCount: e.ParamCount,
                 confidence: e.Confidence,
+                properties: e.Properties,
                 cancellationToken: cancellationToken));
 
             await Task.WhenAll(tasks);

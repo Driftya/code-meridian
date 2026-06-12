@@ -92,7 +92,8 @@ public sealed class CodeMeridianConfigFileStore
                 ignoreProject ? null : NormalizeOptionalString(options.Project),
                 NormalizeOptionalString(options.CodeMeridianUrl) ?? NormalizeOptionalString(options.Url),
                 options.AllowRepoScripts,
-                options.UseGlobalCache);
+                options.UseGlobalCache,
+                NormalizePatterns(options.ConfigurationFiles));
         }
         catch
         {
@@ -177,4 +178,19 @@ public sealed class CodeMeridianConfigFileStore
 
     private static string? NormalizeOptionalString(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static IReadOnlyList<string>? NormalizePatterns(IEnumerable<string>? values)
+    {
+        if (values is null)
+            return null;
+
+        var normalized = values
+            .Select(NormalizeOptionalString)
+            .Where(value => value is not null)
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return normalized.Length == 0 ? null : normalized;
+    }
 }

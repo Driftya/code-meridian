@@ -18,7 +18,8 @@ public sealed class IndexExecutionPlanBuilderTests
             workspace.Root,
             includeCSharp: true,
             includeTypeScript: false,
-            includeDocs: false);
+            includeDocs: false,
+            includeConfiguration: false);
 
         result.Select(file => Path.GetRelativePath(workspace.Root.FullName, file.FullName).Replace('\\', '/'))
             .Should()
@@ -37,7 +38,8 @@ public sealed class IndexExecutionPlanBuilderTests
             workspace.Root,
             includeCSharp: false,
             includeTypeScript: false,
-            includeDocs: true);
+            includeDocs: true,
+            includeConfiguration: false);
 
         result.Select(file => Path.GetRelativePath(workspace.Root.FullName, file.FullName).Replace('\\', '/'))
             .Should()

@@ -18,6 +18,9 @@ public sealed record CodeEdge
 
     /// <summary>Indexer confidence score (0–1). Lower values indicate inferred/heuristic edges.</summary>
     public double? Confidence { get; init; }
+
+    /// <summary>Additional edge metadata for specialized graph relationships.</summary>
+    public Dictionary<string, string> Properties { get; init; } = [];
 }
 
 public enum CodeEdgeType
@@ -32,5 +35,9 @@ public enum CodeEdgeType
     Reads,
     Writes,
     PublishesTo,
-    SubscribesTo
+    SubscribesTo,
+    DefinesConfig,
+    OverridesConfig,
+    ReadsConfig,
+    BindsConfig
 }

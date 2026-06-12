@@ -41,5 +41,8 @@ public enum CodeNodeType
     ApiEndpoint,
     MessageTopic,
     ExternalService,
-    Diagnostic
+    Diagnostic,
+    ConfigurationFile,
+    ConfigurationKey,
+    ConfigurationEntry
 }

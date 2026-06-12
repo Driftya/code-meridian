@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using CodeMeridian.DocumentIndexer.Pipeline;
+using CodeMeridian.Indexer.Cli.Configuration;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
 using CodeMeridian.Tooling.Discovery;
@@ -38,9 +39,14 @@ internal sealed class IndexCommandHandler(
         var hasCSharp = !_settings.SkipCSharp && projectDiscoveryService.ContainsFile(_settings.RootPath, ".cs");
         var typeScriptRoots = _settings.SkipTypeScript ? [] : projectDiscoveryService.FindTypeScriptRoots(_settings.RootPath);
         var hasTypeScript = typeScriptRoots.Count > 0;
+        var configurationFilePatterns = _settings.ConfigurationFiles;
+        var hasConfiguration = !_settings.SkipConfiguration &&
+                               _settings.RootPath.EnumerateFiles("*.*", SearchOption.AllDirectories)
+                                   .Where(file => !IndexExecutionPlanBuilder.IsIgnoredPath(_settings.RootPath, file))
+                                   .Any(file => ConfigurationFilePatternMatcher.IsConfigurationFile(file, configurationFilePatterns));
         var cacheDirectory = storagePathService.ResolveCacheDirectory(_settings.RootPath, _settings.Project, _settings.StorageMode);
         var cache = IncrementalIndexCache.Load(cacheDirectory, _settings.Project);
-        var indexableFiles = IndexExecutionPlanBuilder.EnumerateIndexableFiles(_settings.RootPath, hasCSharp, hasTypeScript, _settings.IncludeDocs);
+        var indexableFiles = IndexExecutionPlanBuilder.EnumerateIndexableFiles(_settings.RootPath, hasCSharp, hasTypeScript, _settings.IncludeDocs, hasConfiguration);
         var incrementalPlan = IndexExecutionPlanBuilder.BuildPlan(cache, _settings.RootPath, indexableFiles, forceFull: _settings.Clear || !_settings.Incremental);
         var changedFiles = _settings.Incremental && !_settings.Clear ? incrementalPlan.ChangedFiles : null;
         var deletedFiles = IndexExecutionPlanBuilder.GetDeletedFiles(incrementalPlan, _settings.Incremental, _settings.Clear);
@@ -53,7 +59,7 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Cache   : {cacheDirectory.FullName}");
         Console.WriteLine($"  Mode    : {(_settings.Incremental && !_settings.Clear ? "incremental" : "full")}");
 
-        if (!hasCSharp && !hasTypeScript)
+        if (!hasCSharp && !hasTypeScript && !hasConfiguration)
         {
             Console.WriteLine("No enabled indexers found matching this project.");
             Console.WriteLine("Use --list-capabilities to inspect available indexers.");
@@ -150,6 +156,13 @@ internal sealed class IndexCommandHandler(
         if (_settings.IncludeDocs)
         {
             exitCode = await RunDocumentIndexerAsync(changedFiles, deletedFiles);
+            if (exitCode != 0 || _settings.Watch)
+                return exitCode;
+        }
+
+        if (hasConfiguration)
+        {
+            exitCode = await RunConfigurationIndexerAsync(changedFiles, deletedFiles);
             if (exitCode != 0 || _settings.Watch)
                 return exitCode;
         }
@@ -267,6 +280,7 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Rebuild keywords  : {_settings.RebuildKeywords}");
         Console.WriteLine($"  C# indexer        : {(hasCSharp ? "enabled" : "not applicable")}");
         Console.WriteLine($"  TypeScript roots  : {(typeScriptRoots.Count == 0 ? "none" : typeScriptRoots.Count)}");
+        Console.WriteLine($"  Config indexer    : {(_settings.SkipConfiguration ? "skipped" : "enabled")}");
 
         foreach (var typeScriptRoot in typeScriptRoots)
             Console.WriteLine($"    - {Path.GetRelativePath(_settings.RootPath.FullName, typeScriptRoot.FullName)}");
@@ -392,5 +406,21 @@ internal sealed class IndexCommandHandler(
             Console.Error.WriteLine($"error: keyword graph rebuild failed: {ex.Message}");
             return 1;
         }
+    }
+
+    private async Task<int> RunConfigurationIndexerAsync(
+        IReadOnlyCollection<string>? changedFiles,
+        IReadOnlyCollection<string> deletedFiles)
+    {
+        var indexer = new ConfigurationIndexer();
+        return await indexer.RunAsync(
+            _settings.RootPath,
+            _settings.Project,
+            _settings.CodeMeridianUrl,
+            _settings.ApiKey,
+            _settings.ConfigurationFiles,
+            clearExistingConfiguration: _settings.Clear || !_settings.Incremental,
+            changedFiles: _settings.Clear || !_settings.Incremental ? null : changedFiles,
+            deletedFiles: _settings.Clear || !_settings.Incremental ? [] : deletedFiles);
     }
 }

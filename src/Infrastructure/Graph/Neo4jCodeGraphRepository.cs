@@ -275,6 +275,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 n.lastIndexedAt  = $now,
                 n.changeCount    = CASE WHEN contentChanged THEN coalesce(n.changeCount, 0) + 1 ELSE coalesce(n.changeCount, 0) END,
                 n.updatedAt      = CASE WHEN contentChanged THEN $now ELSE n.updatedAt END
+            SET n += $properties
             """;
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -298,6 +299,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 sourceHash = node.SourceHash,
                 projectContext = node.ProjectContext,
                 projectContextNormalized = Normalize(node.ProjectContext),
+                properties = node.Properties,
                 now
             });
             await cursor.ConsumeAsync();
@@ -328,6 +330,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 r.callSite    = $callSite,
                 r.paramCount  = $paramCount,
                 r.confidence  = $confidence
+            SET r += $properties
             RETURN count(r) AS edgeCount
             """;
 
@@ -340,7 +343,8 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 isAsync    = (object?)edge.IsAsync,
                 callSite   = (object?)edge.CallSite,
                 paramCount = (object?)edge.ParamCount,
-                confidence = (object?)edge.Confidence
+                confidence = (object?)edge.Confidence,
+                properties = edge.Properties
             });
             var record = await cursor.SingleAsync();
             await cursor.ConsumeAsync();
@@ -407,6 +411,24 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             MATCH (n:CodeNode)
             WHERE n.projectContextNormalized = $projectContextNormalized
               AND n.type = 'Diagnostic'
+            DETACH DELETE n
+            """;
+
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Normalize(projectContext) });
+            await cursor.ConsumeAsync();
+        });
+    }
+
+    public async Task DeleteConfigurationAsync(string projectContext, CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (n:CodeNode)
+            WHERE n.projectContextNormalized = $projectContextNormalized
+              AND n.type IN ['ConfigurationFile', 'ConfigurationKey', 'ConfigurationEntry']
             DETACH DELETE n
             """;
 
@@ -618,6 +640,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             SourceSnippet = props.TryGetValue("sourceSnippet", out var ss) ? ss?.As<string>() : null,
             ProjectContext = props.TryGetValue("projectContext", out var pc) ? pc?.As<string>() : null,
             SourceHash = props.TryGetValue("sourceHash", out var sh) ? sh?.As<string>() : null,
+            Properties = ReadProperties(props, NodeReservedPropertyNames),
             ChangeCount = props.TryGetValue("changeCount", out var cc) ? cc?.As<int?>() : null,
             CreatedAt = ReadTimestamp("createdAt"),
             UpdatedAt = ReadTimestamp("updatedAt"),
@@ -639,8 +662,42 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             IsAsync    = props.TryGetValue("isAsync",    out var ia)  ? ia?.As<bool?>()   : null,
             CallSite   = props.TryGetValue("callSite",   out var cs)  ? cs?.As<string>()  : null,
             ParamCount = props.TryGetValue("paramCount", out var pc)  ? pc?.As<int?>()    : null,
-            Confidence = props.TryGetValue("confidence", out var con) ? con?.As<double?>(): null
+            Confidence = props.TryGetValue("confidence", out var con) ? con?.As<double?>(): null,
+            Properties = ReadProperties(props, EdgeReservedPropertyNames)
         };
+    }
+
+    private static readonly HashSet<string> NodeReservedPropertyNames =
+    [
+        "id", "name", "nameNormalized", "type", "namespace", "namespaceNormalized", "filePath", "filePathNormalized",
+        "lineNumber", "lineCount", "summary", "sourceSnippet", "sourceHash", "projectContext",
+        "projectContextNormalized", "createdAt", "updatedAt", "lastIndexedAt", "changeCount", "embedding"
+    ];
+
+    private static readonly HashSet<string> EdgeReservedPropertyNames =
+    [
+        "isAsync", "callSite", "paramCount", "confidence"
+    ];
+
+    private static Dictionary<string, string> ReadProperties(
+        IReadOnlyDictionary<string, object> properties,
+        HashSet<string> reservedNames)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in properties)
+        {
+            if (reservedNames.Contains(pair.Key) || pair.Value is null)
+                continue;
+
+            result[pair.Key] = pair.Value switch
+            {
+                string value => value,
+                bool value => value ? "true" : "false",
+                _ => pair.Value.ToString() ?? string.Empty
+            };
+        }
+
+        return result;
     }
 
     public async ValueTask DisposeAsync() => await _driver.DisposeAsync();

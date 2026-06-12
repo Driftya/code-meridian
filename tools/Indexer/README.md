@@ -1,6 +1,6 @@
 # CodeMeridian Indexer
 
-`CodeMeridian.Indexer` is the unified CLI for indexing code into CodeMeridian from C#, TypeScript/TSX, and documentation sources.
+`CodeMeridian.Indexer` is the unified CLI for indexing code into CodeMeridian from C#, TypeScript/TSX, documentation, and configuration sources.
 
 ## Install
 
@@ -24,7 +24,9 @@ codemeridian keywords --project MyApp
 codemeridian keywords rebuild --project MyApp
 codemeridian keywords index --project MyApp
 codemeridian keywords classify --project MyApp
+codemeridian config rebuild --project MyApp
 codemeridian index . --skip-csharp --skip-docs --skip-diagnostics
+codemeridian index . --skip-config
 codemeridian index . --watch
 codemeridian init .
 codemeridian serve --no-start
@@ -35,12 +37,16 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 ## What It Does
 
 - Detects C# projects, TypeScript/TSX roots, and documentation files.
+- Detects repo-local configuration files such as `appsettings*.json`, `meridian*.json`, `.env`, and Docker Compose YAML.
 - Indexes code into Neo4j through CodeMeridian.
+- Indexes canonical configuration keys and links direct and typed C# configuration usage into the same graph.
 - Skips unchanged files after the first successful run using `.meridian/cache`.
 - Can run compiler, TypeScript, and lint diagnostics unless you skip them.
 - Can trigger a backend keyword-graph rebuild after indexing with `--keywords`.
 - Can rebuild the keyword graph on demand without indexing through `codemeridian keywords`.
 - Can classify already-built keywords on demand through `codemeridian keywords classify`.
+- Can rebuild the configuration graph on demand without rerunning language indexers through `codemeridian config rebuild`.
+- Can read `configurationFiles` from `meridian.json` to control which config file names or wildcard patterns are indexed.
 - Repo-controlled build and lint diagnostics are opt-in via `--allow-repo-scripts`.
 - Can query the backend for a `doctor` status report without talking to Neo4j directly from the client.
 - Can verify graph drift with `codemeridian check-drift` or `codemeridian index --verify`.
@@ -63,7 +69,9 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Use `codemeridian check-drift --project <name> --fail-on high` for a drift gate that exits non-zero in CI when the graph is too stale.
 - Use `codemeridian index --verify --project <name>` when you want the same drift gate as part of an indexer workflow.
 - Use `--skip-diagnostics` if you only want structural indexing.
+- Use `--skip-config` when you want to skip configuration-file parsing and config-usage graph edges for a run.
 - Use `--keywords` when you want the index run to finish by rebuilding derived `Keyword` nodes and `HAS_KEYWORD` relationships for the indexed project.
+- Use `codemeridian config rebuild --project <name>` when you want a clean rebuild of configuration-file nodes, canonical config keys, and C# config usage links.
 - Use `codemeridian keywords --project <name>` as the short form when you only want the rebuild.
 - Use `codemeridian keywords rebuild --project <name>` when you want an explicit maintenance command name.
 - Use `codemeridian keywords index --project <name>` if you prefer `index` terminology; it is an alias of `rebuild`.

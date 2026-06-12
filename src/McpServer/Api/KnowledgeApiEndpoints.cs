@@ -21,6 +21,7 @@ public static class KnowledgeApiEndpoints
         group.MapPost("/documents", IngestDocument);
         group.MapPost("/keywords/rebuild", RebuildKeywordGraph);
         group.MapPost("/keywords/classify", ClassifyKeywords);
+        group.MapDelete("/project/{projectContext}/configuration", DeleteConfiguration);
         group.MapDelete("/project/{projectContext}/diagnostics", DeleteDiagnostics);
         group.MapDelete("/project/{projectContext}/files/{**filePath}", DeleteProjectFile);
         group.MapDelete("/code-graph", DeleteCodeGraph);
@@ -67,6 +68,7 @@ public static class KnowledgeApiEndpoints
             SourceSnippet = req.SourceSnippet,
             SourceHash = req.SourceHash,
             ProjectContext = req.ProjectContext,
+            Properties = req.Properties ?? [],
             Embedding = embedding
         }, ct);
 
@@ -98,7 +100,8 @@ public static class KnowledgeApiEndpoints
             IsAsync = req.IsAsync,
             CallSite = req.CallSite,
             ParamCount = req.ParamCount,
-            Confidence = req.Confidence
+            Confidence = req.Confidence,
+            Properties = req.Properties ?? []
         }, ct);
 
         return Results.Created("/api/v1/knowledge/nodes/edges", null);
@@ -181,6 +184,15 @@ public static class KnowledgeApiEndpoints
         CancellationToken ct)
     {
         await codeGraph.DeleteDiagnosticsAsync(projectContext, ct);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> DeleteConfiguration(
+        string projectContext,
+        ICodeGraphRepository codeGraph,
+        CancellationToken ct)
+    {
+        await codeGraph.DeleteConfigurationAsync(projectContext, ct);
         return Results.NoContent();
     }
 
@@ -304,6 +316,7 @@ internal sealed record IngestNodeRequest(
     string? SourceSnippet = null,
     string? SourceHash = null,
     string? ProjectContext = null,
+    Dictionary<string, string>? Properties = null,
     string? EmbeddingCsv = null);
 
 internal sealed record IngestEdgeRequest(
@@ -313,7 +326,8 @@ internal sealed record IngestEdgeRequest(
     bool? IsAsync = null,
     string? CallSite = null,
     int? ParamCount = null,
-    double? Confidence = null);
+    double? Confidence = null,
+    Dictionary<string, string>? Properties = null);
 
 internal sealed record IngestDocumentRequest(
     string Content,

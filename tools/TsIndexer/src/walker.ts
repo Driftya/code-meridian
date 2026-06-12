@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Project } from 'ts-morph';
 import type { CodeEdgeDto, CodeNodeDto } from './types.js';
+import { collectConfigurationEdges, collectConfigurationNodes } from './walker/configuration.js';
 import { collectEdges, collectNodes } from './walker/graph.js';
 import { collectRouteEdges, collectRouteNodes } from './walker/routes.js';
 
@@ -46,11 +47,15 @@ export function walkTypeScript(rootPath: string, projectName: string, files?: st
   for (const sourceFile of sourceFiles) {
     collectRouteNodes(sourceFile, rootPath, projectName, nodes, knownIds);
   }
+  for (const sourceFile of sourceFiles) {
+    collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, knownIds);
+  }
   indexMethods(nodes, methodIndex);
 
   for (const sourceFile of sourceFiles) {
     collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds, methodIndex);
     collectRouteEdges(sourceFile, rootPath, projectName, edges, knownIds);
+    collectConfigurationEdges(sourceFile, rootPath, projectName, edges);
   }
 
   return { nodes, edges };

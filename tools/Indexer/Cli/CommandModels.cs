@@ -14,6 +14,7 @@ internal sealed record IndexCommandOptions(
     bool ListCapabilities,
     bool SkipCSharp,
     bool SkipTypeScript,
+    bool SkipConfiguration,
     bool SkipDiagnostics,
     bool AllowRepoScripts,
     bool Incremental,
@@ -47,6 +48,11 @@ internal sealed record KeywordCommandOptions(
     string? Project,
     string? CodeMeridianUrl,
     KeywordCommandAction Action = KeywordCommandAction.Rebuild);
+
+internal sealed record ConfigurationCommandOptions(
+    string? Path,
+    string? Project,
+    string? CodeMeridianUrl);
 
 internal enum KeywordCommandAction
 {

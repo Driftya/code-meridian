@@ -15,7 +15,10 @@ export type CodeNodeType =
   | 'ApiEndpoint'
   | 'MessageTopic'
   | 'ExternalService'
-  | 'Diagnostic';
+  | 'Diagnostic'
+  | 'ConfigurationFile'
+  | 'ConfigurationKey'
+  | 'ConfigurationEntry';
 
 export type CodeEdgeType =
   | 'Contains'
@@ -28,7 +31,11 @@ export type CodeEdgeType =
   | 'Reads'
   | 'Writes'
   | 'PublishesTo'
-  | 'SubscribesTo';
+  | 'SubscribesTo'
+  | 'DefinesConfig'
+  | 'OverridesConfig'
+  | 'ReadsConfig'
+  | 'BindsConfig';
 
 export interface CodeNodeDto {
   id: string;
@@ -42,6 +49,7 @@ export interface CodeNodeDto {
   sourceSnippet?: string;
   sourceHash?: string;
   projectContext: string;
+  properties?: Record<string, string>;
   embeddingCsv?: string;
 }
 
@@ -53,6 +61,7 @@ export interface CodeEdgeDto {
   callSite?: string;
   paramCount?: number;
   confidence?: number;
+  properties?: Record<string, string>;
 }
 
 export interface DocumentDto {

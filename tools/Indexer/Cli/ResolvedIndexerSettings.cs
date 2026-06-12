@@ -16,6 +16,8 @@ internal sealed class ResolvedIndexerSettings
     public bool ListCapabilities { get; init; }
     public bool SkipCSharp { get; init; }
     public bool SkipTypeScript { get; init; }
+    public bool SkipConfiguration { get; init; }
+    public IReadOnlyList<string>? ConfigurationFiles { get; init; }
     public bool SkipDiagnostics { get; init; }
     public bool AllowRepoScripts { get; init; }
     public bool Incremental { get; init; } = true;

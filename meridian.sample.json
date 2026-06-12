@@ -4,6 +4,20 @@
   "codeMeridianUrl": "{{codeMeridianUrl}}",
   "allowRepoScripts": true,
   "useGlobalCache": {{useGlobalCache}},
+  "configurationFiles": [
+    ".env",
+    "appsettings.json",
+    "appsettings.*.json",
+    "meridian.json",
+    "meridian.sample.json",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "docker-compose.sample.yml",
+    "docker-compose.sample.yaml",
+    "*.json",
+    "*.yml",
+    "*.yaml"
+  ],
   "analysis": {
     "staleKnowledge": {
       "skipHeuristicSourcePrefixes": [

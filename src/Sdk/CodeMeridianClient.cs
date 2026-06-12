@@ -83,6 +83,7 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         string? sourceSnippet = null,
         string? sourceHash = null,
         string? projectContext = null,
+        Dictionary<string, string>? properties = null,
         string? embeddingCsv = null,
         CancellationToken cancellationToken = default)
     {
@@ -101,6 +102,7 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
                 SourceSnippet = sourceSnippet,
                 SourceHash = sourceHash,
                 ProjectContext = projectContext,
+                Properties = properties,
                 EmbeddingCsv = embeddingCsv
             },
             cancellationToken);
@@ -116,6 +118,7 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         string? callSite = null,
         int? paramCount = null,
         double? confidence = null,
+        Dictionary<string, string>? properties = null,
         CancellationToken cancellationToken = default)
     {
         var response = await httpClient.PostAsJsonAsync(
@@ -128,7 +131,8 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
                 IsAsync = isAsync,
                 CallSite = callSite,
                 ParamCount = paramCount,
-                Confidence = confidence
+                Confidence = confidence,
+                Properties = properties
             },
             cancellationToken);
 
@@ -165,6 +169,17 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
     {
         var response = await httpClient.DeleteAsync(
             $"/api/v1/knowledge/project/{Uri.EscapeDataString(projectContext)}/diagnostics",
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ClearProjectConfigurationAsync(
+        string projectContext,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.DeleteAsync(
+            $"/api/v1/knowledge/project/{Uri.EscapeDataString(projectContext)}/configuration",
             cancellationToken);
 
         response.EnsureSuccessStatusCode();

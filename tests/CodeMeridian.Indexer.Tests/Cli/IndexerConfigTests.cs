@@ -26,7 +26,8 @@ public sealed class IndexerConfigTests : IDisposable
               "project": "MyApi",
               "codeMeridianUrl": "http://localhost:5100",
               "allowRepoScripts": true,
-              "useGlobalCache": true
+              "useGlobalCache": true,
+              "configurationFiles": [".env", "appsettings.*.json"]
             }
             """);
 
@@ -37,6 +38,7 @@ public sealed class IndexerConfigTests : IDisposable
         result.CodeMeridianUrl.Should().Be("http://localhost:5100");
         result.AllowRepoScripts.Should().BeTrue();
         result.UseGlobalCache.Should().BeTrue();
+        result.ConfigurationFiles.Should().BeEquivalentTo([".env", "appsettings.*.json"]);
     }
 
     [Fact]

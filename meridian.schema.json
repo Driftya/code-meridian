@@ -30,6 +30,11 @@
       "default": false,
       "description": "Store indexer runtime cache and generated files outside the repository."
     },
+    "configurationFiles": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "File-name patterns used by configuration indexing. Supports '*' wildcards such as '.env', 'appsettings.*.json', or 'docker-compose*.yaml'."
+    },
     "analysis": {
       "type": "object",
       "additionalProperties": true,
