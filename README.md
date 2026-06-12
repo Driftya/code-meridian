@@ -228,3 +228,7 @@ docs/
 ## Status
 
 CodeMeridian is early but usable. It already indexes C# and TypeScript/TSX projects, persists the graph in Neo4j, and exposes MCP tools for Copilot, Codex, and other compatible clients. The roadmap is tracked in [TODO.md](TODO.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, AI-assisted development expectations, and validation steps.
