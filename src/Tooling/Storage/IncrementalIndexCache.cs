@@ -1,7 +1,7 @@
-using System.Text.Json;
 using System.Security.Cryptography;
+using System.Text.Json;
 
-namespace CodeMeridian.Indexer.Cli;
+namespace CodeMeridian.Tooling.Storage;
 
 public sealed class IncrementalIndexCache
 {
@@ -82,7 +82,7 @@ public sealed class IncrementalIndexCache
 
     private static string Hash(string value)
     {
-        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value));
+        var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value));
         return Convert.ToHexString(hash)[..12].ToLowerInvariant();
     }
 

@@ -1,4 +1,4 @@
-using CodeMeridian.Indexer.Cli;
+using CodeMeridian.Tooling.Storage;
 using FluentAssertions;
 
 namespace CodeMeridian.Indexer.Tests.Cli;

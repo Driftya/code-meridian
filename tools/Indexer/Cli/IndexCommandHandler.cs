@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
-using CodeMeridian.Indexer.Cli;
 using CodeMeridian.DocumentIndexer.Pipeline;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
@@ -306,20 +305,28 @@ internal sealed class IndexCommandHandler(
                 includeDocs: true)
             .ToArray();
 
-        if (documentFiles.Length == 0)
+        var changedDocumentFiles = DocumentIndexingSelection.SelectDocumentationFilesForIndexing(
+            documentFiles,
+            _settings.RootPath,
+            changedFiles);
+        var deletedDocumentFiles = DocumentIndexingSelection.FilterDocumentationRelativePaths(deletedFiles, _settings.RootPath);
+        var changedDocumentRelativePaths = DocumentIndexingSelection.FilterDocumentationRelativePaths(changedFiles ?? [], _settings.RootPath);
+
+        if (changedFiles is not null)
+        {
+            if (deletedDocumentFiles.Count > 0)
+                await DeleteProjectFilesAsync(deletedDocumentFiles);
+
+            if (changedDocumentRelativePaths.Count > 0)
+                await DeleteProjectFilesAsync(changedDocumentRelativePaths);
+        }
+
+        if (changedDocumentFiles.Length == 0)
             return 0;
 
         var logger = provider.GetRequiredService<ILogger<DocumentIndexerPipeline>>();
-        logger.LogInformation("Found {Count} documentation files to ingest.", documentFiles.Length);
-
-        foreach (var file in documentFiles)
-        {
-            var relPath = Path.GetRelativePath(_settings.RootPath.FullName, file.FullName).Replace('\\', '/');
-            logger.LogInformation("Removing stale document chunks for {File} before re-ingesting...", relPath);
-            await DeleteProjectFilesAsync([relPath]);
-        }
-
-        await pipeline.IngestAsync(documentFiles, _settings.Project, _settings.RootPath.FullName, CancellationToken.None);
+        logger.LogInformation("Found {Count} documentation files to ingest.", changedDocumentFiles.Length);
+        await pipeline.IngestAsync(changedDocumentFiles, _settings.Project, _settings.RootPath.FullName, CancellationToken.None);
         return 0;
     }
 
