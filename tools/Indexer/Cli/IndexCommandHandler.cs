@@ -40,10 +40,10 @@ internal sealed class IndexCommandHandler(
         var hasTypeScript = typeScriptRoots.Count > 0;
         var cacheDirectory = storagePathService.ResolveCacheDirectory(_settings.RootPath, _settings.Project, _settings.StorageMode);
         var cache = IncrementalIndexCache.Load(cacheDirectory, _settings.Project);
-        var indexableFiles = EnumerateIndexableFiles(_settings.RootPath, hasCSharp, hasTypeScript, _settings.IncludeDocs).ToArray();
-        var incrementalPlan = cache.BuildPlan(_settings.RootPath, indexableFiles, forceFull: _settings.Clear || !_settings.Incremental);
+        var indexableFiles = IndexExecutionPlanBuilder.EnumerateIndexableFiles(_settings.RootPath, hasCSharp, hasTypeScript, _settings.IncludeDocs);
+        var incrementalPlan = IndexExecutionPlanBuilder.BuildPlan(cache, _settings.RootPath, indexableFiles, forceFull: _settings.Clear || !_settings.Incremental);
         var changedFiles = _settings.Incremental && !_settings.Clear ? incrementalPlan.ChangedFiles : null;
-        var deletedFiles = _settings.Incremental && !_settings.Clear ? incrementalPlan.DeletedFiles : [];
+        var deletedFiles = IndexExecutionPlanBuilder.GetDeletedFiles(incrementalPlan, _settings.Incremental, _settings.Clear);
 
         Console.WriteLine("CodeMeridian index");
         Console.WriteLine($"  Root    : {_settings.RootPath.FullName}");
@@ -88,7 +88,7 @@ internal sealed class IndexCommandHandler(
         {
             if (changedFiles is not null || deletedFiles.Count > 0)
             {
-                await DeleteProjectFilesAsync(
+                await new ProjectFileDeletionService(_settings.CodeMeridianUrl, _settings.ApiKey, _settings.Project, _settings.RootPath).DeleteAsync(
                     FilterTypeScriptIndexerFiles(changedFiles ?? [], typeScriptRoots, _settings.IncludeDocs && !hasCSharp)
                         .Concat(FilterTypeScriptIndexerFiles(deletedFiles, typeScriptRoots, _settings.IncludeDocs && !hasCSharp)));
             }
@@ -101,11 +101,11 @@ internal sealed class IndexCommandHandler(
                 return 1;
             }
 
-            exitCode = await EnsureTypeScriptIndexerDependenciesAsync(tsIndexerRoot);
+            exitCode = await TypeScriptIndexerProcessRunner.EnsureDependenciesAsync(tsIndexerRoot);
             if (exitCode != 0)
                 return exitCode;
 
-            var tsxCommand = ResolveTsxCommand(tsIndexerRoot);
+            var tsxCommand = TypeScriptIndexerProcessRunner.ResolveTsxCommand(tsIndexerRoot);
             if (tsxCommand is null)
             {
                 Console.Error.WriteLine("error: local tsx binary was not found for the TypeScript indexer.");
@@ -120,7 +120,7 @@ internal sealed class IndexCommandHandler(
                     : FilterFilesForRoot(
                         changedFiles,
                         typeScriptRoot,
-                        file => IsTypeScriptSourceFile(file) || (_settings.IncludeDocs && !hasCSharp && IsDocumentationFile(file)))
+                        file => IndexExecutionPlanBuilder.IsTypeScriptSourceFile(file) || (_settings.IncludeDocs && !hasCSharp && IndexExecutionPlanBuilder.IsDocumentationFile(file)))
                     .ToArray();
 
                 if (changedTypeScriptFiles is { Length: 0 })
@@ -139,7 +139,7 @@ internal sealed class IndexCommandHandler(
                     _settings.IncludeDocs && !hasCSharp && typeScriptRoots.Count == 1,
                     filesList);
 
-                exitCode = await RunProcessAsync(tsxCommand, tsArgs, tsIndexerRoot);
+                exitCode = await TypeScriptIndexerProcessRunner.RunAsync(tsxCommand, tsArgs, tsIndexerRoot);
                 if (exitCode != 0 || _settings.Watch)
                     return exitCode;
 
@@ -199,9 +199,6 @@ internal sealed class IndexCommandHandler(
             return 0;
 
         var logger = provider.GetRequiredService<ILogger<IndexerPipeline>>();
-        logger.LogInformation(
-            "Watch mode active - monitoring {Path} for .cs and documentation changes. Press Ctrl+C to exit.",
-            _settings.RootPath.FullName);
 
         var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
@@ -209,77 +206,8 @@ internal sealed class IndexCommandHandler(
             e.Cancel = true;
             cts.Cancel();
         };
-
-        System.Timers.Timer? debounceTimer = null;
-        var changedDuringDebounce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var deletedDuringDebounce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        void ScheduleReindex(string fullPath, bool deleted)
-        {
-            var relativePath = Path.GetRelativePath(_settings.RootPath.FullName, fullPath).Replace('\\', '/');
-            if (deleted)
-                deletedDuringDebounce.Add(relativePath);
-            else
-                changedDuringDebounce.Add(relativePath);
-
-            debounceTimer?.Stop();
-            debounceTimer?.Dispose();
-            debounceTimer = new System.Timers.Timer(2_000) { AutoReset = false };
-            debounceTimer.Elapsed += async (_, _) =>
-            {
-                logger.LogInformation("[watch] Change detected - re-indexing...");
-                var changedBatch = changedDuringDebounce.ToArray();
-                var deletedBatch = deletedDuringDebounce.ToArray();
-                changedDuringDebounce.Clear();
-                deletedDuringDebounce.Clear();
-
-                try
-                {
-                    await pipeline.RunAsync(
-                        _settings.RootPath,
-                        _settings.Project,
-                        clear: false,
-                        changedFiles: changedBatch,
-                        deletedFiles: deletedBatch,
-                        cancellationToken: cts.Token);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "[watch] Re-index failed.");
-                }
-            };
-            debounceTimer.Start();
-        }
-
-        using var watcher = new FileSystemWatcher(_settings.RootPath.FullName)
-        {
-            IncludeSubdirectories = true,
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
-            EnableRaisingEvents = true,
-        };
-
-        watcher.Filters.Add("*.cs");
-        watcher.Filters.Add("*.md");
-        watcher.Filters.Add("*.txt");
-        watcher.Changed += (_, e) => ScheduleReindex(e.FullPath, deleted: false);
-        watcher.Created += (_, e) => ScheduleReindex(e.FullPath, deleted: false);
-        watcher.Deleted += (_, e) => ScheduleReindex(e.FullPath, deleted: true);
-        watcher.Renamed += (_, e) =>
-        {
-            ScheduleReindex(e.OldFullPath, deleted: true);
-            ScheduleReindex(e.FullPath, deleted: false);
-        };
-
-        try
-        {
-            await Task.Delay(Timeout.Infinite, cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected when the user stops watch mode.
-        }
-
-        logger.LogInformation("Watch mode stopped.");
+        var watchLoop = new IndexWatchLoop(_settings.RootPath, pipeline, logger);
+        await watchLoop.RunAsync(_settings.Project, cts.Token);
         return 0;
     }
 
@@ -300,87 +228,19 @@ internal sealed class IndexCommandHandler(
         await using var provider = services.BuildServiceProvider();
         var pipeline = provider.GetRequiredService<DocumentIndexerPipeline>();
 
-        var documentFiles = EnumerateIndexableFiles(
-                _settings.RootPath,
-                includeCSharp: false,
-                includeTypeScript: false,
-                includeDocs: true)
-            .ToArray();
+        var documentPlan = DocumentIndexRunCoordinator.BuildPlan(_settings.RootPath, changedFiles, deletedFiles);
 
-        var changedDocumentFiles = DocumentIndexingSelection.SelectDocumentationFilesForIndexing(
-            documentFiles,
-            _settings.RootPath,
-            changedFiles);
-        var deletedDocumentFiles = DocumentIndexingSelection.FilterDocumentationRelativePaths(deletedFiles, _settings.RootPath);
-        var changedDocumentRelativePaths = DocumentIndexingSelection.FilterDocumentationRelativePaths(changedFiles ?? [], _settings.RootPath);
+        if (changedFiles is not null && documentPlan.FilesToDelete.Count > 0)
+            await new ProjectFileDeletionService(_settings.CodeMeridianUrl, _settings.ApiKey, _settings.Project, _settings.RootPath).DeleteAsync(documentPlan.FilesToDelete);
 
-        if (changedFiles is not null)
-        {
-            if (deletedDocumentFiles.Count > 0)
-                await DeleteProjectFilesAsync(deletedDocumentFiles);
-
-            if (changedDocumentRelativePaths.Count > 0)
-                await DeleteProjectFilesAsync(changedDocumentRelativePaths);
-        }
-
-        if (changedDocumentFiles.Length == 0)
+        if (documentPlan.FilesToIngest.Count == 0)
             return 0;
 
         var logger = provider.GetRequiredService<ILogger<DocumentIndexerPipeline>>();
-        logger.LogInformation("Found {Count} documentation files to ingest.", changedDocumentFiles.Length);
-        await pipeline.IngestAsync(changedDocumentFiles, _settings.Project, _settings.RootPath.FullName, CancellationToken.None);
+        logger.LogInformation("Found {Count} documentation files to ingest.", documentPlan.FilesToIngest.Count);
+        await pipeline.IngestAsync(documentPlan.FilesToIngest.ToArray(), _settings.Project, _settings.RootPath.FullName, CancellationToken.None);
         return 0;
     }
-
-    private static IEnumerable<FileInfo> EnumerateIndexableFiles(
-        DirectoryInfo rootPath,
-        bool includeCSharp,
-        bool includeTypeScript,
-        bool includeDocs)
-    {
-        return rootPath
-            .EnumerateFiles("*.*", SearchOption.AllDirectories)
-            .Where(file => !IsIgnoredPath(rootPath, file))
-            .Where(file =>
-                (includeCSharp && IsCSharpSourceFile(file)) ||
-                (includeTypeScript && IsTypeScriptSourceFile(file)) ||
-                (includeDocs && IsDocumentationFile(file)));
-    }
-
-    private static bool IsIgnoredPath(DirectoryInfo rootPath, FileInfo file)
-    {
-        var relPath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
-        var segments = relPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return segments.Any(segment => segment.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals(".vs", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals(".vscode", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals(".meridian", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("node_modules", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("build", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("coverage", StringComparison.OrdinalIgnoreCase)) ||
-               relPath.Contains(".generated.", StringComparison.OrdinalIgnoreCase) ||
-               relPath.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase) ||
-               relPath.EndsWith("AssemblyInfo.cs", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsCSharpSourceFile(FileInfo file) =>
-        file.Extension.Equals(".cs", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsTypeScriptSourceFile(FileInfo file) =>
-        (file.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
-         file.Extension.Equals(".tsx", StringComparison.OrdinalIgnoreCase)) &&
-        !file.Name.EndsWith(".d.ts", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsDocumentationFile(FileInfo file) =>
-        file.Extension.Equals(".md", StringComparison.OrdinalIgnoreCase) ||
-        file.Extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) ||
-        file.Name.Equals("README.md", StringComparison.OrdinalIgnoreCase) ||
-        file.Name.Equals("ARCHITECTURE.md", StringComparison.OrdinalIgnoreCase) ||
-        file.Name.Equals("CHANGELOG.md", StringComparison.OrdinalIgnoreCase) ||
-        file.Name.Equals("AGENTS.md", StringComparison.OrdinalIgnoreCase);
 
     private void PrintDryRun(
         bool hasCSharp,
@@ -413,7 +273,7 @@ internal sealed class IndexCommandHandler(
         typeScriptRoots.SelectMany(root => FilterFilesForRoot(
             relativePaths,
             root,
-            file => IsTypeScriptSourceFile(file) || (includeDocs && IsDocumentationFile(file))));
+            file => IndexExecutionPlanBuilder.IsTypeScriptSourceFile(file) || (includeDocs && IndexExecutionPlanBuilder.IsDocumentationFile(file))));
 
     private IEnumerable<string> FilterFilesForRoot(
         IEnumerable<string> relativePaths,
@@ -446,81 +306,6 @@ internal sealed class IndexCommandHandler(
         return file;
     }
 
-    private async Task DeleteProjectFilesAsync(IEnumerable<string> relativePaths)
-    {
-        var distinct = relativePaths
-            .Select(path => Path.IsPathRooted(path)
-                ? Path.GetRelativePath(_settings.RootPath.FullName, path).Replace('\\', '/')
-                : path.Replace('\\', '/'))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        if (distinct.Length == 0)
-            return;
-
-        using var httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(_settings.CodeMeridianUrl),
-            Timeout = TimeSpan.FromMinutes(10)
-        };
-        httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-        if (!string.IsNullOrWhiteSpace(_settings.ApiKey))
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ApiKey);
-
-        var client = new CodeMeridianClient(httpClient);
-        foreach (var relativePath in distinct)
-            await client.DeleteProjectFileAsync(_settings.Project, relativePath);
-    }
-
-    private static async Task<int> EnsureTypeScriptIndexerDependenciesAsync(DirectoryInfo tsIndexerRoot)
-    {
-        var localTsx = Path.Combine(
-            tsIndexerRoot.FullName,
-            "node_modules",
-            ".bin",
-            OperatingSystem.IsWindows() ? "tsx.cmd" : "tsx");
-
-        if (File.Exists(localTsx))
-            return 0;
-
-        if (!File.Exists(Path.Combine(tsIndexerRoot.FullName, "package.json")))
-            return 0;
-
-        Console.WriteLine();
-        Console.WriteLine("TypeScript indexer dependencies not found. Restoring npm packages...");
-
-        var packageLock = Path.Combine(tsIndexerRoot.FullName, "package-lock.json");
-        var arguments = File.Exists(packageLock)
-            ? new[] { "ci", "--silent" }
-            : ["install", "--silent"];
-
-        return await RunProcessAsync(ExternalCommandResolver.NpmCommand(), arguments, tsIndexerRoot);
-    }
-
-    private static async Task<int> RunProcessAsync(
-        string fileName,
-        IReadOnlyList<string> arguments,
-        DirectoryInfo workingDirectory)
-    {
-        Console.WriteLine();
-        Console.WriteLine($"> {fileName} {string.Join(' ', arguments.Select(QuoteIfNeeded))}");
-
-        using var process = new Process();
-        process.StartInfo = new ProcessStartInfo
-        {
-            FileName = fileName,
-            WorkingDirectory = workingDirectory.FullName,
-            UseShellExecute = false,
-        };
-
-        foreach (var argument in arguments)
-            process.StartInfo.ArgumentList.Add(argument);
-
-        process.Start();
-        await process.WaitForExitAsync();
-        return process.ExitCode;
-    }
-
     private DirectoryInfo? ResolveTypeScriptIndexerRoot()
     {
         var repositoryRoot = projectDiscoveryService.FindRepositoryRoot(new DirectoryInfo(Directory.GetCurrentDirectory()))
@@ -537,25 +322,11 @@ internal sealed class IndexCommandHandler(
         return File.Exists(Path.Combine(packagedRoot.FullName, "src", "index.ts")) ? packagedRoot : null;
     }
 
-    private static string? ResolveTsxCommand(DirectoryInfo tsIndexerRoot)
-    {
-        var localTsx = Path.Combine(
-            tsIndexerRoot.FullName,
-            "node_modules",
-            ".bin",
-            OperatingSystem.IsWindows() ? "tsx.cmd" : "tsx");
-
-        return File.Exists(localTsx) ? localTsx : null;
-    }
-
     private static string Hash(string value)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
         return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
     }
-
-    private static string QuoteIfNeeded(string value) =>
-        value.Any(char.IsWhiteSpace) ? $"\"{value}\"" : value;
 
     private void PrintCapabilities()
     {

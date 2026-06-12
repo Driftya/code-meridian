@@ -82,14 +82,14 @@ Target extraction shape:
 Checklist:
 
 - [x] Extract TypeScript command construction into a dedicated helper with regression tests.
-- [ ] Extract file filtering and changed-file selection logic out of `IndexCommandHandler`.
-- [ ] Extract process launching and TypeScript dependency/bootstrap logic into a dedicated runner/service.
-- [ ] Extract watch-mode debounce and scheduling into a dedicated loop/service.
-- [ ] Extract document indexing coordination into a dedicated coordinator.
-- [ ] Extract delete-project-file behavior into a dedicated service.
-- [ ] Keep `IndexCommandHandler` as a thin orchestration entry point.
-- [ ] Add or update unit tests around each extracted service.
-- [ ] Re-run full `dotnet test` and root `npm test`.
+- [x] Extract file filtering and changed-file selection logic out of `IndexCommandHandler`.
+- [x] Extract process launching and TypeScript dependency/bootstrap logic into a dedicated runner/service.
+- [x] Extract watch-mode debounce and scheduling into a dedicated loop/service.
+- [x] Extract document indexing coordination into a dedicated coordinator.
+- [x] Extract delete-project-file behavior into a dedicated service.
+- [x] Keep `IndexCommandHandler` as a thin orchestration entry point.
+- [x] Add or update unit tests around each extracted service.
+- [x] Re-run full `dotnet test` and root `npm test`.
 
 ## Target 2: CSharpRouteExtractor
 
