@@ -1,0 +1,17 @@
+using CodeMeridian.DocumentIndexer.Pipeline;
+using FluentAssertions;
+
+namespace CodeMeridian.DocumentIndexer.Tests.Pipeline;
+
+public sealed class DocumentRouteReferenceExtractorTests
+{
+    [Fact]
+    public void ExtractRouteReferences_NormalizesTypedRouteMentions()
+    {
+        var content = "POST /api/orders/{id:int}?expand=items";
+
+        var result = DocumentRouteReferenceExtractor.ExtractRouteReferences(content, "CodeMeridian");
+
+        result.Should().ContainSingle("CodeMeridian::ApiEndpoint::POST /api/orders/{param}");
+    }
+}

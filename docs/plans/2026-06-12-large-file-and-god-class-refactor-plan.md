@@ -172,11 +172,11 @@ Target extraction shape:
 
 Checklist:
 
-- [ ] Move reference extraction logic out of the pipeline class.
-- [ ] Move chunk adjacency/document-id building out of the pipeline class.
-- [ ] Keep `DocumentIndexerPipeline` focused on file IO and ingestion orchestration.
-- [ ] Add focused tests for each extractor component.
-- [ ] Preserve the current incremental document indexing behavior added through the CLI path.
+- [x] Move reference extraction logic out of the pipeline class.
+- [x] Move chunk adjacency/document-id building out of the pipeline class.
+- [x] Keep `DocumentIndexerPipeline` focused on file IO and ingestion orchestration.
+- [x] Add focused tests for each extractor component.
+- [x] Preserve the current incremental document indexing behavior added through the CLI path.
 
 ## Target 5: CSharpIndexer And CSharpAstWalker
 
