@@ -49,7 +49,7 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Resolve package version
+      - name: Resolve version
         id: version
         shell: pwsh
         run: |
@@ -60,11 +60,11 @@ jobs:
           }
 
           if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
-            throw "Invalid package version '$version'. Expected SemVer like 1.0.1 or 1.1.0-preview.1."
+            throw "Invalid version '$version'. Expected SemVer like 1.0.1 or 1.1.0-preview.1."
           }
 
           "version=$version" >> $env:GITHUB_OUTPUT
-          "Package version: $version"
+          "Resolved version: $version"
 
       - name: Restore
         run: dotnet restore CodeMeridian.sln

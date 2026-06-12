@@ -1,4 +1,5 @@
-﻿FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG VERSION=1.0.0
 WORKDIR /src
 
 COPY ["src/McpServer/CodeMeridian.McpServer.csproj",          "src/McpServer/"]
@@ -11,7 +12,7 @@ RUN dotnet restore "src/McpServer/CodeMeridian.McpServer.csproj"
 
 COPY . .
 WORKDIR "/src/src/McpServer"
-RUN dotnet publish "CodeMeridian.McpServer.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "CodeMeridian.McpServer.csproj" -c Release -o /app/publish /p:Version=${VERSION} /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app

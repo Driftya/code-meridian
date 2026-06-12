@@ -85,10 +85,33 @@ Projects should inherit these values instead of hardcoding their own package ver
 
 The intended flow is:
 
-1. CI or a release tag sets `VersionPrefix` and optionally `VersionSuffix`.
-2. MSBuild applies those values to package and assembly metadata.
+1. A release tag such as `v1.2.3` or `v1.2.3-preview.1`, or a manual workflow input, provides the product version.
+2. CI passes that resolved version into MSBuild with `/p:Version=...`.
 3. The CLI reads its own assembly metadata for local version output.
-4. The MCP server exposes its assembly metadata through `/api/v1/status/version`.
+4. The MCP Docker build forwards the same version into `dotnet publish`, so the server assembly metadata matches the image tag.
+5. The MCP server exposes its assembly metadata through `/api/v1/status/version`.
+
+## Release Workflow Rules
+
+### Product releases
+
+- `publish-indexer.yml` publishes the indexer package from version tags.
+- `publish-mcp.yml` publishes the MCP image from the same version tags.
+- Use the same SemVer for both when they are part of the same release.
+- Stable tags look like `v1.2.3`.
+- Preview tags look like `v1.2.3-preview.1`.
+
+### Manual publishing
+
+- Both publish workflows also support manual dispatch with an explicit version input.
+- Manual runs should use a real SemVer version, not floating labels like `preview` or `latest`.
+- Manual runs are for exceptional cases. Normal releases should be tag-driven so the indexer package and MCP image stay aligned.
+
+### MCP image tags
+
+- A stable tag publish also emits `latest`.
+- A preview tag publish does not emit `latest`.
+- The versioned image tag and the server's reported assembly version should match.
 
 ## Bump Rules
 
