@@ -1,10 +1,37 @@
 using System.Text.Json;
+using YamlDotNet.Core;
 using YamlDotNet.RepresentationModel;
 
 namespace CodeMeridian.Indexer.Cli.Configuration;
 
 internal static class ConfigurationFileParser
 {
+    public static bool TryParse(
+        FileInfo file,
+        string rootPath,
+        out IReadOnlyList<ConfigurationEntryRecord> entries,
+        out string? error)
+    {
+        try
+        {
+            entries = Parse(file, rootPath);
+            error = null;
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            entries = [];
+            error = ex.Message;
+            return false;
+        }
+        catch (YamlException ex)
+        {
+            entries = [];
+            error = ex.Message;
+            return false;
+        }
+    }
+
     public static IReadOnlyList<ConfigurationEntryRecord> Parse(FileInfo file, string rootPath)
     {
         var relativePath = Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/');

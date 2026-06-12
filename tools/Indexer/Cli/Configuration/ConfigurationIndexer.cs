@@ -51,7 +51,13 @@ internal sealed class ConfigurationIndexer
         var seenCanonicalKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var file in files)
         {
-            var entries = ConfigurationFileParser.Parse(file, rootPath.FullName);
+            if (!ConfigurationFileParser.TryParse(file, rootPath.FullName, out var entries, out var error))
+            {
+                var relativePath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
+                Console.WriteLine($"  warn: skipped config file '{relativePath}' because it is not valid {file.Extension.TrimStart('.')} content: {error}");
+                continue;
+            }
+
             await IngestFileAsync(client, project, file, rootPath, entries, seenCanonicalKeys, cancellationToken);
         }
 
