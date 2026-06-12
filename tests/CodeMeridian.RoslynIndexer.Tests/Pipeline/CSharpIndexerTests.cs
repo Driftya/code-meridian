@@ -334,6 +334,76 @@ public sealed class CSharpIndexerTests : IDisposable
             && edge.Body.GetProperty("confidence").GetDouble() == 0.9);
     }
 
+    [Fact]
+    public async Task IndexAsync_ResolvesConstMinimalApiRouteTemplates()
+    {
+        var file = WriteFile(
+            "src/ConstRoutes.cs",
+            """
+            using Microsoft.AspNetCore.Builder;
+
+            namespace Demo.Api;
+
+            public static class RouteRegistration
+            {
+                public static void Register(WebApplication app)
+                {
+                    const string OrdersRoute = "/api/orders";
+                    app.MapGet(OrdersRoute, HandleOrders);
+                }
+
+                private static IResult HandleOrders() => Results.Ok();
+            }
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([file], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::ApiEndpoint::GET /api/orders"
+            && request.Body.GetProperty("type").GetString() == "ApiEndpoint");
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "Uses"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.HandleOrders()"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::GET /api/orders");
+    }
+
+    [Fact]
+    public async Task IndexAsync_NormalizesAbsoluteAndQueryStringControllerRoutes()
+    {
+        var file = WriteFile(
+            "src/AbsoluteRoutes.cs",
+            """
+            using Microsoft.AspNetCore.Mvc;
+
+            namespace Demo.Api;
+
+            [Route("https://example.test/api/orders/")]
+            public class OrdersController : ControllerBase
+            {
+                [HttpGet("{id}?draft=true#summary")]
+                public IActionResult Get(int id) => Ok();
+            }
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([file], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::ApiEndpoint::GET /api/orders/{param}"
+            && request.Body.GetProperty("type").GetString() == "ApiEndpoint");
+    }
+
     private FileInfo WriteFile(string relativePath, string content)
     {
         var file = new FileInfo(Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar)));

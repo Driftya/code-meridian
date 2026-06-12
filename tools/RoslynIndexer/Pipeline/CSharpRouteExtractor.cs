@@ -287,7 +287,7 @@ internal static partial class CSharpRouteExtractor
     {
         var normalized = template.Trim();
         if (Uri.TryCreate(normalized, UriKind.Absolute, out var absoluteUri))
-            normalized = absoluteUri.AbsolutePath;
+            normalized = Uri.UnescapeDataString(absoluteUri.AbsolutePath);
 
         var queryIndex = normalized.IndexOfAny(['?', '#']);
         if (queryIndex >= 0)
