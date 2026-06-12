@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using CodeMeridian.Sdk;
+using CodeMeridian.Sdk.Versioning;
 using FluentAssertions;
 
 namespace CodeMeridian.Sdk.Tests;
@@ -123,6 +124,24 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task GetVersionAsync_SendsVersionRequest()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var version = await sut.GetVersionAsync();
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Get);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/status/version");
+        version.Should().BeEquivalentTo(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2));
+    }
+
+    [Fact]
     public async Task RebuildKeywordGraphAsync_SendsProjectContextBody()
     {
         var handler = new CapturingHandler();
@@ -174,19 +193,21 @@ public sealed class CodeMeridianClientTests
 
             return new HttpResponseMessage(HttpStatusCode.Created)
             {
-                Content = JsonContent.Create(new DoctorStatusResponse(
-                    "My Project",
-                    true,
-                    1,
-                    2,
-                    3,
-                    4,
-                    "low",
-                    "Graph drift: low",
-                    false,
-                    "Ollama",
-                    768,
-                    null))
+                Content = request.RequestUri!.AbsolutePath == "/api/v1/status/version"
+                    ? JsonContent.Create(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2))
+                    : JsonContent.Create(new DoctorStatusResponse(
+                        "My Project",
+                        true,
+                        1,
+                        2,
+                        3,
+                        4,
+                        "low",
+                        "Graph drift: low",
+                        false,
+                        "Ollama",
+                        768,
+                        null))
             };
         }
 

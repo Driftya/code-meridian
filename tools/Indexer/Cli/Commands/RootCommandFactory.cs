@@ -30,6 +30,7 @@ internal sealed class RootCommandFactory(
         root.Add(CreateConfigurationCommand());
         root.Add(CreateServeCommand());
         root.Add(CreateDoctorCommand());
+        root.Add(CreateVersionCommand());
         root.Add(CreateCheckDriftCommand());
         root.Add(CreateClearCommand());
 
@@ -297,6 +298,26 @@ internal sealed class RootCommandFactory(
             var project = configurationService.ResolveProject(context, parseResult.GetValue(projectOption));
             var codeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, parseResult.GetValue(urlOption));
             return await statusCommand.RunDoctorAsync(project, codeMeridianUrl, context.ApiKey);
+        });
+
+        return command;
+    }
+
+    private Command CreateVersionCommand()
+    {
+        var command = new Command("version", "Show the local tool version and try to fetch the MCP server version.");
+        var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults." };
+        var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
+        urlOption.Aliases.Add("--CodeMeridian");
+
+        command.Add(pathArgument);
+        command.Add(urlOption);
+
+        command.SetAction(async parseResult =>
+        {
+            var context = configurationService.CreateContext(parseResult.GetValue(pathArgument));
+            var codeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, parseResult.GetValue(urlOption));
+            return await statusCommand.RunVersionAsync(codeMeridianUrl, context.ApiKey);
         });
 
         return command;

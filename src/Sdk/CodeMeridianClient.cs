@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using CodeMeridian.Sdk.Versioning;
 
 namespace CodeMeridian.Sdk;
 
@@ -22,6 +23,15 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
             return null;
 
         return await response.Content.ReadFromJsonAsync<DoctorStatusResponse>(cancellationToken: cancellationToken);
+    }
+
+    public async Task<CodeMeridianComponentVersion?> GetVersionAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.GetAsync("/api/v1/status/version", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        return await response.Content.ReadFromJsonAsync<CodeMeridianComponentVersion>(cancellationToken: cancellationToken);
     }
 
     public async Task<float[]?> GenerateEmbeddingAsync(

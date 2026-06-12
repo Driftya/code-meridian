@@ -1,10 +1,21 @@
 using System.Net.Http.Headers;
 using CodeMeridian.Sdk;
+using CodeMeridian.Sdk.Versioning;
 
 namespace CodeMeridian.Indexer.Cli.Commands;
 
 internal sealed class StatusCommand
 {
+    private readonly Func<string, string?, HttpClient> _httpClientFactory;
+
+    public StatusCommand()
+        : this(CreateHttpClient)
+    {
+    }
+
+    internal StatusCommand(Func<string, string?, HttpClient> httpClientFactory) =>
+        _httpClientFactory = httpClientFactory;
+
     public async Task<int> RunDoctorAsync(
         string? project,
         string codeMeridianUrl,
@@ -56,20 +67,46 @@ internal sealed class StatusCommand
         return SeverityAtLeast(status.GraphDrift, failOn) ? 2 : 0;
     }
 
+    public async Task<int> RunVersionAsync(string codeMeridianUrl, string? apiKey)
+    {
+        var toolVersion = CodeMeridianVersionReader.ReadFrom(typeof(StatusCommand).Assembly, "CodeMeridian.Indexer");
+
+        Console.WriteLine("CodeMeridian version");
+        Console.WriteLine($"  Client tool version    : {toolVersion.ProductVersion}");
+        Console.WriteLine($"  Graph contract version : {toolVersion.GraphContractVersion}");
+        Console.WriteLine($"  Cache version          : {toolVersion.CacheVersion}");
+
+        try
+        {
+            using var httpClient = _httpClientFactory(codeMeridianUrl, apiKey);
+            var client = new CodeMeridianClient(httpClient);
+            var serverVersion = await client.GetVersionAsync();
+
+            if (serverVersion is null)
+            {
+                Console.WriteLine("  MCP server version     : fetch failed");
+                return 0;
+            }
+
+            Console.WriteLine($"  MCP server version     : {serverVersion.ProductVersion}");
+            Console.WriteLine($"  MCP graph contract     : {serverVersion.GraphContractVersion}");
+            Console.WriteLine($"  MCP cache version      : {serverVersion.CacheVersion}");
+            return 0;
+        }
+        catch
+        {
+            Console.WriteLine("  MCP server version     : fetch failed");
+            return 0;
+        }
+    }
+
     private static async Task<DoctorStatusResponse?> FetchStatusAsync(
         string title,
         string? project,
         string codeMeridianUrl,
         string? apiKey)
     {
-        using var httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(codeMeridianUrl),
-            Timeout = TimeSpan.FromMinutes(10)
-        };
-        httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-        if (!string.IsNullOrWhiteSpace(apiKey))
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        using var httpClient = CreateHttpClient(codeMeridianUrl, apiKey);
 
         var client = new CodeMeridianClient(httpClient);
 
@@ -113,4 +150,18 @@ internal sealed class StatusCommand
             "high" => 3,
             _ => 0
         };
+
+    private static HttpClient CreateHttpClient(string codeMeridianUrl, string? apiKey)
+    {
+        var httpClient = new HttpClient
+        {
+            BaseAddress = new Uri(codeMeridianUrl),
+            Timeout = TimeSpan.FromMinutes(10)
+        };
+        httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        return httpClient;
+    }
 }

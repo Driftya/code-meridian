@@ -12,7 +12,6 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>codemeridian</ToolCommandName>
     <PackageId>CodeMeridian.Indexer</PackageId>
-    <Version>1.0.0</Version>
     <Authors>CodeMeridian</Authors>
     <Description>Unified CodeMeridian indexer CLI for C#, TypeScript/TSX, and documentation.</Description>
     <PackageTags>codemeridian;indexer;mcp;neo4j;code-graph</PackageTags>
