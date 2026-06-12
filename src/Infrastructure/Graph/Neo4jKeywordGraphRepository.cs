@@ -132,7 +132,7 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
                 MATCH (source {id: $sourceNodeId})-[relationship:HAS_KEYWORD]->(:Keyword)
                 DELETE relationship
                 """,
-                new { command.SourceNodeId });
+                new { sourceNodeId = command.SourceNodeId });
             await deleteCursor.ConsumeAsync();
 
             var metadataCursor = await tx.RunAsync(
@@ -144,9 +144,9 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
                 """,
                 new
                 {
-                    command.SourceNodeId,
-                    command.KeywordTextChecksum,
-                    command.EnrichmentVersion,
+                    sourceNodeId = command.SourceNodeId,
+                    keywordTextChecksum = command.KeywordTextChecksum,
+                    enrichmentVersion = command.EnrichmentVersion,
                     now
                 });
             await metadataCursor.ConsumeAsync();
@@ -173,8 +173,8 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
                 """,
                 new
                 {
-                    command.SourceNodeId,
-                    command.EnrichmentVersion,
+                    sourceNodeId = command.SourceNodeId,
+                    enrichmentVersion = command.EnrichmentVersion,
                     now,
                     keywords = command.Keywords.Select(keyword => new
                     {
@@ -277,12 +277,12 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
 
         var cursor = await session.RunAsync(cypher, new
         {
-            query.SourceNodeId,
+            sourceNodeId = query.SourceNodeId,
             targetKinds = query.TargetKinds.ToArray(),
-            query.MinimumSharedKeywords,
-            query.MinimumScore,
-            query.MaximumDocumentFrequencyRatio,
-            query.Limit
+            minimumSharedKeywords = query.MinimumSharedKeywords,
+            minimumScore = query.MinimumScore,
+            maximumDocumentFrequencyRatio = query.MaximumDocumentFrequencyRatio,
+            limit = query.Limit
         });
 
         var results = new List<KeywordRelatedNode>();
