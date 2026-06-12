@@ -73,7 +73,8 @@ public sealed class KnowledgeIngestionTests
             true,
             "src/app.ts:42",
             2,
-            0.9);
+            0.9,
+            null);
 
         var task = (Task<IResult>)routeHandler!.Invoke(null, [request, repo, CancellationToken.None])!;
         await task;
