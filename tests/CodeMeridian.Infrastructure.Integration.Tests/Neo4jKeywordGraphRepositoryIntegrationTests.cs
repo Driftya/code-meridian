@@ -229,6 +229,111 @@ public sealed class Neo4jKeywordGraphRepositoryIntegrationTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task ClassifyKeywordsAsync_WhenNoiseKeywordExists_ExcludesItFromRelatedLookup()
+    {
+        var projectContext = $"Integration.KeywordClassification.{Guid.NewGuid():N}";
+        var first = CreateNode(
+            id: $"{projectContext}.First",
+            name: "OnlyWorkflow",
+            summary: "Only processing path",
+            projectContext: projectContext);
+        var second = CreateNode(
+            id: $"{projectContext}.Second",
+            name: "OnlyKnowledge",
+            summary: "Only retry note",
+            projectContext: projectContext);
+
+        try
+        {
+            await _codeRepository!.UpsertNodeAsync(first);
+            await _codeRepository.UpsertNodeAsync(second);
+
+            await _keywordRepository!.ReplaceKeywordsAsync(new ReplaceKeywordRelationshipsCommand
+            {
+                SourceNodeId = first.Id,
+                KeywordTextChecksum = "classification-1",
+                EnrichmentVersion = 1,
+                Keywords =
+                [
+                    new ExtractedKeyword
+                    {
+                        Value = "only",
+                        NormalizedValue = "only",
+                        Count = 1,
+                        Weight = 1.0d,
+                        Sources = ["summary"]
+                    }
+                ]
+            });
+
+            await _keywordRepository.ReplaceKeywordsAsync(new ReplaceKeywordRelationshipsCommand
+            {
+                SourceNodeId = second.Id,
+                KeywordTextChecksum = "classification-2",
+                EnrichmentVersion = 1,
+                Keywords =
+                [
+                    new ExtractedKeyword
+                    {
+                        Value = "only",
+                        NormalizedValue = "only",
+                        Count = 1,
+                        Weight = 1.0d,
+                        Sources = ["summary"]
+                    }
+                ]
+            });
+
+            await _keywordRepository.RecalculateKeywordStatisticsAsync(projectContext);
+
+            var beforeClassification = await _keywordRepository.FindRelatedByKeywordsAsync(new KeywordRelatedNodeQuery
+            {
+                SourceNodeId = first.Id,
+                TargetKinds = ["Class"],
+                MinimumSharedKeywords = 1,
+                MinimumScore = 0.1d,
+                MaximumDocumentFrequencyRatio = 1.0d,
+                Limit = 10
+            });
+
+            beforeClassification.Should().ContainSingle(match => match.TargetNodeId == second.Id);
+
+            var keywords = await _keywordRepository.GetKeywordsForClassificationAsync(projectContext, 1);
+            keywords.Should().ContainSingle();
+
+            await _keywordRepository.SaveKeywordClassificationsAsync(
+                [
+                    new KeywordClassificationResult
+                    {
+                        KeywordId = keywords[0].Id,
+                        Classification = KeywordClassification.Noise,
+                        IsCommon = false,
+                        IsNoise = true,
+                        UsefulnessScore = 0d
+                    }
+                ],
+                1);
+
+            var afterClassification = await _keywordRepository.FindRelatedByKeywordsAsync(new KeywordRelatedNodeQuery
+            {
+                SourceNodeId = first.Id,
+                TargetKinds = ["Class"],
+                MinimumSharedKeywords = 1,
+                MinimumScore = 0.1d,
+                MaximumDocumentFrequencyRatio = 1.0d,
+                Limit = 10
+            });
+
+            afterClassification.Should().BeEmpty("noise keywords should be ignored once classification metadata has been saved");
+        }
+        finally
+        {
+            await _codeRepository!.DeleteProjectAsync(projectContext);
+            await _keywordRepository!.RecalculateKeywordStatisticsAsync(projectContext);
+        }
+    }
+
     private static CodeNode CreateNode(
         string id,
         string name,

@@ -21,11 +21,14 @@ public static class DependencyInjection
             services.Configure<CodebaseAnalysisOptions>(configuration.GetSection("CodeMeridian:Analysis"));
             services.Configure<KeywordEnrichmentOptions>(configuration.GetSection(KeywordEnrichmentOptions.SectionName));
             services.Configure<KeywordEnrichmentOptions>(configuration.GetSection($"CodeMeridian:{KeywordEnrichmentOptions.SectionName}"));
+            services.Configure<KeywordClassificationOptions>(configuration.GetSection(KeywordClassificationOptions.SectionName));
+            services.Configure<KeywordClassificationOptions>(configuration.GetSection($"CodeMeridian:{KeywordClassificationOptions.SectionName}"));
         }
         else
         {
             services.AddOptions<CodebaseAnalysisOptions>();
             services.AddOptions<KeywordEnrichmentOptions>();
+            services.AddOptions<KeywordClassificationOptions>();
         }
 
         services.AddSingleton<IExtensionRegistry, ExtensionRegistry>();

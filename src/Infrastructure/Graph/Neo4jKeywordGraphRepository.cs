@@ -35,6 +35,8 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
             await (await tx.RunAsync(
                 "CREATE CONSTRAINT keyword_identity IF NOT EXISTS FOR (k:Keyword) REQUIRE (k.projectContextNormalized, k.normalizedValue) IS UNIQUE")).ConsumeAsync();
             await (await tx.RunAsync(
+                "CREATE INDEX keyword_id IF NOT EXISTS FOR (k:Keyword) ON (k.id)")).ConsumeAsync();
+            await (await tx.RunAsync(
                 "CREATE INDEX keyword_value IF NOT EXISTS FOR (k:Keyword) ON (k.normalizedValue)")).ConsumeAsync();
             await (await tx.RunAsync(
                 "CREATE INDEX keyword_frequency IF NOT EXISTS FOR (k:Keyword) ON (k.documentFrequency)")).ConsumeAsync();
@@ -161,7 +163,8 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
                 UNWIND $keywords AS keyword
                 MERGE (k:Keyword {projectContextNormalized: projectContextNormalized, normalizedValue: keyword.normalizedValue})
                 ON CREATE SET k.createdAt = $now
-                SET k.projectContext = projectContext,
+                SET k.id = 'keyword:' + coalesce(projectContextNormalized, 'all-projects') + ':' + keyword.normalizedValue,
+                    k.projectContext = projectContext,
                     k.value = keyword.value,
                     k.updatedAt = $now
                 MERGE (source)-[relationship:HAS_KEYWORD]->(k)
@@ -227,6 +230,119 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
         });
     }
 
+    public async Task<int> GetKeywordSourceNodeCountAsync(
+        string? projectContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            CALL {
+              MATCH (node:CodeNode)
+              WHERE ($projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
+              RETURN count(node) AS count
+              UNION ALL
+              MATCH (document:KnowledgeDocument)
+              WHERE ($projectContextNormalized IS NULL OR document.projectContextNormalized = $projectContextNormalized)
+              RETURN count(document) AS count
+            }
+            RETURN coalesce(sum(count), 0) AS totalCount
+            """;
+
+        var cursor = await session.RunAsync(cypher, new
+        {
+            projectContextNormalized = (object?)Normalize(projectContext)
+        });
+
+        var record = await cursor.SingleAsync();
+        return record["totalCount"].As<int>();
+    }
+
+    public async Task<IReadOnlyList<KeywordForClassification>> GetKeywordsForClassificationAsync(
+        string? projectContext,
+        int classificationVersion,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (keyword:Keyword)
+            WHERE ($projectContextNormalized IS NULL OR keyword.projectContextNormalized = $projectContextNormalized)
+              AND coalesce(keyword.classificationVersion, 0) < $classificationVersion
+            SET keyword.id = coalesce(
+              keyword.id,
+              'keyword:' + coalesce(keyword.projectContextNormalized, 'all-projects') + ':' + keyword.normalizedValue)
+            RETURN
+              keyword.id AS id,
+              keyword.normalizedValue AS normalizedValue,
+              coalesce(keyword.documentFrequency, 0) AS documentFrequency,
+              coalesce(keyword.totalFrequency, 0) AS totalFrequency
+            ORDER BY keyword.normalizedValue
+            """;
+
+        var cursor = await session.RunAsync(cypher, new
+        {
+            projectContextNormalized = (object?)Normalize(projectContext),
+            classificationVersion
+        });
+
+        var results = new List<KeywordForClassification>();
+        await foreach (var record in cursor.WithCancellation(cancellationToken))
+        {
+            results.Add(new KeywordForClassification
+            {
+                Id = record["id"].As<string>(),
+                NormalizedValue = record["normalizedValue"].As<string>(),
+                DocumentFrequency = record["documentFrequency"].As<int>(),
+                TotalFrequency = record["totalFrequency"].As<int>()
+            });
+        }
+
+        return results;
+    }
+
+    public async Task SaveKeywordClassificationsAsync(
+        IReadOnlyCollection<KeywordClassificationResult> results,
+        int classificationVersion,
+        CancellationToken cancellationToken = default)
+    {
+        if (results.Count == 0)
+            return;
+
+        await using var session = _driver.AsyncSession();
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            var cursor = await tx.RunAsync(
+                """
+                UNWIND $results AS result
+                MATCH (keyword:Keyword {id: result.keywordId})
+                SET keyword.classification = result.classification,
+                    keyword.isCommon = result.isCommon,
+                    keyword.isNoise = result.isNoise,
+                    keyword.usefulnessScore = result.usefulnessScore,
+                    keyword.classifiedAt = $now,
+                    keyword.classificationVersion = $classificationVersion,
+                    keyword.updatedAt = $now
+                """,
+                new
+                {
+                    classificationVersion,
+                    now,
+                    results = results.Select(result => new
+                    {
+                        keywordId = result.KeywordId,
+                        classification = result.Classification.ToString(),
+                        isCommon = result.IsCommon,
+                        isNoise = result.IsNoise,
+                        usefulnessScore = result.UsefulnessScore
+                    }).ToArray()
+                });
+            await cursor.ConsumeAsync();
+        });
+    }
+
     public async Task<IReadOnlyList<KeywordRelatedNode>> FindRelatedByKeywordsAsync(
         KeywordRelatedNodeQuery query,
         CancellationToken cancellationToken = default)
@@ -244,6 +360,7 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
             }
             MATCH (source)-[sk:HAS_KEYWORD]->(keyword:Keyword)<-[tk:HAS_KEYWORD]-(target)
             WHERE target.id <> source.id
+              AND coalesce(keyword.isNoise, false) = false
               AND (
                 size($targetKinds) = 0
                 OR CASE
@@ -258,7 +375,7 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
             WITH
               target,
               count(DISTINCT keyword) AS sharedKeywordCount,
-              sum(sk.weight * tk.weight) AS score,
+              sum(sk.weight * tk.weight * coalesce(keyword.usefulnessScore, 1.0)) AS score,
               collect(DISTINCT keyword.normalizedValue)[0..20] AS matchedKeywords
             WHERE sharedKeywordCount >= $minimumSharedKeywords
               AND score >= $minimumScore

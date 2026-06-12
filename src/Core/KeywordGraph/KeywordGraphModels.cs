@@ -51,3 +51,32 @@ public sealed record KeywordRelatedNodeQuery
     public required double MaximumDocumentFrequencyRatio { get; init; }
     public required int Limit { get; init; }
 }
+
+public enum KeywordClassification
+{
+    Unknown = 0,
+    DomainConcept = 1,
+    TechnicalConcept = 2,
+    ArchitectureConcept = 3,
+    ToolingConcept = 4,
+    DiagnosticConcept = 5,
+    CommonProjectTerm = 6,
+    Noise = 7
+}
+
+public sealed record KeywordForClassification
+{
+    public required string Id { get; init; }
+    public required string NormalizedValue { get; init; }
+    public required int DocumentFrequency { get; init; }
+    public required int TotalFrequency { get; init; }
+}
+
+public sealed record KeywordClassificationResult
+{
+    public required string KeywordId { get; init; }
+    public required KeywordClassification Classification { get; init; }
+    public required bool IsCommon { get; init; }
+    public required bool IsNoise { get; init; }
+    public required double UsefulnessScore { get; init; }
+}

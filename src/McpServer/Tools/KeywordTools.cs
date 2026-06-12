@@ -40,4 +40,14 @@ public sealed class KeywordTools(IKeywordGraphService keywordGraphService)
         string? projectContext = null,
         CancellationToken cancellationToken = default) =>
         keywordGraphService.RebuildKeywordGraphAsync(projectContext, cancellationToken);
+
+    [McpServerTool(Name = "classify_keywords")]
+    [Description(
+        "Classify derived Keyword nodes with configurable lexical rules and document-frequency thresholds. " +
+        "Use this after rebuilding the keyword graph to mark noise/common terms and improve keyword-based related-knowledge ranking.")]
+    public Task<string> ClassifyKeywordsAsync(
+        [Description("Optional project name to scope classification. Omit to classify keywords across all indexed projects.")]
+        string? projectContext = null,
+        CancellationToken cancellationToken = default) =>
+        keywordGraphService.ClassifyKeywordsAsync(projectContext, cancellationToken);
 }

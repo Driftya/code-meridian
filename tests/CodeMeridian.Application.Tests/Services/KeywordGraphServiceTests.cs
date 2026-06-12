@@ -49,7 +49,8 @@ public sealed class KeywordGraphServiceTests
                 }
             ]));
 
-        var sut = new KeywordGraphService(repository, extraction, options, NullLogger<KeywordGraphService>.Instance);
+        var classificationOptions = Options.Create(new KeywordClassificationOptions());
+        var sut = new KeywordGraphService(repository, extraction, options, classificationOptions, NullLogger<KeywordGraphService>.Instance);
 
         var result = await sut.RebuildKeywordGraphAsync("CodeMeridian");
 
@@ -74,6 +75,7 @@ public sealed class KeywordGraphServiceTests
             repository,
             extraction,
             Options.Create(new KeywordEnrichmentOptions { Enabled = false }),
+            Options.Create(new KeywordClassificationOptions()),
             NullLogger<KeywordGraphService>.Instance);
 
         var result = await sut.RebuildKeywordGraphAsync();
@@ -101,6 +103,7 @@ public sealed class KeywordGraphServiceTests
             repository,
             Substitute.For<IKeywordExtractionService>(),
             Options.Create(new KeywordEnrichmentOptions()),
+            Options.Create(new KeywordClassificationOptions()),
             NullLogger<KeywordGraphService>.Instance);
 
         var result = await sut.FindRelatedKnowledgeAsync("node-1", ["KnowledgeDocument"], limit: 5);
@@ -115,5 +118,68 @@ public sealed class KeywordGraphServiceTests
         result.Should().Contain("Confidence: `lexical`");
         result.Should().Contain("`doc-1`");
         result.Should().Contain("`stale`");
+    }
+
+    [Fact]
+    public async Task ClassifyKeywordsAsync_WithKeywords_PersistsClassificationSummary()
+    {
+        var repository = Substitute.For<IKeywordGraphRepository>();
+        repository.GetKeywordSourceNodeCountAsync("CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns(10);
+        repository.GetKeywordsForClassificationAsync("CodeMeridian", 3, Arg.Any<CancellationToken>())
+            .Returns([
+                new KeywordForClassification
+                {
+                    Id = "keyword:codemeridian:mcp",
+                    NormalizedValue = "mcp",
+                    DocumentFrequency = 2,
+                    TotalFrequency = 5
+                },
+                new KeywordForClassification
+                {
+                    Id = "keyword:codemeridian:only",
+                    NormalizedValue = "only",
+                    DocumentFrequency = 4,
+                    TotalFrequency = 4
+                }
+            ]);
+
+        var sut = new KeywordGraphService(
+            repository,
+            Substitute.For<IKeywordExtractionService>(),
+            Options.Create(new KeywordEnrichmentOptions()),
+            Options.Create(new KeywordClassificationOptions
+            {
+                ClassificationVersion = 3
+            }),
+            NullLogger<KeywordGraphService>.Instance);
+
+        var result = await sut.ClassifyKeywordsAsync("CodeMeridian");
+
+        await repository.Received(1).SaveKeywordClassificationsAsync(
+            Arg.Is<IReadOnlyCollection<KeywordClassificationResult>>(items =>
+                items.Count == 2
+                && items.Any(item => item.KeywordId == "keyword:codemeridian:mcp" && item.Classification == KeywordClassification.ToolingConcept && !item.IsNoise)
+                && items.Any(item => item.KeywordId == "keyword:codemeridian:only" && item.Classification == KeywordClassification.Noise && item.IsNoise)),
+            3,
+            Arg.Any<CancellationToken>());
+        result.Should().Contain("## Keyword Classification");
+        result.Should().Contain("Processed **2** keywords");
+        result.Should().Contain("Marked **1** keywords as noise");
+    }
+
+    [Fact]
+    public async Task ClassifyKeywordsAsync_WhenClassificationDisabled_ReturnsGuidance()
+    {
+        var sut = new KeywordGraphService(
+            Substitute.For<IKeywordGraphRepository>(),
+            Substitute.For<IKeywordExtractionService>(),
+            Options.Create(new KeywordEnrichmentOptions()),
+            Options.Create(new KeywordClassificationOptions { Enabled = false }),
+            NullLogger<KeywordGraphService>.Instance);
+
+        var result = await sut.ClassifyKeywordsAsync("CodeMeridian");
+
+        result.Should().Contain("Keyword classification is disabled");
     }
 }

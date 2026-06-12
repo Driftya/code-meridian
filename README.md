@@ -187,6 +187,7 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `find_duplicate_candidates` | Review likely duplicate methods/classes with refactor-risk signals |
 | `search_documentation` | Search indexed README/ADR/documentation content |
 | `rebuild_keyword_graph` | Rebuild derived `Keyword` nodes and `HAS_KEYWORD` edges from indexed graph text |
+| `classify_keywords` | Classify derived keywords as domain/technical/tooling/common/noise and persist usefulness scores |
 | `find_related_knowledge` | Find lexically related code and docs through shared keywords |
 | `find_implementation_surface` | Rank likely files and symbols to edit for a feature goal |
 | `check_graph_freshness` | Report graph confidence from indexed file, line, and timestamp metadata |
@@ -223,8 +224,11 @@ Typical workflow:
 ```text
 1. Index your code and docs normally.
 2. Run rebuild_keyword_graph.
-3. Use find_related_knowledge on a node ID when you want explainable lexical matches.
+3. Run classify_keywords if you want to suppress noise/common terms and improve lexical ranking.
+4. Use find_related_knowledge on a node ID when you want explainable lexical matches.
 ```
+
+Keyword classification is configured under `KeywordClassification`. It can mark keywords as `Noise`, `CommonProjectTerm`, `TechnicalConcept`, `ToolingConcept`, `ArchitectureConcept`, `DiagnosticConcept`, `DomainConcept`, or `Unknown`.
 
 ## Project Layout
 

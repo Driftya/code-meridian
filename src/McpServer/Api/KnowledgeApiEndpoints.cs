@@ -20,6 +20,7 @@ public static class KnowledgeApiEndpoints
         group.MapPost("/nodes/edges", IngestEdge);
         group.MapPost("/documents", IngestDocument);
         group.MapPost("/keywords/rebuild", RebuildKeywordGraph);
+        group.MapPost("/keywords/classify", ClassifyKeywords);
         group.MapDelete("/project/{projectContext}/diagnostics", DeleteDiagnostics);
         group.MapDelete("/project/{projectContext}/files/{**filePath}", DeleteProjectFile);
         group.MapDelete("/code-graph", DeleteCodeGraph);
@@ -127,6 +128,15 @@ public static class KnowledgeApiEndpoints
     {
         var result = await keywordGraphService.RebuildKeywordGraphAsync(req.ProjectContext, ct);
         return Results.Ok(new KeywordRebuildResponse(result));
+    }
+
+    private static async Task<IResult> ClassifyKeywords(
+        ClassifyKeywordsRequest req,
+        IKeywordGraphService keywordGraphService,
+        CancellationToken ct)
+    {
+        var result = await keywordGraphService.ClassifyKeywordsAsync(req.ProjectContext, ct);
+        return Results.Ok(new KeywordClassificationResponse(result));
     }
 
     private static async Task<IResult> DeleteProject(
@@ -314,6 +324,7 @@ internal sealed record IngestDocumentRequest(
     string? RelatedDocumentIdsCsv = null);
 
 internal sealed record RebuildKeywordGraphRequest(string? ProjectContext = null);
+internal sealed record ClassifyKeywordsRequest(string? ProjectContext = null);
 
 internal sealed record EmbeddingRequest(string Text);
 
@@ -327,3 +338,4 @@ internal sealed record EmbeddingAvailabilityResponse(
     int Dimensions);
 
 internal sealed record KeywordRebuildResponse(string Summary);
+internal sealed record KeywordClassificationResponse(string Summary);

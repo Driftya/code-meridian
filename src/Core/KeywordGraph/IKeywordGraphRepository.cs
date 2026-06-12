@@ -16,6 +16,20 @@ public interface IKeywordGraphRepository
         string? projectContext = null,
         CancellationToken cancellationToken = default);
 
+    Task<int> GetKeywordSourceNodeCountAsync(
+        string? projectContext = null,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<KeywordForClassification>> GetKeywordsForClassificationAsync(
+        string? projectContext,
+        int classificationVersion,
+        CancellationToken cancellationToken = default);
+
+    Task SaveKeywordClassificationsAsync(
+        IReadOnlyCollection<KeywordClassificationResult> results,
+        int classificationVersion,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<KeywordRelatedNode>> FindRelatedByKeywordsAsync(
         KeywordRelatedNodeQuery query,
         CancellationToken cancellationToken = default);

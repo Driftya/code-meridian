@@ -4,6 +4,8 @@ public interface IKeywordGraphService
 {
     Task<string> RebuildKeywordGraphAsync(string? projectContext = null, CancellationToken cancellationToken = default);
 
+    Task<string> ClassifyKeywordsAsync(string? projectContext = null, CancellationToken cancellationToken = default);
+
     Task<string> FindRelatedKnowledgeAsync(
         string sourceNodeId,
         IReadOnlyList<string>? targetKinds = null,

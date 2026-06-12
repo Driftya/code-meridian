@@ -41,9 +41,21 @@ Keyword extraction is configurable through `KeywordEnrichment` in `appsettings.j
 Rebuild the keyword graph for CodeMeridian.
 ```
 
+### `classify_keywords`
+
+Classifies derived `Keyword` nodes using configurable lexical term lists and document-frequency thresholds. Classification persists `classification`, `isCommon`, `isNoise`, `usefulnessScore`, and `classificationVersion` metadata on `Keyword` nodes so lexical matches can suppress noise and weight more useful terms higher.
+
+Configure the rules through `KeywordClassification` in `appsettings.json`.
+
+```text
+Classify the derived keywords for CodeMeridian.
+```
+
 ### `find_related_knowledge`
 
 Finds lexically related nodes by shared derived keywords. Results include score, shared keyword count, matched keywords, and explicit `lexical` confidence so callers can distinguish heuristic overlap from structural graph edges.
+
+When keyword classification has been run, `find_related_knowledge` ignores keywords marked as noise and weights matches by saved usefulness score.
 
 ```text
 Find docs and diagnostics related to this node through the keyword graph.

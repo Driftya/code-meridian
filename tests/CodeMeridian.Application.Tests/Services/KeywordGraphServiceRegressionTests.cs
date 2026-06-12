@@ -30,6 +30,7 @@ public sealed class KeywordGraphServiceRegressionTests
             repository,
             extraction,
             Options.Create(new KeywordEnrichmentOptions()),
+            Options.Create(new KeywordClassificationOptions()),
             NullLogger<KeywordGraphService>.Instance);
 
         var result = await sut.RebuildKeywordGraphAsync("CodeMeridian");

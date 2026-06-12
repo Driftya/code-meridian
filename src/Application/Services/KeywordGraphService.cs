@@ -10,9 +10,11 @@ public sealed class KeywordGraphService(
     IKeywordGraphRepository keywordGraph,
     IKeywordExtractionService extractionService,
     IOptions<KeywordEnrichmentOptions> options,
+    IOptions<KeywordClassificationOptions> classificationOptions,
     ILogger<KeywordGraphService> logger) : IKeywordGraphService
 {
     private readonly KeywordEnrichmentOptions keywordOptions = options.Value;
+    private readonly KeywordClassificationOptions keywordClassificationOptions = classificationOptions.Value;
 
     public async Task<string> RebuildKeywordGraphAsync(string? projectContext = null, CancellationToken cancellationToken = default)
     {
@@ -98,6 +100,60 @@ public sealed class KeywordGraphService(
         return sb.ToString();
     }
 
+    public async Task<string> ClassifyKeywordsAsync(string? projectContext = null, CancellationToken cancellationToken = default)
+    {
+        if (!keywordOptions.Enabled)
+            return "Keyword enrichment is disabled. Set `KeywordEnrichment:Enabled` to `true` before classifying derived keywords.";
+
+        if (!keywordClassificationOptions.Enabled)
+            return "Keyword classification is disabled. Set `KeywordClassification:Enabled` to `true` to classify derived keywords.";
+
+        var sourceNodeCount = await keywordGraph.GetKeywordSourceNodeCountAsync(projectContext, cancellationToken);
+        if (sourceNodeCount <= 0)
+            return $"No keyword source nodes found for `{projectContext ?? "all-projects"}`. Index code or rebuild the keyword graph first.";
+
+        var keywords = await keywordGraph.GetKeywordsForClassificationAsync(
+            projectContext,
+            keywordClassificationOptions.ClassificationVersion,
+            cancellationToken);
+
+        if (keywords.Count == 0)
+            return $"No keywords require classification for `{projectContext ?? "all-projects"}`. Current classification version: `{keywordClassificationOptions.ClassificationVersion}`.";
+
+        var results = keywords
+            .Select(keyword => ClassifyKeyword(keyword, sourceNodeCount))
+            .ToArray();
+
+        await keywordGraph.SaveKeywordClassificationsAsync(
+            results,
+            keywordClassificationOptions.ClassificationVersion,
+            cancellationToken);
+
+        var commonCount = results.Count(static result => result.IsCommon);
+        var noiseCount = results.Count(static result => result.IsNoise);
+
+        logger.LogInformation(
+            "Keyword classification completed for project {ProjectId}. Processed {ProcessedCount} keywords, marked {CommonCount} common and {NoiseCount} noise.",
+            projectContext ?? "all-projects",
+            results.Length,
+            commonCount,
+            noiseCount);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## Keyword Classification");
+        sb.AppendLine();
+        sb.AppendLine($"Project: `{projectContext ?? "all-projects"}`");
+        sb.AppendLine($"Classification version: `{keywordClassificationOptions.ClassificationVersion.ToString(CultureInfo.InvariantCulture)}`");
+        sb.AppendLine();
+        sb.AppendLine($"Processed **{results.Length.ToString(CultureInfo.InvariantCulture)}** keywords.");
+        sb.AppendLine($"Marked **{commonCount.ToString(CultureInfo.InvariantCulture)}** keywords as common project terms.");
+        sb.AppendLine($"Marked **{noiseCount.ToString(CultureInfo.InvariantCulture)}** keywords as noise.");
+        sb.AppendLine();
+        sb.AppendLine("Confidence: `heuristic`");
+        sb.AppendLine("Classification uses configurable lexical rules and document-frequency thresholds to make shared-keyword matches more useful.");
+        return sb.ToString();
+    }
+
     public async Task<string> FindRelatedKnowledgeAsync(
         string sourceNodeId,
         IReadOnlyList<string>? targetKinds = null,
@@ -169,4 +225,82 @@ public sealed class KeywordGraphService(
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
+
+    private KeywordClassificationResult ClassifyKeyword(KeywordForClassification keyword, int sourceNodeCount)
+    {
+        var normalizedValue = keyword.NormalizedValue.Trim();
+        var documentFrequencyRatio = sourceNodeCount <= 0
+            ? 0d
+            : (double)keyword.DocumentFrequency / sourceNodeCount;
+        var isCommon = documentFrequencyRatio >= keywordClassificationOptions.CommonDocumentFrequencyRatio;
+        var classification = ResolveClassification(normalizedValue, isCommon);
+        var isNoise = classification == KeywordClassification.Noise;
+        var baseScore = keyword.DocumentFrequency <= 0
+            ? 0d
+            : (double)keyword.TotalFrequency / keyword.DocumentFrequency;
+        var usefulnessScore = AdjustUsefulnessScore(baseScore, classification, isCommon, isNoise);
+
+        return new KeywordClassificationResult
+        {
+            KeywordId = keyword.Id,
+            Classification = classification,
+            IsCommon = isCommon,
+            IsNoise = isNoise,
+            UsefulnessScore = usefulnessScore
+        };
+    }
+
+    private KeywordClassification ResolveClassification(string value, bool isCommon)
+    {
+        if (Contains(keywordClassificationOptions.NoiseTerms, value))
+            return KeywordClassification.Noise;
+
+        if (isCommon)
+            return KeywordClassification.CommonProjectTerm;
+
+        if (Contains(keywordClassificationOptions.DomainTerms, value))
+            return KeywordClassification.DomainConcept;
+
+        if (Contains(keywordClassificationOptions.TechnicalTerms, value))
+            return KeywordClassification.TechnicalConcept;
+
+        if (Contains(keywordClassificationOptions.ToolingTerms, value))
+            return KeywordClassification.ToolingConcept;
+
+        if (Contains(keywordClassificationOptions.ArchitectureTerms, value))
+            return KeywordClassification.ArchitectureConcept;
+
+        if (Contains(keywordClassificationOptions.DiagnosticTerms, value))
+            return KeywordClassification.DiagnosticConcept;
+
+        return KeywordClassification.Unknown;
+    }
+
+    private static double AdjustUsefulnessScore(
+        double score,
+        KeywordClassification classification,
+        bool isCommon,
+        bool isNoise)
+    {
+        if (isNoise)
+            return 0d;
+
+        var adjustedScore = classification switch
+        {
+            KeywordClassification.DomainConcept => score * 1.4d,
+            KeywordClassification.TechnicalConcept => score * 1.25d,
+            KeywordClassification.ToolingConcept => score * 1.15d,
+            KeywordClassification.ArchitectureConcept => score * 1.1d,
+            KeywordClassification.DiagnosticConcept => score * 1.1d,
+            KeywordClassification.CommonProjectTerm => score * 0.2d,
+            _ => score
+        };
+
+        return isCommon
+            ? adjustedScore * 0.35d
+            : adjustedScore;
+    }
+
+    private static bool Contains(IEnumerable<string> values, string value) =>
+        values.Contains(value, StringComparer.OrdinalIgnoreCase);
 }
