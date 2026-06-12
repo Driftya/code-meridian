@@ -26,7 +26,7 @@ jobs:
           echo "name=${OWNER}" >> "$GITHUB_OUTPUT"
 
       - name: Delete old container versions
-        uses: snok/container-retention-policy@v3
+        uses: snok/container-retention-policy@v3.1.0
         with:
           account: ${{ steps.owner.outputs.name }}
           token: ${{ secrets.GITHUB_TOKEN }}
