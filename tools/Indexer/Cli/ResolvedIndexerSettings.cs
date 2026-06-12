@@ -9,6 +9,7 @@ internal sealed class ResolvedIndexerSettings
     public required string CodeMeridianUrl { get; init; }
     public string? ApiKey { get; init; }
     public bool Clear { get; init; }
+    public bool RebuildKeywords { get; init; }
     public bool IncludeDocs { get; init; } = true;
     public bool Watch { get; init; }
     public bool DryRun { get; init; }

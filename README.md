@@ -14,6 +14,8 @@ It indexes your codebase into Neo4j and exposes that structure through MCP, so A
 
 It is built to be the deterministic context layer for large codebases: callers, dependencies, tests, documentation, hotspots, dead code, diagnostics, and cross-project relationships stay available across sessions.
 
+CodeMeridian can also derive a keyword graph on top of indexed code and documentation. That adds an explainable lexical layer for finding related docs, diagnostics, endpoints, and symbols when there is no direct structural edge.
+
 This is especially useful for local or smaller coding models, where every token matters. CodeMeridian does not try to replace the model. It makes the model’s job smaller by giving it the smallest useful slice of architecture before it writes code.
 
 Core usage requires no LLM API key. Optional semantic features can use local Ollama or a cloud embedding provider. The assistant is the AI; CodeMeridian is the knowledge engine.
@@ -184,6 +186,8 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `find_similar_nodes` | Find duplicate code patterns (requires embeddings enabled) |
 | `find_duplicate_candidates` | Review likely duplicate methods/classes with refactor-risk signals |
 | `search_documentation` | Search indexed README/ADR/documentation content |
+| `rebuild_keyword_graph` | Rebuild derived `Keyword` nodes and `HAS_KEYWORD` edges from indexed graph text |
+| `find_related_knowledge` | Find lexically related code and docs through shared keywords |
 | `find_implementation_surface` | Rank likely files and symbols to edit for a feature goal |
 | `check_graph_freshness` | Report graph confidence from indexed file, line, and timestamp metadata |
 | `find_graph_drift` | Detect stale graph data before relying on exact implementation targets |
@@ -203,6 +207,24 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 - [Publishing the indexer tool](docs/publishing.md)
 - [Ubuntu headless deployment](docs/ubuntu-headless-deploy.md)
 - [Contributor and agent guide](AGENTS.md)
+
+## Keyword Enrichment
+
+Keyword enrichment is configured in `src/McpServer/appsettings.json` under `KeywordEnrichment`.
+
+Key options:
+
+- `MinimumKeywordLength`: default `4`
+- `AllowedShortTerms`: default includes `api`, `mcp`, `cli`, `sdk`, `jwt`, `sql`, `ast`, `ef`, `ts`
+- `AdditionalStopwords`: array of project-specific terms to suppress without code changes
+
+Typical workflow:
+
+```text
+1. Index your code and docs normally.
+2. Run rebuild_keyword_graph.
+3. Use find_related_knowledge on a node ID when you want explainable lexical matches.
+```
 
 ## Project Layout
 

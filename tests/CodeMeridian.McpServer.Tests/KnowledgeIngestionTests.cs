@@ -1,4 +1,5 @@
 using System.Reflection;
+using CodeMeridian.Application.Services;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
 using CodeMeridian.McpServer.Api;
@@ -87,5 +88,30 @@ public sealed class KnowledgeIngestionTests
                 edge.ParamCount == 2 &&
                 edge.Confidence == 0.9),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task KnowledgeApiEndpoints_RebuildKeywordGraph_ForwardsProjectContext()
+    {
+        var keywordGraphService = Substitute.For<IKeywordGraphService>();
+        keywordGraphService
+            .RebuildKeywordGraphAsync("CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns("rebuild complete");
+
+        var routeHandler = typeof(KnowledgeApiEndpoints)
+            .GetMethod("RebuildKeywordGraph", BindingFlags.NonPublic | BindingFlags.Static);
+
+        routeHandler.Should().NotBeNull();
+
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.RebuildKeywordGraphRequest");
+        requestType.Should().NotBeNull();
+
+        var request = Activator.CreateInstance(requestType!, "CodeMeridian");
+
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [request, keywordGraphService, CancellationToken.None])!;
+        var result = await task;
+
+        await keywordGraphService.Received(1).RebuildKeywordGraphAsync("CodeMeridian", Arg.Any<CancellationToken>());
+        result.Should().NotBeNull();
     }
 }

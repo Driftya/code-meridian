@@ -11,6 +11,7 @@ namespace CodeMeridian.Infrastructure;
 /// </summary>
 internal sealed class Neo4jInitializationService(
     Neo4jCodeGraphRepository codeGraph,
+    Neo4jKeywordGraphRepository keywordGraph,
     Neo4jVectorRepository vectorStore,
     ILogger<Neo4jInitializationService> logger) : BackgroundService
 {
@@ -19,6 +20,7 @@ internal sealed class Neo4jInitializationService(
         try
         {
             await codeGraph.InitializeAsync(stoppingToken);
+            await keywordGraph.InitializeAsync(stoppingToken);
             await vectorStore.InitializeAsync(stoppingToken);
         }
         catch (Exception ex)

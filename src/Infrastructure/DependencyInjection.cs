@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
+using CodeMeridian.Core.KeywordGraph;
 
 namespace CodeMeridian.Infrastructure;
 
@@ -19,11 +20,14 @@ public static class DependencyInjection
 
         // Register concrete types so the initializer can access them directly
         services.AddSingleton<Neo4jCodeGraphRepository>();
+        services.AddSingleton<Neo4jKeywordGraphRepository>();
         services.AddSingleton<Neo4jVectorRepository>();
 
         // Expose via domain interfaces
         services.AddSingleton<ICodeGraphRepository>(sp =>
             sp.GetRequiredService<Neo4jCodeGraphRepository>());
+        services.AddSingleton<IKeywordGraphRepository>(sp =>
+            sp.GetRequiredService<Neo4jKeywordGraphRepository>());
         services.AddSingleton<IVectorRepository>(sp =>
             sp.GetRequiredService<Neo4jVectorRepository>());
 

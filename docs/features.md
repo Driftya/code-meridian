@@ -31,6 +31,24 @@ Why did we choose Redis over Memcached?
 What is the retry strategy for external HTTP calls?
 ```
 
+### `rebuild_keyword_graph`
+
+Rebuilds a derived lexical layer over existing `CodeNode` and `KnowledgeDocument` data. The job creates shared `Keyword` nodes and `HAS_KEYWORD` relationships without changing the Roslyn or TypeScript indexers.
+
+Keyword extraction is configurable through `KeywordEnrichment` in `appsettings.json`, including `MinimumKeywordLength`, `AllowedShortTerms`, and `AdditionalStopwords`.
+
+```text
+Rebuild the keyword graph for CodeMeridian.
+```
+
+### `find_related_knowledge`
+
+Finds lexically related nodes by shared derived keywords. Results include score, shared keyword count, matched keywords, and explicit `lexical` confidence so callers can distinguish heuristic overlap from structural graph edges.
+
+```text
+Find docs and diagnostics related to this node through the keyword graph.
+```
+
 ## Graph Analytics
 
 ### `find_impact`

@@ -21,6 +21,7 @@ internal sealed class IndexCommandSettingsFactory(IToolConfigurationService conf
             CodeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, options.CodeMeridianUrl),
             ApiKey = context.ApiKey,
             Clear = options.Clear,
+            RebuildKeywords = options.RebuildKeywords,
             IncludeDocs = options.IncludeDocs,
             Watch = options.Watch,
             DryRun = options.DryRun,

@@ -7,6 +7,7 @@ internal sealed record IndexCommandOptions(
     string? Project,
     string? CodeMeridianUrl,
     bool Clear,
+    bool RebuildKeywords,
     bool IncludeDocs,
     bool Watch,
     bool DryRun,
@@ -40,3 +41,8 @@ internal sealed record CheckDriftCommandOptions(
     string? Project,
     string? CodeMeridianUrl,
     string FailOn);
+
+internal sealed record KeywordCommandOptions(
+    string? Path,
+    string? Project,
+    string? CodeMeridianUrl);

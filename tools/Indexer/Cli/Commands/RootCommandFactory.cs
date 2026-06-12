@@ -13,6 +13,7 @@ internal sealed class RootCommandFactory(
     IToolConfigurationService configurationService,
     IndexCommandSettingsFactory settingsFactory,
     InitCommand initCommand,
+    KeywordCommand keywordCommand,
     ClearCommand clearCommand,
     ServeCommand serveCommand,
     StatusCommand statusCommand)
@@ -24,6 +25,7 @@ internal sealed class RootCommandFactory(
 
         root.Add(CreateIndexCommand(asRootCommand: false));
         root.Add(CreateInitCommand());
+        root.Add(CreateKeywordsCommand());
         root.Add(CreateServeCommand());
         root.Add(CreateDoctorCommand());
         root.Add(CreateCheckDriftCommand());
@@ -46,6 +48,7 @@ internal sealed class RootCommandFactory(
         var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
         urlOption.Aliases.Add("--CodeMeridian");
         var clearOption = new Option<bool>("--clear") { Description = "Remove existing knowledge before indexing. Applied only once." };
+        var keywordsOption = new Option<bool>("--keywords") { Description = "Rebuild the derived keyword graph after indexing completes." };
         var skipDocsOption = new Option<bool>("--skip-docs") { Description = "Skip documentation ingestion." };
         skipDocsOption.Aliases.Add("--no-docs");
         var watchOption = new Option<bool>("--watch") { Description = "Watch mode. If both languages are present, C# watch runs first." };
@@ -63,6 +66,7 @@ internal sealed class RootCommandFactory(
         command.Add(projectOption);
         command.Add(urlOption);
         command.Add(clearOption);
+        command.Add(keywordsOption);
         command.Add(skipDocsOption);
         command.Add(watchOption);
         command.Add(dryRunOption);
@@ -96,6 +100,7 @@ internal sealed class RootCommandFactory(
                     parseResult.GetValue(projectOption),
                     parseResult.GetValue(urlOption),
                     parseResult.GetValue(clearOption),
+                    RebuildKeywords: parseResult.GetValue(keywordsOption),
                     IncludeDocs: !parseResult.GetValue(skipDocsOption),
                     Watch: parseResult.GetValue(watchOption),
                     DryRun: parseResult.GetValue(dryRunOption),
@@ -144,6 +149,39 @@ internal sealed class RootCommandFactory(
             parseResult.GetValue(urlOption),
             parseResult.GetValue(forceOption),
             parseResult.GetValue(globalOption))));
+
+        return command;
+    }
+
+    private Command CreateKeywordsCommand()
+    {
+        var command = new Command("keywords", "Manage the derived keyword graph without running a full index.");
+        var rebuildCommand = new Command("rebuild", "Rebuild the derived keyword graph for one project or for all indexed projects.");
+        rebuildCommand.Aliases.Add("index");
+
+        var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults. Defaults to the current directory." };
+        var projectOption = new Option<string?>("--project") { Description = "Project context name. Omit to rebuild for all indexed projects." };
+        var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
+        urlOption.Aliases.Add("--CodeMeridian");
+
+        rebuildCommand.Add(pathArgument);
+        rebuildCommand.Add(projectOption);
+        rebuildCommand.Add(urlOption);
+
+        rebuildCommand.SetAction(async parseResult => await keywordCommand.RunAsync(new KeywordCommandOptions(
+            parseResult.GetValue(pathArgument),
+            parseResult.GetValue(projectOption),
+            parseResult.GetValue(urlOption))));
+
+        command.Add(pathArgument);
+        command.Add(projectOption);
+        command.Add(urlOption);
+        command.Add(rebuildCommand);
+
+        command.SetAction(async parseResult => await keywordCommand.RunAsync(new KeywordCommandOptions(
+            parseResult.GetValue(pathArgument),
+            parseResult.GetValue(projectOption),
+            parseResult.GetValue(urlOption))));
 
         return command;
     }

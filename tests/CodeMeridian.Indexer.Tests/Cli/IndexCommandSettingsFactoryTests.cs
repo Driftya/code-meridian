@@ -52,6 +52,7 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
             Project: null,
             CodeMeridianUrl: "http://override:5100",
             Clear: false,
+            RebuildKeywords: true,
             IncludeDocs: true,
             Watch: false,
             DryRun: false,
@@ -65,6 +66,7 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
 
         settings.Project.Should().Be("GlobalProject");
         settings.CodeMeridianUrl.Should().Be("http://override:5100");
+        settings.RebuildKeywords.Should().BeTrue();
         settings.StorageMode.Should().Be(IndexerStorageMode.Repository);
     }
 
@@ -79,6 +81,7 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
             Project: null,
             CodeMeridianUrl: null,
             Clear: false,
+            RebuildKeywords: false,
             IncludeDocs: true,
             Watch: false,
             DryRun: false,
@@ -111,6 +114,7 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
             Project: null,
             CodeMeridianUrl: null,
             Clear: false,
+            RebuildKeywords: false,
             IncludeDocs: true,
             Watch: false,
             DryRun: false,

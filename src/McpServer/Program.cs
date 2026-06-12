@@ -27,6 +27,7 @@ builder.Services
         options.IdleTimeout = TimeSpan.FromHours(2);
     })
     .WithTools<CodebaseTools>()
+    .WithTools<KeywordTools>()
     .WithTools<KnowledgeTools>()
     .WithTools<ExtensionTools>();
 

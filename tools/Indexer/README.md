@@ -19,6 +19,10 @@ codemeridian serve
 ```powershell
 codemeridian index .
 codemeridian index C:\Projects\MyApp --project MyApp --clear
+codemeridian index . --keywords
+codemeridian keywords --project MyApp
+codemeridian keywords rebuild --project MyApp
+codemeridian keywords index --project MyApp
 codemeridian index . --skip-csharp --skip-docs --skip-diagnostics
 codemeridian index . --watch
 codemeridian init .
@@ -33,6 +37,8 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Indexes code into Neo4j through CodeMeridian.
 - Skips unchanged files after the first successful run using `.meridian/cache`.
 - Can run compiler, TypeScript, and lint diagnostics unless you skip them.
+- Can trigger a backend keyword-graph rebuild after indexing with `--keywords`.
+- Can rebuild the keyword graph on demand without indexing through `codemeridian keywords`.
 - Repo-controlled build and lint diagnostics are opt-in via `--allow-repo-scripts`.
 - Can query the backend for a `doctor` status report without talking to Neo4j directly from the client.
 - Can verify graph drift with `codemeridian check-drift` or `codemeridian index --verify`.
@@ -55,6 +61,10 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Use `codemeridian check-drift --project <name> --fail-on high` for a drift gate that exits non-zero in CI when the graph is too stale.
 - Use `codemeridian index --verify --project <name>` when you want the same drift gate as part of an indexer workflow.
 - Use `--skip-diagnostics` if you only want structural indexing.
+- Use `--keywords` when you want the index run to finish by rebuilding derived `Keyword` nodes and `HAS_KEYWORD` relationships for the indexed project.
+- Use `codemeridian keywords --project <name>` as the short form when you only want the rebuild.
+- Use `codemeridian keywords rebuild --project <name>` when you want an explicit maintenance command name.
+- Use `codemeridian keywords index --project <name>` if you prefer `index` terminology; it is an alias of `rebuild`.
 - Use `--allow-repo-scripts` only on trusted repos when you want `dotnet build` and repo lint commands to run.
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
 - Use `codemeridian init .` to generate `meridian.json`, `.vscode/mcp.json`, and `.codex/config.toml` for a project. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.

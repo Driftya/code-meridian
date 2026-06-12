@@ -122,6 +122,26 @@ public sealed class CodeMeridianClientTests
         status!.GraphDriftReport.Should().Be("Graph drift: low");
     }
 
+    [Fact]
+    public async Task RebuildKeywordGraphAsync_SendsProjectContextBody()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.RebuildKeywordGraphAsync("CodeMeridian");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Post);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/keywords/rebuild");
+
+        var body = await handler.ReadBodyAsync();
+        body.GetProperty("projectContext").GetString().Should().Be("CodeMeridian");
+    }
+
     private sealed class CapturingHandler : HttpMessageHandler
     {
         public HttpRequestMessage? Request { get; private set; }

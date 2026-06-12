@@ -179,6 +179,21 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task RebuildKeywordGraphAsync(
+        string? projectContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.PostAsJsonAsync(
+            "/api/v1/knowledge/keywords/rebuild",
+            new
+            {
+                ProjectContext = projectContext
+            },
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+    }
+
     private sealed record EmbeddingResponse(float[] Embedding, string ProviderName, int Dimensions);
 }
 

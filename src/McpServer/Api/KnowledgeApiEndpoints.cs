@@ -1,6 +1,7 @@
 using System.Globalization;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
+using CodeMeridian.Application.Services;
 
 namespace CodeMeridian.McpServer.Api;
 
@@ -18,6 +19,7 @@ public static class KnowledgeApiEndpoints
         group.MapPost("/nodes", IngestNode);
         group.MapPost("/nodes/edges", IngestEdge);
         group.MapPost("/documents", IngestDocument);
+        group.MapPost("/keywords/rebuild", RebuildKeywordGraph);
         group.MapDelete("/project/{projectContext}/diagnostics", DeleteDiagnostics);
         group.MapDelete("/project/{projectContext}/files/{**filePath}", DeleteProjectFile);
         group.MapDelete("/code-graph", DeleteCodeGraph);
@@ -116,6 +118,15 @@ public static class KnowledgeApiEndpoints
         }, ct);
 
         return Results.Created("/api/v1/knowledge/documents", null);
+    }
+
+    private static async Task<IResult> RebuildKeywordGraph(
+        RebuildKeywordGraphRequest req,
+        IKeywordGraphService keywordGraphService,
+        CancellationToken ct)
+    {
+        var result = await keywordGraphService.RebuildKeywordGraphAsync(req.ProjectContext, ct);
+        return Results.Ok(new KeywordRebuildResponse(result));
     }
 
     private static async Task<IResult> DeleteProject(
@@ -302,6 +313,8 @@ internal sealed record IngestDocumentRequest(
     string? RelatedNodeIdsCsv = null,
     string? RelatedDocumentIdsCsv = null);
 
+internal sealed record RebuildKeywordGraphRequest(string? ProjectContext = null);
+
 internal sealed record EmbeddingRequest(string Text);
 
 internal sealed record EmbeddingResponse(
@@ -312,3 +325,5 @@ internal sealed record EmbeddingResponse(
 internal sealed record EmbeddingAvailabilityResponse(
     string ProviderName,
     int Dimensions);
+
+internal sealed record KeywordRebuildResponse(string Summary);

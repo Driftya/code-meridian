@@ -167,6 +167,13 @@ internal sealed class IndexCommandHandler(
                 return exitCode;
         }
 
+        if (_settings.RebuildKeywords)
+        {
+            exitCode = await RebuildKeywordGraphAsync();
+            if (exitCode != 0)
+                return exitCode;
+        }
+
         if (exitCode == 0)
             cache.Save(incrementalPlan);
 
@@ -257,6 +264,7 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Include docs      : {_settings.IncludeDocs}");
         Console.WriteLine($"  Watch mode        : {_settings.Watch}");
         Console.WriteLine($"  Diagnostics       : {(_settings.SkipDiagnostics ? "skipped" : "enabled")}");
+        Console.WriteLine($"  Rebuild keywords  : {_settings.RebuildKeywords}");
         Console.WriteLine($"  C# indexer        : {(hasCSharp ? "enabled" : "not applicable")}");
         Console.WriteLine($"  TypeScript roots  : {(typeScriptRoots.Count == 0 ? "none" : typeScriptRoots.Count)}");
 
@@ -345,6 +353,7 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  codemeridian index . --clear");
+        Console.WriteLine("  codemeridian index . --keywords");
         Console.WriteLine("  codemeridian index . --storage global");
         Console.WriteLine("  codemeridian index . --storage repo");
         Console.WriteLine("  codemeridian index . --project MyProject --watch");
@@ -356,5 +365,32 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine("  codemeridian check-drift --project MyProject --fail-on high");
         Console.WriteLine("  codemeridian clear --project MyProject");
         Console.WriteLine("  codemeridian clear --all-code-graph");
+    }
+
+    private async Task<int> RebuildKeywordGraphAsync()
+    {
+        using var httpClient = new HttpClient
+        {
+            BaseAddress = new Uri(_settings.CodeMeridianUrl, UriKind.Absolute)
+        };
+
+        if (!string.IsNullOrWhiteSpace(_settings.ApiKey))
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ApiKey);
+
+        var client = new CodeMeridianClient(httpClient);
+
+        Console.WriteLine("Rebuilding keyword graph...");
+
+        try
+        {
+            await client.RebuildKeywordGraphAsync(_settings.Project);
+            Console.WriteLine($"Keyword graph rebuilt for '{_settings.Project}'.");
+            return 0;
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.Error.WriteLine($"error: keyword graph rebuild failed: {ex.Message}");
+            return 1;
+        }
     }
 }
