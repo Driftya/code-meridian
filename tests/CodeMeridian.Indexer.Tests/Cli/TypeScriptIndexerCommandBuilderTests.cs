@@ -31,6 +31,7 @@ public sealed class TypeScriptIndexerCommandBuilderTests
             "http://localhost:5100",
             watch: true,
             clear: true,
+            forceFull: true,
             includeDocs: false,
             filesList);
 
@@ -38,6 +39,7 @@ public sealed class TypeScriptIndexerCommandBuilderTests
             "--url",
             "http://localhost:5100",
             "--clear",
+            "--full",
             "--no-docs",
             "--watch",
             "--files-list",

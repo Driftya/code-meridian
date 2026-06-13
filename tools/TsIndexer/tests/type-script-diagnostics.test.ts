@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseLintDiagnostics, parseTypeScriptDiagnostics } from '../src/diagnostics/type-script-diagnostics.js';
+import { __testing, parseLintDiagnostics, parseTypeScriptDiagnostics } from '../src/diagnostics/type-script-diagnostics.js';
 
 describe('parseTypeScriptDiagnostics', () => {
   it('parses tsc file diagnostics into stable diagnostic findings', () => {
@@ -47,5 +47,10 @@ describe('parseTypeScriptDiagnostics', () => {
       column: 5,
       source: 'eslint',
     });
+  });
+
+  it('builds diagnostic file source ids that match walker file nodes', () => {
+    expect(__testing.buildDiagnosticFileSourceId('CodeMeridian', 'tools/TsIndexer/src/walker/graph.ts'))
+      .toBe('CodeMeridian:File:tools_TsIndexer_src_walker_graph.ts');
   });
 });

@@ -60,7 +60,7 @@ export class TypeScriptIndexerApplication {
       ? files.map(file => resolveInputFile(options.rootPath, file)).filter(isTypeScriptSourceFile)
       : discoverTypeScriptFiles(options.rootPath);
     const docFiles = options.includeDocs ? resolveDocumentFiles(options.rootPath, files) : [];
-    const existingState = loadTsIndexerCache(options.cacheDirectory, options.projectName);
+    const existingState = options.forceFull ? undefined : loadTsIndexerCache(options.cacheDirectory, options.projectName);
     const plan = buildTsIndexerPlan(options.rootPath, allTypeScriptFiles, existingState);
     const typeScriptFiles = files
       ? allTypeScriptFiles

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import type { CodeMeridianClient } from '../client.js';
+import { fileId } from '../walker/common.js';
 
 export interface DiagnosticFinding {
   id: string;
@@ -65,7 +66,7 @@ export async function indexTypeScriptDiagnostics(
     });
 
     await client.ingestEdge({
-      sourceId: `${projectName}::File::${finding.filePath}`,
+      sourceId: fileId(projectName, finding.filePath),
       targetId: finding.id,
       type: 'Contains',
     });
@@ -309,3 +310,7 @@ function hash(value: string): string {
 function npmCommand(): string {
   return process.platform === 'win32' ? 'npm.cmd' : 'npm';
 }
+
+export const __testing = {
+  buildDiagnosticFileSourceId: fileId,
+};

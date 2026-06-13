@@ -18,12 +18,15 @@ internal static class TypeScriptIndexerCommandBuilder
         string codeMeridianUrl,
         bool watch,
         bool clear,
+        bool forceFull,
         bool includeDocs,
         FileInfo? filesList)
     {
         arguments.AddRange(["--url", codeMeridianUrl]);
         if (clear)
             arguments.Add("--clear");
+        if (forceFull)
+            arguments.Add("--full");
         if (!includeDocs)
             arguments.Add("--no-docs");
         if (watch)

@@ -142,6 +142,7 @@ internal sealed class IndexCommandHandler(
                     _settings.CodeMeridianUrl,
                     _settings.Watch,
                     clearNextIndexer,
+                    changedFiles is null,
                     _settings.IncludeDocs && !hasCSharp && typeScriptRoots.Count == 1,
                     filesList);
 

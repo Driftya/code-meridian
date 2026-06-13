@@ -3,6 +3,7 @@ export interface IndexCommandOptions {
   project?: string;
   url?: string;
   clear: boolean;
+  forceFull: boolean;
   includeDocs: boolean;
   watch: boolean;
   filesList?: string;
@@ -14,6 +15,7 @@ export interface ResolvedIndexCommandOptions {
   serverUrl: string;
   apiKey?: string;
   clear: boolean;
+  forceFull: boolean;
   includeDocs: boolean;
   watch: boolean;
   filesListPath?: string;
