@@ -45,6 +45,7 @@ public sealed class FileRolePolicyTests
         var sut = new DefaultAnalysisProfilePolicy();
 
         sut.Allows(AnalysisProfile.DesignSmells, IndexedFileRole.Source).Should().BeTrue();
+        sut.Allows(AnalysisProfile.DesignSmells, IndexedFileRole.Unknown).Should().BeTrue();
         sut.Allows(AnalysisProfile.DesignSmells, IndexedFileRole.Test).Should().BeFalse();
         sut.Allows(AnalysisProfile.DesignSmells, IndexedFileRole.Migration).Should().BeFalse();
         sut.Allows(AnalysisProfile.DesignSmells, IndexedFileRole.Snapshot).Should().BeFalse();
@@ -53,15 +54,29 @@ public sealed class FileRolePolicyTests
     }
 
     [Fact]
-    public void TestShield_AllowsSourceAndTest()
+    public void TestShield_AllowsSourceTestAndUnknown()
     {
         var sut = new DefaultAnalysisProfilePolicy();
 
         sut.Allows(AnalysisProfile.TestShield, IndexedFileRole.Source).Should().BeTrue();
         sut.Allows(AnalysisProfile.TestShield, IndexedFileRole.Test).Should().BeTrue();
+        sut.Allows(AnalysisProfile.TestShield, IndexedFileRole.Unknown).Should().BeTrue();
         sut.Allows(AnalysisProfile.TestShield, IndexedFileRole.Migration).Should().BeFalse();
         sut.Allows(AnalysisProfile.TestShield, IndexedFileRole.Generated).Should().BeFalse();
         sut.Allows(AnalysisProfile.TestShield, IndexedFileRole.BuildArtifact).Should().BeFalse();
+    }
+
+    [Fact]
+    public void CoverageGaps_AllowsSourceTestAndUnknown()
+    {
+        var sut = new DefaultAnalysisProfilePolicy();
+
+        sut.Allows(AnalysisProfile.CoverageGaps, IndexedFileRole.Source).Should().BeTrue();
+        sut.Allows(AnalysisProfile.CoverageGaps, IndexedFileRole.Test).Should().BeTrue();
+        sut.Allows(AnalysisProfile.CoverageGaps, IndexedFileRole.Unknown).Should().BeTrue();
+        sut.Allows(AnalysisProfile.CoverageGaps, IndexedFileRole.Migration).Should().BeFalse();
+        sut.Allows(AnalysisProfile.CoverageGaps, IndexedFileRole.Generated).Should().BeFalse();
+        sut.Allows(AnalysisProfile.CoverageGaps, IndexedFileRole.BuildArtifact).Should().BeFalse();
     }
 
     [Fact]

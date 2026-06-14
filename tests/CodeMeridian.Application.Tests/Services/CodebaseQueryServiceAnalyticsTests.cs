@@ -298,6 +298,22 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("heuristic");
     }
 
+    [Fact]
+    public async Task FindCoverageGapsAsync_IncludesUnknownRoleNodesButFiltersGeneratedNodes()
+    {
+        var (sut, graph) = Build();
+        graph.FindCoverageGapsAsync("CodeMeridian", Arg.Any<CancellationToken>())
+             .Returns([
+                 Node("u1", "LegacyService", CodeNodeType.Class, "src/LegacyService.cs", project: "CodeMeridian", fileRole: IndexedFileRole.Unknown),
+                 Node("u2", "GeneratedMapper", CodeNodeType.Class, "src/Generated/Mapper.g.cs", project: "CodeMeridian", fileRole: IndexedFileRole.Generated)
+             ]);
+
+        var result = await sut.FindCoverageGapsAsync("CodeMeridian");
+
+        result.Should().Contain("LegacyService");
+        result.Should().NotContain("GeneratedMapper");
+    }
+
     // ── FindRecentlyChangedAsync ──────────────────────────────────────────────
 
     [Fact]
@@ -347,6 +363,27 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("Node `missing` not found");
         result.Should().Contain("resolve_exact_symbol");
+    }
+
+    [Fact]
+    public async Task FindTestShieldAsync_AllowsUnknownRoleNodesButFiltersGeneratedNodes()
+    {
+        var (sut, graph) = Build();
+        var target = Node("m1", "BuildMinimalContextAsync", CodeNodeType.Method, "src/Application/Services/CodebaseQueryService.Analytics.cs", 480, "CodeMeridian", fileRole: IndexedFileRole.Unknown);
+        var directUnknownTest = Node("t1", "CodebaseQueryServiceAnalyticsTests", CodeNodeType.Class, "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs", 1, "CodeMeridian", fileRole: IndexedFileRole.Unknown);
+        var generatedCaller = Node("g1", "GeneratedClient.Invoke", CodeNodeType.Method, "src/Generated/Client.g.cs", 10, "CodeMeridian", fileRole: IndexedFileRole.Generated);
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [generatedCaller], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+             .Returns([(directUnknownTest, "direct")]);
+
+        var result = await sut.FindTestShieldAsync(target.Id, projectContext: "CodeMeridian", depth: 2);
+
+        result.Should().Contain("CodebaseQueryServiceAnalyticsTests");
+        result.Should().NotContain("GeneratedClient.Invoke");
     }
 
     [Fact]

@@ -24,9 +24,11 @@ public sealed partial class Neo4jCodeGraphRepository
             THEN 'Generated'
           WHEN coalesce({alias}.filePathNormalized CONTAINS '/tests/', false)
             OR coalesce({alias}.filePathNormalized CONTAINS '/test/', false)
+            OR coalesce({alias}.filePathNormalized CONTAINS 'test', false)
             OR coalesce({alias}.filePathNormalized CONTAINS '/__tests__/', false)
             OR coalesce({alias}.filePathNormalized CONTAINS '.test.', false)
             OR coalesce({alias}.filePathNormalized CONTAINS '.spec.', false)
+            OR coalesce({alias}.nameNormalized CONTAINS 'test', false)
             OR coalesce({alias}.namespaceNormalized CONTAINS 'test', false)
             THEN 'Test'
           WHEN coalesce({alias}.filePathNormalized ENDS WITH '.md', false)

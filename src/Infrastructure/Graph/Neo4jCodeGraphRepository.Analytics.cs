@@ -49,14 +49,24 @@ public sealed partial class Neo4jCodeGraphRepository
 
         var prodRole = FileRoleExpression("prod");
         var testRole = FileRoleExpression("test");
+        var testPredicate = $"""
+            (
+                {testRole} = 'Test'
+                OR test.namespaceNormalized CONTAINS 'test'
+                OR test.filePathNormalized CONTAINS 'test'
+                OR test.nameNormalized CONTAINS 'test'
+                OR test.filePathNormalized CONTAINS '.spec.'
+                OR test.filePathNormalized CONTAINS '.test.'
+            )
+            """;
         var cypher = $@"
             MATCH (prod:CodeNode)
             WHERE prod.type IN ['Class', 'Method']
               AND ($projectContextNormalized IS NULL OR prod.projectContextNormalized = $projectContextNormalized)
-              AND {prodRole} = 'Source'
+              AND {prodRole} IN ['Source', 'Unknown']
               AND NOT EXISTS {{
                 MATCH (test:CodeNode)-[:Calls]->(prod)
-                WHERE {testRole} = 'Test'
+                WHERE {testPredicate}
               }}
             OPTIONAL MATCH (caller:CodeNode)-[:Calls|Uses|DependsOn]->(prod)
             WITH prod, count(DISTINCT caller) AS fanIn,
@@ -95,13 +105,23 @@ public sealed partial class Neo4jCodeGraphRepository
         await using var session = _driver.AsyncSession();
 
         var testRole = FileRoleExpression("test");
+        var testPredicate = $"""
+            (
+                {testRole} = 'Test'
+                OR test.namespaceNormalized CONTAINS 'test'
+                OR test.filePathNormalized CONTAINS 'test'
+                OR test.nameNormalized CONTAINS 'test'
+                OR test.filePathNormalized CONTAINS '.spec.'
+                OR test.filePathNormalized CONTAINS '.test.'
+            )
+            """;
         const string directCypherPrefix = """
             MATCH (test:CodeNode)-[:Calls]->(target:CodeNode {id: $nodeId})
             WHERE ($projectContextNormalized IS NULL OR test.projectContextNormalized = $projectContextNormalized)
             """;
         var directCypher = $@"
             {directCypherPrefix}
-              AND {testRole} = 'Test'
+              AND {testPredicate}
             RETURN test AS node, 'direct' AS matchType
             ORDER BY test.name
             LIMIT 25
@@ -114,7 +134,7 @@ public sealed partial class Neo4jCodeGraphRepository
             """;
         var heuristicCypher = $@"
             {heuristicCypherPrefix}
-              AND {testRole} = 'Test'
+              AND {testPredicate}
               AND (
                 test.filePath = target.filePath
                 OR test.namespace = target.namespace
@@ -361,7 +381,7 @@ public sealed partial class Neo4jCodeGraphRepository
                 (n.type = 'Class' AND n.lineCount > $classThreshold) OR
                 (n.type = 'Method' AND n.lineCount > $methodThreshold)
               )
-              AND {fileRole} = 'Source'
+              AND {fileRole} IN ['Source', 'Unknown']
             RETURN n
             ORDER BY n.lineCount DESC
             LIMIT 50
@@ -434,7 +454,7 @@ public sealed partial class Neo4jCodeGraphRepository
               AND n.lineCount IS NOT NULL
               AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND n.lineCount > $lineThreshold
-              AND {fileRole} = 'Source'
+              AND {fileRole} IN ['Source', 'Unknown']
             OPTIONAL MATCH (n)-[:Contains*0..2]->(member:CodeNode)
             WITH n, n.lineCount AS lineCount, collect(DISTINCT member) AS members
             OPTIONAL MATCH (caller:CodeNode)-[:Calls|Uses|DependsOn|Implements|Inherits]->(n)
