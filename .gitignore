@@ -432,3 +432,4 @@ FodyWeavers.xsd
 .meridian/cache/
 meridian.json
 .continue/mcpServers/code-meridian.yaml
+meridian.json.bak
