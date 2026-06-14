@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
+import { findTypeScriptRoots } from '../services/project-discovery.js';
+import { fileId } from '../walker/common.js';
 export async function indexTypeScriptDiagnostics(client, rootPath, projectName) {
     const roots = findTypeScriptRoots(rootPath);
     const findings = [];
@@ -38,7 +40,7 @@ export async function indexTypeScriptDiagnostics(client, rootPath, projectName) 
             projectContext: projectName,
         });
         await client.ingestEdge({
-            sourceId: `${projectName}::File::${finding.filePath}`,
+            sourceId: fileId(projectName, finding.filePath),
             targetId: finding.id,
             type: 'Contains',
         });
@@ -147,62 +149,8 @@ function resolveLintCommand(rootPath) {
     const eslint = resolveLocalNodeBinary(rootPath, 'eslint');
     return eslint ? { fileName: eslint, arguments: ['.'] } : undefined;
 }
-function findTypeScriptRoots(rootPath) {
-    const directories = enumerateDirectories(rootPath);
-    const roots = directories.filter(directory => fs.existsSync(path.join(directory, 'tsconfig.json')) && containsTypeScriptFile(directory));
-    if (roots.length === 0 && containsTypeScriptFile(rootPath)) {
-        return [rootPath];
-    }
-    return roots.filter(candidate => !roots.some(other => other !== candidate && isSubdirectoryOf(candidate, other)));
-}
-function enumerateDirectories(rootPath) {
-    const results = [];
-    const pending = [rootPath];
-    while (pending.length > 0) {
-        const current = pending.pop();
-        if (!current || isIgnoredPath(rootPath, current))
-            continue;
-        results.push(current);
-        for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-            if (entry.isDirectory()) {
-                pending.push(path.join(current, entry.name));
-            }
-        }
-    }
-    return results;
-}
-function containsTypeScriptFile(rootPath) {
-    const pending = [rootPath];
-    while (pending.length > 0) {
-        const current = pending.pop();
-        if (!current || isIgnoredPath(rootPath, current))
-            continue;
-        for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-            const fullPath = path.join(current, entry.name);
-            if (entry.isDirectory()) {
-                pending.push(fullPath);
-            }
-            else if (entry.isFile() && isTypeScriptSourceFile(fullPath)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
 function looksLikePath(value) {
     return value.includes('/') || value.includes('\\') || value.endsWith('.ts') || value.endsWith('.tsx') || value.endsWith('.js') || value.endsWith('.jsx');
-}
-function isTypeScriptSourceFile(filePath) {
-    return (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) && !filePath.endsWith('.d.ts');
-}
-function isIgnoredPath(rootPath, filePath) {
-    const relPath = path.relative(rootPath, filePath).replace(/\\/g, '/');
-    const segments = relPath.split('/').filter(segment => segment.length > 0);
-    return segments.some(segment => ['.git', '.vs', '.vscode', '.meridian', 'bin', 'obj', 'node_modules', 'dist', 'build', 'coverage'].includes(segment.toLowerCase()));
-}
-function isSubdirectoryOf(candidate, parent) {
-    const relative = path.relative(parent, candidate);
-    return relative !== '.' && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 function hash(value) {
     return crypto.createHash('sha256').update(value, 'utf8').digest('hex').slice(0, 16);
@@ -210,3 +158,6 @@ function hash(value) {
 function npmCommand() {
     return process.platform === 'win32' ? 'npm.cmd' : 'npm';
 }
+export const __testing = {
+    buildDiagnosticFileSourceId: fileId,
+};

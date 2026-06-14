@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Project } from 'ts-morph';
+import { buildTypeScriptSourceFileGlobs } from './services/project-discovery.js';
+import { loadIndexedFileRoleClassifier } from './services/file-roles.js';
 import { collectConfigurationEdges, collectConfigurationNodes } from './walker/configuration.js';
 import { collectEdges, collectNodes } from './walker/graph.js';
 import { collectRouteEdges, collectRouteNodes } from './walker/routes.js';
@@ -9,6 +11,7 @@ export function walkTypeScript(rootPath, projectName, files) {
     const edges = [];
     const knownIds = new Set();
     const methodIndex = new Map();
+    const classifyFileRole = loadIndexedFileRoleClassifier(rootPath);
     const tsConfigPath = path.join(rootPath, 'tsconfig.json');
     const tsProject = new Project({
         ...(fs.existsSync(tsConfigPath) ? { tsConfigFilePath: tsConfigPath } : {}),
@@ -21,24 +24,17 @@ export function walkTypeScript(rootPath, projectName, files) {
         }
     }
     else {
-        tsProject.addSourceFilesAtPaths([
-            path.join(rootPath, '**/*.ts').replace(/\\/g, '/'),
-            path.join(rootPath, '**/*.tsx').replace(/\\/g, '/'),
-            `!${path.join(rootPath, '**/node_modules/**').replace(/\\/g, '/')}`,
-            `!${path.join(rootPath, '**/dist/**').replace(/\\/g, '/')}`,
-            `!${path.join(rootPath, '**/build/**').replace(/\\/g, '/')}`,
-            `!${path.join(rootPath, '**/*.d.ts').replace(/\\/g, '/')}`,
-        ]);
+        tsProject.addSourceFilesAtPaths(buildTypeScriptSourceFileGlobs(rootPath));
     }
     const sourceFiles = tsProject.getSourceFiles();
     for (const sourceFile of sourceFiles) {
-        collectNodes(sourceFile, rootPath, projectName, nodes, knownIds);
+        collectNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole);
     }
     for (const sourceFile of sourceFiles) {
-        collectRouteNodes(sourceFile, rootPath, projectName, nodes, knownIds);
+        collectRouteNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole);
     }
     for (const sourceFile of sourceFiles) {
-        collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, knownIds);
+        collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole);
     }
     indexMethods(nodes, methodIndex);
     for (const sourceFile of sourceFiles) {

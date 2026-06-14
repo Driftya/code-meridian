@@ -1,4 +1,5 @@
 using CodeMeridian.Indexer.Cli.Configuration;
+using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Tooling.Configuration;
 
 namespace CodeMeridian.Indexer.Cli.Commands;
@@ -26,6 +27,7 @@ internal sealed class ConfigurationCommand(IToolConfigurationService configurati
                 project,
                 codeMeridianUrl,
                 context.ApiKey,
+                IndexedFileRoleClassifierFactory.Create(context.LocalConfig?.FileRoles ?? context.GlobalConfig?.FileRoles),
                 context.LocalConfig?.ConfigurationFiles ?? context.GlobalConfig?.ConfigurationFiles,
                 clearExistingConfiguration: true);
             Console.WriteLine($"Configuration graph rebuilt for '{project}'.");

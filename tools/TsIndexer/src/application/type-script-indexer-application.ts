@@ -11,7 +11,9 @@ import {
 } from '../storage/indexer-cache.js';
 import { indexTypeScriptDiagnostics } from '../diagnostics/type-script-diagnostics.js';
 import { analyzeTypeScriptBoundaries } from '../analysis/type-script-boundaries.js';
+import { loadIndexedFileRoleClassifier } from '../services/file-roles.js';
 import {
+  discoverTypeScriptFiles,
   isDocumentationFile,
   isTypeScriptSourceFile,
   readFilesList,
@@ -60,6 +62,7 @@ export class TypeScriptIndexerApplication {
       ? files.map(file => resolveInputFile(options.rootPath, file)).filter(isTypeScriptSourceFile)
       : discoverTypeScriptFiles(options.rootPath);
     const docFiles = options.includeDocs ? resolveDocumentFiles(options.rootPath, files) : [];
+    logClassificationSummary(options.rootPath, options.projectName, allTypeScriptFiles, docFiles);
     const existingState = options.forceFull ? undefined : loadTsIndexerCache(options.cacheDirectory, options.projectName);
     const plan = buildTsIndexerPlan(options.rootPath, allTypeScriptFiles, existingState);
     const typeScriptFiles = files
@@ -225,27 +228,27 @@ export class TypeScriptIndexerApplication {
   }
 }
 
-function discoverTypeScriptFiles(rootPath: string): string[] {
-  const results: string[] = [];
-  const pending = [rootPath];
+function logClassificationSummary(rootPath: string, projectName: string, sourceFiles: string[], docFiles: string[]): void {
+  const classifyFileRole = loadIndexedFileRoleClassifier(rootPath);
+  const counts = new Map<string, number>();
+  const files = [...sourceFiles, ...docFiles];
 
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (!current) continue;
-
-    const entries = fs.readdirSync(current, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === '.git' || entry.name === '.vs' || entry.name === '.vscode' || entry.name === '.meridian' || entry.name === 'bin' || entry.name === 'obj' || entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'build' || entry.name === 'coverage') {
-          continue;
-        }
-        pending.push(fullPath);
-      } else if (entry.isFile() && isTypeScriptSourceFile(fullPath)) {
-        results.push(fullPath);
-      }
-    }
+  for (const file of files) {
+    const relativePath = path.relative(rootPath, file).replace(/\\/g, '/');
+    const role = classifyFileRole(relativePath);
+    counts.set(role, (counts.get(role) ?? 0) + 1);
   }
 
-  return results;
+  console.log(
+    `  Classified ${files.length} indexed files for ${projectName}: ` +
+    `Source=${counts.get('Source') ?? 0}, ` +
+    `Test=${counts.get('Test') ?? 0}, ` +
+    `Migration=${counts.get('Migration') ?? 0}, ` +
+    `Snapshot=${counts.get('Snapshot') ?? 0}, ` +
+    `Generated=${counts.get('Generated') ?? 0}, ` +
+    `BuildArtifact=${counts.get('BuildArtifact') ?? 0}, ` +
+    `Documentation=${counts.get('Documentation') ?? 0}, ` +
+    `Configuration=${counts.get('Configuration') ?? 0}, ` +
+    `Unknown=${counts.get('Unknown') ?? 0}`,
+  );
 }

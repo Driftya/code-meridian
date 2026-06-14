@@ -11,6 +11,7 @@ export function collectNodes(
   projectName: string,
   nodes: CodeNodeDto[],
   knownIds: Set<string>,
+  classifyFileRole: (relativePath: string) => string,
 ): void {
   const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
   const namespace = getNamespaceForPath(relPath, isTestFilePath(relPath));
@@ -27,7 +28,7 @@ export function collectNodes(
       lineNumber: 1,
       lineCount: sourceFile.getEndLineNumber(),
       projectContext: projectName,
-    });
+    }, classifyFileRole);
   }
 
   addNode(nodes, knownIds, {
@@ -40,7 +41,7 @@ export function collectNodes(
     lineCount: sourceFile.getEndLineNumber(),
     sourceHash: hashText(sourceFile.getFullText()),
     projectContext: projectName,
-  });
+  }, classifyFileRole);
 
   for (const cls of sourceFile.getClasses()) {
     const name = cls.getName() ?? '<anonymous>';
@@ -56,7 +57,7 @@ export function collectNodes(
       sourceSnippet: sourceSnippet(sourceFile, cls.getStartLineNumber(), cls.getEndLineNumber()),
       sourceHash: sourceHash(sourceFile, cls.getStartLineNumber(), cls.getEndLineNumber()),
       projectContext: projectName,
-    });
+    }, classifyFileRole);
 
     for (const method of cls.getMethods()) {
       const mName = `${name}.${method.getName()}`;
@@ -72,7 +73,7 @@ export function collectNodes(
         sourceSnippet: sourceSnippet(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
         sourceHash: sourceHash(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
         projectContext: projectName,
-      });
+      }, classifyFileRole);
     }
 
     for (const prop of cls.getProperties()) {
@@ -89,7 +90,7 @@ export function collectNodes(
         sourceSnippet: sourceSnippet(sourceFile, prop.getStartLineNumber(), prop.getEndLineNumber()),
         sourceHash: sourceHash(sourceFile, prop.getStartLineNumber(), prop.getEndLineNumber()),
         projectContext: projectName,
-      });
+      }, classifyFileRole);
     }
   }
 
@@ -107,7 +108,7 @@ export function collectNodes(
       sourceSnippet: sourceSnippet(sourceFile, iface.getStartLineNumber(), iface.getEndLineNumber()),
       sourceHash: sourceHash(sourceFile, iface.getStartLineNumber(), iface.getEndLineNumber()),
       projectContext: projectName,
-    });
+    }, classifyFileRole);
 
     for (const method of iface.getMethods()) {
       const mName = `${name}.${method.getName()}`;
@@ -123,7 +124,7 @@ export function collectNodes(
         sourceSnippet: sourceSnippet(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
         sourceHash: sourceHash(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
         projectContext: projectName,
-      });
+      }, classifyFileRole);
     }
   }
 
@@ -141,7 +142,7 @@ export function collectNodes(
       sourceSnippet: sourceSnippet(sourceFile, fn.getStartLineNumber(), fn.getEndLineNumber()),
       sourceHash: sourceHash(sourceFile, fn.getStartLineNumber(), fn.getEndLineNumber()),
       projectContext: projectName,
-    });
+    }, classifyFileRole);
   }
 
   for (const typeAlias of sourceFile.getTypeAliases()) {
@@ -158,7 +159,7 @@ export function collectNodes(
       sourceSnippet: sourceSnippet(sourceFile, typeAlias.getStartLineNumber(), typeAlias.getEndLineNumber()),
       sourceHash: sourceHash(sourceFile, typeAlias.getStartLineNumber(), typeAlias.getEndLineNumber()),
       projectContext: projectName,
-    });
+    }, classifyFileRole);
   }
 
   for (const testCase of extractIndexedTestCases(sourceFile, projectName, relPath)) {
@@ -173,7 +174,7 @@ export function collectNodes(
       sourceSnippet: sourceSnippet(sourceFile, testCase.lineNumber, testCase.lineNumber + testCase.lineCount - 1),
       sourceHash: sourceHash(sourceFile, testCase.lineNumber, testCase.lineNumber + testCase.lineCount - 1),
       projectContext: projectName,
-    });
+    }, classifyFileRole);
   }
 
   for (const enumDecl of sourceFile.getEnums()) {
@@ -190,7 +191,7 @@ export function collectNodes(
       sourceSnippet: sourceSnippet(sourceFile, enumDecl.getStartLineNumber(), enumDecl.getEndLineNumber()),
       sourceHash: sourceHash(sourceFile, enumDecl.getStartLineNumber(), enumDecl.getEndLineNumber()),
       projectContext: projectName,
-    });
+    }, classifyFileRole);
   }
 }
 

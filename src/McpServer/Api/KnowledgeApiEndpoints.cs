@@ -68,6 +68,9 @@ public static class KnowledgeApiEndpoints
             SourceSnippet = req.SourceSnippet,
             SourceHash = req.SourceHash,
             ProjectContext = req.ProjectContext,
+            FileRole = Enum.TryParse<IndexedFileRole>(req.FileRole, ignoreCase: true, out var parsedRole)
+                ? parsedRole
+                : IndexedFileRole.Unknown,
             Properties = req.Properties ?? [],
             Embedding = embedding
         }, ct);
@@ -315,6 +318,7 @@ internal sealed record IngestNodeRequest(
     string? Summary = null,
     string? SourceSnippet = null,
     string? SourceHash = null,
+    string? FileRole = null,
     string? ProjectContext = null,
     Dictionary<string, string>? Properties = null,
     string? EmbeddingCsv = null);

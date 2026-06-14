@@ -84,6 +84,14 @@ codemeridian index . --skip-config
 codemeridian config rebuild --project CodeMeridian
 ```
 
+### File Roles And Analysis Profiles
+
+CodeMeridian classifies indexed files as `Source`, `Test`, `Migration`, `Snapshot`, `Generated`, `BuildArtifact`, `Documentation`, `Configuration`, or `Unknown`.
+
+Tools use analysis profiles so each query gets the right context. Design-smell tools exclude tests, migrations, snapshots, generated files, and build artifacts by default, while test-aware tools still include indexed tests.
+
+File role rules can be configured through `meridian.json` under `indexing.fileRoles`. If no rules are configured, CodeMeridian uses safe built-in defaults.
+
 ### `find_config_definitions`
 
 Finds where a canonical configuration key is defined or overridden across indexed configuration files.

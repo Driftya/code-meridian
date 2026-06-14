@@ -1,4 +1,5 @@
 using CodeMeridian.Tooling.Storage;
+using CodeMeridian.Tooling.Discovery;
 
 namespace CodeMeridian.Indexer.Cli.Commands;
 
@@ -61,21 +62,5 @@ internal static class IndexExecutionPlanBuilder
         Configuration.ConfigurationFilePatternMatcher.IsConfigurationFile(file);
 
     internal static bool IsIgnoredPath(DirectoryInfo rootPath, FileInfo file)
-    {
-        var relPath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
-        var segments = relPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return segments.Any(segment => segment.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals(".vs", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals(".vscode", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals(".meridian", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("node_modules", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("build", StringComparison.OrdinalIgnoreCase) ||
-                                       segment.Equals("coverage", StringComparison.OrdinalIgnoreCase)) ||
-               relPath.Contains(".generated.", StringComparison.OrdinalIgnoreCase) ||
-               relPath.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase) ||
-               relPath.EndsWith("AssemblyInfo.cs", StringComparison.OrdinalIgnoreCase);
-    }
+        => IndexingExclusionPolicy.IsIgnoredPath(rootPath, file);
 }

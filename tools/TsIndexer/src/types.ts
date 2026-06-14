@@ -41,6 +41,7 @@ export interface CodeNodeDto {
   id: string;
   name: string;
   type: CodeNodeType;
+  fileRole?: string;
   namespace?: string;
   filePath?: string;
   lineNumber?: number;

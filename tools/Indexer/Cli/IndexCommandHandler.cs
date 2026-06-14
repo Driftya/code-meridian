@@ -214,6 +214,7 @@ internal sealed class IndexCommandHandler(
             .SetMinimumLevel(LogLevel.Information));
 
         services.AddCodeMeridianClient(_settings.CodeMeridianUrl, _settings.ApiKey);
+        services.AddSingleton(IndexedFileRoleClassifierFactory.Create(_settings.FileRoles));
         services.AddTransient<CSharpIndexer>();
         services.AddTransient<IndexerPipeline>();
 
@@ -425,6 +426,7 @@ internal sealed class IndexCommandHandler(
             _settings.Project,
             _settings.CodeMeridianUrl,
             _settings.ApiKey,
+            IndexedFileRoleClassifierFactory.Create(_settings.FileRoles),
             _settings.ConfigurationFiles,
             clearExistingConfiguration: _settings.Clear || !_settings.Incremental,
             changedFiles: _settings.Clear || !_settings.Incremental ? null : changedFiles,

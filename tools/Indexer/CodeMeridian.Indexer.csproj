@@ -23,6 +23,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Application\CodeMeridian.Application.csproj" />
     <ProjectReference Include="..\..\src\Tooling\CodeMeridian.Tooling.csproj" />
     <ProjectReference Include="..\RoslynIndexer\CodeMeridian.RoslynIndexer.csproj" />
     <ProjectReference Include="..\DocumentIndexer\CodeMeridian.DocumentIndexer.csproj" />

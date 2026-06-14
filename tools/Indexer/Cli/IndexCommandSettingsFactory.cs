@@ -30,6 +30,7 @@ internal sealed class IndexCommandSettingsFactory(IToolConfigurationService conf
             SkipTypeScript = options.SkipTypeScript,
             SkipConfiguration = options.SkipConfiguration,
             ConfigurationFiles = context.LocalConfig?.ConfigurationFiles ?? context.GlobalConfig?.ConfigurationFiles,
+            FileRoles = context.LocalConfig?.FileRoles ?? context.GlobalConfig?.FileRoles,
             SkipDiagnostics = options.SkipDiagnostics,
             AllowRepoScripts = configurationService.ResolveAllowRepoScripts(context, options.AllowRepoScripts),
             Incremental = options.Incremental,

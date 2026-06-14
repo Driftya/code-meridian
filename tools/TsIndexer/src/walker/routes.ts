@@ -33,6 +33,7 @@ export function collectRouteNodes(
   projectName: string,
   nodes: CodeNodeDto[],
   knownIds: Set<string>,
+  classifyFileRole: (relativePath: string) => string,
 ): void {
   const routes = extractHttpRouteCalls(sourceFile, rootPath, projectName, knownIds);
   for (const route of routes) {
@@ -42,7 +43,7 @@ export function collectRouteNodes(
       type: 'ApiEndpoint',
       summary: `Route endpoint (${route.source}) for \`${route.method} ${route.routeTemplate}\``,
       projectContext: projectName,
-    });
+    }, classifyFileRole);
   }
 }
 

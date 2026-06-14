@@ -3,6 +3,7 @@ using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
 using CodeMeridian.Tooling.Composition;
 using CodeMeridian.Tooling.Configuration;
+using CodeMeridian.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -45,6 +46,7 @@ internal sealed class RoslynRootCommandFactory(
                 Project = configurationService.ResolveProject(context, parseResult.GetValue(projectOption)),
                 CodeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, parseResult.GetValue(urlOption)),
                 ApiKey = context.ApiKey,
+                FileRoles = context.LocalConfig?.FileRoles ?? context.GlobalConfig?.FileRoles,
                 Clear = parseResult.GetValue(clearOption),
                 Watch = parseResult.GetValue(watchOption)
             };
@@ -71,6 +73,7 @@ internal sealed class RoslynIndexerSettings
     public required string Project { get; init; }
     public required string CodeMeridianUrl { get; init; }
     public string? ApiKey { get; init; }
+    public CodeMeridianFileRolePatternSnapshot? FileRoles { get; init; }
     public bool Clear { get; init; }
     public bool Watch { get; init; }
 }
@@ -88,6 +91,7 @@ internal sealed class RoslynIndexCommandHandler(IOptions<RoslynIndexerSettings> 
             .SetMinimumLevel(LogLevel.Information));
 
         services.AddCodeMeridianClient(_settings.CodeMeridianUrl, _settings.ApiKey);
+        services.AddSingleton<IIndexedFileRoleClassifier>(IndexedFileRoleClassifierFactory.Create(_settings.FileRoles));
         services.AddTransient<CSharpIndexer>();
         services.AddTransient<IndexerPipeline>();
 

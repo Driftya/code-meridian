@@ -18,6 +18,7 @@ export function collectConfigurationNodes(
   projectName: string,
   nodes: CodeNodeDto[],
   knownIds: Set<string>,
+  classifyFileRole: (relativePath: string) => string,
 ): void {
   const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
 
@@ -33,7 +34,7 @@ export function collectConfigurationNodes(
         normalizedKey: canonicalKey.toLowerCase(),
         isSecretLike: isSecretLike(canonicalKey) ? 'true' : 'false',
       },
-    });
+    }, classifyFileRole);
   }
 }
 

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { SyntaxKind } from 'ts-morph';
 import { addNode, fileId, getNamespaceForPath, hashText, isTestFilePath, nodeId, sourceHash, sourceSnippet } from './common.js';
 import { extractIndexedTestCases } from './test-discovery.js';
-export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
+export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole) {
     const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
     const namespace = getNamespaceForPath(relPath, isTestFilePath(relPath));
     const fId = fileId(projectName, relPath);
@@ -17,7 +17,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
             lineNumber: 1,
             lineCount: sourceFile.getEndLineNumber(),
             projectContext: projectName,
-        });
+        }, classifyFileRole);
     }
     addNode(nodes, knownIds, {
         id: fId,
@@ -29,7 +29,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
         lineCount: sourceFile.getEndLineNumber(),
         sourceHash: hashText(sourceFile.getFullText()),
         projectContext: projectName,
-    });
+    }, classifyFileRole);
     for (const cls of sourceFile.getClasses()) {
         const name = cls.getName() ?? '<anonymous>';
         const id = nodeId(projectName, relPath, name, 'Class');
@@ -44,7 +44,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
             sourceSnippet: sourceSnippet(sourceFile, cls.getStartLineNumber(), cls.getEndLineNumber()),
             sourceHash: sourceHash(sourceFile, cls.getStartLineNumber(), cls.getEndLineNumber()),
             projectContext: projectName,
-        });
+        }, classifyFileRole);
         for (const method of cls.getMethods()) {
             const mName = `${name}.${method.getName()}`;
             const mId = nodeId(projectName, relPath, mName, 'Method');
@@ -59,7 +59,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
                 sourceSnippet: sourceSnippet(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
                 sourceHash: sourceHash(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
                 projectContext: projectName,
-            });
+            }, classifyFileRole);
         }
         for (const prop of cls.getProperties()) {
             const pName = `${name}.${prop.getName()}`;
@@ -75,7 +75,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
                 sourceSnippet: sourceSnippet(sourceFile, prop.getStartLineNumber(), prop.getEndLineNumber()),
                 sourceHash: sourceHash(sourceFile, prop.getStartLineNumber(), prop.getEndLineNumber()),
                 projectContext: projectName,
-            });
+            }, classifyFileRole);
         }
     }
     for (const iface of sourceFile.getInterfaces()) {
@@ -92,7 +92,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
             sourceSnippet: sourceSnippet(sourceFile, iface.getStartLineNumber(), iface.getEndLineNumber()),
             sourceHash: sourceHash(sourceFile, iface.getStartLineNumber(), iface.getEndLineNumber()),
             projectContext: projectName,
-        });
+        }, classifyFileRole);
         for (const method of iface.getMethods()) {
             const mName = `${name}.${method.getName()}`;
             const mId = nodeId(projectName, relPath, mName, 'Method');
@@ -107,7 +107,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
                 sourceSnippet: sourceSnippet(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
                 sourceHash: sourceHash(sourceFile, method.getStartLineNumber(), method.getEndLineNumber()),
                 projectContext: projectName,
-            });
+            }, classifyFileRole);
         }
     }
     for (const fn of sourceFile.getFunctions()) {
@@ -124,7 +124,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
             sourceSnippet: sourceSnippet(sourceFile, fn.getStartLineNumber(), fn.getEndLineNumber()),
             sourceHash: sourceHash(sourceFile, fn.getStartLineNumber(), fn.getEndLineNumber()),
             projectContext: projectName,
-        });
+        }, classifyFileRole);
     }
     for (const typeAlias of sourceFile.getTypeAliases()) {
         const name = typeAlias.getName();
@@ -140,7 +140,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
             sourceSnippet: sourceSnippet(sourceFile, typeAlias.getStartLineNumber(), typeAlias.getEndLineNumber()),
             sourceHash: sourceHash(sourceFile, typeAlias.getStartLineNumber(), typeAlias.getEndLineNumber()),
             projectContext: projectName,
-        });
+        }, classifyFileRole);
     }
     for (const testCase of extractIndexedTestCases(sourceFile, projectName, relPath)) {
         addNode(nodes, knownIds, {
@@ -154,7 +154,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
             sourceSnippet: sourceSnippet(sourceFile, testCase.lineNumber, testCase.lineNumber + testCase.lineCount - 1),
             sourceHash: sourceHash(sourceFile, testCase.lineNumber, testCase.lineNumber + testCase.lineCount - 1),
             projectContext: projectName,
-        });
+        }, classifyFileRole);
     }
     for (const enumDecl of sourceFile.getEnums()) {
         const name = enumDecl.getName();
@@ -170,7 +170,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds)
             sourceSnippet: sourceSnippet(sourceFile, enumDecl.getStartLineNumber(), enumDecl.getEndLineNumber()),
             sourceHash: sourceHash(sourceFile, enumDecl.getStartLineNumber(), enumDecl.getEndLineNumber()),
             projectContext: projectName,
-        });
+        }, classifyFileRole);
     }
 }
 export function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds, methodIndex) {

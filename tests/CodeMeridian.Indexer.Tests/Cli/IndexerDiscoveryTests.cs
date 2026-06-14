@@ -67,6 +67,29 @@ public sealed class IndexerDiscoveryTests : IDisposable
     }
 
     [Fact]
+    public void ContainsFile_SkipsMeridianCacheDirectories()
+    {
+        var meridianCache = Directory.CreateDirectory(Path.Combine(_root, ".meridian", "cache"));
+        File.WriteAllText(Path.Combine(meridianCache.FullName, "index.ts"), "export const ignored = true;");
+
+        var result = _service.ContainsFile(new DirectoryInfo(_root), ".ts");
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ContainsFile_SkipsGeneratedCSharpFiles()
+    {
+        File.WriteAllText(Path.Combine(_root, "Generated.g.cs"), "class Generated {}");
+        File.WriteAllText(Path.Combine(_root, "Feature.generated.cs"), "class GeneratedPartial {}");
+        File.WriteAllText(Path.Combine(_root, "AssemblyInfo.cs"), "class AssemblyInfo {}");
+
+        var result = _service.ContainsFile(new DirectoryInfo(_root), ".cs");
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
     public void FindTypeScriptRoots_ReturnsNearestTsconfigRoots()
     {
         var app = Directory.CreateDirectory(Path.Combine(_root, "apps", "web"));

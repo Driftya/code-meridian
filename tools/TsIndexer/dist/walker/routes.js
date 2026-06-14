@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { SyntaxKind } from 'ts-morph';
 import { addNode, fileId, nodeId, resolveStringLiteralValue } from './common.js';
-export function collectRouteNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
+export function collectRouteNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole) {
     const routes = extractHttpRouteCalls(sourceFile, rootPath, projectName, knownIds);
     for (const route of routes) {
         addNode(nodes, knownIds, {
@@ -10,7 +10,7 @@ export function collectRouteNodes(sourceFile, rootPath, projectName, nodes, know
             type: 'ApiEndpoint',
             summary: `Route endpoint (${route.source}) for \`${route.method} ${route.routeTemplate}\``,
             projectContext: projectName,
-        });
+        }, classifyFileRole);
     }
 }
 export function collectRouteEdges(sourceFile, rootPath, projectName, edges, knownIds) {

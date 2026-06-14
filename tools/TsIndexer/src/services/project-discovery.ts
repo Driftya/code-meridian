@@ -1,6 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+const ignoredDirectoryNames = new Set([
+  '.git',
+  '.vs',
+  '.vscode',
+  '.meridian',
+  'bin',
+  'obj',
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+]);
+
 export function readFilesList(filePath: string): string[] {
   return fs
     .readFileSync(path.resolve(filePath), 'utf8')
@@ -47,6 +60,10 @@ export function containsFile(rootPath: string, ...extensions: string[]): boolean
   );
 }
 
+export function discoverTypeScriptFiles(rootPath: string): string[] {
+  return enumerateFiles(rootPath).filter(isTypeScriptSourceFile);
+}
+
 export function findTypeScriptRoots(rootPath: string): string[] {
   const directories = enumerateDirectories(rootPath);
   const roots = directories.filter(directory =>
@@ -82,22 +99,26 @@ export function isDocumentationFile(filePath: string): boolean {
     name === 'agents.md';
 }
 
+export function buildTypeScriptSourceFileGlobs(rootPath: string): string[] {
+  const normalizedRoot = rootPath.replace(/\\/g, '/');
+  return [
+    path.join(normalizedRoot, '**/*.ts').replace(/\\/g, '/'),
+    path.join(normalizedRoot, '**/*.tsx').replace(/\\/g, '/'),
+    ...Array.from(ignoredDirectoryNames, directoryName =>
+      `!${path.join(normalizedRoot, `**/${directoryName}/**`).replace(/\\/g, '/')}`),
+    `!${path.join(normalizedRoot, '**/*.d.ts').replace(/\\/g, '/')}`,
+  ];
+}
+
+export function isIgnoredDirectoryName(name: string): boolean {
+  return ignoredDirectoryNames.has(name.toLowerCase());
+}
+
 export function isIgnoredPath(rootPath: string, filePath: string): boolean {
   const relPath = path.relative(rootPath, filePath).replace(/\\/g, '/');
   const segments = relPath.split('/').filter(segment => segment.length > 0);
 
-  return segments.some(segment => [
-    '.git',
-    '.vs',
-    '.vscode',
-    '.meridian',
-    'bin',
-    'obj',
-    'node_modules',
-    'dist',
-    'build',
-    'coverage',
-  ].includes(segment.toLowerCase()));
+  return segments.some(isIgnoredDirectoryName);
 }
 
 export function resolveProjectName(dir: string): string {

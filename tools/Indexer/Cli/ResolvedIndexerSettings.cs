@@ -1,4 +1,5 @@
 using CodeMeridian.Tooling.Storage;
+using CodeMeridian.Tooling.Configuration;
 
 namespace CodeMeridian.Indexer.Cli.Commands;
 
@@ -18,6 +19,7 @@ internal sealed class ResolvedIndexerSettings
     public bool SkipTypeScript { get; init; }
     public bool SkipConfiguration { get; init; }
     public IReadOnlyList<string>? ConfigurationFiles { get; init; }
+    public CodeMeridianFileRolePatternSnapshot? FileRoles { get; init; }
     public bool SkipDiagnostics { get; init; }
     public bool AllowRepoScripts { get; init; }
     public bool Incremental { get; init; } = true;

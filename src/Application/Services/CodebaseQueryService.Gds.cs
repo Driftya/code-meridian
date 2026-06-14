@@ -218,6 +218,12 @@ public partial class CodebaseQueryService
             excludeTests,
             limit: 20,
             cancellationToken);
+        results = results
+            .Where(candidate =>
+                AllowsProfile(candidate.Source, AnalysisProfile.DuplicateDetection) &&
+                AllowsProfile(candidate.Candidate, AnalysisProfile.DuplicateDetection) &&
+                (!excludeTests || (ResolveFileRole(candidate.Source) != IndexedFileRole.Test && ResolveFileRole(candidate.Candidate) != IndexedFileRole.Test)))
+            .ToArray();
 
         if (results.Count == 0)
         {

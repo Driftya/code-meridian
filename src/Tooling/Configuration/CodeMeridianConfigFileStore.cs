@@ -173,6 +173,7 @@ public sealed class CodeMeridianConfigFileStore
                 options.AllowRepoScripts,
                 options.UseGlobalCache,
                 NormalizePatterns(options.ConfigurationFiles),
+                NormalizeFileRolePatterns(options.Indexing?.FileRoles),
                 ReadVersion(root));
         }
         catch
@@ -246,6 +247,21 @@ public sealed class CodeMeridianConfigFileStore
             .ToArray();
 
         return normalized.Length == 0 ? null : normalized;
+    }
+
+    private static CodeMeridianFileRolePatternSnapshot? NormalizeFileRolePatterns(CodeMeridianFileRoleOptions? options)
+    {
+        if (options is null)
+            return null;
+
+        return new CodeMeridianFileRolePatternSnapshot(
+            NormalizePatterns(options.Test),
+            NormalizePatterns(options.Migration),
+            NormalizePatterns(options.Snapshot),
+            NormalizePatterns(options.Generated),
+            NormalizePatterns(options.BuildArtifact),
+            NormalizePatterns(options.Documentation),
+            NormalizePatterns(options.Configuration));
     }
 
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };

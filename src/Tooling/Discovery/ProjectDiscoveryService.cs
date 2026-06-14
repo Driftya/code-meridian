@@ -17,6 +17,9 @@ public sealed class ProjectDiscoveryService : IProjectDiscoveryService
 
             foreach (var file in SafeEnumerateFiles(current))
             {
+                if (IndexingExclusionPolicy.IsIgnoredPath(root, file))
+                    continue;
+
                 if (extensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase)
                     && !file.Name.EndsWith(".d.ts", StringComparison.OrdinalIgnoreCase))
                 {
@@ -96,10 +99,7 @@ public sealed class ProjectDiscoveryService : IProjectDiscoveryService
     }
 
     private static bool ShouldSkipDirectory(DirectoryInfo directory)
-    {
-        var name = directory.Name;
-        return name is ".git" or ".vs" or ".vscode" or "bin" or "obj" or "node_modules" or "dist" or "build" or "coverage";
-    }
+        => IndexingExclusionPolicy.IsIgnoredDirectoryName(directory.Name);
 
     private static IEnumerable<DirectoryInfo> EnumerateDirectoriesDepthFirst(DirectoryInfo root)
     {

@@ -27,7 +27,13 @@ public sealed class IndexerConfigTests : IDisposable
               "codeMeridianUrl": "http://localhost:5100",
               "allowRepoScripts": true,
               "useGlobalCache": true,
-              "configurationFiles": [".env", "appsettings.*.json"]
+              "configurationFiles": [".env", "appsettings.*.json"],
+              "indexing": {
+                "fileRoles": {
+                  "generated": ["**/*.g.cs"],
+                  "test": ["**/*.spec.ts"]
+                }
+              }
             }
             """);
 
@@ -39,6 +45,9 @@ public sealed class IndexerConfigTests : IDisposable
         result.AllowRepoScripts.Should().BeTrue();
         result.UseGlobalCache.Should().BeTrue();
         result.ConfigurationFiles.Should().BeEquivalentTo([".env", "appsettings.*.json"]);
+        result.FileRoles.Should().NotBeNull();
+        result.FileRoles!.Generated.Should().BeEquivalentTo(["**/*.g.cs"]);
+        result.FileRoles.Test.Should().BeEquivalentTo(["**/*.spec.ts"]);
         result.Version.Should().Be(0);
     }
 
@@ -121,6 +130,9 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"allowRepoScripts\": true");
         json.Should().Contain("\"useGlobalCache\": false");
         json.Should().Contain("\"analysis\"");
+        json.Should().Contain("\"indexing\"");
+        json.Should().Contain("\"fileRoles\"");
+        json.Should().Contain("\"buildArtifact\"");
         json.Should().Contain("\"skipHeuristicSourcePrefixes\"");
         json.Should().Contain("\"preferProductionOverTests\": true");
         json.Should().Contain("\"DependencyInjection\"");
@@ -212,6 +224,7 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"DependencyInjection\"");
         json.Should().Contain("\"allowRepoScripts\": true");
         json.Should().Contain("\"skipHeuristicSourcePrefixes\"");
+        json.Should().Contain("\"fileRoles\"");
         json.Should().Contain("\"meridian.sample.json\"");
         json.Should().Contain("\".env\"");
         json.Should().Contain("\"appsettings.json\"");

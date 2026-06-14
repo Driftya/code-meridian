@@ -15,8 +15,16 @@ export function nodeId(project: string, relPath: string, name: string, type: str
   return `${project}:${type}:${sanitize(relPath)}:${name}`;
 }
 
-export function addNode(nodes: CodeNodeDto[], knownIds: Set<string>, node: CodeNodeDto): void {
+export function addNode(
+  nodes: CodeNodeDto[],
+  knownIds: Set<string>,
+  node: CodeNodeDto,
+  classifyFileRole?: (relativePath: string) => string,
+): void {
   if (!knownIds.has(node.id)) {
+    if (!node.fileRole && node.filePath && classifyFileRole) {
+      node.fileRole = classifyFileRole(node.filePath);
+    }
     knownIds.add(node.id);
     nodes.push(node);
   }

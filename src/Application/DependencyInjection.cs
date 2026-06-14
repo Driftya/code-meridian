@@ -19,6 +19,8 @@ public static class DependencyInjection
         {
             services.Configure<CodebaseAnalysisOptions>(configuration.GetSection("analysis"));
             services.Configure<CodebaseAnalysisOptions>(configuration.GetSection("CodeMeridian:Analysis"));
+            services.Configure<CodebaseIndexingOptions>(configuration.GetSection("indexing"));
+            services.Configure<CodebaseIndexingOptions>(configuration.GetSection("CodeMeridian:Indexing"));
             services.Configure<KeywordEnrichmentOptions>(configuration.GetSection(KeywordEnrichmentOptions.SectionName));
             services.Configure<KeywordEnrichmentOptions>(configuration.GetSection($"CodeMeridian:{KeywordEnrichmentOptions.SectionName}"));
             services.Configure<KeywordClassificationOptions>(configuration.GetSection(KeywordClassificationOptions.SectionName));
@@ -27,11 +29,14 @@ public static class DependencyInjection
         else
         {
             services.AddOptions<CodebaseAnalysisOptions>();
+            services.AddOptions<CodebaseIndexingOptions>();
             services.AddOptions<KeywordEnrichmentOptions>();
             services.AddOptions<KeywordClassificationOptions>();
         }
 
         services.AddSingleton<IExtensionRegistry, ExtensionRegistry>();
+        services.AddSingleton<IIndexedFileRoleClassifier, ConfiguredIndexedFileRoleClassifier>();
+        services.AddSingleton<IAnalysisProfilePolicy, DefaultAnalysisProfilePolicy>();
         services.AddTransient<ICodebaseQueryService, CodebaseQueryService>();
         services.AddTransient<ICodebaseStatusService, CodebaseStatusService>();
         services.AddSingleton<IKeywordExtractionService, DefaultKeywordExtractionService>();

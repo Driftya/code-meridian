@@ -42,7 +42,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         DateTimeOffset? updatedAt = null,
         int? lineCount = null,
         string? sourceSnippet = null,
-        string? sourceHash = null) => new()
+        string? sourceHash = null,
+        IndexedFileRole fileRole = IndexedFileRole.Unknown) => new()
     {
         Id = id,
         Name = name,
@@ -54,7 +55,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         SourceHash = sourceHash,
         ProjectContext = project,
         CreatedAt = createdAt,
-        UpdatedAt = updatedAt
+        UpdatedAt = updatedAt,
+        FileRole = fileRole
     };
 
     // ── FindImpactAsync ───────────────────────────────────────────────────────
@@ -605,6 +607,25 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("MediumSvc");
         result.Should().Contain("Critical");
         result.Should().Contain("Medium");
+    }
+
+    [Fact]
+    public async Task FindGodClassesAsync_FiltersTestsAndMigrationsByDefault()
+    {
+        var (sut, graph) = Build();
+
+        graph.FindGodClassesAsync(null, Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+             .Returns([
+                 (Node("source", "OrderService", CodeNodeType.Class, "src/OrderService.cs", lineCount: 420, fileRole: IndexedFileRole.Source), 420, 6),
+                 (Node("test", "OrderServiceTests", CodeNodeType.Class, "tests/OrderServiceTests.cs", lineCount: 600, fileRole: IndexedFileRole.Test), 600, 10),
+                 (Node("migration", "CreateUsers", CodeNodeType.Class, "src/Migrations/CreateUsers.cs", lineCount: 700, fileRole: IndexedFileRole.Migration), 700, 12)
+             ]);
+
+        var result = await sut.FindGodClassesAsync();
+
+        result.Should().Contain("OrderService");
+        result.Should().NotContain("OrderServiceTests");
+        result.Should().NotContain("CreateUsers");
     }
 
     // ── Factory helpers for line-count nodes ──────────────────────────────────
@@ -1201,6 +1222,39 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("### Near downstream (1)");
         result.Should().Contain("POST /api/orders");
         result.Should().Contain("1 cross-project edges");
+    }
+
+    [Fact]
+    public async Task BuildMinimalContextAsync_ExcludesGeneratedAndMigrationNodesFromAgentContext()
+    {
+        var (sut, graph) = Build();
+        var target = Node("target", "OrderService.PlaceOrder", CodeNodeType.Method, "src/OrderService.cs", 10, "Shop", lineCount: 20, fileRole: IndexedFileRole.Source);
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(
+                 target,
+                 [
+                     Node("caller", "OrdersController.Post", CodeNodeType.Method, "src/OrdersController.cs", fileRole: IndexedFileRole.Source),
+                     Node("generated", "GeneratedClient.Send", CodeNodeType.Method, "src/Generated/Client.g.cs", fileRole: IndexedFileRole.Generated)
+                 ],
+                 [
+                     Node("migration", "CreateUsers.Up", CodeNodeType.Method, "src/Migrations/CreateUsers.cs", fileRole: IndexedFileRole.Migration)
+                 ],
+                 []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+
+        var result = await sut.BuildMinimalContextAsync(target.Id);
+
+        result.Should().Contain("OrdersController.Post");
+        result.Should().NotContain("GeneratedClient.Send");
+        result.Should().NotContain("CreateUsers.Up");
     }
 
     [Fact]

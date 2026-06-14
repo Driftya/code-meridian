@@ -15,11 +15,18 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
     private readonly ICodeGraphRepository codeGraph;
     private readonly IVectorRepository vectorStore;
     private readonly CodebaseAnalysisOptions analysisOptions;
+    private readonly IIndexedFileRoleClassifier fileRoleClassifier;
+    private readonly IAnalysisProfilePolicy analysisProfilePolicy;
 
     public CodebaseQueryService(
         ICodeGraphRepository codeGraph,
         IVectorRepository vectorStore)
-        : this(codeGraph, vectorStore, Options.Create(new CodebaseAnalysisOptions()))
+        : this(
+            codeGraph,
+            vectorStore,
+            Options.Create(new CodebaseAnalysisOptions()),
+            Options.Create(new CodebaseIndexingOptions()),
+            new DefaultAnalysisProfilePolicy())
     {
     }
 
@@ -27,10 +34,27 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         ICodeGraphRepository codeGraph,
         IVectorRepository vectorStore,
         IOptions<CodebaseAnalysisOptions> analysisOptions)
+        : this(
+            codeGraph,
+            vectorStore,
+            analysisOptions,
+            Options.Create(new CodebaseIndexingOptions()),
+            new DefaultAnalysisProfilePolicy())
+    {
+    }
+
+    public CodebaseQueryService(
+        ICodeGraphRepository codeGraph,
+        IVectorRepository vectorStore,
+        IOptions<CodebaseAnalysisOptions> analysisOptions,
+        IOptions<CodebaseIndexingOptions> indexingOptions,
+        IAnalysisProfilePolicy analysisProfilePolicy)
     {
         this.codeGraph = codeGraph;
         this.vectorStore = vectorStore;
         this.analysisOptions = analysisOptions.Value;
+        fileRoleClassifier = new ConfiguredIndexedFileRoleClassifier(indexingOptions);
+        this.analysisProfilePolicy = analysisProfilePolicy;
     }
 
     public async Task<string> QueryStructureAsync(

@@ -63,6 +63,8 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             await (await tx.RunAsync(
                 "CREATE INDEX codenode_filepath_normalized IF NOT EXISTS FOR (n:CodeNode) ON (n.filePathNormalized)")).ConsumeAsync();
             await (await tx.RunAsync(
+                "CREATE INDEX codenode_filerole IF NOT EXISTS FOR (n:CodeNode) ON (n.fileRole)")).ConsumeAsync();
+            await (await tx.RunAsync(
                 "CREATE TEXT INDEX codenode_filepath_normalized_text IF NOT EXISTS FOR (n:CodeNode) ON (n.filePathNormalized)")).ConsumeAsync();
             await (await tx.RunAsync(
                 "CREATE FULLTEXT INDEX codenode_fulltext IF NOT EXISTS FOR (n:CodeNode) ON EACH [n.name, n.summary]")).ConsumeAsync();
@@ -270,6 +272,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 n.summary        = $summary,
                 n.sourceSnippet  = $sourceSnippet,
                 n.sourceHash     = $sourceHash,
+                n.fileRole       = $fileRole,
                 n.projectContext = $projectContext,
                 n.projectContextNormalized = $projectContextNormalized,
                 n.lastIndexedAt  = $now,
@@ -297,6 +300,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 summary = node.Summary,
                 sourceSnippet = node.SourceSnippet,
                 sourceHash = node.SourceHash,
+                fileRole = node.FileRole.ToString(),
                 projectContext = node.ProjectContext,
                 projectContextNormalized = Normalize(node.ProjectContext),
                 properties = node.Properties,
@@ -643,6 +647,9 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             Summary = props.TryGetValue("summary", out var sum) ? sum?.As<string>() : null,
             SourceSnippet = props.TryGetValue("sourceSnippet", out var ss) ? ss?.As<string>() : null,
             ProjectContext = props.TryGetValue("projectContext", out var pc) ? pc?.As<string>() : null,
+            FileRole = props.TryGetValue("fileRole", out var fr) && Enum.TryParse<IndexedFileRole>(fr?.As<string>(), true, out var fileRole)
+                ? fileRole
+                : IndexedFileRole.Unknown,
             SourceHash = props.TryGetValue("sourceHash", out var sh) ? sh?.As<string>() : null,
             Properties = ReadProperties(props, NodeReservedPropertyNames),
             ChangeCount = props.TryGetValue("changeCount", out var cc) ? cc?.As<int?>() : null,
@@ -699,7 +706,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
     private static readonly HashSet<string> NodeReservedPropertyNames =
     [
         "id", "name", "nameNormalized", "type", "namespace", "namespaceNormalized", "filePath", "filePathNormalized",
-        "lineNumber", "lineCount", "summary", "sourceSnippet", "sourceHash", "projectContext",
+        "lineNumber", "lineCount", "summary", "sourceSnippet", "sourceHash", "fileRole", "projectContext",
         "projectContextNormalized", "createdAt", "updatedAt", "lastIndexedAt", "changeCount", "embedding"
     ];
 

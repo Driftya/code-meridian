@@ -3,13 +3,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  buildTypeScriptSourceFileGlobs,
   containsFile,
+  discoverTypeScriptFiles,
   findTypeScriptRoots,
   isDocumentationFile,
   isIgnoredPath,
   isTypeScriptSourceFile,
   resolveProjectName,
 } from '../src/services/project-discovery.js';
+import { loadIndexedFileRoleClassifier } from '../src/services/file-roles.js';
 
 let rootPath: string;
 
@@ -35,6 +38,7 @@ describe('project discovery', () => {
 
     const ignoredPath = path.join(rootPath, 'node_modules', 'left-pad', 'index.ts');
     expect(isIgnoredPath(rootPath, ignoredPath)).toBe(true);
+    expect(isIgnoredPath(rootPath, path.join(rootPath, '.meridian', 'cache', 'state.ts'))).toBe(true);
   });
 
   it('detects documentation files', () => {
@@ -57,6 +61,41 @@ describe('project discovery', () => {
     writeFile('src/types.d.ts', 'export interface User {}');
 
     expect(containsFile(rootPath, '.ts')).toBe(true);
+  });
+
+  it('discovers source files without ignored directories or declaration files', () => {
+    writeFile('src/index.ts', 'export const app = true;');
+    writeFile('src/types.d.ts', 'export interface User {}');
+    writeFile('node_modules/pkg/index.ts', 'export const ignored = true;');
+    writeFile('.meridian/cache/state.ts', 'export const ignored = true;');
+
+    expect(discoverTypeScriptFiles(rootPath).map(file => path.relative(rootPath, file).replace(/\\/g, '/')))
+      .toEqual(['src/index.ts']);
+  });
+
+  it('builds ts-morph glob patterns from the shared ignored-directory policy', () => {
+    expect(buildTypeScriptSourceFileGlobs(rootPath)).toContain(`!${path.join(rootPath, '**/.meridian/**').replace(/\\/g, '/')}`);
+    expect(buildTypeScriptSourceFileGlobs(rootPath)).toContain(`!${path.join(rootPath, '**/node_modules/**').replace(/\\/g, '/')}`);
+    expect(buildTypeScriptSourceFileGlobs(rootPath)).toContain(`!${path.join(rootPath, '**/*.d.ts').replace(/\\/g, '/')}`);
+  });
+
+  it('classifies indexed file roles from meridian defaults and overrides', () => {
+    writeFile('meridian.json', JSON.stringify({
+      indexing: {
+        fileRoles: {
+          generated: ['**/*.gen.ts'],
+        },
+      },
+    }));
+
+    const classify = loadIndexedFileRoleClassifier(rootPath);
+
+    expect(classify('tests/app/order.spec.ts')).toBe('Test');
+    expect(classify('src/Migrations/CreateUsers.cs')).toBe('Migration');
+    expect(classify('src/Generated/Client.gen.ts')).toBe('Generated');
+    expect(classify('docs/features.md')).toBe('Documentation');
+    expect(classify('appsettings.Development.json')).toBe('Configuration');
+    expect(classify('src/app/service.ts')).toBe('Source');
   });
 });
 

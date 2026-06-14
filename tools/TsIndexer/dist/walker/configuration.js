@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { SyntaxKind } from 'ts-morph';
 import { addNode, fileId, nodeId } from './common.js';
-export function collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, knownIds) {
+export function collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole) {
     const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
     for (const usage of findConfigurationUsages(sourceFile)) {
         const canonicalKey = normalizeConfigurationKey(usage.rawKey);
@@ -15,7 +15,7 @@ export function collectConfigurationNodes(sourceFile, rootPath, projectName, nod
                 normalizedKey: canonicalKey.toLowerCase(),
                 isSecretLike: isSecretLike(canonicalKey) ? 'true' : 'false',
             },
-        });
+        }, classifyFileRole);
     }
 }
 export function collectConfigurationEdges(sourceFile, rootPath, projectName, edges) {

@@ -10,8 +10,11 @@ export function fileId(project, relPath) {
 export function nodeId(project, relPath, name, type) {
     return `${project}:${type}:${sanitize(relPath)}:${name}`;
 }
-export function addNode(nodes, knownIds, node) {
+export function addNode(nodes, knownIds, node, classifyFileRole) {
     if (!knownIds.has(node.id)) {
+        if (!node.fileRole && node.filePath && classifyFileRole) {
+            node.fileRole = classifyFileRole(node.filePath);
+        }
         knownIds.add(node.id);
         nodes.push(node);
     }

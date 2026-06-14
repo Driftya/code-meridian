@@ -167,12 +167,13 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         var results = await codeGraph.FindCoverageGapsAsync(projectContext, cancellationToken);
+        var filteredResults = FilterNodesByProfile(results, AnalysisProfile.CoverageGaps);
 
-        if (results.Count == 0)
+        if (filteredResults.Count == 0)
             return $"No coverage gaps found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
                    "All production classes and methods appear to be called from test namespaces.";
 
-        var rankedResults = RankNodesForDisplay(results).ToArray();
+        var rankedResults = RankNodesForDisplay(filteredResults).ToArray();
         var grouped = rankedResults.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString()).ToArray();
 
         if (detailLevel == ContextDetailLevel.Summary)
@@ -220,7 +221,7 @@ public partial class CodebaseQueryService
         var pathNodes = new[] { ctx.Node }
             .Concat(ctx.Callers)
             .Concat(impact.Select(i => i.Node))
-            .Where(node => !IsConfiguredTestNode(node))
+            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && !IsConfiguredTestNode(node))
             .DistinctBy(node => node.Id)
             .Take(Math.Clamp(limit * 2, 10, 100))
             .ToArray();
@@ -228,6 +229,7 @@ public partial class CodebaseQueryService
         var directShield = directAndHeuristicTargetTests
             .Where(match => match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
             .Select(match => match.Node)
+            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield))
             .DistinctBy(node => node.Id)
             .Take(Math.Clamp(limit, 1, 50))
             .ToArray();
@@ -235,6 +237,9 @@ public partial class CodebaseQueryService
         var indirectShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
         foreach (var match in directAndHeuristicTargetTests.Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase)))
         {
+            if (!AllowsProfile(match.Node, AnalysisProfile.TestShield))
+                continue;
+
             indirectShield[match.Node.Id] = new ShieldEntry(
                 match.Node,
                 $"heuristic match for target `{ctx.Node.Name}`",
@@ -252,6 +257,9 @@ public partial class CodebaseQueryService
             var hasShield = false;
             foreach (var match in relatedTests)
             {
+                if (!AllowsProfile(match.Node, AnalysisProfile.TestShield))
+                    continue;
+
                 hasShield = true;
                 if (pathNode.Id == ctx.Node.Id && match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
                     continue;
@@ -367,22 +375,23 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         var results = await codeGraph.FindLargeNodesAsync(projectContext, classThreshold, methodThreshold, cancellationToken);
+        var filteredResults = FilterNodesByProfile(results, AnalysisProfile.DesignSmells);
 
-        if (results.Count == 0)
+        if (filteredResults.Count == 0)
             return $"No large classes (>{classThreshold} lines) or methods (>{methodThreshold} lines) found" +
                    $"{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
                    "Re-index with an up-to-date indexer to populate line counts.";
 
-        var grouped = results.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString()).ToArray();
+        var grouped = filteredResults.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString()).ToArray();
 
         if (detailLevel == ContextDetailLevel.Summary)
             return $"Large node summary{(projectContext is not null ? $" for '{projectContext}'" : "")}: " +
                    string.Join(", ", grouped.Select(g => $"{g.Count()} {g.Key}")) +
-                   $". Largest element: `{results.OrderByDescending(n => n.LineCount).First().Name}`.";
+                   $". Largest element: `{filteredResults.OrderByDescending(n => n.LineCount).First().Name}`.";
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Large Node Analysis{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{results.Count}** oversized elements (classes >{classThreshold} lines, methods >{methodThreshold} lines):\n");
+        sb.AppendLine($"**{filteredResults.Count}** oversized elements (classes >{classThreshold} lines, methods >{methodThreshold} lines):\n");
 
         foreach (var group in grouped)
         {
@@ -499,15 +508,18 @@ public partial class CodebaseQueryService
 
         var relatedCoverageGaps = coverageGaps
             .Where(n => SameFile(n, ctx.Node) || SameNamespace(n, ctx.Node) || n.Id == ctx.Node.Id)
+            .Where(node => AllowsProfile(node, AnalysisProfile.CoverageGaps))
             .Take(10)
             .ToArray();
         var directRelatedTests = relatedTests
             .Where(match => match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
             .Select(match => match.Node)
+            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield))
             .ToArray();
         var heuristicRelatedTests = relatedTests
             .Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
             .Select(match => match.Node)
+            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield))
             .Where(node => SameFile(node, ctx.Node) || SameNamespace(node, ctx.Node) || FileNameLooksRelated(node, ctx.Node) || NameLooksRelated(node.Name, ctx.Node.Name))
             .Take(10)
             .ToArray();
@@ -520,6 +532,7 @@ public partial class CodebaseQueryService
             .Concat(downstream.Select(d => d.Node))
             .Concat(directRelatedTests)
             .Concat(heuristicRelatedTests)
+            .Where(node => AllowsProfile(node, AnalysisProfile.AgentContext))
             .Select(n => n.FilePath)
             .Where(f => !string.IsNullOrWhiteSpace(f))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -534,6 +547,11 @@ public partial class CodebaseQueryService
             directRelatedTests.Length + heuristicRelatedTests.Length,
             candidateFiles.Length,
             includeSourceSnippets);
+        var filteredCallers = FilterNodesByProfile(ctx.Callers, AnalysisProfile.AgentContext);
+        var filteredCallees = FilterNodesByProfile(ctx.Callees, AnalysisProfile.AgentContext);
+        var filteredInterfaces = FilterNodesByProfile(ctx.Interfaces, AnalysisProfile.AgentContext);
+        var filteredImpact = FilterNodePairsByProfile(impact, AnalysisProfile.AgentContext);
+        var filteredDownstream = FilterNodePairsByProfile(downstream, AnalysisProfile.AgentContext);
         var sb = new StringBuilder();
         var snippetBudget = includeSourceSnippets
             ? Math.Max(0, maxTokens - contextCost.EstimatedTokens + contextCost.SourceSnippetTokens)
@@ -544,6 +562,7 @@ public partial class CodebaseQueryService
                     .Concat(ctx.Callees)
                     .Concat(ctx.Interfaces)
                     .Concat(directRelatedTests)
+                    .Where(node => AllowsProfile(node, AnalysisProfile.AgentContext))
                     .DistinctBy(n => n.Id)
                     .Take(detailLevel == ContextDetailLevel.Full ? 5 : 3),
                 snippetBudget,
@@ -562,11 +581,11 @@ public partial class CodebaseQueryService
             sb.AppendLine($"**Summary:** {ctx.Node.Summary}");
         sb.AppendLine();
 
-        AppendNodeList(sb, "Direct callers", ctx.Callers, detailLevel, "who will be affected by signature or behavior changes");
-        AppendNodeList(sb, "Direct callees", ctx.Callees, detailLevel, "dependencies this target relies on");
-        AppendNodeList(sb, "Interfaces", ctx.Interfaces, detailLevel, "contracts related to this target");
-        AppendDistanceList(sb, "Near impact", impact, detailLevel, "transitive callers within 2 hops");
-        AppendDistanceList(sb, "Near downstream", downstream, detailLevel, "dependencies within 2 hops");
+        AppendNodeList(sb, "Direct callers", filteredCallers, detailLevel, "who will be affected by signature or behavior changes");
+        AppendNodeList(sb, "Direct callees", filteredCallees, detailLevel, "dependencies this target relies on");
+        AppendNodeList(sb, "Interfaces", filteredInterfaces, detailLevel, "contracts related to this target");
+        AppendDistanceList(sb, "Near impact", filteredImpact, detailLevel, "transitive callers within 2 hops");
+        AppendDistanceList(sb, "Near downstream", filteredDownstream, detailLevel, "dependencies within 2 hops");
 
         if (includeTests)
         {

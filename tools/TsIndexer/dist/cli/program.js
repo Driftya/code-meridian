@@ -14,6 +14,7 @@ export async function parseCommandLine(argv) {
         .option('--project <name>', 'Short identifier for this project in the graph.')
         .option('--url <url>', 'CodeMeridian server URL.')
         .option('--clear', 'Wipe this project\'s existing data before indexing.')
+        .option('--full', 'Force a full TypeScript reindex without using the incremental cache.')
         .option('--no-docs', 'Skip documentation ingestion.')
         .option('--watch', 'Stay running and re-index when .ts, .tsx or .md files change.')
         .option('--files-list <path>', 'Index only files listed in a newline-delimited text file.')
@@ -26,6 +27,7 @@ export async function parseCommandLine(argv) {
         project: parsed.project,
         url: parsed.url,
         clear: parsed.clear ?? false,
+        forceFull: parsed.full ?? false,
         includeDocs: parsed.docs ?? true,
         watch: parsed.watch ?? false,
         filesList: parsed.filesList,
@@ -60,6 +62,7 @@ function resolveOptions(options) {
         serverUrl,
         apiKey: normalizeOptionalString(process.env.CodeMeridian_Auth_ApiKey),
         clear: options.clear,
+        forceFull: options.forceFull,
         includeDocs: options.includeDocs,
         watch: options.watch,
         filesListPath: options.filesList ? path.resolve(options.filesList) : undefined,

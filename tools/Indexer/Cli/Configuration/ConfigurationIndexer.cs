@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
+using CodeMeridian.Application.Services;
 using CodeMeridian.Sdk;
 
 namespace CodeMeridian.Indexer.Cli.Configuration;
@@ -12,6 +13,7 @@ internal sealed class ConfigurationIndexer
         string project,
         string codeMeridianUrl,
         string? apiKey,
+        IIndexedFileRoleClassifier fileRoleClassifier,
         IReadOnlyList<string>? configurationFilePatterns,
         bool clearExistingConfiguration,
         IReadOnlyCollection<string>? changedFiles = null,
@@ -58,7 +60,7 @@ internal sealed class ConfigurationIndexer
                 continue;
             }
 
-            await IngestFileAsync(client, project, file, rootPath, entries, seenCanonicalKeys, cancellationToken);
+            await IngestFileAsync(client, project, file, rootPath, entries, seenCanonicalKeys, fileRoleClassifier, cancellationToken);
         }
 
         return 0;
@@ -71,6 +73,7 @@ internal sealed class ConfigurationIndexer
         DirectoryInfo rootPath,
         IReadOnlyList<ConfigurationEntryRecord> entries,
         HashSet<string> seenCanonicalKeys,
+        IIndexedFileRoleClassifier fileRoleClassifier,
         CancellationToken cancellationToken)
     {
         var relativePath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
@@ -81,10 +84,12 @@ internal sealed class ConfigurationIndexer
             file.Name,
             "ConfigurationFile",
             filePath: relativePath,
+            fileRole: fileRoleClassifier.Classify(relativePath).ToString(),
             projectContext: project,
             sourceHash: Hash(File.ReadAllText(file.FullName)),
             properties: new Dictionary<string, string>(StringComparer.Ordinal)
             {
+                ["fileRole"] = fileRoleClassifier.Classify(relativePath).ToString(),
                 ["format"] = file.Extension.TrimStart('.').ToLowerInvariant(),
                 ["sourceKind"] = "configuration-file"
             },
@@ -113,9 +118,11 @@ internal sealed class ConfigurationIndexer
                 entry.RawKey,
                 "ConfigurationEntry",
                 filePath: relativePath,
+                fileRole: fileRoleClassifier.Classify(relativePath).ToString(),
                 projectContext: project,
                 properties: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
+                    ["fileRole"] = fileRoleClassifier.Classify(relativePath).ToString(),
                     ["canonicalKey"] = entry.CanonicalKey,
                     ["rawKey"] = entry.RawKey,
                     ["rawValuePreview"] = entry.ValuePreview,

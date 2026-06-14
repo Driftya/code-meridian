@@ -92,6 +92,7 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         string? summary = null,
         string? sourceSnippet = null,
         string? sourceHash = null,
+        string? fileRole = null,
         string? projectContext = null,
         Dictionary<string, string>? properties = null,
         string? embeddingCsv = null,
@@ -111,6 +112,7 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
                 Summary = summary,
                 SourceSnippet = sourceSnippet,
                 SourceHash = sourceHash,
+                FileRole = fileRole,
                 ProjectContext = projectContext,
                 Properties = properties,
                 EmbeddingCsv = embeddingCsv

@@ -1,5 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
+const ignoredDirectoryNames = new Set([
+    '.git',
+    '.vs',
+    '.vscode',
+    '.meridian',
+    'bin',
+    'obj',
+    'node_modules',
+    'dist',
+    'build',
+    'coverage',
+]);
 export function readFilesList(filePath) {
     return fs
         .readFileSync(path.resolve(filePath), 'utf8')
@@ -38,6 +50,9 @@ export function enumerateFiles(rootPath) {
 export function containsFile(rootPath, ...extensions) {
     return enumerateFiles(rootPath).some(file => extensions.includes(path.extname(file).toLowerCase()) && isTypeScriptSourceFile(file));
 }
+export function discoverTypeScriptFiles(rootPath) {
+    return enumerateFiles(rootPath).filter(isTypeScriptSourceFile);
+}
 export function findTypeScriptRoots(rootPath) {
     const directories = enumerateDirectories(rootPath);
     const roots = directories.filter(directory => fs.existsSync(path.join(directory, 'tsconfig.json')) && containsFile(directory, '.ts', '.tsx'));
@@ -63,21 +78,22 @@ export function isDocumentationFile(filePath) {
         name === 'changelog.md' ||
         name === 'agents.md';
 }
+export function buildTypeScriptSourceFileGlobs(rootPath) {
+    const normalizedRoot = rootPath.replace(/\\/g, '/');
+    return [
+        path.join(normalizedRoot, '**/*.ts').replace(/\\/g, '/'),
+        path.join(normalizedRoot, '**/*.tsx').replace(/\\/g, '/'),
+        ...Array.from(ignoredDirectoryNames, directoryName => `!${path.join(normalizedRoot, `**/${directoryName}/**`).replace(/\\/g, '/')}`),
+        `!${path.join(normalizedRoot, '**/*.d.ts').replace(/\\/g, '/')}`,
+    ];
+}
+export function isIgnoredDirectoryName(name) {
+    return ignoredDirectoryNames.has(name.toLowerCase());
+}
 export function isIgnoredPath(rootPath, filePath) {
     const relPath = path.relative(rootPath, filePath).replace(/\\/g, '/');
     const segments = relPath.split('/').filter(segment => segment.length > 0);
-    return segments.some(segment => [
-        '.git',
-        '.vs',
-        '.vscode',
-        '.meridian',
-        'bin',
-        'obj',
-        'node_modules',
-        'dist',
-        'build',
-        'coverage',
-    ].includes(segment.toLowerCase()));
+    return segments.some(isIgnoredDirectoryName);
 }
 export function resolveProjectName(dir) {
     const packageJsonPath = path.join(dir, 'package.json');

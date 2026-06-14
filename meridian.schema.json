@@ -40,6 +40,25 @@
       "items": { "type": "string" },
       "description": "File-name patterns used by configuration indexing. Supports '*' wildcards such as '.env', 'appsettings.*.json', or 'docker-compose*.yaml'."
     },
+    "indexing": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "fileRoles": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "test": { "type": "array", "items": { "type": "string" } },
+            "migration": { "type": "array", "items": { "type": "string" } },
+            "snapshot": { "type": "array", "items": { "type": "string" } },
+            "generated": { "type": "array", "items": { "type": "string" } },
+            "buildArtifact": { "type": "array", "items": { "type": "string" } },
+            "documentation": { "type": "array", "items": { "type": "string" } },
+            "configuration": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
     "analysis": {
       "type": "object",
       "additionalProperties": true,

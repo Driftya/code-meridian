@@ -19,6 +19,58 @@
     "*.yml",
     "*.yaml"
   ],
+  "indexing": {
+    "fileRoles": {
+      "test": [
+        "tests/**/*.cs",
+        "test/**/*.cs",
+        "**/*.Tests/**/*.cs",
+        "**/*.Test/**/*.cs",
+        "**/*Tests.cs",
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/*.test.tsx",
+        "**/*.spec.tsx"
+      ],
+      "migration": [
+        "**/Migrations/*.cs",
+        "**/Migrations/**/*.cs"
+      ],
+      "snapshot": [
+        "**/*ModelSnapshot.cs"
+      ],
+      "generated": [
+        "**/*.g.cs",
+        "**/*.generated.cs",
+        "**/*.Designer.cs",
+        "**/*.designer.cs",
+        "**/openapi.generated.ts",
+        "**/graphql.generated.ts"
+      ],
+      "buildArtifact": [
+        "**/bin/**",
+        "**/obj/**",
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/coverage/**"
+      ],
+      "documentation": [
+        "**/*.md",
+        "**/*.mdx",
+        "**/*.txt"
+      ],
+      "configuration": [
+        "**/appsettings.json",
+        "**/appsettings.*.json",
+        "**/meridian.json",
+        "**/meridian.sample.json",
+        "**/.env",
+        "**/docker-compose*.yml",
+        "**/docker-compose*.yaml"
+      ]
+    }
+  },
   "analysis": {
     "staleKnowledge": {
       "skipHeuristicSourcePrefixes": [

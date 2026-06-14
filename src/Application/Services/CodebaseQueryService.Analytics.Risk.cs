@@ -12,8 +12,9 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         var results = await codeGraph.FindGodClassesAsync(projectContext, lineThreshold: 300, fanInThreshold: 3, cancellationToken);
+        var filteredResults = results.Where(item => AllowsProfile(item.Node, AnalysisProfile.DesignSmells)).ToArray();
 
-        if (results.Count == 0)
+        if (filteredResults.Length == 0)
             return $"No god classes found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
                    "Either all classes are well-sized, or line count data is missing — re-index to populate it.";
 
@@ -23,7 +24,7 @@ public partial class CodebaseQueryService
         sb.AppendLine("| Risk | Lines | Fan-in | Name | File |");
         sb.AppendLine("|------|-------|--------|------|------|");
 
-        foreach (var (node, lineCount, fanIn) in results)
+        foreach (var (node, lineCount, fanIn) in filteredResults)
         {
             var risk = (fanIn * 10 + lineCount) switch
             {

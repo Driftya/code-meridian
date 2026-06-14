@@ -13,6 +13,8 @@ public sealed class IndexExecutionPlanBuilderTests
         workspace.WriteFile("bin/Generated.cs", "class Generated {}");
         workspace.WriteFile("obj/AssemblyInfo.cs", "class AssemblyInfo {}");
         workspace.WriteFile(".meridian/cache/state.json", "{}");
+        workspace.WriteFile("src/Foo.generated.cs", "class GeneratedPartial {}");
+        workspace.WriteFile("src/Bar.g.cs", "class GeneratedSuffix {}");
 
         var result = IndexExecutionPlanBuilder.EnumerateIndexableFiles(
             workspace.Root,

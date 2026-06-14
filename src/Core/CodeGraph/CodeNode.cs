@@ -12,6 +12,7 @@ public sealed record CodeNode
     public string? Summary { get; init; }
     public string? SourceSnippet { get; init; }
     public string? ProjectContext { get; init; }
+    public IndexedFileRole FileRole { get; init; } = IndexedFileRole.Unknown;
     public DateTimeOffset? CreatedAt { get; init; }
     public DateTimeOffset? UpdatedAt { get; init; }
     public DateTimeOffset? LastIndexedAt { get; init; }

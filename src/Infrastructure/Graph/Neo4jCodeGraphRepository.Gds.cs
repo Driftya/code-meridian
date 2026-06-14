@@ -169,7 +169,10 @@ public sealed partial class Neo4jCodeGraphRepository
     {
         await using var session = _driver.AsyncSession();
 
-        const string cypher = """
+        var sourceRole = FileRoleExpression("source");
+        var candidateRole = FileRoleExpression("candidate");
+        var testRole = FileRoleExpression("test");
+        var cypher = $@"
             MATCH (source:CodeNode)
             WHERE source.embedding IS NOT NULL
               AND source.type IN $nodeTypes
@@ -178,12 +181,13 @@ public sealed partial class Neo4jCodeGraphRepository
               AND ($namespaceFilterNormalized IS NULL OR source.namespaceNormalized CONTAINS $namespaceFilterNormalized)
               AND (
                 $excludeTests = false OR
-                (
-                  NOT coalesce(source.filePathNormalized CONTAINS 'test', false) AND
-                  NOT coalesce(source.nameNormalized CONTAINS 'test', false) AND
-                  NOT coalesce(source.namespaceNormalized CONTAINS 'test', false)
-                )
+                {sourceRole} <> 'Test'
               )
+              AND {sourceRole} IN ['Source', 'Test', 'Unknown']
+              AND {sourceRole} <> 'Migration'
+              AND {sourceRole} <> 'Snapshot'
+              AND {sourceRole} <> 'Generated'
+              AND {sourceRole} <> 'BuildArtifact'
             WITH source
             ORDER BY coalesce(source.lineCount, 0) DESC
             LIMIT $candidatePool
@@ -197,44 +201,41 @@ public sealed partial class Neo4jCodeGraphRepository
               AND ($namespaceFilterNormalized IS NULL OR candidate.namespaceNormalized CONTAINS $namespaceFilterNormalized)
               AND (
                 $excludeTests = false OR
-                (
-                  NOT coalesce(candidate.filePathNormalized CONTAINS 'test', false) AND
-                  NOT coalesce(candidate.nameNormalized CONTAINS 'test', false) AND
-                  NOT coalesce(candidate.namespaceNormalized CONTAINS 'test', false)
-                )
+                {candidateRole} <> 'Test'
               )
+              AND {candidateRole} IN ['Source', 'Test', 'Unknown']
+              AND {candidateRole} <> 'Migration'
+              AND {candidateRole} <> 'Snapshot'
+              AND {candidateRole} <> 'Generated'
+              AND {candidateRole} <> 'BuildArtifact'
             WITH source, candidate, vector.similarity.cosine(source.embedding, candidate.embedding) AS score
             WHERE score >= $minSimilarity
-            CALL {
+            CALL {{
               WITH source
               MATCH (source)<-[r:Calls|Uses]-(:CodeNode)
               RETURN count(r) AS sourceFanIn
-            }
-            CALL {
+            }}
+            CALL {{
               WITH candidate
               MATCH (candidate)<-[r:Calls|Uses]-(:CodeNode)
               RETURN count(r) AS candidateFanIn
-            }
-            CALL {
+            }}
+            CALL {{
               WITH source
               OPTIONAL MATCH (test:CodeNode)-[:Calls]->(source)
-              WHERE test.filePathNormalized CONTAINS 'test'
-                 OR test.nameNormalized CONTAINS 'test'
-                 OR test.namespaceNormalized CONTAINS 'test'
+              WHERE {testRole} = 'Test'
               RETURN count(test) > 0 AS sourceHasTestCoverage
-            }
-            CALL {
+            }}
+            CALL {{
               WITH candidate
               OPTIONAL MATCH (test:CodeNode)-[:Calls]->(candidate)
-              WHERE test.filePathNormalized CONTAINS 'test'
-                 OR test.nameNormalized CONTAINS 'test'
-                 OR test.namespaceNormalized CONTAINS 'test'
+              WHERE {testRole} = 'Test'
               RETURN count(test) > 0 AS candidateHasTestCoverage
-            }
+            }}
             RETURN source, candidate, score, sourceFanIn, candidateFanIn, sourceHasTestCoverage, candidateHasTestCoverage
             ORDER BY score DESC, (sourceFanIn + candidateFanIn) DESC
             LIMIT $limit
-            """;
+            ";
 
         var nodeTypes = nodeType.HasValue
             ? [nodeType.Value.ToString()]

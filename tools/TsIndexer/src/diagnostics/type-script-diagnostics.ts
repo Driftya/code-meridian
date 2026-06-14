@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import type { CodeMeridianClient } from '../client.js';
+import { findTypeScriptRoots } from '../services/project-discovery.js';
 import { fileId } from '../walker/common.js';
 
 export interface DiagnosticFinding {
@@ -232,75 +233,8 @@ function resolveLintCommand(rootPath: string): { fileName: string; arguments: st
   return eslint ? { fileName: eslint, arguments: ['.'] } : undefined;
 }
 
-function findTypeScriptRoots(rootPath: string): string[] {
-  const directories = enumerateDirectories(rootPath);
-  const roots = directories.filter(directory =>
-    fs.existsSync(path.join(directory, 'tsconfig.json')) && containsTypeScriptFile(directory),
-  );
-
-  if (roots.length === 0 && containsTypeScriptFile(rootPath)) {
-    return [rootPath];
-  }
-
-  return roots.filter(candidate => !roots.some(other => other !== candidate && isSubdirectoryOf(candidate, other)));
-}
-
-function enumerateDirectories(rootPath: string): string[] {
-  const results: string[] = [];
-  const pending = [rootPath];
-
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (!current || isIgnoredPath(rootPath, current)) continue;
-
-    results.push(current);
-
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        pending.push(path.join(current, entry.name));
-      }
-    }
-  }
-
-  return results;
-}
-
-function containsTypeScriptFile(rootPath: string): boolean {
-  const pending = [rootPath];
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (!current || isIgnoredPath(rootPath, current)) continue;
-
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const fullPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        pending.push(fullPath);
-      } else if (entry.isFile() && isTypeScriptSourceFile(fullPath)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
 function looksLikePath(value: string): boolean {
   return value.includes('/') || value.includes('\\') || value.endsWith('.ts') || value.endsWith('.tsx') || value.endsWith('.js') || value.endsWith('.jsx');
-}
-
-function isTypeScriptSourceFile(filePath: string): boolean {
-  return (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) && !filePath.endsWith('.d.ts');
-}
-
-function isIgnoredPath(rootPath: string, filePath: string): boolean {
-  const relPath = path.relative(rootPath, filePath).replace(/\\/g, '/');
-  const segments = relPath.split('/').filter(segment => segment.length > 0);
-  return segments.some(segment => ['.git', '.vs', '.vscode', '.meridian', 'bin', 'obj', 'node_modules', 'dist', 'build', 'coverage'].includes(segment.toLowerCase()));
-}
-
-function isSubdirectoryOf(candidate: string, parent: string): boolean {
-  const relative = path.relative(parent, candidate);
-  return relative !== '.' && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
 function hash(value: string): string {

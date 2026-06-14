@@ -6,6 +6,7 @@ public sealed record CodeMeridianConfigSnapshot(
     bool? AllowRepoScripts,
     bool? UseGlobalCache,
     IReadOnlyList<string>? ConfigurationFiles,
+    CodeMeridianFileRolePatternSnapshot? FileRoles,
     int Version);
 
 public sealed record ToolConfigurationContext(
@@ -24,4 +25,30 @@ public sealed class CodeMeridianConfigFileOptions
     public bool? AllowRepoScripts { get; set; }
     public bool? UseGlobalCache { get; set; }
     public string[]? ConfigurationFiles { get; set; }
+    public CodeMeridianIndexingOptions? Indexing { get; set; }
 }
+
+public sealed class CodeMeridianIndexingOptions
+{
+    public CodeMeridianFileRoleOptions? FileRoles { get; set; }
+}
+
+public sealed class CodeMeridianFileRoleOptions
+{
+    public string[]? Test { get; set; }
+    public string[]? Migration { get; set; }
+    public string[]? Snapshot { get; set; }
+    public string[]? Generated { get; set; }
+    public string[]? BuildArtifact { get; set; }
+    public string[]? Documentation { get; set; }
+    public string[]? Configuration { get; set; }
+}
+
+public sealed record CodeMeridianFileRolePatternSnapshot(
+    IReadOnlyList<string>? Test,
+    IReadOnlyList<string>? Migration,
+    IReadOnlyList<string>? Snapshot,
+    IReadOnlyList<string>? Generated,
+    IReadOnlyList<string>? BuildArtifact,
+    IReadOnlyList<string>? Documentation,
+    IReadOnlyList<string>? Configuration);

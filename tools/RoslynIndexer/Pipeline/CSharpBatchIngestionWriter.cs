@@ -31,6 +31,7 @@ internal static class CSharpBatchIngestionWriter
                     summary: n.Summary,
                     sourceSnippet: n.SourceSnippet,
                     sourceHash: n.SourceHash,
+                    fileRole: n.Properties is not null && n.Properties.TryGetValue("fileRole", out var fileRole) ? fileRole : null,
                     projectContext: projectContext,
                     properties: n.Properties,
                     cancellationToken: cancellationToken);

@@ -8,6 +8,17 @@ export interface MeridianConfig {
   url?: string;
   useGlobalCache?: boolean;
   configurationFiles?: string[];
+  indexing?: {
+    fileRoles?: {
+      test?: string[];
+      migration?: string[];
+      snapshot?: string[];
+      generated?: string[];
+      buildArtifact?: string[];
+      documentation?: string[];
+      configuration?: string[];
+    };
+  };
 }
 
 export interface MeridianConfigContext {
