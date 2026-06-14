@@ -30,7 +30,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.*" />
     <PackageReference Include="System.CommandLine" Version="2.*" />
-    <PackageReference Include="YamlDotNet" Version="16.*" />
+    <PackageReference Include="YamlDotNet" Version="18.*" />
   </ItemGroup>
 
   <ItemGroup>
