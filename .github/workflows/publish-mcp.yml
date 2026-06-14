@@ -47,6 +47,34 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           "Resolved version: $version"
 
+      - name: Restore
+        run: dotnet restore CodeMeridian.sln
+
+      - name: Build
+        run: dotnet build CodeMeridian.sln -c Release --no-restore /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Test
+        run: dotnet test CodeMeridian.sln -c Release --no-build --filter "FullyQualifiedName!~CodeMeridian.Infrastructure.Integration.Tests"
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: tools/TsIndexer/package-lock.json
+
+      - name: Restore TsIndexer
+        working-directory: tools/TsIndexer
+        run: npm ci
+
+      - name: Build TsIndexer
+        working-directory: tools/TsIndexer
+        run: npm run build
+
+      - name: Test TsIndexer
+        working-directory: tools/TsIndexer
+        run: npm test
+
       - name: Set image name
         id: image
         shell: bash

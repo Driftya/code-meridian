@@ -75,6 +75,25 @@ jobs:
       - name: Test
         run: dotnet test CodeMeridian.sln -c Release --no-build --filter "FullyQualifiedName!~CodeMeridian.Infrastructure.Integration.Tests"
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: tools/TsIndexer/package-lock.json
+
+      - name: Restore TsIndexer
+        working-directory: tools/TsIndexer
+        run: npm ci
+
+      - name: Build TsIndexer
+        working-directory: tools/TsIndexer
+        run: npm run build
+
+      - name: Test TsIndexer
+        working-directory: tools/TsIndexer
+        run: npm test
+
       - name: Pack indexer tool
         run: dotnet pack $env:PACKAGE_PROJECT -c Release --no-build -o $env:PACKAGE_OUTPUT /p:Version=${{ steps.version.outputs.version }}
 
