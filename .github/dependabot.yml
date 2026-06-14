@@ -1,0 +1,62 @@
+version: 2
+
+updates:
+  # .NET projects: src/*, tools/*, tests/*
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "09:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 5
+    groups:
+      dotnet-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Root package.json with npm workspaces
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "09:30"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # .github/workflows/*.yml
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "10:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 5
+
+  # docker-compose.yml and docker-compose.sample.yaml in repo root
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "10:30"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 3
+
+  # src/McpServer/Dockerfile
+  - package-ecosystem: "docker"
+    directory: "/src/McpServer"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "11:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 3
