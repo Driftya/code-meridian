@@ -16,7 +16,7 @@
     <ProjectReference Include="..\..\src\Tooling\CodeMeridian.Tooling.csproj" />
 
     <!-- Roslyn — parses C# AST without needing a full build -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.*" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.*" />
 
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.*" />
