@@ -41,6 +41,7 @@ public sealed class InitCommandTests : IDisposable
         File.Exists(Path.Combine(_root, "docker-compose.codemeridian.yml")).Should().BeFalse();
 
         var meridianJson = File.ReadAllText(meridianJsonPath);
+        meridianJson.Should().Contain("\"version\": 1");
         meridianJson.Should().Contain("\"allowRepoScripts\": true");
     }
 
@@ -67,9 +68,38 @@ public sealed class InitCommandTests : IDisposable
         File.Exists(Path.Combine(_root, ".continue", "mcpServers", "code-meridian.yaml")).Should().BeFalse();
 
         var meridianJson = File.ReadAllText(meridianJsonPath);
+        meridianJson.Should().Contain("\"version\": 1");
         meridianJson.Should().Contain("\"project\": \"\"");
         meridianJson.Should().Contain("\"codeMeridianUrl\": \"http://global:5100\"");
         meridianJson.Should().Contain("\"useGlobalCache\": true");
+    }
+
+    [Fact]
+    public void Run_WhenMeridianJsonAlreadyExists_RefreshesItWithoutForce()
+    {
+        var meridianJsonPath = Path.Combine(_root, "meridian.json");
+        File.WriteAllText(
+            meridianJsonPath,
+            """
+            {
+              "project": "MyApi",
+              "codeMeridianUrl": "http://localhost:5100",
+              "configurationFiles": [".env"]
+            }
+            """);
+
+        var exitCode = CreateCommand().Run(new InitCommandOptions(
+            Path: _root,
+            Project: "MyApi",
+            CodeMeridianUrl: "http://localhost:5100",
+            Force: false,
+            Global: false));
+
+        exitCode.Should().Be(0);
+        var meridianJson = File.ReadAllText(meridianJsonPath);
+        meridianJson.Should().Contain("\"version\": 1");
+        meridianJson.Should().Contain("\"allowRepoScripts\": true");
+        File.Exists($"{meridianJsonPath}.bak").Should().BeTrue();
     }
 
     public void Dispose()

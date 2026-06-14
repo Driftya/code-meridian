@@ -8,6 +8,11 @@
     "$schema": {
       "type": "string"
     },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "CodeMeridian config format version for additive init refreshes."
+    },
     "project": {
       "type": "string",
       "description": "Project context name used when indexing and querying CodeMeridian."

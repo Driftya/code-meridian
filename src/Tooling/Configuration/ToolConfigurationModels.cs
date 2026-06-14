@@ -5,7 +5,8 @@ public sealed record CodeMeridianConfigSnapshot(
     string? CodeMeridianUrl,
     bool? AllowRepoScripts,
     bool? UseGlobalCache,
-    IReadOnlyList<string>? ConfigurationFiles);
+    IReadOnlyList<string>? ConfigurationFiles,
+    int Version);
 
 public sealed record ToolConfigurationContext(
     DirectoryInfo RootPath,

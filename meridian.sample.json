@@ -1,5 +1,6 @@
 {
   "$schema": "./meridian.schema.json",
+  "version": 1,
   "project": "{{project}}",
   "codeMeridianUrl": "{{codeMeridianUrl}}",
   "allowRepoScripts": true,

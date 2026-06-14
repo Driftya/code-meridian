@@ -36,7 +36,11 @@ internal sealed class IndexCommandSettingsFactory(IToolConfigurationService conf
             StorageMode = options.Storage
                 ?? ((context.LocalConfig?.UseGlobalCache ?? context.GlobalConfig?.UseGlobalCache) == true
                     ? IndexerStorageMode.Global
-                    : IndexerStorageMode.Repository)
+                    : IndexerStorageMode.Repository),
+            HasOutdatedLocalConfig = context.LocalConfig is not null
+                                     && context.LocalConfig.Version < CodeMeridianConfigFileStore.CurrentConfigVersion,
+            LocalConfigVersion = context.LocalConfig?.Version ?? 0,
+            CurrentConfigVersion = CodeMeridianConfigFileStore.CurrentConfigVersion
         };
     }
 }

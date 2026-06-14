@@ -22,4 +22,7 @@ internal sealed class ResolvedIndexerSettings
     public bool AllowRepoScripts { get; init; }
     public bool Incremental { get; init; } = true;
     public required IndexerStorageMode StorageMode { get; init; }
+    public bool HasOutdatedLocalConfig { get; init; }
+    public int LocalConfigVersion { get; init; }
+    public int CurrentConfigVersion { get; init; }
 }

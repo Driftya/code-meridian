@@ -58,6 +58,12 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Storage : {_settings.StorageMode.ToString().ToLowerInvariant()}");
         Console.WriteLine($"  Cache   : {cacheDirectory.FullName}");
         Console.WriteLine($"  Mode    : {(_settings.Incremental && !_settings.Clear ? "incremental" : "full")}");
+        if (_settings.HasOutdatedLocalConfig)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"warning: meridian.json is using config version {_settings.LocalConfigVersion}.");
+            Console.WriteLine($"warning: run `codemeridian init .` to merge version {_settings.CurrentConfigVersion} defaults into the existing file.");
+        }
 
         if (!hasCSharp && !hasTypeScript && !hasConfiguration)
         {

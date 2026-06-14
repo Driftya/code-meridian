@@ -148,7 +148,7 @@ Generate a project-local `meridian.json` plus MCP client config with:
 codemeridian init .
 ```
 
-`codemeridian init` writes the project indexing config from `meridian.sample.json`, enables `allowRepoScripts` by default in `meridian.json`, and merges `.vscode/mcp.json` plus `.codex/config.toml` from their sample files. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
+`codemeridian init` creates or refreshes the project indexing config from `meridian.sample.json`, enables `allowRepoScripts` by default in `meridian.json`, and merges `.vscode/mcp.json` plus `.codex/config.toml` from their sample files. If `meridian.json` already exists, rerun `codemeridian init` to merge missing defaults and bump the config `version` without overwriting existing project-specific values. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
 
 For a machine-wide fallback config, see [Global CodeMeridian Configuration](installation-global.md).
 

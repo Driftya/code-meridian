@@ -135,7 +135,7 @@ internal sealed class RootCommandFactory(
 
     private Command CreateInitCommand()
     {
-        var command = new Command("init", "Create CodeMeridian config for the current project.");
+        var command = new Command("init", "Create or refresh CodeMeridian config for the current project.");
         var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory to initialize. Defaults to the current directory." };
         var projectOption = new Option<string?>("--project") { Description = "Project context name." };
         var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };

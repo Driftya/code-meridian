@@ -29,33 +29,41 @@ internal sealed class InitCommand(
 
         try
         {
-            configFileStore.Write(
+            var writeResult = configFileStore.Write(
                 rootPath,
                 project,
                 codeMeridianUrl,
                 useGlobalCache: false,
                 overwrite: options.Force);
+            var configPath = Path.Combine(rootPath.FullName, "meridian.json");
+            var clientConfigChanges = serveWriter.ApplyClientConfig(rootPath, codeMeridianUrl, options.Force);
+
+            Console.WriteLine(writeResult.Created
+                ? "Initialized CodeMeridian indexer config:"
+                : writeResult.Changed
+                    ? "Refreshed CodeMeridian indexer config:"
+                    : "CodeMeridian indexer config is already current:");
+            Console.WriteLine($"  Path    : {configPath}");
+            Console.WriteLine($"  Project : {project}");
+            Console.WriteLine($"  Server  : {codeMeridianUrl}");
+            Console.WriteLine($"  Version : {writeResult.CurrentVersion}");
+            if (!writeResult.Created && writeResult.BackupPath is not null)
+                Console.WriteLine($"  Backup  : {writeResult.BackupPath}");
+            if (writeResult.AddedPaths.Count > 0)
+                Console.WriteLine($"  Added   : {string.Join(", ", writeResult.AddedPaths)}");
+            Console.WriteLine();
+            Console.WriteLine("Client MCP config:");
+            foreach (var change in clientConfigChanges)
+                Console.WriteLine($"  {change.Status,-11} {change.Path}");
+            Console.WriteLine();
+            Console.WriteLine("Next step:");
+            Console.WriteLine("  codemeridian index .");
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"error: {ex.Message}");
             return 1;
         }
-
-        var configPath = Path.Combine(rootPath.FullName, "meridian.json");
-        var clientConfigChanges = serveWriter.ApplyClientConfig(rootPath, codeMeridianUrl, options.Force);
-
-        Console.WriteLine("Initialized CodeMeridian indexer config:");
-        Console.WriteLine($"  Path    : {configPath}");
-        Console.WriteLine($"  Project : {project}");
-        Console.WriteLine($"  Server  : {codeMeridianUrl}");
-        Console.WriteLine();
-        Console.WriteLine("Client MCP config:");
-        foreach (var change in clientConfigChanges)
-            Console.WriteLine($"  {change.Status,-11} {change.Path}");
-        Console.WriteLine();
-        Console.WriteLine("Next step:");
-        Console.WriteLine("  codemeridian index .");
 
         return 0;
     }
@@ -67,27 +75,35 @@ internal sealed class InitCommand(
 
         try
         {
-            configFileStore.WriteGlobal(
+            var writeResult = configFileStore.WriteGlobal(
                 codeMeridianUrl,
                 overwrite: options.Force,
                 globalConfigDirectory);
+            var configPath = configFileStore.GetGlobalConfigFile(globalConfigDirectory).FullName;
+
+            Console.WriteLine(writeResult.Created
+                ? "Initialized global CodeMeridian indexer config:"
+                : writeResult.Changed
+                    ? "Refreshed global CodeMeridian indexer config:"
+                    : "Global CodeMeridian indexer config is already current:");
+            Console.WriteLine($"  Path    : {configPath}");
+            Console.WriteLine($"  Server  : {codeMeridianUrl}");
+            Console.WriteLine($"  Version : {writeResult.CurrentVersion}");
+            if (writeResult.BackupPath is not null)
+                Console.WriteLine($"  Backup  : {writeResult.BackupPath}");
+            if (writeResult.AddedPaths.Count > 0)
+                Console.WriteLine($"  Added   : {string.Join(", ", writeResult.AddedPaths)}");
+            Console.WriteLine();
+            Console.WriteLine("Runtime cache and generated files will be stored outside the repository.");
+            Console.WriteLine();
+            Console.WriteLine("Next step:");
+            Console.WriteLine("  codemeridian index .");
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"error: {ex.Message}");
             return 1;
         }
-
-        var configPath = configFileStore.GetGlobalConfigFile(globalConfigDirectory).FullName;
-
-        Console.WriteLine("Initialized global CodeMeridian indexer config:");
-        Console.WriteLine($"  Path   : {configPath}");
-        Console.WriteLine($"  Server : {codeMeridianUrl}");
-        Console.WriteLine();
-        Console.WriteLine("Runtime cache and generated files will be stored outside the repository.");
-        Console.WriteLine();
-        Console.WriteLine("Next step:");
-        Console.WriteLine("  codemeridian index .");
 
         return 0;
     }

@@ -6,6 +6,8 @@ namespace CodeMeridian.Tooling.Configuration;
 
 public sealed class CodeMeridianConfigFileStore
 {
+    public const int CurrentConfigVersion = 1;
+
     private const string MeridianSampleFileName = "meridian.sample.json";
     private const string ConfigFileName = "meridian.json";
 
@@ -39,21 +41,60 @@ public sealed class CodeMeridianConfigFileStore
     public FileInfo GetGlobalConfigFile(DirectoryInfo? globalConfigDirectory = null) =>
         new(Path.Combine((globalConfigDirectory ?? GetGlobalConfigDirectory()).FullName, ConfigFileName));
 
-    public void WriteGlobal(string codeMeridianUrl, bool overwrite = false, DirectoryInfo? globalConfigDirectory = null)
+    public CodeMeridianConfigWriteResult WriteGlobal(string codeMeridianUrl, bool overwrite = false, DirectoryInfo? globalConfigDirectory = null)
     {
         var rootDirectory = globalConfigDirectory ?? GetGlobalConfigDirectory();
         Directory.CreateDirectory(rootDirectory.FullName);
 
         var filePath = Path.Combine(rootDirectory.FullName, ConfigFileName);
-        var json = File.Exists(filePath) && !overwrite
-            ? UpdateGlobalMeridianJson(File.ReadAllText(filePath), codeMeridianUrl)
-            : BuildMeridianJson(project: null, codeMeridianUrl, useGlobalCache: true);
+        var defaultRoot = BuildMeridianConfigRoot(project: null, codeMeridianUrl, useGlobalCache: true);
+        CodeMeridianConfigWriteResult result;
 
-        File.WriteAllText(filePath, json + Environment.NewLine);
+        if (!File.Exists(filePath))
+        {
+            WriteJsonFile(filePath, defaultRoot.ToJsonString(WriteOptions));
+            result = new CodeMeridianConfigWriteResult(
+                Created: true,
+                Changed: true,
+                BackupPath: null,
+                PreviousVersion: 0,
+                CurrentVersion: CurrentConfigVersion,
+                AddedPaths: ["version"]);
+        }
+        else if (overwrite)
+        {
+            result = OverwriteExistingConfig(filePath, defaultRoot);
+        }
+        else
+        {
+            var existingRoot = ParseRequiredObject(File.ReadAllText(filePath), filePath);
+            var previousVersion = ReadVersion(existingRoot);
+
+            existingRoot["project"] = string.Empty;
+            existingRoot["codeMeridianUrl"] = codeMeridianUrl;
+            existingRoot["useGlobalCache"] = true;
+
+            var addedPaths = new List<string>();
+            MergeMissingNodes(existingRoot, defaultRoot, addedPaths, parentPath: null);
+            UpdateVersion(existingRoot, previousVersion, addedPaths);
+            var backupPath = addedPaths.Count > 0 || previousVersion != CurrentConfigVersion
+                ? WriteJsonFileWithBackup(filePath, existingRoot.ToJsonString(WriteOptions))
+                : null;
+
+            result = new CodeMeridianConfigWriteResult(
+                Created: false,
+                Changed: backupPath is not null,
+                BackupPath: backupPath,
+                PreviousVersion: previousVersion,
+                CurrentVersion: CurrentConfigVersion,
+                AddedPaths: addedPaths);
+        }
+
         WriteSchemaFile(rootDirectory, overwrite);
+        return result;
     }
 
-    public void Write(
+    public CodeMeridianConfigWriteResult Write(
         DirectoryInfo rootDirectory,
         string? project,
         string codeMeridianUrl,
@@ -63,12 +104,48 @@ public sealed class CodeMeridianConfigFileStore
         Directory.CreateDirectory(rootDirectory.FullName);
 
         var filePath = Path.Combine(rootDirectory.FullName, ConfigFileName);
-        if (File.Exists(filePath) && !overwrite)
-            throw new InvalidOperationException($"Config file already exists: {filePath}. Use --force to overwrite it.");
+        var defaultRoot = BuildMeridianConfigRoot(project, codeMeridianUrl, useGlobalCache);
 
-        var json = BuildMeridianJson(project, codeMeridianUrl, useGlobalCache);
-        File.WriteAllText(filePath, json + Environment.NewLine);
+        CodeMeridianConfigWriteResult result;
+        if (!File.Exists(filePath))
+        {
+            WriteJsonFile(filePath, defaultRoot.ToJsonString(WriteOptions));
+            result = new CodeMeridianConfigWriteResult(
+                Created: true,
+                Changed: true,
+                BackupPath: null,
+                PreviousVersion: 0,
+                CurrentVersion: CurrentConfigVersion,
+                AddedPaths: ["version"]);
+        }
+        else if (overwrite)
+        {
+            result = OverwriteExistingConfig(filePath, defaultRoot);
+        }
+        else
+        {
+            var existingRoot = ParseRequiredObject(File.ReadAllText(filePath), filePath);
+            var previousVersion = ReadVersion(existingRoot);
+            var addedPaths = new List<string>();
+
+            MergeMissingNodes(existingRoot, defaultRoot, addedPaths, parentPath: null);
+            UpdateVersion(existingRoot, previousVersion, addedPaths);
+
+            var backupPath = addedPaths.Count > 0 || previousVersion != CurrentConfigVersion
+                ? WriteJsonFileWithBackup(filePath, existingRoot.ToJsonString(WriteOptions))
+                : null;
+
+            result = new CodeMeridianConfigWriteResult(
+                Created: false,
+                Changed: backupPath is not null,
+                BackupPath: backupPath,
+                PreviousVersion: previousVersion,
+                CurrentVersion: CurrentConfigVersion,
+                AddedPaths: addedPaths);
+        }
+
         WriteSchemaFile(rootDirectory, overwrite);
+        return result;
     }
 
     private CodeMeridianConfigSnapshot? LoadFile(FileInfo configFile, bool ignoreProject)
@@ -78,6 +155,8 @@ public sealed class CodeMeridianConfigFileStore
             var directoryPath = configFile.DirectoryName;
             if (string.IsNullOrWhiteSpace(directoryPath))
                 return null;
+
+            var root = ParseRequiredObject(File.ReadAllText(configFile.FullName), configFile.FullName);
 
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(directoryPath)
@@ -93,7 +172,8 @@ public sealed class CodeMeridianConfigFileStore
                 NormalizeOptionalString(options.CodeMeridianUrl) ?? NormalizeOptionalString(options.Url),
                 options.AllowRepoScripts,
                 options.UseGlobalCache,
-                NormalizePatterns(options.ConfigurationFiles));
+                NormalizePatterns(options.ConfigurationFiles),
+                ReadVersion(root));
         }
         catch
         {
@@ -101,41 +181,15 @@ public sealed class CodeMeridianConfigFileStore
         }
     }
 
-    private static string BuildMeridianJson(string? project, string codeMeridianUrl, bool useGlobalCache)
+    private static JsonObject BuildMeridianConfigRoot(string? project, string codeMeridianUrl, bool useGlobalCache)
     {
-        var template = ReadRequiredTemplate(MeridianSampleFileName);
-        return template
+        var template = ReadRequiredTemplate(MeridianSampleFileName)
             .Replace("{{project}}", JsonEncodedText.Encode(project ?? string.Empty).ToString(), StringComparison.Ordinal)
             .Replace("{{codeMeridianUrl}}", JsonEncodedText.Encode(codeMeridianUrl).ToString(), StringComparison.Ordinal)
             .Replace("{{useGlobalCache}}", useGlobalCache ? "true" : "false", StringComparison.Ordinal)
             .TrimEnd();
-    }
 
-    private static string UpdateGlobalMeridianJson(string existingJson, string codeMeridianUrl)
-    {
-        JsonObject? root;
-        try
-        {
-            root = JsonNode.Parse(
-                existingJson,
-                new JsonNodeOptions { PropertyNameCaseInsensitive = false },
-                new JsonDocumentOptions
-                {
-                    AllowTrailingCommas = true,
-                    CommentHandling = JsonCommentHandling.Skip,
-                })?.AsObject();
-        }
-        catch
-        {
-            root = null;
-        }
-
-        root ??= [];
-        root["project"] = string.Empty;
-        root["codeMeridianUrl"] = codeMeridianUrl;
-        root["useGlobalCache"] = true;
-
-        return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        return ParseRequiredObject(template, MeridianSampleFileName);
     }
 
     private static void WriteSchemaFile(DirectoryInfo rootDirectory, bool overwrite)
@@ -192,5 +246,132 @@ public sealed class CodeMeridianConfigFileStore
             .ToArray();
 
         return normalized.Length == 0 ? null : normalized;
+    }
+
+    private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
+
+    private static JsonObject ParseRequiredObject(string json, string sourceName)
+    {
+        try
+        {
+            return JsonNode.Parse(
+                json,
+                new JsonNodeOptions { PropertyNameCaseInsensitive = false },
+                new JsonDocumentOptions
+                {
+                    AllowTrailingCommas = true,
+                    CommentHandling = JsonCommentHandling.Skip,
+                })?.AsObject()
+                   ?? throw new InvalidOperationException($"Config file must contain a JSON object: {sourceName}");
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            throw new InvalidOperationException($"Config file is not valid JSON: {sourceName}", ex);
+        }
+    }
+
+    private static int ReadVersion(JsonObject root)
+    {
+        if (root["version"] is JsonValue value && value.TryGetValue<int>(out var version))
+            return version;
+
+        return 0;
+    }
+
+    private static void UpdateVersion(JsonObject root, int previousVersion, List<string> addedPaths)
+    {
+        if (previousVersion == CurrentConfigVersion)
+            return;
+
+        root["version"] = CurrentConfigVersion;
+        if (!addedPaths.Contains("version", StringComparer.Ordinal))
+            addedPaths.Add("version");
+    }
+
+    private static void MergeMissingNodes(JsonObject target, JsonObject defaults, List<string> addedPaths, string? parentPath)
+    {
+        foreach (var property in defaults)
+        {
+            var propertyPath = string.IsNullOrEmpty(parentPath) ? property.Key : $"{parentPath}.{property.Key}";
+            var defaultNode = property.Value;
+
+            if (!target.TryGetPropertyValue(property.Key, out var existingNode) || existingNode is null)
+            {
+                target[property.Key] = defaultNode?.DeepClone();
+                addedPaths.Add(propertyPath);
+                continue;
+            }
+
+            if (existingNode is JsonObject existingObject && defaultNode is JsonObject defaultObject)
+            {
+                MergeMissingNodes(existingObject, defaultObject, addedPaths, propertyPath);
+                continue;
+            }
+
+            if (existingNode is JsonArray existingArray && defaultNode is JsonArray defaultArray)
+            {
+                MergeMissingArrayEntries(existingArray, defaultArray, addedPaths, propertyPath);
+            }
+        }
+    }
+
+    private static void MergeMissingArrayEntries(JsonArray target, JsonArray defaults, List<string> addedPaths, string propertyPath)
+    {
+        var seen = new HashSet<string>(target.Select(ToComparableJson), StringComparer.Ordinal);
+        var changed = false;
+
+        foreach (var item in defaults)
+        {
+            var comparable = ToComparableJson(item);
+            if (!seen.Add(comparable))
+                continue;
+
+            target.Add(item?.DeepClone());
+            changed = true;
+        }
+
+        if (changed)
+            addedPaths.Add(propertyPath);
+    }
+
+    private static string ToComparableJson(JsonNode? node) =>
+        node?.ToJsonString() ?? "null";
+
+    private static CodeMeridianConfigWriteResult OverwriteExistingConfig(string filePath, JsonObject defaultRoot)
+    {
+        var previousVersion = 0;
+        var existingJson = File.ReadAllText(filePath);
+
+        try
+        {
+            previousVersion = ReadVersion(ParseRequiredObject(existingJson, filePath));
+        }
+        catch
+        {
+            // Force overwrite should still replace an invalid existing file.
+        }
+
+        var backupPath = WriteJsonFileWithBackup(filePath, defaultRoot.ToJsonString(WriteOptions));
+        return new CodeMeridianConfigWriteResult(
+            Created: false,
+            Changed: true,
+            BackupPath: backupPath,
+            PreviousVersion: previousVersion,
+            CurrentVersion: CurrentConfigVersion,
+            AddedPaths: ["version"]);
+    }
+
+    private static void WriteJsonFile(string filePath, string json)
+    {
+        File.WriteAllText(filePath, json + Environment.NewLine);
+    }
+
+    private static string WriteJsonFileWithBackup(string filePath, string json)
+    {
+        var tempPath = $"{filePath}.{Guid.NewGuid():N}.tmp";
+        var backupPath = $"{filePath}.bak";
+        File.WriteAllText(tempPath, json + Environment.NewLine);
+        File.Replace(tempPath, filePath, backupPath, ignoreMetadataErrors: true);
+        return backupPath;
     }
 }

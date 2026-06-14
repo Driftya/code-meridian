@@ -53,6 +53,7 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Can create local MCP client config and start the backend stack with `codemeridian serve`.
 - Supports dry runs and capability listing for environment checks.
 - Can generate a local `meridian.json` and MCP client config with an auto-detected project name.
+- Can refresh an existing `meridian.json` in place by rerunning `codemeridian init .`, merging missing defaults without overwriting local settings.
 - Can also read `CodeMeridian_Project` from `.env` when you want a fixed project name without `--project`.
 
 ## Package Contents
@@ -78,7 +79,7 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Use `codemeridian keywords classify --project <name>` when you only want to classify existing derived keywords without rebuilding relationships.
 - Use `--allow-repo-scripts` only on trusted repos when you want `dotnet build` and repo lint commands to run.
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
-- Use `codemeridian init .` to generate `meridian.json`, `.vscode/mcp.json`, and `.codex/config.toml` for a project. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.
+- Use `codemeridian init .` to create or refresh `meridian.json`, `.vscode/mcp.json`, and `.codex/config.toml` for a project. When `meridian.json` already exists, `init` merges missing defaults, bumps the config `version`, and writes `meridian.json.bak` before replacing the file. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.
 - Use `codemeridian init --global --url http://localhost:5100` to create a user-level fallback config when you want the CLI to work across many repos without project-local config.
 - Use `codemeridian serve` to create `.env`, `.vscode/mcp.json`, `.codex/config.toml`, and `docker-compose.codemeridian.yml`, then start the backend stack.
 - Use `codemeridian serve --no-start` when you only want to write or merge those files.

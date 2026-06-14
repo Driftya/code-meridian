@@ -280,7 +280,7 @@ You can generate `meridian.json` plus MCP client config with:
 codemeridian init .
 ```
 
-`codemeridian init` writes `meridian.json` from `meridian.sample.json` and merges `.vscode/mcp.json` plus `.codex/config.toml` from their sample files. The generated `meridian.json` enables `allowRepoScripts` by default so trusted repos can run repo-controlled diagnostics without an extra flag. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
+`codemeridian init` creates or refreshes `meridian.json` from `meridian.sample.json` and merges `.vscode/mcp.json` plus `.codex/config.toml` from their sample files. If `meridian.json` already exists, rerun `codemeridian init` to merge missing defaults, bump the top-level config `version`, and keep existing project-specific values; refresh writes `meridian.json.bak` before replacing the file. The generated `meridian.json` enables `allowRepoScripts` by default so trusted repos can run repo-controlled diagnostics without an extra flag. Use `codemeridian serve` for `.env`, Docker Compose, and starting the backend stack.
 
 You can generate a user-level fallback config with:
 
@@ -316,6 +316,7 @@ Useful variables:
 
 | Key | Description |
 |-----|-------------|
+| `version` | Config format version used by `codemeridian init` to decide when new defaults can be merged into an existing file |
 | `project` | Optional project context name used by the indexer when `--project` is omitted |
 | `codeMeridianUrl` | Optional CodeMeridian server URL used when `CodeMeridian_Url` is not set |
 | `allowRepoScripts` | When `true`, repo-controlled build and lint diagnostics are enabled by default |

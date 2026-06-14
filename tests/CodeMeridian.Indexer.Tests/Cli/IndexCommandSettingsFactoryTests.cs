@@ -69,6 +69,9 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
         settings.CodeMeridianUrl.Should().Be("http://override:5100");
         settings.RebuildKeywords.Should().BeTrue();
         settings.StorageMode.Should().Be(IndexerStorageMode.Repository);
+        settings.HasOutdatedLocalConfig.Should().BeTrue();
+        settings.LocalConfigVersion.Should().Be(0);
+        settings.CurrentConfigVersion.Should().Be(CodeMeridianConfigFileStore.CurrentConfigVersion);
     }
 
     [Fact]
@@ -130,6 +133,45 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
             Storage: null));
 
         settings.StorageMode.Should().Be(IndexerStorageMode.Global);
+        settings.HasOutdatedLocalConfig.Should().BeTrue();
+        settings.LocalConfigVersion.Should().Be(0);
+        settings.CurrentConfigVersion.Should().Be(CodeMeridianConfigFileStore.CurrentConfigVersion);
+    }
+
+    [Fact]
+    public void Create_DoesNotFlagCurrentLocalConfigAsOutdated()
+    {
+        File.WriteAllText(
+            Path.Combine(_root, "meridian.json"),
+            """
+            {
+              "version": 1,
+              "project": "MyApi",
+              "codeMeridianUrl": "http://local:5100"
+            }
+            """);
+
+        var settings = CreateFactory().Create(new IndexCommandOptions(
+            Path: _root,
+            Project: null,
+            CodeMeridianUrl: null,
+            Clear: false,
+            RebuildKeywords: false,
+            IncludeDocs: true,
+            Watch: false,
+            DryRun: false,
+            ListCapabilities: false,
+            SkipCSharp: false,
+            SkipTypeScript: false,
+            SkipConfiguration: false,
+            SkipDiagnostics: false,
+            AllowRepoScripts: false,
+            Incremental: true,
+            Storage: null));
+
+        settings.HasOutdatedLocalConfig.Should().BeFalse();
+        settings.LocalConfigVersion.Should().Be(1);
+        settings.CurrentConfigVersion.Should().Be(CodeMeridianConfigFileStore.CurrentConfigVersion);
     }
 
     public void Dispose()

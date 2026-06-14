@@ -144,6 +144,8 @@ To create a local project config and MCP client config, run:
 codemeridian init .
 ```
 
+Run `codemeridian init .` again later to refresh an existing `meridian.json`. Missing defaults are merged in, the config `version` is bumped, and your existing project-specific values are preserved.
+
 Open this folder in VS Code or any MCP-capable client. The MCP server is registered through `.vscode/mcp.json`, and MCP-compatible clients can call CodeMeridian tools while you chat.
 
 ## Common Questions
