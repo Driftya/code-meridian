@@ -7,6 +7,9 @@
 [![NuGet](https://img.shields.io/nuget/v/CodeMeridian.Indexer.svg)](https://www.nuget.org/packages/CodeMeridian.Indexer)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/CodeMeridian.Indexer.svg)](https://www.nuget.org/packages/CodeMeridian.Indexer)
 [![CodeQL](https://github.com/Driftya/code-meridian/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Driftya/code-meridian/actions/workflows/codeql.yml)
+[![Publish Indexer Tool](https://github.com/Driftya/code-meridian/actions/workflows/publish-indexer.yml/badge.svg)](https://github.com/Driftya/code-meridian/actions/workflows/publish-indexer.yml)
+[![Publish MCP Image](https://github.com/Driftya/code-meridian/actions/workflows/publish-mcp.yml/badge.svg)](https://github.com/Driftya/code-meridian/actions/workflows/publish-mcp.yml)
+[![Dependabot Updates](https://github.com/Driftya/code-meridian/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/Driftya/code-meridian/actions/workflows/dependabot/dependabot-updates)
 
 CodeMeridian is a local graph memory layer for AI coding agents.
 
