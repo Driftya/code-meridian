@@ -10,6 +10,24 @@ const project = useTempProject('codemeridian-ts-app-');
 describe('TypeScriptIndexerApplication', () => {
   const originalFetch = globalThis.fetch;
 
+  const setupMockFetch = () => {
+    const requests: Array<{ path: string; body?: string }> = [];
+    globalThis.fetch = vi.fn(async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      requests.push({
+        path: new URL(url).pathname,
+        body: init?.body?.toString(),
+      });
+
+      return new Response('{}', {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch;
+
+    return requests;
+  };
+
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -41,19 +59,7 @@ describe('TypeScriptIndexerApplication', () => {
       ]),
     );
 
-    const requests: Array<{ path: string; body?: string }> = [];
-    globalThis.fetch = vi.fn(async (input, init) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-      requests.push({
-        path: new URL(url).pathname,
-        body: init?.body?.toString(),
-      });
-
-      return new Response('{}', {
-        status: 201,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }) as typeof fetch;
+    const requests = setupMockFetch();
 
     const app = new TypeScriptIndexerApplication();
     const options: ResolvedIndexCommandOptions = {
