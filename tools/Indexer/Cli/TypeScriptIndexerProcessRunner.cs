@@ -19,8 +19,8 @@ internal static class TypeScriptIndexerProcessRunner
 
         var packageLock = Path.Combine(tsIndexerRoot.FullName, "package-lock.json");
         var arguments = File.Exists(packageLock)
-            ? new[] { "ci", "--silent" }
-            : ["install", "--silent"];
+            ? new[] { "ci" }
+            : new[] { "install" };
 
         return await RunAsync(ExternalCommandResolver.NpmCommand(), arguments, tsIndexerRoot);
     }

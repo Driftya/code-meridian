@@ -191,6 +191,56 @@ describe('TypeScriptIndexerApplication', () => {
     expect(fileNode?.fileRole).toBe('Configuration');
   });
 
+  it('accepts PascalCase batch keys written by the .NET indexer', async () => {
+    project.writeFile('tsconfig.json', '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}');
+    project.writeFile('src/config/AppConfig.ts', 'export const value = process.env.API_KEY ?? "";\n');
+
+    const rootPath = project.getRootPath();
+    const batchFilePath = path.join(rootPath, 'batch.json');
+    fs.writeFileSync(
+      batchFilePath,
+      JSON.stringify([
+        {
+          Path: 'src/config/AppConfig.ts',
+          FileRole: 'Configuration',
+        },
+      ]),
+    );
+
+    const requests: Array<{ path: string; body?: string }> = [];
+    globalThis.fetch = vi.fn(async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      requests.push({
+        path: new URL(url).pathname,
+        body: init?.body?.toString(),
+      });
+
+      return new Response('{}', {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch;
+
+    const app = new TypeScriptIndexerApplication();
+    const options: ResolvedIndexCommandOptions = {
+      rootPath,
+      projectName: 'CodeMeridian',
+      serverUrl: 'http://127.0.0.1:5100',
+      batchFilePath,
+    };
+
+    const exitCode = await app.run(options);
+
+    expect(exitCode).toBe(0);
+
+    const fileNode = requests
+      .filter(request => request.path === '/api/v1/knowledge/nodes' && request.body)
+      .map(request => JSON.parse(request.body!))
+      .find(body => body.filePath === 'src/config/AppConfig.ts' && body.type === 'File');
+
+    expect(fileNode?.fileRole).toBe('Configuration');
+  });
+
   it('fails fast for malformed batch files', async () => {
     project.writeFile('tsconfig.json', '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}');
 
