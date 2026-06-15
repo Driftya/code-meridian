@@ -27,7 +27,7 @@ it('calculates formatted output', () => {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
     const testCaseNode = result.nodes.find(node => node.name === '__testcase__.it.calculates formatted output@L3');
 
     expect(testCaseNode).toEqual(
@@ -66,7 +66,7 @@ test.each([[1]])('submits order %s', () => {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
     const testCaseNode = result.nodes.find(node => node.name === '__testcase__.test.submits order %s@L3');
 
     expect(testCaseNode).toEqual(
@@ -100,7 +100,7 @@ it.only('replaces an order', () => {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
     const testCaseNode = result.nodes.find(node => node.name === '__testcase__.it.replaces an order@L3');
 
     expect(testCaseNode).toEqual(
@@ -134,7 +134,7 @@ test.skip('archives an order', () => {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
     const testCaseNode = result.nodes.find(node => node.name === '__testcase__.test.archives an order@L3');
 
     expect(testCaseNode).toEqual(
@@ -167,7 +167,7 @@ it('submits from the test folder', () => {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
     const testFileNode = result.nodes.find(node => node.id === 'Proj:File:tests_orders-ui.test.ts');
     const testCaseNode = result.nodes.find(node => node.name === '__testcase__.it.submits from the test folder@L3');
 
@@ -210,7 +210,7 @@ describe('orders', () => {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
     const testFileNode = result.nodes.find(node => node.id === 'Proj:File:src_components___tests___orders.spec.tsx');
     const testCaseNode = result.nodes.find(node => node.name === '__testcase__.it.submits from the ui@L5');
 
@@ -232,3 +232,4 @@ describe('orders', () => {
     });
   });
 });
+

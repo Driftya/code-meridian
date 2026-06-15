@@ -260,7 +260,6 @@ public sealed class CodeMeridianConfigFileStore
             NormalizePatterns(options.Snapshot),
             NormalizePatterns(options.Generated),
             NormalizePatterns(options.BuildArtifact),
-            NormalizePatterns(options.Documentation),
             NormalizePatterns(options.Configuration));
     }
 

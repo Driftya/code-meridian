@@ -45,6 +45,32 @@ public sealed class TypeScriptIndexerProcessRunnerTests
             .Be(binary.FullName);
     }
 
+    [Fact]
+    public async Task RunAsync_PassesConfiguredEnvironmentVariablesToChildProcess()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        using var workspace = TestWorkspace.Create();
+        var script = workspace.WriteFile(
+            "verify-env.ps1",
+            """
+            if ($env:CODEMERIDIAN_TEST_KEY -eq 'secret-value') {
+                exit 0
+            }
+
+            exit 7
+            """);
+
+        var exitCode = await TypeScriptIndexerProcessRunner.RunAsync(
+            "powershell",
+            ["-NoProfile", "-File", script.FullName],
+            workspace.Root,
+            new Dictionary<string, string?> { ["CODEMERIDIAN_TEST_KEY"] = "secret-value" });
+
+        exitCode.Should().Be(0);
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         private TestWorkspace(DirectoryInfo root) => Root = root;

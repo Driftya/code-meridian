@@ -414,6 +414,60 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FindCoverageGapsAsync_WithStoredConfigurationRole_ExcludesThatNode()
+    {
+        var projectContext = $"Integration.Coverage.Config.{Guid.NewGuid():N}";
+        var target = CreateNode(
+            id: $"{projectContext}.ConfigTarget",
+            name: "ConfigTarget",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/AppConfig.ts")
+        with
+        {
+            FileRole = IndexedFileRole.Configuration
+        };
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(target);
+
+            var gaps = await _repository.FindCoverageGapsAsync(projectContext);
+
+            gaps.Should().NotContain(node => node.Id == target.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
+    public async Task FindCoverageGapsAsync_WithoutStoredFileRole_TreatsNodeAsUnknown()
+    {
+        var projectContext = $"Integration.Coverage.Unknown.{Guid.NewGuid():N}";
+        var target = CreateNode(
+            id: $"{projectContext}.ConfigTarget",
+            name: "ConfigTarget",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/AppConfig.ts");
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(target);
+
+            var gaps = await _repository.FindCoverageGapsAsync(projectContext);
+
+            gaps.Should().ContainSingle(node => node.Id == target.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
     public async Task FindRelatedTestsAsync_WithTemporaryTestFixture_ReturnsDirectTest()
     {
         var projectContext = $"Integration.RelatedTests.{Guid.NewGuid():N}";
@@ -455,6 +509,51 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
             await _repository.UpsertEdgeAsync(new CodeEdge
             {
                 SourceId = caller.Id,
+                TargetId = target.Id,
+                Type = CodeEdgeType.Calls
+            });
+
+            var related = await _repository.FindRelatedTestsAsync(target.Id, projectContext);
+
+            related.Should().ContainSingle(match =>
+                match.MatchType == "direct" && match.Node.Id == testNode.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
+    public async Task FindRelatedTestsAsync_WithStoredTestRole_ReturnsDirectTestWithoutNamingHeuristics()
+    {
+        var projectContext = $"Integration.RelatedTests.StoredRole.{Guid.NewGuid():N}";
+        var target = CreateNode(
+            id: $"{projectContext}.Target",
+            name: "TargetMethod",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Target.cs",
+            namespaceName: $"{projectContext}.Production");
+        var testNode = CreateNode(
+            id: $"{projectContext}.Verifier",
+            name: "Verifier",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Verifier.cs",
+            namespaceName: $"{projectContext}.Verification")
+        with
+        {
+            FileRole = IndexedFileRole.Test
+        };
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(target);
+            await _repository.UpsertNodeAsync(testNode);
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = testNode.Id,
                 TargetId = target.Id,
                 Type = CodeEdgeType.Calls
             });
@@ -632,6 +731,140 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
                 item.Node.Id == target.Id &&
                 item.LineCount == 360 &&
                 item.FanIn >= 4);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
+    public async Task FindLargeNodesAsync_WithoutStoredFileRole_IncludesConfigurationNamedNodeAsUnknown()
+    {
+        var projectContext = $"Integration.LargeNodes.Unknown.{Guid.NewGuid():N}";
+        var target = CreateNode(
+            id: $"{projectContext}.ConfigTarget",
+            name: "ConfigTarget",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/AppConfig.ts")
+        with
+        {
+            LineCount = 450
+        };
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(target);
+
+            var results = await _repository.FindLargeNodesAsync(projectContext, classThreshold: 300, methodThreshold: 40);
+
+            results.Should().ContainSingle(node => node.Id == target.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
+    public async Task FindGodClassesAsync_WithStoredConfigurationRole_ExcludesThatClass()
+    {
+        var projectContext = $"Integration.GodClasses.Config.{Guid.NewGuid():N}";
+        var target = CreateNode(
+            id: $"{projectContext}.AppConfig",
+            name: "AppConfig",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/AppConfig.ts")
+        with
+        {
+            LineCount = 360,
+            FileRole = IndexedFileRole.Configuration
+        };
+        var targetMember = CreateNode(
+            id: $"{projectContext}.AppConfig.Load",
+            name: "AppConfig.Load",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/AppConfig.ts")
+        with
+        {
+            LineCount = 40,
+            FileRole = IndexedFileRole.Configuration
+        };
+        var callerOne = CreateNode(
+            id: $"{projectContext}.CallerOne",
+            name: "CallerOne",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CallerOne.cs");
+        var callerTwo = CreateNode(
+            id: $"{projectContext}.CallerTwo",
+            name: "CallerTwo",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CallerTwo.cs");
+        var callerThree = CreateNode(
+            id: $"{projectContext}.CallerThree",
+            name: "CallerThree",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CallerThree.cs");
+        var callerFour = CreateNode(
+            id: $"{projectContext}.CallerFour",
+            name: "CallerFour",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CallerFour.cs");
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(target);
+            await _repository.UpsertNodeAsync(targetMember);
+            await _repository.UpsertNodeAsync(callerOne);
+            await _repository.UpsertNodeAsync(callerTwo);
+            await _repository.UpsertNodeAsync(callerThree);
+            await _repository.UpsertNodeAsync(callerFour);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = target.Id,
+                TargetId = targetMember.Id,
+                Type = CodeEdgeType.Contains
+            });
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = callerOne.Id,
+                TargetId = target.Id,
+                Type = CodeEdgeType.DependsOn
+            });
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = callerTwo.Id,
+                TargetId = targetMember.Id,
+                Type = CodeEdgeType.Calls
+            });
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = callerThree.Id,
+                TargetId = targetMember.Id,
+                Type = CodeEdgeType.Uses
+            });
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = callerFour.Id,
+                TargetId = targetMember.Id,
+                Type = CodeEdgeType.DependsOn
+            });
+
+            var results = await _repository.FindGodClassesAsync(projectContext, lineThreshold: 300, fanInThreshold: 3);
+
+            results.Should().NotContain(item => item.Node.Id == target.Id);
         }
         finally
         {

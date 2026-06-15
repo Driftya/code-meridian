@@ -32,7 +32,7 @@ export function deleteOrder(id: string) {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
@@ -86,7 +86,7 @@ export async function updateOrder() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.nodes).toEqual(
       expect.arrayContaining([
@@ -111,7 +111,7 @@ export async function updateOrder() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual(
       expect.objectContaining({
@@ -130,7 +130,7 @@ export { warmup };
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual(
       expect.objectContaining({
@@ -152,7 +152,7 @@ export async function loadOrder() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.nodes.filter(node => node.type === 'ApiEndpoint')).toHaveLength(0);
     expect(result.edges.filter(edge => edge.targetId.includes('::ApiEndpoint::'))).toHaveLength(0);
@@ -167,7 +167,7 @@ export async function loadOrder() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.nodes).toContainEqual(
       expect.objectContaining({
@@ -196,7 +196,7 @@ export function loadOrders() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
     const routeEdges = result.edges.filter(edge =>
       edge.sourceId === 'Proj:Method:api.ts:loadOrders'
       && edge.targetId === 'Proj::ApiEndpoint::GET /api/orders'
@@ -215,7 +215,7 @@ export function loadOrders() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual(
       expect.objectContaining({
@@ -227,3 +227,4 @@ export function loadOrders() {
     );
   });
 });
+

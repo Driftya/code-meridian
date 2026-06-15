@@ -41,7 +41,6 @@ public sealed class ConfiguredIndexedFileRoleClassifier(IOptions<CodebaseIndexin
         IndexedFileRole.Migration,
         IndexedFileRole.Generated,
         IndexedFileRole.Test,
-        IndexedFileRole.Documentation,
         IndexedFileRole.Configuration
     ];
 

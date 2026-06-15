@@ -24,25 +24,17 @@ public sealed class TypeScriptIndexerCommandBuilderTests
     public void AddTypeScriptIndexerOptions_AddsExpectedFlags()
     {
         var args = new List<string>();
-        var filesList = new FileInfo(@"C:\temp\ts-files.txt");
+        var batchFile = new FileInfo(@"C:\temp\ts-batch.json");
 
         TypeScriptIndexerCommandBuilder.AddTypeScriptIndexerOptions(
             args,
             "http://localhost:5100",
-            watch: true,
-            clear: true,
-            forceFull: true,
-            includeDocs: false,
-            filesList);
+            batchFile);
 
         args.Should().ContainInOrder(
             "--url",
             "http://localhost:5100",
-            "--clear",
-            "--full",
-            "--no-docs",
-            "--watch",
-            "--files-list",
-            @"C:\temp\ts-files.txt");
+            "--batch-file",
+            @"C:\temp\ts-batch.json");
     }
 }

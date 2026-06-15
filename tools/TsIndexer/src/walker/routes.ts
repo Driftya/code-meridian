@@ -33,7 +33,7 @@ export function collectRouteNodes(
   projectName: string,
   nodes: CodeNodeDto[],
   knownIds: Set<string>,
-  classifyFileRole: (relativePath: string) => string,
+  classifyFileRole?: (relativePath: string) => string | undefined,
 ): void {
   const routes = extractHttpRouteCalls(sourceFile, rootPath, projectName, knownIds);
   for (const route of routes) {

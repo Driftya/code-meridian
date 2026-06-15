@@ -8,7 +8,6 @@ public enum IndexedFileRole
     Snapshot,
     Generated,
     BuildArtifact,
-    Documentation,
     Configuration,
     Unknown
 }

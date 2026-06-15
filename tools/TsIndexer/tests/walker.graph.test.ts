@@ -16,7 +16,7 @@ describe('walkTypeScript graph indexing', () => {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.nodes).toContainEqual(
       expect.objectContaining({
@@ -61,7 +61,7 @@ describe('walkTypeScript graph indexing', () => {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.addCaption',
@@ -83,7 +83,7 @@ function format() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:math.ts:calculate',
@@ -108,7 +108,7 @@ function format() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
     const authMethods = result.nodes.filter(node => node.type === 'Method' && node.name === 'isAuthorized');
 
     expect(authMethods).toEqual(
@@ -138,7 +138,7 @@ function format() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
     const method = result.nodes.find(node => node.id === 'Proj:Method:orders.ts:OrderService.placeOrder');
 
     expect(method).toEqual(
@@ -167,7 +167,7 @@ export function renderTotal() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
@@ -194,7 +194,7 @@ export function renderTotal() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
@@ -222,7 +222,7 @@ export function renderTotal() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
@@ -249,7 +249,7 @@ export function renderTotal() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
@@ -277,7 +277,7 @@ export function renderTotal() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
@@ -304,7 +304,7 @@ export function renderTotal() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
@@ -333,7 +333,7 @@ export function renderTotal() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
@@ -359,7 +359,7 @@ export class Editor extends BaseEditor implements EditorPort {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Interface:types.ts:EditorPort',
@@ -382,7 +382,7 @@ export class Editor extends BaseEditor implements EditorPort {
     project.writeFile('state.ts', 'export class State {}\n');
     project.writeFile('consumer.ts', "import { State } from './state';\nexport const state = new State();\n");
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:File:consumer.ts',
@@ -402,7 +402,7 @@ export function register() {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).not.toContainEqual(
       expect.objectContaining({
@@ -424,7 +424,7 @@ export function useState(state: State): string {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.nodes).toContainEqual(
       expect.objectContaining({
@@ -452,7 +452,7 @@ export const current: AppState = { id: '1' };
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual(
       expect.objectContaining({
@@ -481,7 +481,7 @@ export function createOrder(order: Order): string {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).toContainEqual(
       expect.objectContaining({
@@ -511,7 +511,7 @@ export function readOrder(order: OrderShape): number {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.nodes).toContainEqual(
       expect.objectContaining({
@@ -551,7 +551,7 @@ export function readOrder(order: OrderShape): number {
 `,
     );
 
-    const result = walkTypeScript(project.getRootPath(), 'Proj');
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
     expect(result.edges).not.toContainEqual(
       expect.objectContaining({
@@ -561,3 +561,4 @@ export function readOrder(order: OrderShape): number {
     );
   });
 });
+

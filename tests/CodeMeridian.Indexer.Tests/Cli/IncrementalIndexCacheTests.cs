@@ -1,5 +1,6 @@
 using CodeMeridian.Tooling.Storage;
 using FluentAssertions;
+using System.Text.Json;
 
 namespace CodeMeridian.Indexer.Tests.Cli;
 
@@ -63,6 +64,34 @@ public sealed class IncrementalIndexCacheTests
 
         nextPlan.ChangedFiles.Should().BeEmpty();
         nextPlan.DeletedFiles.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Load_WhenCacheVersionIsStale_TreatsAllFilesAsChanged()
+    {
+        using var workspace = TestWorkspace.Create();
+        var file = workspace.WriteFile("src/App.cs", "class App {}");
+        var cacheDirectory = workspace.GetRepoCacheDirectory();
+        var initial = IncrementalIndexCache.Load(cacheDirectory, "Project");
+        var initialPlan = initial.BuildPlan(workspace.Root, [file], forceFull: false);
+        initial.Save(initialPlan);
+
+        var cacheFile = cacheDirectory.GetFiles("indexer-files-*.json").Should().ContainSingle().Subject;
+        using var document = JsonDocument.Parse(File.ReadAllText(cacheFile.FullName));
+        var root = document.RootElement.Clone();
+
+        File.WriteAllText(
+            cacheFile.FullName,
+            JsonSerializer.Serialize(new
+            {
+                Version = 2,
+                Files = root.GetProperty("Files")
+            }));
+
+        var sut = IncrementalIndexCache.Load(cacheDirectory, "Project");
+        var plan = sut.BuildPlan(workspace.Root, [file], forceFull: false);
+
+        plan.ChangedFiles.Should().ContainSingle("src/App.cs");
     }
 
     private sealed class TestWorkspace : IDisposable

@@ -20,7 +20,7 @@ describe('TypeScript configuration extraction', () => {
             '  return { a, b };',
             '}',
         ].join('\n'));
-        const result = walkTypeScript(root, 'CodeMeridian');
+        const result = walkTypeScript(root, 'CodeMeridian', listTypeScriptFiles(root));
         expect(result.nodes).toContainEqual(expect.objectContaining({
             id: 'CodeMeridian::ConfigurationKey::NEO4J:URI',
             type: 'ConfigurationKey',
@@ -49,7 +49,7 @@ describe('TypeScript configuration extraction', () => {
             '  return `${VITE_API_URL}:${token}`;',
             '})();',
         ].join('\n'));
-        const result = walkTypeScript(root, 'CodeMeridian');
+        const result = walkTypeScript(root, 'CodeMeridian', listTypeScriptFiles(root));
         expect(result.edges).toContainEqual(expect.objectContaining({
             type: 'ReadsConfig',
             targetId: 'CodeMeridian::ConfigurationKey::VITE_API_URL',
@@ -69,7 +69,7 @@ describe('TypeScript configuration extraction', () => {
             'const z = { object: (value: unknown) => value };',
             'appConfig.env = z.object({ NEO4J__URI: true });',
         ].join('\n'));
-        const result = walkTypeScript(root, 'CodeMeridian');
+        const result = walkTypeScript(root, 'CodeMeridian', listTypeScriptFiles(root));
         expect(result.edges).toContainEqual(expect.objectContaining({
             type: 'BindsConfig',
             targetId: 'CodeMeridian::ConfigurationKey::NEO4J:URI',
@@ -89,5 +89,12 @@ describe('TypeScript configuration extraction', () => {
         const fullPath = path.join(root, relativePath);
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });
         fs.writeFileSync(fullPath, content, 'utf8');
+    }
+    function listTypeScriptFiles(root) {
+        return [
+            path.join(root, 'src', 'client.ts'),
+            path.join(root, 'src', 'env.ts'),
+            path.join(root, 'src', 'schema.ts'),
+        ].filter(filePath => fs.existsSync(filePath));
     }
 });

@@ -1,40 +1,32 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Project } from 'ts-morph';
-import { buildTypeScriptSourceFileGlobs } from './services/project-discovery.js';
-import { loadIndexedFileRoleClassifier } from './services/file-roles.js';
 import { collectConfigurationEdges, collectConfigurationNodes } from './walker/configuration.js';
 import { collectEdges, collectNodes } from './walker/graph.js';
 import { collectRouteEdges, collectRouteNodes } from './walker/routes.js';
-export function walkTypeScript(rootPath, projectName, files) {
+export function walkTypeScript(rootPath, projectName, files, resolveFileRole) {
     const nodes = [];
     const edges = [];
     const knownIds = new Set();
     const methodIndex = new Map();
-    const classifyFileRole = loadIndexedFileRoleClassifier(rootPath);
     const tsConfigPath = path.join(rootPath, 'tsconfig.json');
     const tsProject = new Project({
         ...(fs.existsSync(tsConfigPath) ? { tsConfigFilePath: tsConfigPath } : {}),
         skipAddingFilesFromTsConfig: true,
         skipFileDependencyResolution: true,
     });
-    if (files) {
-        if (files.length > 0) {
-            tsProject.addSourceFilesAtPaths(files.map(file => path.resolve(file).replace(/\\/g, '/')));
-        }
-    }
-    else {
-        tsProject.addSourceFilesAtPaths(buildTypeScriptSourceFileGlobs(rootPath));
+    if (files.length > 0) {
+        tsProject.addSourceFilesAtPaths(files.map(file => path.resolve(file).replace(/\\/g, '/')));
     }
     const sourceFiles = tsProject.getSourceFiles();
     for (const sourceFile of sourceFiles) {
-        collectNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole);
+        collectNodes(sourceFile, rootPath, projectName, nodes, knownIds, resolveFileRole);
     }
     for (const sourceFile of sourceFiles) {
-        collectRouteNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole);
+        collectRouteNodes(sourceFile, rootPath, projectName, nodes, knownIds, resolveFileRole);
     }
     for (const sourceFile of sourceFiles) {
-        collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole);
+        collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, knownIds, resolveFileRole);
     }
     indexMethods(nodes, methodIndex);
     for (const sourceFile of sourceFiles) {

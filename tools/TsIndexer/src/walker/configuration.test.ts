@@ -24,7 +24,7 @@ describe('TypeScript configuration extraction', () => {
       '}',
     ].join('\n'));
 
-    const result = walkTypeScript(root, 'CodeMeridian');
+    const result = walkTypeScript(root, 'CodeMeridian', listTypeScriptFiles(root));
 
     expect(result.nodes).toContainEqual(expect.objectContaining({
       id: 'CodeMeridian::ConfigurationKey::NEO4J:URI',
@@ -56,7 +56,7 @@ describe('TypeScript configuration extraction', () => {
       '})();',
     ].join('\n'));
 
-    const result = walkTypeScript(root, 'CodeMeridian');
+    const result = walkTypeScript(root, 'CodeMeridian', listTypeScriptFiles(root));
 
     expect(result.edges).toContainEqual(expect.objectContaining({
       type: 'ReadsConfig',
@@ -79,7 +79,7 @@ describe('TypeScript configuration extraction', () => {
       'appConfig.env = z.object({ NEO4J__URI: true });',
     ].join('\n'));
 
-    const result = walkTypeScript(root, 'CodeMeridian');
+    const result = walkTypeScript(root, 'CodeMeridian', listTypeScriptFiles(root));
 
     expect(result.edges).toContainEqual(expect.objectContaining({
       type: 'BindsConfig',
@@ -102,5 +102,13 @@ describe('TypeScript configuration extraction', () => {
     const fullPath = path.join(root, relativePath);
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
     fs.writeFileSync(fullPath, content, 'utf8');
+  }
+
+  function listTypeScriptFiles(root: string): string[] {
+    return [
+      path.join(root, 'src', 'client.ts'),
+      path.join(root, 'src', 'env.ts'),
+      path.join(root, 'src', 'schema.ts'),
+    ].filter(filePath => fs.existsSync(filePath));
   }
 });

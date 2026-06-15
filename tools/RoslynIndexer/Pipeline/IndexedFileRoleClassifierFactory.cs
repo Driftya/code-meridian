@@ -23,7 +23,6 @@ public static class IndexedFileRoleClassifierFactory
         ReplaceIfPresent(target.Snapshot, snapshot.Snapshot);
         ReplaceIfPresent(target.Generated, snapshot.Generated);
         ReplaceIfPresent(target.BuildArtifact, snapshot.BuildArtifact);
-        ReplaceIfPresent(target.Documentation, snapshot.Documentation);
         ReplaceIfPresent(target.Configuration, snapshot.Configuration);
     }
 

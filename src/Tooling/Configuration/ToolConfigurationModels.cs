@@ -40,7 +40,6 @@ public sealed class CodeMeridianFileRoleOptions
     public string[]? Snapshot { get; set; }
     public string[]? Generated { get; set; }
     public string[]? BuildArtifact { get; set; }
-    public string[]? Documentation { get; set; }
     public string[]? Configuration { get; set; }
 }
 
@@ -50,5 +49,4 @@ public sealed record CodeMeridianFileRolePatternSnapshot(
     IReadOnlyList<string>? Snapshot,
     IReadOnlyList<string>? Generated,
     IReadOnlyList<string>? BuildArtifact,
-    IReadOnlyList<string>? Documentation,
     IReadOnlyList<string>? Configuration);

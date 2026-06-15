@@ -28,7 +28,8 @@ internal static class TypeScriptIndexerProcessRunner
     public static async Task<int> RunAsync(
         string fileName,
         IReadOnlyList<string> arguments,
-        DirectoryInfo workingDirectory)
+        DirectoryInfo workingDirectory,
+        IReadOnlyDictionary<string, string?>? environmentVariables = null)
     {
         Console.WriteLine();
         Console.WriteLine($"> {fileName} {string.Join(' ', arguments.Select(QuoteIfNeeded))}");
@@ -43,6 +44,17 @@ internal static class TypeScriptIndexerProcessRunner
 
         foreach (var argument in arguments)
             process.StartInfo.ArgumentList.Add(argument);
+
+        if (environmentVariables is not null)
+        {
+            foreach (var pair in environmentVariables)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Value))
+                    continue;
+
+                process.StartInfo.Environment[pair.Key] = pair.Value;
+            }
+        }
 
         process.Start();
         await process.WaitForExitAsync();

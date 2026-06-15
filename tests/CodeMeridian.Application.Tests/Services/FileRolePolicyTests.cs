@@ -17,8 +17,12 @@ public sealed class FileRolePolicyTests
     [InlineData("src/MyApp.Infrastructure/Migrations/MyDbContextModelSnapshot.cs", IndexedFileRole.Snapshot)]
     [InlineData("src/MyApp/Generated/Foo.g.cs", IndexedFileRole.Generated)]
     [InlineData("src/MyApp/obj/Debug/net10.0/Foo.cs", IndexedFileRole.BuildArtifact)]
-    [InlineData("docs/features.md", IndexedFileRole.Documentation)]
-    [InlineData("appsettings.Development.json", IndexedFileRole.Configuration)]
+    [InlineData("src/MyApp/Configuration/Neo4jOptions.cs", IndexedFileRole.Configuration)]
+    [InlineData("src/MyApp/Bootstrap/ServiceConfiguration.cs", IndexedFileRole.Configuration)]
+    [InlineData("src/MyApp/Bootstrap/AppSettings.cs", IndexedFileRole.Configuration)]
+    [InlineData("src/web/app.config.ts", IndexedFileRole.Configuration)]
+    [InlineData("src/web/orders.options.ts", IndexedFileRole.Configuration)]
+    [InlineData("src/web/AppConfig.tsx", IndexedFileRole.Configuration)]
     public void Classify_DefaultPatterns_ReturnExpectedRole(string path, IndexedFileRole expected)
     {
         Classifier.Classify(path).Should().Be(expected);

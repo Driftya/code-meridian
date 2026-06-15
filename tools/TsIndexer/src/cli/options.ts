@@ -1,12 +1,8 @@
 export interface IndexCommandOptions {
   path: string;
-  project?: string;
-  url?: string;
-  clear: boolean;
-  forceFull: boolean;
-  includeDocs: boolean;
-  watch: boolean;
-  filesList?: string;
+  project: string;
+  url: string;
+  batchFile: string;
 }
 
 export interface ResolvedIndexCommandOptions {
@@ -14,11 +10,5 @@ export interface ResolvedIndexCommandOptions {
   projectName: string;
   serverUrl: string;
   apiKey?: string;
-  clear: boolean;
-  forceFull: boolean;
-  includeDocs: boolean;
-  watch: boolean;
-  filesListPath?: string;
-  storageMode: 'repo' | 'global';
-  cacheDirectory: string;
+  batchFilePath: string;
 }

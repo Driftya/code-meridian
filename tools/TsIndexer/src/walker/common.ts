@@ -19,7 +19,7 @@ export function addNode(
   nodes: CodeNodeDto[],
   knownIds: Set<string>,
   node: CodeNodeDto,
-  classifyFileRole?: (relativePath: string) => string,
+  classifyFileRole?: (relativePath: string) => string | undefined,
 ): void {
   if (!knownIds.has(node.id)) {
     if (!node.fileRole && node.filePath && classifyFileRole) {

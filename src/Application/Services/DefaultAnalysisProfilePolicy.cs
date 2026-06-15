@@ -12,8 +12,8 @@ public sealed class DefaultAnalysisProfilePolicy : IAnalysisProfilePolicy
         AnalysisProfile.CoverageGaps => role is IndexedFileRole.Source or IndexedFileRole.Test or IndexedFileRole.Unknown,
         AnalysisProfile.Architecture => role is IndexedFileRole.Source or IndexedFileRole.Unknown,
         AnalysisProfile.DuplicateDetection => role is IndexedFileRole.Source or IndexedFileRole.Unknown,
-        AnalysisProfile.Documentation => role is IndexedFileRole.Documentation or IndexedFileRole.Configuration or IndexedFileRole.Source or IndexedFileRole.Unknown,
-        AnalysisProfile.AgentContext => role is IndexedFileRole.Source or IndexedFileRole.Test or IndexedFileRole.Documentation or IndexedFileRole.Configuration or IndexedFileRole.Unknown,
+        AnalysisProfile.Documentation => role is IndexedFileRole.Configuration or IndexedFileRole.Source or IndexedFileRole.Unknown,
+        AnalysisProfile.AgentContext => role is IndexedFileRole.Source or IndexedFileRole.Test or IndexedFileRole.Configuration or IndexedFileRole.Unknown,
         _ => role != IndexedFileRole.BuildArtifact
     };
 }

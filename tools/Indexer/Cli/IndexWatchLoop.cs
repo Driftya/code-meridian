@@ -1,20 +1,20 @@
-using CodeMeridian.RoslynIndexer.Pipeline;
 using Microsoft.Extensions.Logging;
 
 namespace CodeMeridian.Indexer.Cli.Commands;
 
 internal sealed class IndexWatchLoop(
     DirectoryInfo rootPath,
-    IndexerPipeline pipeline,
     ILogger logger)
 {
     private readonly WatchDebounceBuffer _buffer = new(rootPath);
     private System.Timers.Timer? _debounceTimer;
 
-    public async Task RunAsync(string project, CancellationToken cancellationToken)
+    public async Task RunAsync(
+        Func<WatchDebounceBatch, CancellationToken, Task> onBatchAsync,
+        CancellationToken cancellationToken)
     {
         logger.LogInformation(
-            "Watch mode active - monitoring {Path} for .cs and documentation changes. Press Ctrl+C to exit.",
+            "Watch mode active - monitoring {Path} for source, documentation, and configuration changes. Press Ctrl+C to exit.",
             rootPath.FullName);
 
         using var watcher = new FileSystemWatcher(rootPath.FullName)
@@ -24,16 +24,13 @@ internal sealed class IndexWatchLoop(
             EnableRaisingEvents = true,
         };
 
-        watcher.Filters.Add("*.cs");
-        watcher.Filters.Add("*.md");
-        watcher.Filters.Add("*.txt");
-        watcher.Changed += (_, e) => ScheduleReindex(e.FullPath, deleted: false, project, cancellationToken);
-        watcher.Created += (_, e) => ScheduleReindex(e.FullPath, deleted: false, project, cancellationToken);
-        watcher.Deleted += (_, e) => ScheduleReindex(e.FullPath, deleted: true, project, cancellationToken);
+        watcher.Changed += (_, e) => ScheduleReindex(e.FullPath, deleted: false, onBatchAsync, cancellationToken);
+        watcher.Created += (_, e) => ScheduleReindex(e.FullPath, deleted: false, onBatchAsync, cancellationToken);
+        watcher.Deleted += (_, e) => ScheduleReindex(e.FullPath, deleted: true, onBatchAsync, cancellationToken);
         watcher.Renamed += (_, e) =>
         {
-            ScheduleReindex(e.OldFullPath, deleted: true, project, cancellationToken);
-            ScheduleReindex(e.FullPath, deleted: false, project, cancellationToken);
+            ScheduleReindex(e.OldFullPath, deleted: true, onBatchAsync, cancellationToken);
+            ScheduleReindex(e.FullPath, deleted: false, onBatchAsync, cancellationToken);
         };
 
         try
@@ -51,7 +48,11 @@ internal sealed class IndexWatchLoop(
 
     internal WatchDebounceBatch Drain() => _buffer.Drain();
 
-    private void ScheduleReindex(string fullPath, bool deleted, string project, CancellationToken cancellationToken)
+    private void ScheduleReindex(
+        string fullPath,
+        bool deleted,
+        Func<WatchDebounceBatch, CancellationToken, Task> onBatchAsync,
+        CancellationToken cancellationToken)
     {
         RecordChange(fullPath, deleted);
 
@@ -65,13 +66,7 @@ internal sealed class IndexWatchLoop(
 
             try
             {
-                await pipeline.RunAsync(
-                    rootPath,
-                    project,
-                    clear: false,
-                    changedFiles: batch.ChangedFiles,
-                    deletedFiles: batch.DeletedFiles,
-                    cancellationToken: cancellationToken);
+                await onBatchAsync(batch, cancellationToken);
             }
             catch (Exception ex)
             {

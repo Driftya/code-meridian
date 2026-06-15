@@ -5,54 +5,56 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseCommandLine } from '../src/cli/program.js';
 
 let rootPath: string;
-let globalConfigRoot: string;
+let batchFilePath: string;
 
 beforeEach(() => {
   rootPath = fs.mkdtempSync(path.join(os.tmpdir(), 'codemeridian-ts-program-'));
-  globalConfigRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'codemeridian-ts-global-'));
-  process.env.CODEMERIDIAN_CONFIG_HOME = globalConfigRoot;
-  process.env.CodeMeridian_Project = ' ';
-  process.env.CodeMeridian_Url = ' ';
+  batchFilePath = path.join(rootPath, 'batch.json');
+  fs.writeFileSync(batchFilePath, '[]');
+  process.env.CodeMeridian_Auth_ApiKey = 'test-api-key';
 });
 
 afterEach(() => {
-  delete process.env.CODEMERIDIAN_CONFIG_HOME;
-  delete process.env.CodeMeridian_Project;
-  delete process.env.CodeMeridian_Url;
+  delete process.env.CodeMeridian_Auth_ApiKey;
   fs.rmSync(rootPath, { recursive: true, force: true });
-  fs.rmSync(globalConfigRoot, { recursive: true, force: true });
 });
 
 describe('parseCommandLine', () => {
-  it('uses the repository root for repo-local cache storage', async () => {
-    const repoRoot = path.join(rootPath, 'repo');
-    const projectRoot = path.join(repoRoot, 'tools', 'TsIndexer');
-    fs.mkdirSync(projectRoot, { recursive: true });
-    fs.writeFileSync(path.join(repoRoot, 'CodeMeridian.sln'), '');
+  it('resolves the internal worker contract explicitly', async () => {
+    const result = await parseCommandLine([
+      'node',
+      'codemeridian-ts-indexer',
+      rootPath,
+      '--project',
+      'CodeMeridian',
+      '--url',
+      'http://localhost:5100',
+      '--batch-file',
+      batchFilePath,
+    ]);
 
-    const result = await parseCommandLine(['node', 'codemeridian-ts-indexer', projectRoot]);
-
-    expect(result.storageMode).toBe('repo');
-    expect(result.cacheDirectory).toBe(path.join(repoRoot, '.meridian', 'cache'));
+    expect(result.rootPath).toBe(path.resolve(rootPath));
+    expect(result.projectName).toBe('CodeMeridian');
+    expect(result.serverUrl).toBe('http://localhost:5100');
+    expect(result.batchFilePath).toBe(path.resolve(batchFilePath));
+    expect(result.apiKey).toBe('test-api-key');
   });
 
-  it('loads server url and global storage mode from global meridian config', async () => {
-    fs.writeFileSync(
-      path.join(globalConfigRoot, 'meridian.json'),
-      JSON.stringify(
-        {
-          codeMeridianUrl: 'http://global:5100',
-          useGlobalCache: true,
-        },
-        null,
-        2,
-      ),
-    );
+  it('normalizes a blank api key to undefined', async () => {
+    process.env.CodeMeridian_Auth_ApiKey = ' ';
 
-    const result = await parseCommandLine(['node', 'codemeridian-ts-indexer', rootPath]);
+    const result = await parseCommandLine([
+      'node',
+      'codemeridian-ts-indexer',
+      rootPath,
+      '--project',
+      'CodeMeridian',
+      '--url',
+      'http://localhost:5100',
+      '--batch-file',
+      batchFilePath,
+    ]);
 
-    expect(result.serverUrl).toBe('http://global:5100');
-    expect(result.storageMode).toBe('global');
-    expect(result.cacheDirectory).toContain(globalConfigRoot);
+    expect(result.apiKey).toBeUndefined();
   });
 });

@@ -12,7 +12,6 @@ import {
   isTypeScriptSourceFile,
   resolveProjectName,
 } from '../src/services/project-discovery.js';
-import { loadIndexedFileRoleClassifier } from '../src/services/file-roles.js';
 
 let rootPath: string;
 
@@ -79,24 +78,6 @@ describe('project discovery', () => {
     expect(buildTypeScriptSourceFileGlobs(rootPath)).toContain(`!${path.join(rootPath, '**/*.d.ts').replace(/\\/g, '/')}`);
   });
 
-  it('classifies indexed file roles from meridian defaults and overrides', () => {
-    writeFile('meridian.json', JSON.stringify({
-      indexing: {
-        fileRoles: {
-          generated: ['**/*.gen.ts'],
-        },
-      },
-    }));
-
-    const classify = loadIndexedFileRoleClassifier(rootPath);
-
-    expect(classify('tests/app/order.spec.ts')).toBe('Test');
-    expect(classify('src/Migrations/CreateUsers.cs')).toBe('Migration');
-    expect(classify('src/Generated/Client.gen.ts')).toBe('Generated');
-    expect(classify('docs/features.md')).toBe('Documentation');
-    expect(classify('appsettings.Development.json')).toBe('Configuration');
-    expect(classify('src/app/service.ts')).toBe('Source');
-  });
 });
 
 function writeFile(relativePath: string, content: string): void {

@@ -110,7 +110,7 @@ public sealed class CSharpIndexer(
         }
 
         logger.LogInformation(
-            "Classified {FileCount} indexed files for project {ProjectName}: Source={SourceCount}, Test={TestCount}, Migration={MigrationCount}, Snapshot={SnapshotCount}, Generated={GeneratedCount}, BuildArtifact={BuildArtifactCount}, Documentation={DocumentationCount}, Configuration={ConfigurationCount}, Unknown={UnknownCount}",
+            "Classified {FileCount} indexed files for project {ProjectName}: Source={SourceCount}, Test={TestCount}, Migration={MigrationCount}, Snapshot={SnapshotCount}, Generated={GeneratedCount}, BuildArtifact={BuildArtifactCount}, Configuration={ConfigurationCount}, Unknown={UnknownCount}",
             fileCount,
             projectContext,
             counts[IndexedFileRole.Source],
@@ -119,7 +119,6 @@ public sealed class CSharpIndexer(
             counts[IndexedFileRole.Snapshot],
             counts[IndexedFileRole.Generated],
             counts[IndexedFileRole.BuildArtifact],
-            counts[IndexedFileRole.Documentation],
             counts[IndexedFileRole.Configuration],
             counts[IndexedFileRole.Unknown]);
     }

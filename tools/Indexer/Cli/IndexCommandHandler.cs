@@ -36,27 +36,14 @@ internal sealed class IndexCommandHandler(
             return 1;
         }
 
-        var hasCSharp = !_settings.SkipCSharp && projectDiscoveryService.ContainsFile(_settings.RootPath, ".cs");
-        var typeScriptRoots = _settings.SkipTypeScript ? [] : projectDiscoveryService.FindTypeScriptRoots(_settings.RootPath);
-        var hasTypeScript = typeScriptRoots.Count > 0;
-        var configurationFilePatterns = _settings.ConfigurationFiles;
-        var hasConfiguration = !_settings.SkipConfiguration &&
-                               _settings.RootPath.EnumerateFiles("*.*", SearchOption.AllDirectories)
-                                   .Where(file => !IndexExecutionPlanBuilder.IsIgnoredPath(_settings.RootPath, file))
-                                   .Any(file => ConfigurationFilePatternMatcher.IsConfigurationFile(file, configurationFilePatterns));
-        var cacheDirectory = storagePathService.ResolveCacheDirectory(_settings.RootPath, _settings.Project, _settings.StorageMode);
-        var cache = IncrementalIndexCache.Load(cacheDirectory, _settings.Project);
-        var indexableFiles = IndexExecutionPlanBuilder.EnumerateIndexableFiles(_settings.RootPath, hasCSharp, hasTypeScript, _settings.IncludeDocs, hasConfiguration);
-        var incrementalPlan = IndexExecutionPlanBuilder.BuildPlan(cache, _settings.RootPath, indexableFiles, forceFull: _settings.Clear || !_settings.Incremental);
-        var changedFiles = _settings.Incremental && !_settings.Clear ? incrementalPlan.ChangedFiles : null;
-        var deletedFiles = IndexExecutionPlanBuilder.GetDeletedFiles(incrementalPlan, _settings.Incremental, _settings.Clear);
+        var context = BuildExecutionContext(_settings.Clear);
 
         Console.WriteLine("CodeMeridian index");
         Console.WriteLine($"  Root    : {_settings.RootPath.FullName}");
         Console.WriteLine($"  Project : {_settings.Project}");
         Console.WriteLine($"  Server  : {_settings.CodeMeridianUrl}");
         Console.WriteLine($"  Storage : {_settings.StorageMode.ToString().ToLowerInvariant()}");
-        Console.WriteLine($"  Cache   : {cacheDirectory.FullName}");
+        Console.WriteLine($"  Cache   : {context.CacheDirectory.FullName}");
         Console.WriteLine($"  Mode    : {(_settings.Incremental && !_settings.Clear ? "incremental" : "full")}");
         if (_settings.HasOutdatedLocalConfig)
         {
@@ -65,7 +52,7 @@ internal sealed class IndexCommandHandler(
             Console.WriteLine($"warning: run `codemeridian init .` to merge version {_settings.CurrentConfigVersion} defaults into the existing file.");
         }
 
-        if (!hasCSharp && !hasTypeScript && !hasConfiguration)
+        if (!context.HasCSharp && !context.HasTypeScript && !context.HasConfiguration)
         {
             Console.WriteLine("No enabled indexers found matching this project.");
             Console.WriteLine("Use --list-capabilities to inspect available indexers.");
@@ -74,130 +61,59 @@ internal sealed class IndexCommandHandler(
 
         if (_settings.DryRun)
         {
-            PrintDryRun(hasCSharp, typeScriptRoots, incrementalPlan, _settings.Incremental && !_settings.Clear);
+            PrintDryRun(context.HasCSharp, context.TypeScriptRoots, context.IncrementalPlan, _settings.Incremental && !_settings.Clear);
             return 0;
         }
 
-        var exitCode = 0;
-        var clearNextIndexer = _settings.Clear;
-
-        if (_settings.Incremental && !_settings.Clear && !incrementalPlan.HasChanges)
+        if (_settings.Incremental && !_settings.Clear && !context.IncrementalPlan.HasChanges)
         {
             Console.WriteLine("No file changes detected since the last successful index run.");
             return 0;
         }
 
-        if (hasCSharp)
+        var exitCode = await RunIndexPassAsync(
+            context,
+            clear: _settings.Clear,
+            changedFiles: context.ChangedFiles,
+            deletedFiles: context.DeletedFiles);
+
+        if (exitCode != 0)
+            return exitCode;
+
+        context.Cache.Save(context.IncrementalPlan);
+
+        if (!_settings.Watch)
+            return 0;
+
+        var services = BuildLoggingServices();
+        await using var provider = services.BuildServiceProvider();
+        var logger = provider.GetRequiredService<ILogger<IndexCommandHandler>>();
+
+        var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
         {
-            exitCode = await RunCSharpIndexerAsync(clearNextIndexer, changedFiles, deletedFiles);
-            if (exitCode != 0 || _settings.Watch)
-                return exitCode;
+            e.Cancel = true;
+            cts.Cancel();
+        };
 
-            clearNextIndexer = false;
-        }
-
-        if (hasTypeScript)
+        var watchLoop = new IndexWatchLoop(_settings.RootPath, logger);
+        await watchLoop.RunAsync(async (_, _) =>
         {
-            if (changedFiles is not null || deletedFiles.Count > 0)
-            {
-                await new ProjectFileDeletionService(_settings.CodeMeridianUrl, _settings.ApiKey, _settings.Project, _settings.RootPath).DeleteAsync(
-                    FilterTypeScriptIndexerFiles(changedFiles ?? [], typeScriptRoots, _settings.IncludeDocs && !hasCSharp)
-                        .Concat(FilterTypeScriptIndexerFiles(deletedFiles, typeScriptRoots, _settings.IncludeDocs && !hasCSharp)));
-            }
+            var watchContext = BuildExecutionContext(clear: false);
+            if (!watchContext.IncrementalPlan.HasChanges)
+                return;
 
-            var tsIndexerRoot = ResolveTypeScriptIndexerRoot();
-            if (tsIndexerRoot is null)
-            {
-                Console.Error.WriteLine("error: TypeScript indexer assets were not found.");
-                Console.Error.WriteLine("Reinstall the CodeMeridian indexer tool or run from a source checkout.");
-                return 1;
-            }
+            var watchExitCode = await RunIndexPassAsync(
+                watchContext,
+                clear: false,
+                changedFiles: watchContext.ChangedFiles,
+                deletedFiles: watchContext.DeletedFiles);
 
-            exitCode = await TypeScriptIndexerProcessRunner.EnsureDependenciesAsync(tsIndexerRoot);
-            if (exitCode != 0)
-                return exitCode;
+            if (watchExitCode == 0)
+                watchContext.Cache.Save(watchContext.IncrementalPlan);
+        }, cts.Token);
 
-            var tsxCommand = TypeScriptIndexerProcessRunner.ResolveTsxCommand(tsIndexerRoot);
-            if (tsxCommand is null)
-            {
-                Console.Error.WriteLine("error: local tsx binary was not found for the TypeScript indexer.");
-                Console.Error.WriteLine("Reinstall the indexer dependencies or run from a source checkout.");
-                return 1;
-            }
-
-            foreach (var typeScriptRoot in typeScriptRoots)
-            {
-                var changedTypeScriptFiles = changedFiles is null
-                    ? null
-                    : FilterFilesForRoot(
-                        changedFiles,
-                        typeScriptRoot,
-                        file => IndexExecutionPlanBuilder.IsTypeScriptSourceFile(file) || (_settings.IncludeDocs && !hasCSharp && IndexExecutionPlanBuilder.IsDocumentationFile(file)))
-                    .ToArray();
-
-                if (changedTypeScriptFiles is { Length: 0 })
-                    continue;
-
-                var filesList = changedTypeScriptFiles is null
-                    ? null
-                    : WriteFilesList(cacheDirectory, typeScriptRoot, changedTypeScriptFiles);
-
-                var tsArgs = TypeScriptIndexerCommandBuilder.BuildTypeScriptIndexerArgs(tsIndexerRoot, typeScriptRoot, _settings.Project);
-                TypeScriptIndexerCommandBuilder.AddTypeScriptIndexerOptions(
-                    tsArgs,
-                    _settings.CodeMeridianUrl,
-                    _settings.Watch,
-                    clearNextIndexer,
-                    changedFiles is null,
-                    _settings.IncludeDocs && !hasCSharp && typeScriptRoots.Count == 1,
-                    filesList);
-
-                exitCode = await TypeScriptIndexerProcessRunner.RunAsync(tsxCommand, tsArgs, tsIndexerRoot);
-                if (exitCode != 0 || _settings.Watch)
-                    return exitCode;
-
-                clearNextIndexer = false;
-            }
-        }
-
-        if (_settings.IncludeDocs)
-        {
-            exitCode = await RunDocumentIndexerAsync(changedFiles, deletedFiles);
-            if (exitCode != 0 || _settings.Watch)
-                return exitCode;
-        }
-
-        if (hasConfiguration)
-        {
-            exitCode = await RunConfigurationIndexerAsync(changedFiles, deletedFiles);
-            if (exitCode != 0 || _settings.Watch)
-                return exitCode;
-        }
-
-        if (!_settings.SkipDiagnostics)
-        {
-            exitCode = await diagnosticsCommand.RunAsync(
-                _settings.RootPath,
-                typeScriptRoots,
-                _settings.Project,
-                _settings.CodeMeridianUrl,
-                _settings.ApiKey,
-                _settings.AllowRepoScripts);
-            if (exitCode != 0)
-                return exitCode;
-        }
-
-        if (_settings.RebuildKeywords)
-        {
-            exitCode = await RebuildKeywordGraphAsync();
-            if (exitCode != 0)
-                return exitCode;
-        }
-
-        if (exitCode == 0)
-            cache.Save(incrementalPlan);
-
-        return exitCode;
+        return 0;
     }
 
     private async Task<int> RunCSharpIndexerAsync(
@@ -222,20 +138,66 @@ internal sealed class IndexCommandHandler(
         var pipeline = provider.GetRequiredService<IndexerPipeline>();
 
         await pipeline.RunAsync(_settings.RootPath, _settings.Project, clear, changedFiles, deletedFiles);
+        return 0;
+    }
 
-        if (!_settings.Watch)
-            return 0;
+    private async Task<int> RunIndexPassAsync(
+        IndexExecutionContext context,
+        bool clear,
+        IReadOnlyCollection<string>? changedFiles,
+        IReadOnlyCollection<string> deletedFiles)
+    {
+        var exitCode = 0;
+        var clearNextIndexer = clear;
 
-        var logger = provider.GetRequiredService<ILogger<IndexerPipeline>>();
-
-        var cts = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, e) =>
+        if (context.HasCSharp)
         {
-            e.Cancel = true;
-            cts.Cancel();
-        };
-        var watchLoop = new IndexWatchLoop(_settings.RootPath, pipeline, logger);
-        await watchLoop.RunAsync(_settings.Project, cts.Token);
+            exitCode = await RunCSharpIndexerAsync(clearNextIndexer, changedFiles, deletedFiles);
+            if (exitCode != 0)
+                return exitCode;
+
+            clearNextIndexer = false;
+        }
+
+        if (context.HasTypeScript)
+        {
+            exitCode = await RunTypeScriptIndexerAsync(context, changedFiles, deletedFiles);
+            if (exitCode != 0)
+                return exitCode;
+
+            clearNextIndexer = false;
+        }
+
+        if (_settings.IncludeDocs)
+        {
+            exitCode = await RunDocumentIndexerAsync(changedFiles, deletedFiles);
+            if (exitCode != 0)
+                return exitCode;
+        }
+
+        if (context.HasConfiguration)
+        {
+            exitCode = await RunConfigurationIndexerAsync(clear, changedFiles, deletedFiles);
+            if (exitCode != 0)
+                return exitCode;
+        }
+
+        if (!_settings.SkipDiagnostics)
+        {
+            exitCode = await diagnosticsCommand.RunAsync(
+                _settings.RootPath,
+                context.TypeScriptRoots,
+                _settings.Project,
+                _settings.CodeMeridianUrl,
+                _settings.ApiKey,
+                _settings.AllowRepoScripts);
+            if (exitCode != 0)
+                return exitCode;
+        }
+
+        if (_settings.RebuildKeywords)
+            return await RebuildKeywordGraphAsync();
+
         return 0;
     }
 
@@ -296,14 +258,112 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Project context   : {_settings.Project}");
     }
 
-    private IEnumerable<string> FilterTypeScriptIndexerFiles(
+    private IndexExecutionContext BuildExecutionContext(bool clear)
+    {
+        var hasCSharp = !_settings.SkipCSharp && projectDiscoveryService.ContainsFile(_settings.RootPath, ".cs");
+        var typeScriptRoots = _settings.SkipTypeScript ? [] : projectDiscoveryService.FindTypeScriptRoots(_settings.RootPath);
+        var hasTypeScript = typeScriptRoots.Count > 0;
+        var configurationFilePatterns = _settings.ConfigurationFiles;
+        var hasConfiguration = !_settings.SkipConfiguration &&
+                               _settings.RootPath.EnumerateFiles("*.*", SearchOption.AllDirectories)
+                                   .Where(file => !IndexExecutionPlanBuilder.IsIgnoredPath(_settings.RootPath, file))
+                                   .Any(file => ConfigurationFilePatternMatcher.IsConfigurationFile(file, configurationFilePatterns));
+
+        var cacheDirectory = storagePathService.ResolveCacheDirectory(_settings.RootPath, _settings.Project, _settings.StorageMode);
+        var cache = IncrementalIndexCache.Load(cacheDirectory, _settings.Project);
+        var indexableFiles = IndexExecutionPlanBuilder.EnumerateIndexableFiles(_settings.RootPath, hasCSharp, hasTypeScript, _settings.IncludeDocs, hasConfiguration);
+        var incrementalPlan = IndexExecutionPlanBuilder.BuildPlan(cache, _settings.RootPath, indexableFiles, forceFull: clear || !_settings.Incremental);
+        var changedFiles = _settings.Incremental && !clear ? incrementalPlan.ChangedFiles : null;
+        var deletedFiles = IndexExecutionPlanBuilder.GetDeletedFiles(incrementalPlan, _settings.Incremental, clear);
+
+        return new IndexExecutionContext(
+            hasCSharp,
+            typeScriptRoots,
+            hasTypeScript,
+            hasConfiguration,
+            cacheDirectory,
+            cache,
+            incrementalPlan,
+            changedFiles,
+            deletedFiles);
+    }
+
+    private async Task<int> RunTypeScriptIndexerAsync(
+        IndexExecutionContext context,
+        IReadOnlyCollection<string>? changedFiles,
+        IReadOnlyCollection<string> deletedFiles)
+    {
+        if (changedFiles is not null || deletedFiles.Count > 0)
+        {
+            await new ProjectFileDeletionService(_settings.CodeMeridianUrl, _settings.ApiKey, _settings.Project, _settings.RootPath).DeleteAsync(
+                context.TypeScriptRoots.SelectMany(root => FilterTypeScriptFiles(changedFiles ?? [], root))
+                    .Concat(context.TypeScriptRoots.SelectMany(root => FilterTypeScriptFiles(deletedFiles, root))));
+        }
+
+        var tsIndexerRoot = ResolveTypeScriptIndexerRoot();
+        if (tsIndexerRoot is null)
+        {
+            Console.Error.WriteLine("error: TypeScript indexer assets were not found.");
+            Console.Error.WriteLine("Reinstall the CodeMeridian indexer tool or run from a source checkout.");
+            return 1;
+        }
+
+        var exitCode = await TypeScriptIndexerProcessRunner.EnsureDependenciesAsync(tsIndexerRoot);
+        if (exitCode != 0)
+            return exitCode;
+
+        var tsxCommand = TypeScriptIndexerProcessRunner.ResolveTsxCommand(tsIndexerRoot);
+        if (tsxCommand is null)
+        {
+            Console.Error.WriteLine("error: local tsx binary was not found for the TypeScript indexer.");
+            Console.Error.WriteLine("Reinstall the indexer dependencies or run from a source checkout.");
+            return 1;
+        }
+
+        var fileRoleClassifier = IndexedFileRoleClassifierFactory.Create(_settings.FileRoles);
+
+        foreach (var typeScriptRoot in context.TypeScriptRoots)
+        {
+            var files = SelectTypeScriptFilesForRoot(changedFiles, typeScriptRoot).ToArray();
+            if (files.Length == 0)
+                continue;
+
+            var batchFile = WriteTypeScriptBatchFile(context.CacheDirectory, typeScriptRoot, files, fileRoleClassifier);
+            var tsArgs = TypeScriptIndexerCommandBuilder.BuildTypeScriptIndexerArgs(tsIndexerRoot, typeScriptRoot, _settings.Project);
+            TypeScriptIndexerCommandBuilder.AddTypeScriptIndexerOptions(tsArgs, _settings.CodeMeridianUrl, batchFile);
+
+            exitCode = await TypeScriptIndexerProcessRunner.RunAsync(
+                tsxCommand,
+                tsArgs,
+                tsIndexerRoot,
+                CreateTypeScriptIndexerEnvironment());
+            if (exitCode != 0)
+                return exitCode;
+        }
+
+        return 0;
+    }
+
+    private IEnumerable<string> FilterTypeScriptFiles(
         IEnumerable<string> relativePaths,
-        IReadOnlyCollection<DirectoryInfo> typeScriptRoots,
-        bool includeDocs) =>
-        typeScriptRoots.SelectMany(root => FilterFilesForRoot(
-            relativePaths,
-            root,
-            file => IndexExecutionPlanBuilder.IsTypeScriptSourceFile(file) || (includeDocs && IndexExecutionPlanBuilder.IsDocumentationFile(file))));
+        DirectoryInfo typeScriptRoot) =>
+        FilterFilesForRoot(relativePaths, typeScriptRoot, IndexExecutionPlanBuilder.IsTypeScriptSourceFile);
+
+    private IEnumerable<string> SelectTypeScriptFilesForRoot(
+        IReadOnlyCollection<string>? changedFiles,
+        DirectoryInfo typeScriptRoot)
+    {
+        if (changedFiles is null)
+        {
+            return typeScriptRoot
+                .EnumerateFiles("*.*", SearchOption.AllDirectories)
+                .Where(file => !IndexExecutionPlanBuilder.IsIgnoredPath(_settings.RootPath, file))
+                .Where(IndexExecutionPlanBuilder.IsTypeScriptSourceFile)
+                .Select(file => file.FullName);
+        }
+
+        return FilterTypeScriptFiles(changedFiles, typeScriptRoot);
+    }
 
     private IEnumerable<string> FilterFilesForRoot(
         IEnumerable<string> relativePaths,
@@ -322,19 +382,35 @@ internal sealed class IndexCommandHandler(
         }
     }
 
-    private FileInfo WriteFilesList(
+    private FileInfo WriteTypeScriptBatchFile(
         DirectoryInfo cacheDirectory,
         DirectoryInfo languageRoot,
-        IReadOnlyCollection<string> fullPaths)
+        IReadOnlyCollection<string> fullPaths,
+        Application.Services.IIndexedFileRoleClassifier fileRoleClassifier)
     {
         cacheDirectory.Create();
         var file = new FileInfo(Path.Combine(
             cacheDirectory.FullName,
-            $"ts-files-{Hash($"{_settings.Project}|{languageRoot.FullName}")}.txt"));
+            $"ts-batch-{Hash($"{_settings.Project}|{languageRoot.FullName}")}.json"));
 
-        File.WriteAllLines(file.FullName, fullPaths.Order(StringComparer.OrdinalIgnoreCase));
+        var payload = fullPaths
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .Select(fullPath =>
+            {
+                var relativeToSolutionRoot = Path.GetRelativePath(_settings.RootPath.FullName, fullPath).Replace('\\', '/');
+                var relativeToLanguageRoot = Path.GetRelativePath(languageRoot.FullName, fullPath).Replace('\\', '/');
+                return new TypeScriptBatchEntry(relativeToLanguageRoot, fileRoleClassifier.Classify(relativeToSolutionRoot).ToString());
+            })
+            .ToArray();
+
+        File.WriteAllText(file.FullName, System.Text.Json.JsonSerializer.Serialize(payload));
         return file;
     }
+
+    private IReadOnlyDictionary<string, string?> CreateTypeScriptIndexerEnvironment() =>
+        string.IsNullOrWhiteSpace(_settings.ApiKey)
+            ? new Dictionary<string, string?>()
+            : new Dictionary<string, string?> { ["CodeMeridian_Auth_ApiKey"] = _settings.ApiKey };
 
     private DirectoryInfo? ResolveTypeScriptIndexerRoot()
     {
@@ -417,6 +493,7 @@ internal sealed class IndexCommandHandler(
     }
 
     private async Task<int> RunConfigurationIndexerAsync(
+        bool clear,
         IReadOnlyCollection<string>? changedFiles,
         IReadOnlyCollection<string> deletedFiles)
     {
@@ -428,8 +505,32 @@ internal sealed class IndexCommandHandler(
             _settings.ApiKey,
             IndexedFileRoleClassifierFactory.Create(_settings.FileRoles),
             _settings.ConfigurationFiles,
-            clearExistingConfiguration: _settings.Clear || !_settings.Incremental,
-            changedFiles: _settings.Clear || !_settings.Incremental ? null : changedFiles,
-            deletedFiles: _settings.Clear || !_settings.Incremental ? [] : deletedFiles);
+            clearExistingConfiguration: clear || !_settings.Incremental,
+            changedFiles: clear || !_settings.Incremental ? null : changedFiles,
+            deletedFiles: clear || !_settings.Incremental ? [] : deletedFiles);
     }
+
+    private ServiceCollection BuildLoggingServices()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging(builder => builder
+            .AddConsole()
+            .AddFilter("System.Net.Http.HttpClient", LogLevel.Warning)
+            .AddFilter("Microsoft", LogLevel.Warning)
+            .SetMinimumLevel(LogLevel.Information));
+        return services;
+    }
+
+    private sealed record IndexExecutionContext(
+        bool HasCSharp,
+        IReadOnlyList<DirectoryInfo> TypeScriptRoots,
+        bool HasTypeScript,
+        bool HasConfiguration,
+        DirectoryInfo CacheDirectory,
+        IncrementalIndexCache Cache,
+        IncrementalIndexPlan IncrementalPlan,
+        IReadOnlyCollection<string>? ChangedFiles,
+        IReadOnlyCollection<string> DeletedFiles);
+
+    private sealed record TypeScriptBatchEntry(string Path, string FileRole);
 }

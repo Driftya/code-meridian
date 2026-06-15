@@ -22,7 +22,7 @@ public sealed class StatusCommandTests
                 {
                     Component = "CodeMeridian.McpServer",
                     ProductVersion = "9.8.7",
-                    GraphContractVersion = 2,
+                    GraphContractVersion = 3,
                     CacheVersion = 3
                 })
             }))
@@ -35,7 +35,7 @@ public sealed class StatusCommandTests
             exitCode.Should().Be(0);
             output.ToString().Should().Contain("Client tool version");
             output.ToString().Should().Contain("MCP server version     : 9.8.7");
-            output.ToString().Should().Contain("MCP graph contract     : 2");
+            output.ToString().Should().Contain("MCP graph contract     : 3");
             output.ToString().Should().Contain("MCP cache version      : 3");
         }
         finally

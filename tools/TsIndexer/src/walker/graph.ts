@@ -11,7 +11,7 @@ export function collectNodes(
   projectName: string,
   nodes: CodeNodeDto[],
   knownIds: Set<string>,
-  classifyFileRole: (relativePath: string) => string,
+  classifyFileRole?: (relativePath: string) => string | undefined,
 ): void {
   const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
   const namespace = getNamespaceForPath(relPath, isTestFilePath(relPath));
