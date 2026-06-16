@@ -38,11 +38,16 @@ public sealed class TypeScriptIndexerProcessRunnerTests
     public void ResolveTsxCommand_ReturnsBinaryPathWhenPresent()
     {
         using var workspace = TestWorkspace.Create();
-        var binary = workspace.WriteFile(@"node_modules/.bin/tsx.cmd", "echo");
+        var expectedBinary = OperatingSystem.IsWindows()
+            ? workspace.WriteFile(@"node_modules/.bin/tsx.cmd", "echo")
+            : workspace.WriteFile(@"node_modules/.bin/tsx", "echo");
+
+        workspace.WriteFile(@"node_modules/.bin/tsx", "echo");
+        workspace.WriteFile(@"node_modules/.bin/tsx.cmd", "echo");
 
         TypeScriptIndexerProcessRunner.ResolveTsxCommand(workspace.Root)
             .Should()
-            .Be(binary.FullName);
+            .Be(expectedBinary.FullName);
     }
 
     [Fact]

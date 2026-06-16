@@ -63,11 +63,17 @@ internal static class TypeScriptIndexerProcessRunner
 
     public static string? ResolveTsxCommand(DirectoryInfo tsIndexerRoot)
     {
-        var candidates = new[]
-        {
-            CombinePath(tsIndexerRoot, "node_modules", ".bin", "tsx"),
-            CombinePath(tsIndexerRoot, "node_modules", ".bin", "tsx.cmd")
-        };
+        var candidates = OperatingSystem.IsWindows()
+            ? new[]
+            {
+                CombinePath(tsIndexerRoot, "node_modules", ".bin", "tsx.cmd"),
+                CombinePath(tsIndexerRoot, "node_modules", ".bin", "tsx")
+            }
+            : new[]
+            {
+                CombinePath(tsIndexerRoot, "node_modules", ".bin", "tsx"),
+                CombinePath(tsIndexerRoot, "node_modules", ".bin", "tsx.cmd")
+            };
 
         return candidates.FirstOrDefault(File.Exists);
     }
