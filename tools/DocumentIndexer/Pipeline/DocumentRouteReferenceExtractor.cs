@@ -23,6 +23,8 @@ internal static partial class DocumentRouteReferenceExtractor
     internal static string NormalizeRouteTemplate(string template)
     {
         var normalized = template.Trim();
+        normalized = EncodedQueryOrFragmentRegex().Replace(normalized, string.Empty);
+        normalized = EncodedRoutePlaceholderRegex().Replace(normalized, "{param}");
         normalized = Uri.UnescapeDataString(normalized);
         normalized = PercentEncodedQueryMarkerRegex().Replace(normalized, "?");
 
@@ -58,4 +60,10 @@ internal static partial class DocumentRouteReferenceExtractor
 
     [GeneratedRegex("(?i)%3f")]
     private static partial Regex PercentEncodedQueryMarkerRegex();
+
+    [GeneratedRegex("(?i)(?:%3f|%23).*$")]
+    private static partial Regex EncodedQueryOrFragmentRegex();
+
+    [GeneratedRegex("(?i)%7b[^%]+%7d")]
+    private static partial Regex EncodedRoutePlaceholderRegex();
 }
