@@ -263,7 +263,7 @@ Severity thresholds:
 
 ## Authentication and Configuration
 
-The indexers read `.env` from the current directory or a parent directory first. If no environment variable is set, they fall back to project-local `meridian.json`, then the user-level global config.
+The indexers load `.env` from the current directory and target project roots, but existing shell environment variables still win. If no environment variable is set, they fall back to project-local `meridian.json`, then the user-level global config.
 
 Precedence for non-secret settings:
 

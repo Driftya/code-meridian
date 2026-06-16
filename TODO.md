@@ -36,7 +36,7 @@ This is the roadmap index. Each item links to a dedicated note under `docs/featu
 - [x] [P2 - Add Path-Explained Context Packs](docs/features/31-add-path-explained-context-packs.md) - Explain why each file is included in a context pack.
 - [ ] [P2 - Add Semantic Graph Hybrid Search](docs/features/32-add-semantic-graph-hybrid-search.md) - Mix embeddings with graph constraints for better retrieval.
 - [x] [P2 - Add Dependency Smell Paths](docs/features/33-add-dependency-smell-paths.md) - Surface architecture rule violations as graph paths.
-- [ ] [P2 - Add Safe Replacement Surface Guidance](docs/features/34-add-safe-replacement-surface-guidance.md) - Group replacement work into safe and risky clusters.
+- [x] [P2 - Add Safe Replacement Surface Guidance](docs/features/34-add-safe-replacement-surface-guidance.md) - Group replacement work into safe and risky clusters.
 - [x] [P2 - Add Knowledge Decay Graph](docs/features/35-add-knowledge-decay-graph.md) - Turn stale-knowledge detection into a graph-native view.
 - [ ] [P2 - Add Feature To Code Map](docs/features/36-add-feature-to-code-map.md) - Make features first-class graph nodes linked to code.
 - [ ] [P2 - Add Endpoint To Database Tracing](docs/features/37-add-endpoint-to-database-tracing.md) - Trace a web request through the full vertical slice.

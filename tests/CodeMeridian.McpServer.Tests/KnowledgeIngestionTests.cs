@@ -55,6 +55,20 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task CodebaseTools_ReplaceSurfaceAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.ReplaceSurfaceAsync("Newtonsoft.Json", "System.Text.Json", "CodeMeridian", 7, Arg.Any<CancellationToken>())
+            .Returns("replace");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.ReplaceSurfaceAsync("Newtonsoft.Json", "System.Text.Json", "CodeMeridian", 7);
+
+        result.Should().Be("replace");
+        await queryService.Received(1).ReplaceSurfaceAsync("Newtonsoft.Json", "System.Text.Json", "CodeMeridian", 7, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task KnowledgeTools_IngestDocumentAsync_ForwardsWeakMentionMetadata()
     {
         var graph = Substitute.For<ICodeGraphRepository>();

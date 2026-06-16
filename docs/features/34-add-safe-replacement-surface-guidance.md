@@ -1,6 +1,6 @@
 ﻿# Add Safe Replacement Surface Guidance
 
-- Status: pending
+- Status: implemented
 - Priority: P2
 - Note: Group replacement work into safe and risky clusters.
 

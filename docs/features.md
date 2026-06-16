@@ -342,6 +342,27 @@ Ranks the most likely files, classes, and methods to edit for a feature goal. Re
 What is the best implementation surface for adding stale-knowledge detection?
 ```
 
+### `replace_surface`
+
+Groups dependency replacement work into safe and risky clusters before a broad migration.
+
+The current safe-first slice uses existing graph signals only:
+
+- usage nodes that explicitly mention the source dependency in indexed names, summaries, namespaces, IDs, or file paths
+- nearby related tests
+- nearby diagnostics in the same file
+- API, contract, infrastructure, and cross-project boundary hints from the local editing context
+- graph freshness confidence for the indexed node
+
+Results are grouped by module and split into:
+
+- safe replacement groups: isolated usage with nearby tests and no strong boundary signals
+- risky replacement groups: usage that crosses API/contracts/infrastructure boundaries, lacks tests, already has file-local diagnostics, or depends on stale graph metadata
+
+```text
+Which Newtonsoft.Json usages are safe to replace with System.Text.Json first?
+```
+
 ### `resolve_exact_symbol`
 
 Resolves a symbol, file path, and optional line hint to canonical CodeMeridian node IDs. Use it when graph search found the right file or area but an implementation step needs an exact method/class/interface ID for `get_context_for_editing`, `find_impact`, or `build_minimal_context`.

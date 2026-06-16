@@ -21,6 +21,7 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
         Directory.CreateDirectory(_root);
         Environment.SetEnvironmentVariable("CodeMeridian_Project", null);
         Environment.SetEnvironmentVariable("CodeMeridian_Url", null);
+        Environment.SetEnvironmentVariable("CodeMeridian_Auth_ApiKey", null);
     }
 
     [Fact]
@@ -211,11 +212,52 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
         settings.ArchitecturePath.Should().Be(".meridian/architecture.custom.json");
     }
 
+    [Fact]
+    public void Create_PreservesExistingApiKeyWhenTargetRepoDotEnvDefinesAnotherValue()
+    {
+        var invocationRoot = Directory.CreateDirectory(Path.Combine(_root, "invocation"));
+        var targetRoot = Directory.CreateDirectory(Path.Combine(_root, "target"));
+        File.WriteAllText(Path.Combine(invocationRoot.FullName, ".env"), "CodeMeridian_Auth_ApiKey=from-current-dotenv");
+        File.WriteAllText(Path.Combine(targetRoot.FullName, ".env"), "CodeMeridian_Auth_ApiKey=from-target-dotenv");
+        Environment.SetEnvironmentVariable("CodeMeridian_Auth_ApiKey", "from-shell");
+
+        var originalDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            Directory.SetCurrentDirectory(invocationRoot.FullName);
+
+            var settings = CreateFactory().Create(new IndexCommandOptions(
+                Path: targetRoot.FullName,
+                Project: null,
+                CodeMeridianUrl: null,
+                Clear: false,
+                RebuildKeywords: false,
+                IncludeDocs: true,
+                Watch: false,
+                DryRun: false,
+                ListCapabilities: false,
+                SkipCSharp: false,
+                SkipTypeScript: false,
+                SkipConfiguration: false,
+                SkipDiagnostics: false,
+                AllowRepoScripts: false,
+                Incremental: true,
+                Storage: null));
+
+            settings.ApiKey.Should().Be("from-shell");
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(originalDirectory);
+        }
+    }
+
     public void Dispose()
     {
         Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", null);
         Environment.SetEnvironmentVariable("CodeMeridian_Project", null);
         Environment.SetEnvironmentVariable("CodeMeridian_Url", null);
+        Environment.SetEnvironmentVariable("CodeMeridian_Auth_ApiKey", null);
         if (Directory.Exists(_root))
             Directory.Delete(_root, recursive: true);
     }

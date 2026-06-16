@@ -146,6 +146,22 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.PlanEditRouteAsync(goal, conceptsCsv, projectContext, limit, cancellationToken);
 
+    [McpServerTool(Name = "replace_surface")]
+    [Description(
+        "Group dependency replacement work into safe and risky clusters. " +
+        "Use this before broad library migrations such as `Newtonsoft.Json` to `System.Text.Json` so the graph can separate isolated internal swaps from boundary-heavy shared usage.")]
+    public Task<string> ReplaceSurfaceAsync(
+        [Description("Current dependency or namespace to replace, e.g. 'Newtonsoft.Json'.")]
+        string fromDependency,
+        [Description("Target dependency or namespace, e.g. 'System.Text.Json'.")]
+        string toDependency,
+        [Description("Optional project name to scope the analysis.")]
+        string? projectContext = null,
+        [Description("Maximum number of replacement groups to return.")]
+        int limit = 20,
+        CancellationToken cancellationToken = default) =>
+        queryService.ReplaceSurfaceAsync(fromDependency, toDependency, projectContext, limit, cancellationToken);
+
     [McpServerTool(Name = "resolve_exact_symbol")]
     [Description(
         "Resolve a method, class, interface, or file hint to canonical CodeMeridian node IDs. " +

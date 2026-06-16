@@ -69,12 +69,12 @@ public sealed class ToolConfigurationService(
     private static void LoadDotEnvForInvocation(DirectoryInfo rootPath)
     {
         var currentDirectory = new DirectoryInfo(Directory.GetCurrentDirectory());
-        LoadClosestDotEnv(currentDirectory, overwriteExisting: false);
+        LoadClosestDotEnv(currentDirectory);
         if (!string.Equals(currentDirectory.FullName, rootPath.FullName, StringComparison.OrdinalIgnoreCase))
-            LoadClosestDotEnv(rootPath, overwriteExisting: true);
+            LoadClosestDotEnv(rootPath);
     }
 
-    private static void LoadClosestDotEnv(DirectoryInfo startDirectory, bool overwriteExisting)
+    private static void LoadClosestDotEnv(DirectoryInfo startDirectory)
     {
         var envFile = FindDotEnv(startDirectory);
         if (envFile is null)
@@ -84,7 +84,7 @@ public sealed class ToolConfigurationService(
             envFile.FullName,
             new DotNetEnv.LoadOptions(
                 setEnvVars: true,
-                clobberExistingVars: overwriteExisting,
+                clobberExistingVars: false,
                 onlyExactPath: true));
     }
 
