@@ -24,6 +24,7 @@ internal static partial class DocumentRouteReferenceExtractor
     {
         var normalized = template.Trim();
         normalized = Uri.UnescapeDataString(normalized);
+        normalized = PercentEncodedQueryMarkerRegex().Replace(normalized, "?");
 
         if (Uri.TryCreate(normalized, UriKind.Absolute, out var absoluteUri))
             normalized = absoluteUri.AbsolutePath;
@@ -54,4 +55,7 @@ internal static partial class DocumentRouteReferenceExtractor
 
     [GeneratedRegex(@"\{[^}]+\}")]
     private static partial Regex RoutePlaceholderRegex();
+
+    [GeneratedRegex("(?i)%3f")]
+    private static partial Regex PercentEncodedQueryMarkerRegex();
 }

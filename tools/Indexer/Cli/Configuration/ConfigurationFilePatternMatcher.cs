@@ -23,7 +23,8 @@ internal static class ConfigurationFilePatternMatcher
     public static bool IsConfigurationFile(FileInfo file, IReadOnlyList<string>? patterns = null)
     {
         var effectivePatterns = patterns is { Count: > 0 } ? patterns : DefaultPatterns;
-        return effectivePatterns.Any(pattern => MatchesPattern(file.Name, pattern));
+        var fileName = GetFileName(file);
+        return effectivePatterns.Any(pattern => MatchesPattern(fileName, pattern));
     }
 
     private static bool MatchesPattern(string fileName, string pattern)
@@ -68,7 +69,7 @@ internal static class ConfigurationFilePatternMatcher
 
     public static int GetOrder(FileInfo file)
     {
-        var name = file.Name;
+        var name = GetFileName(file);
         if (name.Equals("appsettings.json", StringComparison.OrdinalIgnoreCase))
             return 0;
 
@@ -86,5 +87,15 @@ internal static class ConfigurationFilePatternMatcher
             return 4;
 
         return 5;
+    }
+
+    private static string GetFileName(FileInfo file)
+    {
+        var originalPath = file.ToString();
+        if (string.IsNullOrWhiteSpace(originalPath))
+            return file.Name;
+
+        var separatorIndex = originalPath.LastIndexOfAny(['\\', '/']);
+        return separatorIndex >= 0 ? originalPath[(separatorIndex + 1)..] : originalPath;
     }
 }

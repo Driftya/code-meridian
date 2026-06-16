@@ -63,15 +63,30 @@ internal static class TypeScriptIndexerProcessRunner
 
     public static string? ResolveTsxCommand(DirectoryInfo tsIndexerRoot)
     {
-        var localTsx = Path.Combine(
-            tsIndexerRoot.FullName,
-            "node_modules",
-            ".bin",
-            OperatingSystem.IsWindows() ? "tsx.cmd" : "tsx");
+        var candidates = new[]
+        {
+            CombinePath(tsIndexerRoot, "node_modules", ".bin", "tsx"),
+            CombinePath(tsIndexerRoot, "node_modules", ".bin", "tsx.cmd")
+        };
 
-        return File.Exists(localTsx) ? localTsx : null;
+        return candidates.FirstOrDefault(File.Exists);
     }
 
     private static string QuoteIfNeeded(string value) =>
         value.Any(char.IsWhiteSpace) ? $"\"{value}\"" : value;
+
+    private static string CombinePath(DirectoryInfo root, params string[] segments)
+    {
+        var basePath = root.ToString();
+        if (LooksLikeWindowsAbsolutePath(basePath))
+            return string.Join("\\", new[] { basePath.TrimEnd('\\', '/') }.Concat(segments));
+
+        return Path.Combine(new[] { root.FullName }.Concat(segments).ToArray());
+    }
+
+    private static bool LooksLikeWindowsAbsolutePath(string path) =>
+        path.Length >= 3 &&
+        char.IsLetter(path[0]) &&
+        path[1] == ':' &&
+        (path[2] == '\\' || path[2] == '/');
 }
