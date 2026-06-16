@@ -156,6 +156,8 @@ public sealed partial class CodebaseTools
         bool includeExternalConcepts = true,
         [Description("Whether to include bounded source snippets previously captured by the indexer. Default false.")]
         bool includeSourceSnippets = false,
+        [Description("Whether to explain why each included file appears in the pack, including a graph path and any nearby diagnostics or tests. Default false.")]
+        bool explainPaths = false,
         [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default) =>
@@ -166,6 +168,7 @@ public sealed partial class CodebaseTools
             includeTests,
             includeExternalConcepts,
             includeSourceSnippets,
+            explainPaths,
             detailLevel,
             cancellationToken);
 

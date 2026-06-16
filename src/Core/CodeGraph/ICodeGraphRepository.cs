@@ -19,6 +19,9 @@ public interface ICodeGraphRepository
     /// <summary>Returns nodes that transitively depend on <paramref name="nodeId"/> up to <paramref name="depth"/> hops.</summary>
     Task<IReadOnlyList<(CodeNode Node, int Distance)>> FindImpactAsync(string nodeId, int depth = 5, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns impact callers plus the shortest path and edge-confidence metadata used to reach the target.</summary>
+    Task<IReadOnlyList<ImpactPath>> FindImpactPathsAsync(string nodeId, int depth = 5, CancellationToken cancellationToken = default);
+
     /// <summary>Returns nodes with the highest incoming-edge count (fan-in) in a project.</summary>
     Task<IReadOnlyList<(CodeNode Node, int FanIn)>> FindHotspotsAsync(string? projectContext, int limit = 15, CancellationToken cancellationToken = default);
 

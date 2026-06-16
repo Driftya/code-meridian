@@ -11,3 +11,5 @@
 **Expected output:**
 
 - Included files with the path from the target to the file and any nearby diagnostics or tests.
+
+**Implemented:** Added an optional `explainPaths` mode to `build_minimal_context`. When enabled, the context pack emits file-inclusion explanations with a representative graph path from the target plus nearby indexed diagnostics and target-adjacent tests instead of only listing file paths.

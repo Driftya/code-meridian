@@ -16,8 +16,12 @@ public partial class CodebaseQueryService
         string nodeId,
         int depth = 5,
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
+        bool includeConfidence = false,
         CancellationToken cancellationToken = default)
     {
+        if (includeConfidence)
+            return await FindImpactWithConfidenceAsync(nodeId, depth, detailLevel, cancellationToken);
+
         var results = await codeGraph.FindImpactAsync(nodeId, depth, cancellationToken);
 
         if (results.Count == 0)
@@ -489,6 +493,7 @@ public partial class CodebaseQueryService
         bool includeTests = true,
         bool includeExternalConcepts = true,
         bool includeSourceSnippets = false,
+        bool explainPaths = false,
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
@@ -595,10 +600,29 @@ public partial class CodebaseQueryService
 
         if (candidateFiles.Length > 0)
         {
-            sb.AppendLine("### Files likely needed");
-            foreach (var file in candidateFiles)
-                sb.AppendLine($"- `{file}`");
-            sb.AppendLine();
+            if (explainPaths)
+            {
+                var explainedFiles = await BuildExplainedFilesAsync(
+                    ctx.Node,
+                    filteredCallers,
+                    filteredCallees,
+                    filteredInterfaces,
+                    filteredImpact,
+                    filteredDownstream,
+                    directRelatedTests,
+                    heuristicRelatedTests,
+                    relatedCoverageGaps,
+                    cancellationToken);
+
+                AppendExplainedFiles(sb, explainedFiles);
+            }
+            else
+            {
+                sb.AppendLine("### Files likely needed");
+                foreach (var file in candidateFiles)
+                    sb.AppendLine($"- `{file}`");
+                sb.AppendLine();
+            }
         }
 
         if (includeSourceSnippets)

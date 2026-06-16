@@ -455,6 +455,45 @@ public partial class CodebaseQueryService
         sb.AppendLine();
     }
 
+    private async Task<string> FindImpactWithConfidenceAsync(
+        string nodeId,
+        int depth,
+        ContextDetailLevel detailLevel,
+        CancellationToken cancellationToken)
+    {
+        var impactPaths = await codeGraph.FindImpactPathsAsync(nodeId, depth, cancellationToken);
+
+        if (impactPaths.Count == 0)
+            return $"No callers found for `{nodeId}` within {depth} hops. " +
+                   "The node may not exist in the graph or has no inbound dependencies.";
+
+        var report = ClassifyImpactPaths(impactPaths);
+
+        if (detailLevel == ContextDetailLevel.Summary)
+        {
+            return $"Impact summary for `{nodeId}`: {impactPaths.Count} affected code elements within {depth} hops. " +
+                   $"Confidence: {report.OverallConfidence}. " +
+                   $"{report.Proven.Count} proven, {report.Heuristic.Count} heuristic, {report.Unknown.Count} unknown risk.";
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Impact Analysis — `{nodeId}`");
+        sb.AppendLine($"**{impactPaths.Count}** code elements would be affected by changing this (up to {depth} hops):");
+        sb.AppendLine($"**Impact confidence:** {report.OverallConfidence}");
+        sb.AppendLine($"**Trust summary:** {report.Proven.Count} proven callers, {report.Heuristic.Count} heuristic callers, {report.Unknown.Count} unknown-risk nodes");
+        sb.AppendLine();
+
+        AppendImpactConfidenceSection(sb, "Proven callers", report.Proven);
+        AppendImpactConfidenceSection(sb, "Heuristic callers", report.Heuristic);
+        AppendImpactConfidenceSection(sb, "Unknown risk", report.Unknown);
+
+        sb.AppendLine("> Proven callers use structural graph paths without stale metadata or low-confidence edges. " +
+                      "Heuristic callers cross abstraction edges, route-like nodes, or inferred edges. " +
+                      "Unknown risk means stale metadata lowers trust and exact blast radius may require re-indexing.");
+
+        return sb.ToString();
+    }
+
     private static void AppendDistanceList(
         StringBuilder sb,
         string title,
@@ -527,6 +566,231 @@ public partial class CodebaseQueryService
         }
 
         sb.AppendLine();
+    }
+
+    private static ImpactConfidenceReport ClassifyImpactPaths(IReadOnlyCollection<ImpactPath> impactPaths)
+    {
+        var proven = new List<ImpactConfidenceFinding>();
+        var heuristic = new List<ImpactConfidenceFinding>();
+        var unknown = new List<ImpactConfidenceFinding>();
+
+        foreach (var path in impactPaths)
+        {
+            var freshness = BuildFreshness(path.Node);
+            var relationships = path.Steps
+                .Select(step => step.RelationshipType)
+                .Where(type => !string.IsNullOrWhiteSpace(type))
+                .ToArray();
+            var usesAbstraction = relationships.Any(type =>
+                string.Equals(type, nameof(CodeEdgeType.Implements), StringComparison.OrdinalIgnoreCase)
+                || string.Equals(type, nameof(CodeEdgeType.Inherits), StringComparison.OrdinalIgnoreCase));
+            var lowConfidenceEdge = path.Steps
+                .Where(step => step.RelationshipConfidence.HasValue)
+                .Select(step => step.RelationshipConfidence!.Value)
+                .DefaultIfEmpty(1.0)
+                .Min();
+            var usesInferredEdge = lowConfidenceEdge < 0.95;
+            var crossesSpecialNode = path.Steps.Any(step =>
+                step.Node.Type is CodeNodeType.ApiEndpoint or CodeNodeType.ExternalConcept or CodeNodeType.Diagnostic);
+            var pathText = FormatPathSteps(path.Steps);
+            var noteParts = new List<string>();
+
+            if (freshness.Confidence == "Low")
+                noteParts.Add(freshness.Reason);
+            if (path.Distance == 1 && !usesAbstraction && !usesInferredEdge && !crossesSpecialNode)
+                noteParts.Add("direct structural path");
+            if (usesAbstraction)
+                noteParts.Add("path crosses abstraction edges");
+            if (crossesSpecialNode)
+                noteParts.Add("path crosses route or knowledge nodes");
+            if (usesInferredEdge)
+                noteParts.Add($"path includes inferred edge confidence {lowConfidenceEdge:F2}");
+
+            var finding = new ImpactConfidenceFinding(
+                path.Node,
+                path.Distance,
+                string.Join(", ", noteParts.Distinct(StringComparer.OrdinalIgnoreCase)),
+                pathText);
+
+            if (freshness.Confidence == "Low")
+                unknown.Add(finding);
+            else if (usesAbstraction || usesInferredEdge || crossesSpecialNode)
+                heuristic.Add(finding);
+            else
+                proven.Add(finding);
+        }
+
+        var overallConfidence = unknown.Count > 0 ? "Low"
+            : heuristic.Count > 0 ? "Medium"
+            : "High";
+        return new ImpactConfidenceReport(overallConfidence, proven, heuristic, unknown);
+    }
+
+    private static void AppendImpactConfidenceSection(
+        StringBuilder sb,
+        string title,
+        IReadOnlyCollection<ImpactConfidenceFinding> findings)
+    {
+        sb.AppendLine($"### {title} ({findings.Count})");
+
+        if (findings.Count == 0)
+        {
+            sb.AppendLine("- None");
+            sb.AppendLine();
+            return;
+        }
+
+        sb.AppendLine("| Distance | Type | Name | File | Why | Path |");
+        sb.AppendLine("|---:|---|---|---|---|---|");
+
+        foreach (var finding in findings
+                     .OrderBy(finding => finding.Distance)
+                     .ThenBy(finding => finding.Node.Type)
+                     .ThenBy(finding => finding.Node.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var file = finding.Node.FilePath is not null ? $"`{finding.Node.FilePath}`" : "—";
+            var note = string.IsNullOrWhiteSpace(finding.Note) ? "—" : finding.Note;
+            sb.AppendLine(
+                $"| {finding.Distance} | {finding.Node.Type} | `{finding.Node.Name}` | {file} | {EscapeTableCell(note)} | {EscapeTableCell(finding.Path)} |");
+        }
+
+        sb.AppendLine();
+    }
+
+    private async Task<IReadOnlyList<ExplainedFile>> BuildExplainedFilesAsync(
+        CodeNode target,
+        IReadOnlyCollection<CodeNode> callers,
+        IReadOnlyCollection<CodeNode> callees,
+        IReadOnlyCollection<CodeNode> interfaces,
+        IReadOnlyCollection<(CodeNode Node, int Distance)> impact,
+        IReadOnlyCollection<(CodeNode Node, int Distance)> downstream,
+        IReadOnlyCollection<CodeNode> directRelatedTests,
+        IReadOnlyCollection<CodeNode> heuristicRelatedTests,
+        IReadOnlyCollection<CodeNode> coverageGaps,
+        CancellationToken cancellationToken)
+    {
+        var candidates = new List<FileExplanationCandidate>();
+        AddFileCandidates(candidates, [target], "target file");
+        AddFileCandidates(candidates, callers, "direct caller");
+        AddFileCandidates(candidates, callees, "direct callee");
+        AddFileCandidates(candidates, interfaces, "related interface");
+        AddFileCandidates(candidates, impact.Select(item => item.Node), "near impact");
+        AddFileCandidates(candidates, downstream.Select(item => item.Node), "near downstream");
+        AddFileCandidates(candidates, directRelatedTests, "direct related test");
+        AddFileCandidates(candidates, heuristicRelatedTests, "heuristic related test");
+        AddFileCandidates(candidates, coverageGaps, "coverage gap");
+
+        var distinctCandidates = candidates
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate.Node.FilePath))
+            .GroupBy(candidate => candidate.Node.FilePath!, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .Take(10)
+            .ToArray();
+
+        var explainedFiles = new List<ExplainedFile>(distinctCandidates.Length);
+        foreach (var candidate in distinctCandidates)
+        {
+            IReadOnlyList<(CodeNode Node, string? ViaRelationship)> path;
+            if (candidate.Node.Id == target.Id)
+            {
+                path = [(target, null)];
+            }
+            else
+            {
+                path = await codeGraph.FindConnectionAsync(target.Id, candidate.Node.Id, cancellationToken);
+                if (path.Count == 0)
+                    path = [(target, null), (candidate.Node, null)];
+            }
+
+            var diagnostics = (await codeGraph.FindDiagnosticsForNodeAsync(candidate.Node.Id, cancellationToken))
+                .Where(diag => SameFile(diag, candidate.Node))
+                .Take(2)
+                .Select(diag => diag.Name)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var nearbyTests = directRelatedTests
+                .Concat(heuristicRelatedTests)
+                .Where(test => SameFile(test, candidate.Node))
+                .Select(test => test.Name)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(2)
+                .ToArray();
+
+            explainedFiles.Add(new ExplainedFile(
+                candidate.Node.FilePath!,
+                candidate.Reason,
+                FormatConnectionPath(path),
+                diagnostics,
+                nearbyTests));
+        }
+
+        return explainedFiles;
+    }
+
+    private static void AddFileCandidates(
+        ICollection<FileExplanationCandidate> candidates,
+        IEnumerable<CodeNode> nodes,
+        string reason)
+    {
+        foreach (var node in nodes)
+            candidates.Add(new FileExplanationCandidate(node, reason));
+    }
+
+    private static void AppendExplainedFiles(StringBuilder sb, IReadOnlyCollection<ExplainedFile> files)
+    {
+        sb.AppendLine($"### File inclusion paths ({files.Count})");
+
+        foreach (var file in files)
+        {
+            var details = new List<string> { file.Reason, $"path: {file.Path}" };
+            if (file.Diagnostics.Length > 0)
+                details.Add($"nearby diagnostics: {string.Join(", ", file.Diagnostics.Select(name => $"`{name}`"))}");
+            if (file.NearbyTests.Length > 0)
+                details.Add($"nearby tests: {string.Join(", ", file.NearbyTests.Select(name => $"`{name}`"))}");
+
+            sb.AppendLine($"- `{file.FilePath}` — {string.Join("; ", details)}");
+        }
+
+        sb.AppendLine();
+    }
+
+    private static string FormatPathSteps(IReadOnlyList<GraphPathStep> steps)
+    {
+        if (steps.Count == 0)
+            return "—";
+
+        var parts = new List<string>(steps.Count * 2);
+        for (var i = 0; i < steps.Count; i++)
+        {
+            var step = steps[i];
+            parts.Add($"`{step.Node.Name}`");
+            if (!string.IsNullOrWhiteSpace(step.RelationshipType))
+            {
+                var confidenceSuffix = step.RelationshipConfidence.HasValue
+                    ? $" {step.RelationshipConfidence.Value:F2}"
+                    : string.Empty;
+                parts.Add($"-[{step.RelationshipType}{confidenceSuffix}]-");
+            }
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private static string FormatConnectionPath(IReadOnlyList<(CodeNode Node, string? ViaRelationship)> path)
+    {
+        if (path.Count == 0)
+            return "—";
+
+        var parts = new List<string>(path.Count * 2);
+        for (var i = 0; i < path.Count; i++)
+        {
+            var (node, via) = path[i];
+            parts.Add($"`{node.Name}`");
+            if (!string.IsNullOrWhiteSpace(via))
+                parts.Add($"-[{via}]-");
+        }
+
+        return string.Join(" ", parts);
     }
 
     private static string FormatLocation(CodeNode node) =>
@@ -692,6 +956,29 @@ public partial class CodebaseQueryService
         string ModelGuidance,
         string ExpansionRisk,
         string Reason);
+
+    private sealed record ImpactConfidenceFinding(
+        CodeNode Node,
+        int Distance,
+        string Note,
+        string Path);
+
+    private sealed record ImpactConfidenceReport(
+        string OverallConfidence,
+        IReadOnlyList<ImpactConfidenceFinding> Proven,
+        IReadOnlyList<ImpactConfidenceFinding> Heuristic,
+        IReadOnlyList<ImpactConfidenceFinding> Unknown);
+
+    private sealed record FileExplanationCandidate(
+        CodeNode Node,
+        string Reason);
+
+    private sealed record ExplainedFile(
+        string FilePath,
+        string Reason,
+        string Path,
+        string[] Diagnostics,
+        string[] NearbyTests);
 
     private static IReadOnlyList<SourceSnippet> BuildSourceSnippets(
         IEnumerable<CodeNode> nodes,

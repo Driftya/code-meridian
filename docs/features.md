@@ -124,6 +124,12 @@ Find docs and diagnostics related to this node through the keyword graph.
 
 Backward blast-radius analysis. Traverses callers and transitive dependents of a method or class up to the requested depth.
 
+When `includeConfidence` is enabled, the result also separates:
+
+- Proven callers: structural paths without stale metadata or inferred edges.
+- Heuristic callers: paths that cross abstraction edges, route-like nodes, or lower-confidence inferred edges.
+- Unknown risk: stale nodes where blast radius is advisory until the graph is refreshed.
+
 ```text
 Before I change PaymentGateway.ChargeAsync, what will break?
 ```
@@ -219,6 +225,8 @@ Use this before `find_impact` for a quick local view. Use `find_impact` for full
 ### `build_minimal_context`
 
 Builds a bounded context pack for one target node. The pack combines local editing context, near impact, downstream dependencies, likely files, token estimate, complexity tier, model guidance, expansion risk, optional test context, and optional source snippets.
+
+When `explainPaths` is enabled, the pack replaces the flat file list with file-inclusion explanations. Each entry shows why the file is included, the graph path from the target to a representative node in that file, and any nearby diagnostics or target-adjacent tests.
 
 When route-linking data exists, downstream and impact sections can include `ApiEndpoint` nodes and cross-language callers, which helps context packs cover frontend-to-backend request paths instead of only same-language structure.
 

@@ -244,6 +244,81 @@ public sealed partial class Neo4jCodeGraphRepository
         return results;
     }
 
+    public async Task<IReadOnlyList<ImpactPath>> FindImpactPathsAsync(
+        string nodeId,
+        int depth = 5,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        var cypher = $$"""
+            MATCH (target:CodeNode {id: $nodeId})
+            OPTIONAL MATCH (target)-[:Contains*0..2]->(targetMember:CodeNode)
+            WITH collect(DISTINCT target) + collect(DISTINCT targetMember) AS targets
+            UNWIND targets AS targetNode
+            WITH DISTINCT targetNode, targets
+            WHERE targetNode IS NOT NULL
+            MATCH path = (caller:CodeNode)-[:Calls|Uses|DependsOn|Implements|Inherits*1..{{depth}}]->(targetNode)
+            WHERE none(target IN targets WHERE target = caller)
+            WITH caller, path, length(path) AS dist
+            ORDER BY caller.id, dist ASC
+            WITH caller, collect(path)[0] AS shortestPath, min(dist) AS dist
+            RETURN caller,
+                   dist,
+                   [n IN nodes(shortestPath) | n] AS pathNodes,
+                   [r IN relationships(shortestPath) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+            ORDER BY dist ASC, caller.name
+            LIMIT 50
+            """;
+
+        var cursor = await session.RunAsync(cypher, new { nodeId });
+        var results = new List<ImpactPath>();
+
+        await foreach (var record in cursor.WithCancellation(cancellationToken))
+        {
+            var caller = MapToCodeNode(record["caller"].As<INode>());
+            var dist = record["dist"].As<int>();
+            var pathNodes = record["pathNodes"].As<List<INode>>();
+            var pathRelationships = record["pathRelationships"].As<List<object>>();
+            var steps = new List<GraphPathStep>(pathNodes.Count);
+
+            for (var i = 0; i < pathNodes.Count; i++)
+            {
+                string? relationshipType = null;
+                double? relationshipConfidence = null;
+
+                if (i < pathRelationships.Count && pathRelationships[i] is IDictionary<string, object> rel)
+                {
+                    relationshipType = rel.TryGetValue("type", out var typeValue)
+                        ? typeValue?.ToString()
+                        : null;
+
+                    if (rel.TryGetValue("confidence", out var confidenceValue) && confidenceValue is not null)
+                    {
+                        relationshipConfidence = confidenceValue switch
+                        {
+                            double d => d,
+                            float f => f,
+                            long l => l,
+                            int n => n,
+                            _ when double.TryParse(confidenceValue.ToString(), out var parsed) => parsed,
+                            _ => null
+                        };
+                    }
+                }
+
+                steps.Add(new GraphPathStep(
+                    MapToCodeNode(pathNodes[i]),
+                    relationshipType,
+                    relationshipConfidence));
+            }
+
+            results.Add(new ImpactPath(caller, dist, steps));
+        }
+
+        return results;
+    }
+
     public async Task<IReadOnlyList<(CodeNode Node, int Distance)>> FindDownstreamAsync(
         string nodeId,
         int depth = 5,

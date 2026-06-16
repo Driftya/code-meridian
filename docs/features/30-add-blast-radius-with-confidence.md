@@ -11,3 +11,5 @@
 **Expected output:**
 
 - Impact confidence plus proven callers, heuristic callers, and unknown risk.
+
+**Implemented:** Added an optional `includeConfidence` mode to `find_impact`. It now classifies impacted nodes into proven callers, heuristic callers, and unknown-risk nodes by combining path shape, edge confidence, special graph nodes such as `ApiEndpoint`, and freshness signals from indexed metadata.

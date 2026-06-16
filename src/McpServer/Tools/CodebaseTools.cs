@@ -62,8 +62,10 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         int depth = 5,
         [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
+        [Description("Whether to separate proven callers, heuristic callers, and unknown-risk nodes using path and freshness signals. Default false.")]
+        bool includeConfidence = false,
         CancellationToken cancellationToken = default) =>
-        queryService.FindImpactAsync(nodeId, depth, detailLevel, cancellationToken);
+        queryService.FindImpactAsync(nodeId, depth, detailLevel, includeConfidence, cancellationToken);
 
     [McpServerTool(Name = "find_diagnostics")]
     [Description(

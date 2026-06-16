@@ -98,6 +98,58 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     // ── FindHotspotsAsync ─────────────────────────────────────────────────────
 
     [Fact]
+    public async Task FindImpactAsync_WithConfidence_SeparatesProvenHeuristicAndUnknownRisk()
+    {
+        var (sut, graph) = Build();
+        var target = Node("target", "ChargeAsync", CodeNodeType.Method, "src/Payments/PaymentGateway.cs", 42, "Shop", updatedAt: DateTimeOffset.UtcNow);
+        var provenCaller = Node("caller-1", "CheckoutService.PlaceOrder", CodeNodeType.Method, "src/Checkout/CheckoutService.cs", 18, "Shop", updatedAt: DateTimeOffset.UtcNow);
+        var routeNode = Node("route-1", "POST /api/payments", CodeNodeType.ApiEndpoint, "src/Api/PaymentsEndpoint.cs", 9, "Shop.Api", updatedAt: DateTimeOffset.UtcNow);
+        var staleCaller = Node("caller-2", "LegacyBatchJob.Run", CodeNodeType.Method, project: "Shop.Legacy");
+
+        graph.FindImpactPathsAsync("Method:Payments.PaymentGateway.ChargeAsync", 3, Arg.Any<CancellationToken>())
+             .Returns([
+                 new ImpactPath(
+                     provenCaller,
+                     1,
+                     [
+                         new GraphPathStep(provenCaller, "Calls", null),
+                         new GraphPathStep(target, null, null)
+                     ]),
+                 new ImpactPath(
+                     routeNode,
+                     2,
+                     [
+                         new GraphPathStep(routeNode, "Calls", null),
+                         new GraphPathStep(target, null, null)
+                     ]),
+                 new ImpactPath(
+                     staleCaller,
+                     1,
+                     [
+                         new GraphPathStep(staleCaller, "Calls", null),
+                         new GraphPathStep(target, null, null)
+                     ])
+             ]);
+
+        var result = await sut.FindImpactAsync(
+            "Method:Payments.PaymentGateway.ChargeAsync",
+            depth: 3,
+            includeConfidence: true);
+
+        result.Should().Contain("## Impact Analysis");
+        result.Should().Contain("**Impact confidence:** Low");
+        result.Should().Contain("### Proven callers (1)");
+        result.Should().Contain("CheckoutService.PlaceOrder");
+        result.Should().Contain("direct structural path");
+        result.Should().Contain("### Heuristic callers (1)");
+        result.Should().Contain("POST /api/payments");
+        result.Should().Contain("path crosses route or knowledge nodes");
+        result.Should().Contain("### Unknown risk (1)");
+        result.Should().Contain("LegacyBatchJob.Run");
+        result.Should().Contain("node has no file path");
+    }
+
+    [Fact]
     public async Task FindHotspotsAsync_WhenEmpty_ReturnsNoHotspotsMessage()
     {
         var (sut, graph) = Build();
@@ -1338,6 +1390,58 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("OrdersController.Post");
         result.Should().NotContain("GeneratedClient.Send");
         result.Should().NotContain("CreateUsers.Up");
+    }
+
+    [Fact]
+    public async Task BuildMinimalContextAsync_WithExplainPaths_ExplainsWhyFilesAreIncluded()
+    {
+        var (sut, graph) = Build();
+        var target = Node("target", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24, fileRole: IndexedFileRole.Source);
+        var caller = Node("caller", "OrdersController.Post", CodeNodeType.Method, "src/Api/OrdersController.cs", 18, "Shop", fileRole: IndexedFileRole.Source);
+        var directTest = Node("test", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 7, "Shop", fileRole: IndexedFileRole.Test);
+        var diagnostic = Node("diag", "CS8602", CodeNodeType.Diagnostic, "src/Api/OrdersController.cs", 20, "Shop");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [caller], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([(caller, 1)]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([(directTest, "direct")]);
+        graph.FindConnectionAsync(target.Id, caller.Id, Arg.Any<CancellationToken>())
+             .Returns([
+                 (target, "Calls"),
+                 (caller, null)
+             ]);
+        graph.FindConnectionAsync(target.Id, directTest.Id, Arg.Any<CancellationToken>())
+             .Returns([
+                 (target, "Calls"),
+                 (directTest, null)
+             ]);
+        graph.FindDiagnosticsForNodeAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindDiagnosticsForNodeAsync(caller.Id, Arg.Any<CancellationToken>())
+             .Returns([diagnostic]);
+        graph.FindDiagnosticsForNodeAsync(directTest.Id, Arg.Any<CancellationToken>())
+             .Returns([]);
+
+        var result = await sut.BuildMinimalContextAsync(
+            target.Id,
+            explainPaths: true);
+
+        result.Should().Contain("### File inclusion paths (3)");
+        result.Should().Contain("`src/Orders/OrderService.cs`");
+        result.Should().Contain("target file");
+        result.Should().Contain("`src/Api/OrdersController.cs`");
+        result.Should().Contain("direct caller");
+        result.Should().Contain("path: `PlaceOrder` -[Calls]- `OrdersController.Post`");
+        result.Should().Contain("nearby diagnostics: `CS8602`");
+        result.Should().Contain("`tests/Orders/OrderServiceTests.cs`");
+        result.Should().Contain("direct related test");
+        result.Should().Contain("nearby tests: `OrderServiceTests`");
     }
 
     [Fact]

@@ -32,8 +32,8 @@ This is the roadmap index. Each item links to a dedicated note under `docs/featu
 - [ ] [P2 - Add Architecture Erosion Timeline](docs/features/27-add-architecture-erosion-timeline.md) - Track how architecture gets worse over time.
 - [x] [P2 - Add Test Shield Map](docs/features/28-add-test-shield-map.md) - Show which tests protect a change path.
 - [ ] [P2 - Add Refactor Extraction Candidates](docs/features/29-add-refactor-extraction-candidates.md) - Find tightly connected groups that are good extraction targets.
-- [ ] [P2 - Add Blast Radius With Confidence](docs/features/30-add-blast-radius-with-confidence.md) - Make impact analysis explicit about what is proven versus inferred.
-- [ ] [P2 - Add Path-Explained Context Packs](docs/features/31-add-path-explained-context-packs.md) - Explain why each file is included in a context pack.
+- [x] [P2 - Add Blast Radius With Confidence](docs/features/30-add-blast-radius-with-confidence.md) - Make impact analysis explicit about what is proven versus inferred.
+- [x] [P2 - Add Path-Explained Context Packs](docs/features/31-add-path-explained-context-packs.md) - Explain why each file is included in a context pack.
 - [ ] [P2 - Add Semantic Graph Hybrid Search](docs/features/32-add-semantic-graph-hybrid-search.md) - Mix embeddings with graph constraints for better retrieval.
 - [ ] [P2 - Add Dependency Smell Paths](docs/features/33-add-dependency-smell-paths.md) - Surface architecture rule violations as graph paths.
 - [ ] [P2 - Add Safe Replacement Surface Guidance](docs/features/34-add-safe-replacement-surface-guidance.md) - Group replacement work into safe and risky clusters.
