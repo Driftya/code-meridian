@@ -1,4 +1,6 @@
 # CodeMeridian Indexer
+[![MCP Image](https://img.shields.io/github/v/tag/Driftya/code-meridian?label=MCP%20Image&sort=semver)](https://github.com/Driftya/code-meridian/pkgs/container/codemeridian-mcp)
+[![CI](https://github.com/Driftya/code-meridian/actions/workflows/ci.yml/badge.svg)](https://github.com/Driftya/code-meridian/actions/workflows/ci.yml)
 
 `CodeMeridian.Indexer` is the unified CLI for indexing code into CodeMeridian from C#, TypeScript/TSX, documentation, and configuration sources.
 
