@@ -35,6 +35,7 @@ public interface ICodebaseQueryService
     Task<string> GetBetweennessAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindBridgesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindNaturalModulesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<string> SuggestExtractionsAsync(string? projectContext = null, int limit = 8, CancellationToken cancellationToken = default);
     Task<string> FindSimilarToNodeAsync(string nodeId, string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindDuplicateCandidatesAsync(string? projectContext = null, string? namespaceFilter = null, string? nodeType = null, int minLineCount = 5, double minSimilarity = 0.88, bool excludeTests = true, CancellationToken cancellationToken = default);
     Task<string> FindDiagnosticsAsync(string? projectContext = null, string? severity = null, CancellationToken cancellationToken = default);

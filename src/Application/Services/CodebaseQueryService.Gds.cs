@@ -200,6 +200,132 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
+    public async Task<string> SuggestExtractionsAsync(
+        string? projectContext = null,
+        int limit = 8,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<(CodeNode Node, long Community)> communities;
+        try
+        {
+            communities = await codeGraph.FindNaturalModulesAsync(projectContext, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return $"Extraction suggestion failed: {ex.Message}\n" +
+                   "Ensure the Graph Data Science plugin is installed.";
+        }
+
+        if (communities.Count == 0)
+            return $"No extraction candidates found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                   "The graph may have no communities yet — run the indexer first.";
+
+        var hotspotScores = (await codeGraph.FindHotspotsAsync(projectContext, limit: 50, cancellationToken))
+            .ToDictionary(item => item.Node.Id, item => item.FanIn, StringComparer.Ordinal);
+        var godClassScores = (await codeGraph.FindGodClassesAsync(projectContext, lineThreshold: 300, fanInThreshold: 3, cancellationToken))
+            .ToDictionary(item => item.Node.Id, item => (item.LineCount, item.FanIn), StringComparer.Ordinal);
+        var coverageGapIds = (await codeGraph.FindCoverageGapsAsync(projectContext, cancellationToken))
+            .Where(node => AllowsProfile(node, AnalysisProfile.CoverageGaps))
+            .Select(node => node.Id)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var candidates = new List<ExtractionCandidate>();
+        foreach (var community in communities
+                     .GroupBy(item => item.Community)
+                     .OrderByDescending(group => group.Count()))
+        {
+            var members = community
+                .Select(item => item.Node)
+                .Where(node => AllowsProfile(node, AnalysisProfile.DesignSmells) && !IsConfiguredTestNode(node))
+                .Where(node => node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
+                .DistinctBy(node => node.Id)
+                .ToArray();
+
+            if (members.Length < 3)
+                continue;
+
+            var tests = new List<CodeNode>();
+            foreach (var member in members.Take(3))
+            {
+                var relatedTests = await codeGraph.FindRelatedTestsAsync(member.Id, member.ProjectContext ?? projectContext, cancellationToken);
+                tests.AddRange(relatedTests
+                    .Select(match => match.Node)
+                    .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node)));
+            }
+
+            var uniqueTests = tests.DistinctBy(node => node.Id).ToArray();
+            var uniqueFiles = members
+                .Select(node => node.FilePath)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var coverageGapCount = members.Count(node => coverageGapIds.Contains(node.Id));
+            var layers = members
+                .Select(InferLayer)
+                .Where(layer => !string.Equals(layer, "Unknown", StringComparison.Ordinal))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var anchor = SelectExtractionAnchor(members, hotspotScores, godClassScores);
+            var location = ResolveExtractionLocation(members);
+            var score = ScoreExtractionCandidate(members.Length, uniqueFiles.Length, uniqueTests.Length, coverageGapCount, layers.Length, anchor, hotspotScores, godClassScores);
+            var confidence = DescribeExtractionConfidence(uniqueTests.Length, coverageGapCount, layers.Length, anchor, hotspotScores, godClassScores);
+            var reason = BuildExtractionReason(members, uniqueFiles.Length, uniqueTests.Length, coverageGapCount, layers, anchor, hotspotScores, godClassScores);
+
+            candidates.Add(new ExtractionCandidate(
+                community.Key,
+                location,
+                confidence,
+                score,
+                anchor,
+                members,
+                uniqueTests,
+                coverageGapCount,
+                reason));
+        }
+
+        var ranked = candidates
+            .OrderByDescending(candidate => candidate.Score)
+            .ThenBy(candidate => candidate.Location, StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Clamp(limit, 1, 25))
+            .ToArray();
+
+        if (ranked.Length == 0)
+            return $"No extraction candidates survived the current safety filters{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                   "Try re-indexing, or wait until the graph contains larger production-only communities.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Refactor Extraction Candidates{(projectContext is not null ? $" - {projectContext}" : "")}");
+        sb.AppendLine($"**{ranked.Length}** tightly connected groups ranked as extraction candidates.");
+        sb.AppendLine();
+        sb.AppendLine("| Rank | Move-from location | Confidence | Anchor | Nearby tests | Coverage gaps | Why |");
+        sb.AppendLine("|---:|---|---|---|---|---:|---|");
+
+        var rank = 1;
+        foreach (var candidate in ranked)
+        {
+            var tests = candidate.NearbyTests.Count == 0
+                ? "—"
+                : string.Join("<br>", candidate.NearbyTests.Take(3).Select(test => $"`{test.Name}`"));
+            sb.AppendLine(
+                $"| {rank++} | `{candidate.Location}` | {candidate.Confidence} | `{candidate.Anchor.Name}` | {tests} | {candidate.CoverageGapCount} | {EscapeTableCell(candidate.Reason)} |");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("### Candidate details");
+        foreach (var candidate in ranked)
+        {
+            sb.AppendLine($"#### Community {candidate.Community} - `{candidate.Location}`");
+            sb.AppendLine($"- Anchor: `{candidate.Anchor.Name}` ({candidate.Anchor.Type})");
+            sb.AppendLine($"- Members: {string.Join(", ", candidate.Members.Take(5).Select(member => $"`{member.Name}`"))}");
+            sb.AppendLine($"- Nearby tests: {(candidate.NearbyTests.Count == 0 ? "none found" : string.Join(", ", candidate.NearbyTests.Take(4).Select(test => $"`{test.Name}`")))}");
+            sb.AppendLine($"- Reason: {candidate.Reason}");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("> Safe-first heuristic: candidates are dense natural modules with a strong internal anchor. Nearby tests and coverage gaps are included so you can judge whether an extraction is protected before changing boundaries.");
+        return sb.ToString();
+    }
+
     public async Task<string> FindSimilarToNodeAsync(
         string nodeId,
         string? projectContext = null,
@@ -392,4 +518,139 @@ public partial class CodebaseQueryService
 
         return "moderate bridge risk; validate with nearby callers";
     }
+
+    private static CodeNode SelectExtractionAnchor(
+        IReadOnlyCollection<CodeNode> members,
+        IReadOnlyDictionary<string, int> hotspotScores,
+        IReadOnlyDictionary<string, (int LineCount, int FanIn)> godClassScores)
+    {
+        return members
+            .OrderByDescending(member => godClassScores.ContainsKey(member.Id))
+            .ThenByDescending(member => hotspotScores.GetValueOrDefault(member.Id))
+            .ThenByDescending(member => member.LineCount ?? 0)
+            .ThenByDescending(member => member.ChangeCount ?? 0)
+            .ThenBy(member => member.Name, StringComparer.OrdinalIgnoreCase)
+            .First();
+    }
+
+    private static string ResolveExtractionLocation(IReadOnlyCollection<CodeNode> members)
+    {
+        var namespaceLocation = members
+            .Select(member => member.Namespace)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .GroupBy(value =>
+            {
+                var parts = value!.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                return parts.Length >= 2 ? $"{parts[0]}.{parts[1]}" : parts[0];
+            }, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault()?.Key;
+
+        if (!string.IsNullOrWhiteSpace(namespaceLocation))
+            return namespaceLocation;
+
+        var pathLocation = members
+            .Select(member => member.FilePath?.Replace('\\', '/'))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .GroupBy(path =>
+            {
+                var parts = path!.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                return parts.Length >= 3 ? $"{parts[0]}/{parts[1]}/{parts[2]}" : string.Join("/", parts);
+            }, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault()?.Key;
+
+        return pathLocation ?? "Unknown";
+    }
+
+    private static int ScoreExtractionCandidate(
+        int memberCount,
+        int fileCount,
+        int testCount,
+        int coverageGapCount,
+        int layerCount,
+        CodeNode anchor,
+        IReadOnlyDictionary<string, int> hotspotScores,
+        IReadOnlyDictionary<string, (int LineCount, int FanIn)> godClassScores)
+    {
+        var score = 0;
+
+        score += memberCount switch
+        {
+            >= 4 and <= 8 => 6,
+            3 => 4,
+            <= 12 => 3,
+            _ => 1
+        };
+
+        score += fileCount <= 2 ? 3
+            : fileCount <= 4 ? 2
+            : 0;
+        score += testCount > 0 ? 2 : 0;
+        score -= coverageGapCount;
+        score -= Math.Max(0, layerCount - 1) * 2;
+        score += hotspotScores.GetValueOrDefault(anchor.Id) >= 3 ? 2 : 0;
+        score += godClassScores.ContainsKey(anchor.Id) ? 3 : 0;
+
+        return score;
+    }
+
+    private static string DescribeExtractionConfidence(
+        int testCount,
+        int coverageGapCount,
+        int layerCount,
+        CodeNode anchor,
+        IReadOnlyDictionary<string, int> hotspotScores,
+        IReadOnlyDictionary<string, (int LineCount, int FanIn)> godClassScores)
+    {
+        if (testCount > 0 && coverageGapCount == 0 && layerCount <= 1 && (godClassScores.ContainsKey(anchor.Id) || hotspotScores.GetValueOrDefault(anchor.Id) >= 3))
+            return "High";
+
+        if (testCount > 0 && layerCount <= 2)
+            return "Medium";
+
+        return "Low";
+    }
+
+    private static string BuildExtractionReason(
+        IReadOnlyCollection<CodeNode> members,
+        int fileCount,
+        int testCount,
+        int coverageGapCount,
+        IReadOnlyCollection<string> layers,
+        CodeNode anchor,
+        IReadOnlyDictionary<string, int> hotspotScores,
+        IReadOnlyDictionary<string, (int LineCount, int FanIn)> godClassScores)
+    {
+        var parts = new List<string>
+        {
+            $"{members.Count} production members",
+            $"{fileCount} files"
+        };
+
+        if (layers.Count > 0)
+            parts.Add($"{layers.Count} layer{(layers.Count == 1 ? string.Empty : "s")}");
+        if (hotspotScores.TryGetValue(anchor.Id, out var fanIn) && fanIn > 0)
+            parts.Add($"anchor fan-in {fanIn}");
+        if (godClassScores.TryGetValue(anchor.Id, out var godClass))
+            parts.Add($"anchor is large ({godClass.LineCount} lines)");
+        parts.Add(testCount == 0 ? "no nearby tests" : $"{testCount} nearby tests");
+        if (coverageGapCount > 0)
+            parts.Add($"{coverageGapCount} coverage gaps");
+
+        return string.Join(", ", parts);
+    }
+
+    private sealed record ExtractionCandidate(
+        long Community,
+        string Location,
+        string Confidence,
+        int Score,
+        CodeNode Anchor,
+        IReadOnlyList<CodeNode> Members,
+        IReadOnlyList<CodeNode> NearbyTests,
+        int CoverageGapCount,
+        string Reason);
 }

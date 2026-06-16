@@ -58,6 +58,19 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindNaturalModulesAsync(projectContext, cancellationToken);
 
+    [McpServerTool(Name = "suggest_extractions")]
+    [Description(
+        "Suggest refactor extraction candidates by ranking tightly connected natural modules that look safe to peel out. " +
+        "Combines Louvain communities with hotspot, large-class, nearby-test, and coverage-gap signals so the result is explainable instead of speculative. " +
+        "Requires Neo4j Graph Data Science plugin for community detection.")]
+    public Task<string> SuggestExtractionsAsync(
+        [Description("Project name to scope candidate extraction clusters. Omit to analyse all projects.")]
+        string? projectContext = null,
+        [Description("Maximum number of extraction candidates to return. Default 8.")]
+        int limit = 8,
+        CancellationToken cancellationToken = default) =>
+        queryService.SuggestExtractionsAsync(projectContext, limit, cancellationToken);
+
     [McpServerTool(Name = "find_similar_nodes")]
     [Description(
         "Find code nodes semantically similar to the given node using native Neo4j vector embeddings. " +

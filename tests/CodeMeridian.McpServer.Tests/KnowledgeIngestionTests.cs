@@ -69,6 +69,20 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task CodebaseTools_SuggestExtractionsAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.SuggestExtractionsAsync("CodeMeridian", 6, Arg.Any<CancellationToken>())
+            .Returns("extract");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.SuggestExtractionsAsync("CodeMeridian", 6);
+
+        result.Should().Be("extract");
+        await queryService.Received(1).SuggestExtractionsAsync("CodeMeridian", 6, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task KnowledgeTools_IngestDocumentAsync_ForwardsWeakMentionMetadata()
     {
         var graph = Substitute.For<ICodeGraphRepository>();

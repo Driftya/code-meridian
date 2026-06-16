@@ -183,6 +183,10 @@ How is this TypeScript component connected to the backend?
 Which Newtonsoft.Json usages are safe to replace with System.Text.Json first?
 ```
 
+```text
+What tightly connected groups look like good extraction candidates in payments?
+```
+
 ## Usage
 
 See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assistants use CodeMeridian safely before editing.
@@ -210,6 +214,7 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `find_related_knowledge` | Find lexically related code and docs through shared keywords |
 | `find_implementation_surface` | Rank likely files and symbols to edit for a feature goal |
 | `replace_surface` | Group dependency replacement work into safe and risky clusters before a library migration |
+| `suggest_extractions` | Rank tightly connected groups that look like good extraction candidates |
 | `check_graph_freshness` | Report graph confidence from indexed file, line, and timestamp metadata |
 | `find_graph_drift` | Detect stale graph data before relying on exact implementation targets |
 | `find_smell_paths` | Show shortest forbidden architectural dependency paths |

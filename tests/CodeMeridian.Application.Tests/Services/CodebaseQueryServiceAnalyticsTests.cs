@@ -1104,6 +1104,104 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("organic module boundaries");
     }
 
+    [Fact]
+    public async Task SuggestExtractionsAsync_WhenGdsFails_ReturnsInstallGuidance()
+    {
+        var (sut, graph) = Build();
+        graph.FindNaturalModulesAsync(null, Arg.Any<CancellationToken>())
+             .ThrowsAsync(new InvalidOperationException("No such procedure: gds.louvain.stream"));
+
+        var result = await sut.SuggestExtractionsAsync();
+
+        result.Should().Contain("Extraction suggestion failed");
+        result.Should().Contain("Graph Data Science");
+    }
+
+    [Fact]
+    public async Task SuggestExtractionsAsync_WithCommunitySignals_ReturnsExtractionCandidates()
+    {
+        var (sut, graph) = Build();
+        var anchor = Node(
+            "a1",
+            "PaymentFacade",
+            CodeNodeType.Class,
+            "src/Application/Payments/PaymentFacade.cs",
+            line: 12,
+            project: "Shop",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 340,
+            sourceHash: "abc123",
+            fileRole: IndexedFileRole.Source,
+            @namespace: "Shop.Application.Payments");
+        var helper = Node(
+            "a2",
+            "RetryPolicyBuilder",
+            CodeNodeType.Class,
+            "src/Application/Payments/RetryPolicyBuilder.cs",
+            line: 8,
+            project: "Shop",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 90,
+            sourceHash: "def456",
+            fileRole: IndexedFileRole.Source,
+            @namespace: "Shop.Application.Payments");
+        var serializer = Node(
+            "a3",
+            "PaymentMapper",
+            CodeNodeType.Method,
+            "src/Application/Payments/PaymentMapper.cs",
+            line: 20,
+            project: "Shop",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 30,
+            sourceHash: "ghi789",
+            fileRole: IndexedFileRole.Source,
+            @namespace: "Shop.Application.Payments");
+        var otherCommunity = Node(
+            "b1",
+            "EmailTemplateBuilder",
+            CodeNodeType.Class,
+            "src/Application/Notifications/EmailTemplateBuilder.cs",
+            line: 6,
+            project: "Shop",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 40,
+            sourceHash: "jkl012",
+            fileRole: IndexedFileRole.Source,
+            @namespace: "Shop.Application.Notifications");
+        var test = Node("t1", "PaymentFacadeTests", CodeNodeType.Class, "tests/Payments/PaymentFacadeTests.cs", 5, "Shop", fileRole: IndexedFileRole.Test);
+
+        graph.FindNaturalModulesAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns([
+                (anchor, 1L),
+                (helper, 1L),
+                (serializer, 1L),
+                (otherCommunity, 2L)
+            ]);
+        graph.FindHotspotsAsync("Shop", 50, Arg.Any<CancellationToken>())
+            .Returns([(anchor, 6)]);
+        graph.FindGodClassesAsync("Shop", 300, 3, Arg.Any<CancellationToken>())
+            .Returns([(anchor, 340, 6)]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns([serializer]);
+        graph.FindRelatedTestsAsync(anchor.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([(test, "direct")]);
+        graph.FindRelatedTestsAsync(helper.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindRelatedTestsAsync(serializer.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.SuggestExtractionsAsync("Shop", limit: 5);
+
+        result.Should().Contain("## Refactor Extraction Candidates - Shop");
+        result.Should().Contain("`Shop.Application`");
+        result.Should().Contain("PaymentFacade");
+        result.Should().Contain("PaymentFacadeTests");
+        result.Should().Contain("coverage gaps");
+        result.Should().Contain("anchor fan-in 6");
+        result.Should().Contain("large (340 lines)");
+    }
+
     // ── FindSimilarToNodeAsync ────────────────────────────────────────────────
 
     [Fact]

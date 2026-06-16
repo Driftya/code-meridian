@@ -363,6 +363,30 @@ Results are grouped by module and split into:
 Which Newtonsoft.Json usages are safe to replace with System.Text.Json first?
 ```
 
+### `suggest_extractions`
+
+Ranks tightly connected production-only groups as candidate extraction targets.
+
+The current safe-first slice combines:
+
+- Louvain natural modules from the code graph
+- hotspot fan-in signals
+- god-class style size and coupling anchors
+- nearby related tests from the test-shield surface
+- coverage-gap signals for members that still lack protection
+
+Results include:
+
+- move-from location inferred from dominant namespace or path
+- an anchor node that likely represents the overloaded center of the cluster
+- nearby tests
+- coverage-gap count
+- an explainable reason string rather than a hidden extraction score
+
+```text
+What tightly connected groups look like good extraction candidates in payments?
+```
+
 ### `resolve_exact_symbol`
 
 Resolves a symbol, file path, and optional line hint to canonical CodeMeridian node IDs. Use it when graph search found the right file or area but an implementation step needs an exact method/class/interface ID for `get_context_for_editing`, `find_impact`, or `build_minimal_context`.
