@@ -84,7 +84,7 @@ jobs:
 
       - name: Restore TsIndexer
         working-directory: tools/TsIndexer
-        run: npm ci --include=optional
+        run: npm install --include=optional
 
       - name: Build TsIndexer
         working-directory: tools/TsIndexer

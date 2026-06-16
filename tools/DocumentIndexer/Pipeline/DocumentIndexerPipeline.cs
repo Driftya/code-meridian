@@ -29,6 +29,10 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
                 var relatedNodes = DocumentCodeReferenceExtractor.ExtractCodeFileReferences(content, projectContext, relPath).ToList();
                 relatedNodes.AddRange(DocumentRouteReferenceExtractor.ExtractRouteReferences(content, projectContext));
                 relatedNodes.AddRange(DocumentMcpToolReferenceExtractor.ExtractMcpToolReferences(content, mcpToolFiles));
+                relatedNodes = relatedNodes
+                    .Select(NormalizeRelatedNodeId)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
                 logger.LogInformation("  {File} -> {Chunks} chunk(s)", relPath, chunks.Count);
 
                 for (var i = 0; i < chunks.Count; i++)
@@ -55,5 +59,21 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
         }
 
         return new DocumentStats(count);
+    }
+
+    private static string NormalizeRelatedNodeId(string nodeId)
+    {
+        const string apiEndpointMarker = "::ApiEndpoint::";
+        var markerIndex = nodeId.IndexOf(apiEndpointMarker, StringComparison.Ordinal);
+        if (markerIndex < 0)
+            return nodeId;
+
+        var routeStart = nodeId.IndexOf(' ', markerIndex + apiEndpointMarker.Length);
+        if (routeStart < 0 || routeStart == nodeId.Length - 1)
+            return nodeId;
+
+        var prefix = nodeId[..routeStart];
+        var route = nodeId[(routeStart + 1)..];
+        return $"{prefix} {DocumentRouteReferenceExtractor.NormalizeRouteTemplate(route)}";
     }
 }

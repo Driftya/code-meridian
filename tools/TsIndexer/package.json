@@ -21,6 +21,9 @@
     "tsx": "^4.0.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "^1.0.3",
+    "@rolldown/binding-win32-x64-msvc": "^1.0.3"
   }
 }
-
