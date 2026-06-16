@@ -23,6 +23,8 @@ internal static partial class DocumentRouteReferenceExtractor
     internal static string NormalizeRouteTemplate(string template)
     {
         var normalized = template.Trim();
+        normalized = Uri.UnescapeDataString(normalized);
+
         if (Uri.TryCreate(normalized, UriKind.Absolute, out var absoluteUri))
             normalized = absoluteUri.AbsolutePath;
 

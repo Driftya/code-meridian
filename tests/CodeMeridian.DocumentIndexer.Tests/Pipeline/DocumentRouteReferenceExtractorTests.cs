@@ -14,4 +14,14 @@ public sealed class DocumentRouteReferenceExtractorTests
 
         result.Should().ContainSingle("CodeMeridian::ApiEndpoint::POST /api/orders/{param}");
     }
+
+    [Fact]
+    public void ExtractRouteReferences_NormalizesPercentEncodedTypedRouteMentions()
+    {
+        var content = "POST /api/orders/%7Bid:int%7D%3Fexpand=items";
+
+        var result = DocumentRouteReferenceExtractor.ExtractRouteReferences(content, "CodeMeridian");
+
+        result.Should().ContainSingle("CodeMeridian::ApiEndpoint::POST /api/orders/{param}");
+    }
 }
