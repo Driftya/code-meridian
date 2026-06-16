@@ -11,6 +11,8 @@ on:
 
 permissions:
   contents: read
+  checks: write
+  pull-requests: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -44,7 +46,30 @@ jobs:
         run: dotnet build CodeMeridian.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test CodeMeridian.sln --configuration Release --no-build --filter "FullyQualifiedName!~CodeMeridian.Infrastructure.Integration.Tests"
+        run: >
+          dotnet test CodeMeridian.sln
+          --configuration Release
+          --no-build
+          --filter "FullyQualifiedName!~CodeMeridian.Infrastructure.Integration.Tests"
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory TestResults
+
+      - name: Publish .NET test report
+        uses: dorny/test-reporter@v2
+        if: success() || failure()
+        with:
+          name: .NET Test Report
+          path: TestResults/**/*.trx
+          reporter: dotnet-trx
+          fail-on-error: true
+
+      - name: Upload .NET test results
+        uses: actions/upload-artifact@v5
+        if: success() || failure()
+        with:
+          name: dotnet-test-results
+          path: TestResults/**/*.trx
+          if-no-files-found: warn
 
   tsindexer:
     name: TsIndexer build and test
