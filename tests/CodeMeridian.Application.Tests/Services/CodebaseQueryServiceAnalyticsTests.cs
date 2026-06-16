@@ -37,14 +37,14 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         CodeNodeType type,
         string? file = null,
         int? line = null,
-        string? @namespace = null,
         string? project = null,
         DateTimeOffset? createdAt = null,
         DateTimeOffset? updatedAt = null,
         int? lineCount = null,
         string? sourceSnippet = null,
         string? sourceHash = null,
-        IndexedFileRole fileRole = IndexedFileRole.Unknown) => new()
+        IndexedFileRole fileRole = IndexedFileRole.Unknown,
+        string? @namespace = null) => new()
     {
         Id = id,
         Name = name,
