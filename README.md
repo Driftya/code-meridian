@@ -11,6 +11,7 @@
 [![Publish Indexer Tool](https://github.com/Driftya/code-meridian/actions/workflows/publish-indexer.yml/badge.svg)](https://github.com/Driftya/code-meridian/actions/workflows/publish-indexer.yml)
 [![Publish MCP Image](https://github.com/Driftya/code-meridian/actions/workflows/publish-mcp.yml/badge.svg)](https://github.com/Driftya/code-meridian/actions/workflows/publish-mcp.yml)
 [![Dependabot Updates](https://github.com/Driftya/code-meridian/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/Driftya/code-meridian/actions/workflows/dependabot/dependabot-updates)
+[![MCP image](https://img.shields.io/github/v/tag/Driftya/code-meridian?label=mcp%20image&sort=semver)](https://github.com/Driftya/code-meridian/pkgs/container/codemeridian-mcp)
 
 CodeMeridian is a local graph memory layer for AI coding agents.
 
