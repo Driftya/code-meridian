@@ -57,11 +57,11 @@ jobs:
 
       - name: Restore .NET solution
         if: matrix.language == 'csharp'
-        run: dotnet restore CodeMeridian.slnx
+        run: dotnet restore CodeMeridian.sln
 
       - name: Build .NET solution
         if: matrix.language == 'csharp'
-        run: dotnet build CodeMeridian.slnx --configuration Release --no-restore
+        run: dotnet build CodeMeridian.sln --configuration Release --no-restore
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
