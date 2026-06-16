@@ -31,6 +31,7 @@ public interface ICodebaseQueryService
     Task<string> FindHighChurnAsync(string? projectContext = null, int threshold = 3, CancellationToken cancellationToken = default);
     Task<string> GetPageRankAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> GetBetweennessAsync(string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<string> FindBridgesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindNaturalModulesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindSimilarToNodeAsync(string nodeId, string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindDuplicateCandidatesAsync(string? projectContext = null, string? namespaceFilter = null, string? nodeType = null, int minLineCount = 5, double minSimilarity = 0.88, bool excludeTests = true, CancellationToken cancellationToken = default);

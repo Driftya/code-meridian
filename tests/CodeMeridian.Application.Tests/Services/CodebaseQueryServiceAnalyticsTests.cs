@@ -37,6 +37,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         CodeNodeType type,
         string? file = null,
         int? line = null,
+        string? @namespace = null,
         string? project = null,
         DateTimeOffset? createdAt = null,
         DateTimeOffset? updatedAt = null,
@@ -48,6 +49,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         Id = id,
         Name = name,
         Type = type,
+        Namespace = @namespace,
         FilePath = file,
         LineNumber = line,
         LineCount = lineCount,
@@ -921,6 +923,50 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     // ── FindNaturalModulesAsync ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task FindBridgesAsync_WhenGdsFails_ReturnsInstallGuidance()
+    {
+        var (sut, graph) = Build();
+        graph.GetBetweennessAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+             .ThrowsAsync(new InvalidOperationException("No such procedure: gds.betweenness.stream"));
+
+        var result = await sut.FindBridgesAsync();
+
+        result.Should().Contain("Bridge detection failed");
+        result.Should().Contain("Graph Data Science");
+    }
+
+    [Fact]
+    public async Task FindBridgesAsync_WithResults_ReturnsLayersRiskAndConfidence()
+    {
+        var (sut, graph) = Build();
+        var bridge = Node(
+            "b1",
+            "PaymentFacade",
+            CodeNodeType.Class,
+            "src/Application/Payments/PaymentFacade.cs",
+            line: 12,
+            @namespace: "CodeMeridian.Application.Payments",
+            project: "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            sourceHash: "abc123");
+        var apiCaller = Node("c1", "PaymentsController", CodeNodeType.Class, "src/Api/PaymentsController.cs", @namespace: "CodeMeridian.Api.Payments");
+        var infraCallee = Node("d1", "StripeGateway", CodeNodeType.Class, "src/Infrastructure/Payments/StripeGateway.cs", @namespace: "CodeMeridian.Infrastructure.Payments");
+
+        graph.GetBetweennessAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+             .Returns([(bridge, 980.0)]);
+        graph.GetContextForEditingAsync("b1", Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(bridge, [apiCaller], [infraCallee], []));
+
+        var result = await sut.FindBridgesAsync();
+
+        result.Should().Contain("## Bridge Nodes");
+        result.Should().Contain("PaymentFacade");
+        result.Should().Contain("API, Application, Infrastructure");
+        result.Should().Contain("high bridge risk across multiple layers");
+        result.Should().Contain("| High |");
+    }
 
     [Fact]
     public async Task FindNaturalModulesAsync_WhenGdsFails_ReturnsInstallGuidance()

@@ -13,6 +13,20 @@ namespace CodeMeridian.McpServer.Tests;
 public sealed class KnowledgeIngestionTests
 {
     [Fact]
+    public async Task CodebaseTools_FindBridgesAsync_ForwardsProjectContext()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.FindBridgesAsync("CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns("bridges");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.FindBridgesAsync("CodeMeridian");
+
+        result.Should().Be("bridges");
+        await queryService.Received(1).FindBridgesAsync("CodeMeridian", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task KnowledgeTools_IngestDocumentAsync_ForwardsWeakMentionMetadata()
     {
         var graph = Substitute.For<ICodeGraphRepository>();

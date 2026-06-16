@@ -91,6 +91,51 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
+    public async Task<string> FindBridgesAsync(
+        string? projectContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<(CodeNode Node, double Score)> results;
+        try
+        {
+            results = await codeGraph.GetBetweennessAsync(projectContext, limit: 12, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return $"Bridge detection failed: {ex.Message}\n" +
+                   "Ensure the Graph Data Science plugin is installed.";
+        }
+
+        if (results.Count == 0)
+            return $"No bridge nodes detected{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                   "The graph may have no edges yet.";
+
+        var ranked = results.OrderByDescending(item => item.Score).ToArray();
+        var topScore = ranked[0].Score;
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Bridge Nodes{(projectContext is not null ? $" — {projectContext}" : "")}");
+        sb.AppendLine("Small but structurally important nodes that appear to connect otherwise separate parts of the system:\n");
+        sb.AppendLine("| Rank | Score | Type | Name | Connects | Risk note | Confidence | File |");
+        sb.AppendLine("|------|-------|------|------|----------|-----------|------------|------|");
+
+        var rank = 1;
+        foreach (var (node, score) in ranked)
+        {
+            var context = await codeGraph.GetContextForEditingAsync(node.Id, cancellationToken);
+            var freshness = BuildFreshness(node);
+            var layers = GetConnectedLayers(node, context);
+            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
+            var connects = layers.Count > 0 ? string.Join(", ", layers.Take(4)) : "unknown";
+            var risk = DescribeBridgeRisk(score, topScore, layers.Count, freshness.Confidence);
+            sb.AppendLine($"| {rank++} | {score.ToString("F0", CultureInfo.InvariantCulture)} | {node.Type} | `{node.Name}` | {connects} | {risk} | {freshness.Confidence} | {file} |");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("> Confidence reflects indexed metadata freshness, not mathematical certainty. Use `get_context_for_editing` and `find_impact` before changing a bridge node.");
+
+        return sb.ToString();
+    }
+
     public async Task<string> FindNaturalModulesAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
@@ -287,4 +332,64 @@ public partial class CodebaseQueryService
             (false, true) => "candidate only",
             _ => "no direct test callers"
         };
+
+    private static IReadOnlyList<string> GetConnectedLayers(CodeNode node, EditingContext context)
+    {
+        return new[] { node }
+            .Concat(context.Callers)
+            .Concat(context.Callees)
+            .Select(InferLayer)
+            .Where(layer => !string.Equals(layer, "Unknown", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(layer => layer, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static string InferLayer(CodeNode node)
+    {
+        var namespaceValue = node.Namespace ?? string.Empty;
+        var filePath = node.FilePath?.Replace('\\', '/') ?? string.Empty;
+
+        if (ContainsSegment(namespaceValue, "Test") || filePath.Contains("/tests/", StringComparison.OrdinalIgnoreCase))
+            return "Tests";
+
+        if (ContainsSegment(namespaceValue, "Core") || filePath.Contains("/Core/", StringComparison.OrdinalIgnoreCase))
+            return "Core";
+
+        if (ContainsSegment(namespaceValue, "Application") || filePath.Contains("/Application/", StringComparison.OrdinalIgnoreCase))
+            return "Application";
+
+        if (ContainsSegment(namespaceValue, "Infrastructure") || filePath.Contains("/Infrastructure/", StringComparison.OrdinalIgnoreCase))
+            return "Infrastructure";
+
+        if (ContainsSegment(namespaceValue, "Api")
+            || ContainsSegment(namespaceValue, "McpServer")
+            || filePath.Contains("/Api/", StringComparison.OrdinalIgnoreCase)
+            || filePath.Contains("/McpServer/", StringComparison.OrdinalIgnoreCase))
+            return "API";
+
+        return "Unknown";
+    }
+
+    private static bool ContainsSegment(string value, string segment)
+    {
+        return value.Equals(segment, StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith(segment + ".", StringComparison.OrdinalIgnoreCase)
+               || value.EndsWith("." + segment, StringComparison.OrdinalIgnoreCase)
+               || value.Contains("." + segment + ".", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string DescribeBridgeRisk(double score, double topScore, int connectedLayerCount, string confidence)
+    {
+        if (confidence == "Low")
+            return "high bridge score, but stale metadata lowers trust";
+
+        if (connectedLayerCount >= 3)
+            return "high bridge risk across multiple layers";
+
+        if (score >= topScore * 0.7)
+            return "high bridge risk on common execution paths";
+
+        return "moderate bridge risk; validate with nearby callers";
+    }
 }

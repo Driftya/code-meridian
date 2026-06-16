@@ -35,6 +35,17 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.GetBetweennessAsync(projectContext, cancellationToken);
 
+    [McpServerTool(Name = "find_bridges")]
+    [Description(
+        "Find structurally important bridge nodes by combining GDS betweenness centrality with direct call-graph context. " +
+        "Reports likely connected layers, a bridge-risk note, and metadata confidence so you can spot small nodes " +
+        "that connect otherwise separate parts of the system. Requires Neo4j Graph Data Science plugin.")]
+    public Task<string> FindBridgesAsync(
+        [Description("Project name to scope the results. Omit to analyse all projects.")]
+        string? projectContext = null,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindBridgesAsync(projectContext, cancellationToken);
+
     [McpServerTool(Name = "find_natural_modules")]
     [Description(
         "Run GDS Louvain community detection to discover the organic module boundaries that the codebase has evolved into. " +
