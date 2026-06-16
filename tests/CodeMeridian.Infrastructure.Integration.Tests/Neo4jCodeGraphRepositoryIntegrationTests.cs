@@ -1059,7 +1059,10 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
                 && path.Source.Id == source.Id
                 && path.Target.Id == target.Id
                 && path.Distance == 2
-                && path.Steps.Select(step => step.Node.Id).SequenceEqual([source.Id, middle.Id, target.Id]));
+                && path.Steps.Count == 3
+                && path.Steps[0].Node.Id == source.Id
+                && path.Steps[1].Node.Id == middle.Id
+                && path.Steps[2].Node.Id == target.Id);
         }
         finally
         {
