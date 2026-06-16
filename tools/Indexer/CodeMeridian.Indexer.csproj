@@ -73,6 +73,11 @@
           Pack="true"
           PackagePath="architectures\"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\docs\agent-capabilities\**\*"
+          Link="docs\agent-capabilities\%(RecursiveDir)%(Filename)%(Extension)"
+          Pack="true"
+          PackagePath="docs\agent-capabilities\"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\.env.sample"
           Link=".env.sample"
           Pack="true"

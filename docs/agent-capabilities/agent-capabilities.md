@@ -4,7 +4,7 @@ CodeMeridian can be used as a global or project-local context tool for AI coding
 
 This folder contains copyable capability packs for agents that support custom instructions, skills, subagents, prompts, or similar workflows.
 
-The files in `docs/agent-capabilities/` are intentionally provider-neutral. They are not auto-installed. Copy the relevant file into the provider-specific location you use.
+The files in `meridian-agent-capabilities/` are intentionally provider-neutral when copied by `codemeridian init`. They are not tied to one assistant vendor. Copy the relevant file into the provider-specific location you use when a client expects its own folder layout.
 
 ## Available Capabilities
 

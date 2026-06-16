@@ -10,6 +10,7 @@ public sealed class CodeMeridianConfigFileStore
 
     public const string DefaultArchitecturePath = ".meridian/architecture.json";
     public const string DefaultArchitectureTemplateFileName = "architecture.clean.template.json";
+    public const string DefaultAgentCapabilitiesDirectory = "meridian-agent-capabilities";
 
     private const string MeridianSampleFileName = "meridian.sample.json";
     private const string ConfigFileName = "meridian.json";
@@ -104,6 +105,8 @@ public sealed class CodeMeridianConfigFileStore
         }
 
         WriteSchemaFile(rootDirectory, overwrite);
+        WriteArchitectureTemplates(rootDirectory, overwrite);
+        WriteAgentCapabilitiesDocs(rootDirectory, overwrite);
         return result;
     }
 
@@ -159,6 +162,7 @@ public sealed class CodeMeridianConfigFileStore
 
         WriteSchemaFile(rootDirectory, overwrite);
         WriteArchitectureTemplates(rootDirectory, overwrite);
+        WriteAgentCapabilitiesDocs(rootDirectory, overwrite);
         return result;
     }
 
@@ -238,6 +242,16 @@ public sealed class CodeMeridianConfigFileStore
             overwrite: false);
     }
 
+    private static void WriteAgentCapabilitiesDocs(DirectoryInfo rootDirectory, bool overwrite)
+    {
+        var sourceDirectory = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "docs", "agent-capabilities"));
+        if (!sourceDirectory.Exists)
+            throw new InvalidOperationException($"Required template directory is missing: {sourceDirectory.FullName}");
+
+        var targetDirectory = new DirectoryInfo(Path.Combine(rootDirectory.FullName, DefaultAgentCapabilitiesDirectory));
+        CopyDirectory(sourceDirectory, targetDirectory, overwrite);
+    }
+
     private static string ReadRequiredTemplate(string fileName)
     {
         var sourcePath = Path.Combine(AppContext.BaseDirectory, fileName);
@@ -254,6 +268,28 @@ public sealed class CodeMeridianConfigFileStore
 
         Directory.CreateDirectory(targetFile.DirectoryName!);
         File.WriteAllText(targetFile.FullName, content.TrimEnd() + Environment.NewLine);
+    }
+
+    private static void CopyDirectory(DirectoryInfo sourceDirectory, DirectoryInfo targetDirectory, bool overwrite)
+    {
+        Directory.CreateDirectory(targetDirectory.FullName);
+
+        foreach (var file in sourceDirectory.GetFiles())
+        {
+            var targetFile = new FileInfo(Path.Combine(targetDirectory.FullName, file.Name));
+            if (targetFile.Exists && !overwrite)
+                continue;
+
+            file.CopyTo(targetFile.FullName, overwrite: true);
+        }
+
+        foreach (var subdirectory in sourceDirectory.GetDirectories())
+        {
+            CopyDirectory(
+                subdirectory,
+                new DirectoryInfo(Path.Combine(targetDirectory.FullName, subdirectory.Name)),
+                overwrite);
+        }
     }
 
     private static FileInfo? FindLocalConfig(DirectoryInfo directory)

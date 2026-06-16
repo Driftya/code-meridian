@@ -433,3 +433,5 @@ FodyWeavers.xsd
 meridian.json
 .continue/mcpServers/code-meridian.yaml
 meridian.json.bak
+.meridian/architectures
+meridian-agent-capabilities

@@ -147,6 +147,9 @@ public sealed class IndexerConfigTests : IDisposable
         File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.hexagonal.template.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.layered.template.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.vertical-slice.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "agent-capabilities.md")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "agents", "codemeridian-context-agent.md")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "skills", "codemeridian-context-skill.md")).Should().BeTrue();
     }
 
     [Fact]
@@ -162,6 +165,15 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"codeMeridianUrl\": \"http://global:5100\"");
         json.Should().Contain("\"useGlobalCache\": true");
         File.Exists(Path.Combine(globalRoot.FullName, "meridian.schema.json")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architecture.json")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architectures", "architecture.clean.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architectures", "architecture.onion.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architectures", "architecture.hexagonal.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architectures", "architecture.layered.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architectures", "architecture.vertical-slice.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "agent-capabilities.md")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "agents", "codemeridian-context-agent.md")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "skills", "codemeridian-context-skill.md")).Should().BeTrue();
     }
 
     [Fact]
