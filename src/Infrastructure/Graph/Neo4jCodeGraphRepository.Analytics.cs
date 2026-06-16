@@ -647,6 +647,121 @@ public sealed partial class Neo4jCodeGraphRepository
         return results;
     }
 
+    public async Task<IReadOnlyList<DependencySmellPath>> FindSmellPathsAsync(
+        string? projectContext = null,
+        int maxDepth = 4,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        var sourceRole = FileRoleExpression("source");
+        var targetRole = FileRoleExpression("target");
+        var cypher = $$"""
+            MATCH path = (source:CodeNode)-[:Calls|Uses|DependsOn*1..{{Math.Clamp(maxDepth, 1, 6)}}]->(target:CodeNode)
+            WHERE ($projectContextNormalized IS NULL OR source.projectContextNormalized = $projectContextNormalized)
+              AND source <> target
+              AND source.namespace IS NOT NULL
+              AND target.namespace IS NOT NULL
+              AND {{sourceRole}} IN ['Source', 'Unknown']
+              AND {{targetRole}} IN ['Source', 'Unknown']
+              AND (
+                (
+                  source.namespace CONTAINS 'Core'
+                  AND (target.namespace CONTAINS 'Infrastructure'
+                       OR target.namespace CONTAINS 'McpServer'
+                       OR target.namespace CONTAINS 'Application')
+                )
+                OR
+                (
+                  source.namespace CONTAINS 'Application'
+                  AND (target.namespace CONTAINS 'Infrastructure'
+                       OR target.namespace CONTAINS 'McpServer')
+                )
+                OR
+                (
+                  (source.namespace CONTAINS 'Api' OR source.namespace CONTAINS 'McpServer')
+                  AND target.namespace CONTAINS 'Infrastructure'
+                )
+              )
+            WITH source, target, path, length(path) AS dist,
+                 CASE
+                   WHEN source.namespace CONTAINS 'Core' AND target.namespace CONTAINS 'Infrastructure' THEN 'Core → Infrastructure'
+                   WHEN source.namespace CONTAINS 'Core' AND target.namespace CONTAINS 'McpServer' THEN 'Core → Presentation'
+                   WHEN source.namespace CONTAINS 'Core' AND target.namespace CONTAINS 'Application' THEN 'Core → Application'
+                   WHEN source.namespace CONTAINS 'Application' AND target.namespace CONTAINS 'Infrastructure' THEN 'Application → Infrastructure'
+                   WHEN source.namespace CONTAINS 'Application' AND target.namespace CONTAINS 'McpServer' THEN 'Application → Presentation'
+                   ELSE 'Presentation → Infrastructure'
+                 END AS violation
+            ORDER BY violation, source.id, target.id, dist ASC
+            WITH violation, source, target, collect(path)[0] AS shortestPath, min(dist) AS dist
+            RETURN violation,
+                   source,
+                   target,
+                   dist,
+                   [n IN nodes(shortestPath) | n] AS pathNodes,
+                   [r IN relationships(shortestPath) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+            ORDER BY dist ASC, violation, source.name, target.name
+            LIMIT 50
+            """;
+
+        var cursor = await session.RunAsync(cypher, new
+        {
+            projectContextNormalized = (object?)Normalize(projectContext)
+        });
+
+        var results = new List<DependencySmellPath>();
+
+        await foreach (var record in cursor.WithCancellation(cancellationToken))
+        {
+            var source = MapToCodeNode(record["source"].As<INode>());
+            var target = MapToCodeNode(record["target"].As<INode>());
+            var dist = record["dist"].As<int>();
+            var pathNodes = record["pathNodes"].As<List<INode>>();
+            var pathRelationships = record["pathRelationships"].As<List<object>>();
+            var steps = new List<GraphPathStep>(pathNodes.Count);
+
+            for (var i = 0; i < pathNodes.Count; i++)
+            {
+                string? relationshipType = null;
+                double? relationshipConfidence = null;
+
+                if (i < pathRelationships.Count && pathRelationships[i] is IDictionary<string, object> rel)
+                {
+                    relationshipType = rel.TryGetValue("type", out var typeValue)
+                        ? typeValue?.ToString()
+                        : null;
+
+                    if (rel.TryGetValue("confidence", out var confidenceValue) && confidenceValue is not null)
+                    {
+                        relationshipConfidence = confidenceValue switch
+                        {
+                            double d => d,
+                            float f => f,
+                            long l => l,
+                            int n => n,
+                            _ when double.TryParse(confidenceValue.ToString(), out var parsed) => parsed,
+                            _ => null
+                        };
+                    }
+                }
+
+                steps.Add(new GraphPathStep(
+                    MapToCodeNode(pathNodes[i]),
+                    relationshipType,
+                    relationshipConfidence));
+            }
+
+            results.Add(new DependencySmellPath(
+                record["violation"].As<string>(),
+                source,
+                target,
+                dist,
+                steps));
+        }
+
+        return results;
+    }
+
     public async Task<IReadOnlyList<(CodeNode Node, int ChangeCount)>> FindHighChurnAsync(
         string? projectContext = null,
         int threshold = 3,

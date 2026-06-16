@@ -28,6 +28,7 @@ public interface ICodebaseQueryService
     Task<string> FindDownstreamAsync(string nodeId, int depth = 5, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
     Task<string> FindCyclesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindArchitectureViolationsAsync(string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<string> FindSmellPathsAsync(string? projectContext = null, int maxDepth = 4, CancellationToken cancellationToken = default);
     Task<string> FindHighChurnAsync(string? projectContext = null, int threshold = 3, CancellationToken cancellationToken = default);
     Task<string> GetPageRankAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> GetBetweennessAsync(string? projectContext = null, CancellationToken cancellationToken = default);

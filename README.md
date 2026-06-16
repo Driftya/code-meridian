@@ -205,7 +205,9 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `find_implementation_surface` | Rank likely files and symbols to edit for a feature goal |
 | `check_graph_freshness` | Report graph confidence from indexed file, line, and timestamp metadata |
 | `find_graph_drift` | Detect stale graph data before relying on exact implementation targets |
+| `find_smell_paths` | Show shortest forbidden architectural dependency paths |
 | `find_stale_knowledge` | Detect stale docs, weak mentions, orphaned external concepts, and orphaned code references |
+| `knowledge_decay` | Alias of `find_stale_knowledge` for graph-native stale-knowledge review |
 | `resolve_exact_symbol` | Resolve symbol/file/line hints to canonical node IDs before editing |
 | `clear_project_knowledge` | Clear one project's indexed graph and docs before rebuilding |
 | `clear_code_graph` | Clear all indexed code graph nodes while preserving docs |

@@ -27,6 +27,34 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task CodebaseTools_FindSmellPathsAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.FindSmellPathsAsync("CodeMeridian", 5, Arg.Any<CancellationToken>())
+            .Returns("smells");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.FindSmellPathsAsync("CodeMeridian", 5);
+
+        result.Should().Be("smells");
+        await queryService.Received(1).FindSmellPathsAsync("CodeMeridian", 5, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CodebaseTools_KnowledgeDecayAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.FindStaleKnowledgeAsync("CodeMeridian", 12, Arg.Any<CancellationToken>())
+            .Returns("decay");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.KnowledgeDecayAsync("CodeMeridian", 12);
+
+        result.Should().Be("decay");
+        await queryService.Received(1).FindStaleKnowledgeAsync("CodeMeridian", 12, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task KnowledgeTools_IngestDocumentAsync_ForwardsWeakMentionMetadata()
     {
         var graph = Substitute.For<ICodeGraphRepository>();

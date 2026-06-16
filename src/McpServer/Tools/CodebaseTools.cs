@@ -101,6 +101,18 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindStaleKnowledgeAsync(projectContext, limit, cancellationToken);
 
+    [McpServerTool(Name = "knowledge_decay")]
+    [Description(
+        "Graph-backed stale-knowledge view. " +
+        "This is an alias of find_stale_knowledge for workflows that think in terms of knowledge decay.")]
+    public Task<string> KnowledgeDecayAsync(
+        [Description("Optional project name to scope the analysis.")]
+        string? projectContext = null,
+        [Description("Maximum number of findings to include in the report.")]
+        int limit = 25,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindStaleKnowledgeAsync(projectContext, limit, cancellationToken);
+
     [McpServerTool(Name = "find_implementation_surface")]
     [Description(
         "Find the most likely files, classes, and methods to edit for a requested feature or fix. " +

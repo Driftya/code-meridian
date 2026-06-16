@@ -223,6 +223,18 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindArchitectureViolationsAsync(projectContext, cancellationToken);
 
+    [McpServerTool(Name = "find_smell_paths")]
+    [Description(
+        "Surface dependency smell paths as shortest forbidden layer-to-layer paths. " +
+        "Use this to explain Clean Architecture violations with an exact graph path instead of a flat edge list.")]
+    public Task<string> FindSmellPathsAsync(
+        [Description("Project name to scope the analysis. Omit to inspect all projects.")]
+        string? projectContext = null,
+        [Description("Maximum path depth to search. Default 4; practical max 6.")]
+        int maxDepth = 4,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindSmellPathsAsync(projectContext, maxDepth, cancellationToken);
+
     [McpServerTool(Name = "find_high_churn")]
     [Description(
         "Find code nodes that have been re-indexed the most times — a proxy for files that change frequently. " +

@@ -64,6 +64,9 @@ public interface ICodeGraphRepository
     /// <summary>Find Clean Architecture layer violations (e.g. Core depending on Infrastructure).</summary>
     Task<IReadOnlyList<(CodeNode Source, CodeNode Target, string Violation)>> FindArchitectureViolationsAsync(string? projectContext = null, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns shortest forbidden dependency paths across known architectural layer boundaries.</summary>
+    Task<IReadOnlyList<DependencySmellPath>> FindSmellPathsAsync(string? projectContext = null, int maxDepth = 4, CancellationToken cancellationToken = default);
+
     /// <summary>Return nodes with the highest re-index count — frequently changed files.</summary>
     Task<IReadOnlyList<(CodeNode Node, int ChangeCount)>> FindHighChurnAsync(string? projectContext = null, int threshold = 3, CancellationToken cancellationToken = default);
 

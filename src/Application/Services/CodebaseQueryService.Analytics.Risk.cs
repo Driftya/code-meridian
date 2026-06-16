@@ -307,6 +307,35 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
+    public async Task<string> FindSmellPathsAsync(
+        string? projectContext = null,
+        int maxDepth = 4,
+        CancellationToken cancellationToken = default)
+    {
+        var results = await codeGraph.FindSmellPathsAsync(projectContext, maxDepth, cancellationToken);
+
+        if (results.Count == 0)
+            return $"No dependency smell paths found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                   "No forbidden layer-to-layer paths were detected within the configured search depth.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Dependency Smell Paths{(projectContext is not null ? $" — {projectContext}" : "")}");
+        sb.AppendLine($"**{results.Count}** shortest forbidden dependency paths found (max depth {Math.Clamp(maxDepth, 1, 6)}):\n");
+        sb.AppendLine("| Rule | Hops | Source | Target | Path |");
+        sb.AppendLine("|------|------|--------|--------|------|");
+
+        foreach (var result in results)
+        {
+            sb.AppendLine(
+                $"| {result.Violation} | {result.Distance} | `{result.Source.Name}` | `{result.Target.Name}` | {EscapeTableCell(FormatPathSteps(result.Steps))} |");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("> This safe-first version focuses on shortest forbidden layer paths across direct and transitive `Calls`, `Uses`, and `DependsOn` edges. Use it to explain why a dependency smell exists before refactoring.");
+
+        return sb.ToString();
+    }
+
     private static bool IsLikelyNote(KnowledgeDocument document)
     {
         var source = document.Source ?? string.Empty;

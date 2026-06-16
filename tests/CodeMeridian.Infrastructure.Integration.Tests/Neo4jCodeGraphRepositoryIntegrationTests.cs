@@ -1006,6 +1006,67 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task FindSmellPathsAsync_WithCoreToInfrastructurePath_ReturnsShortestPath()
+    {
+        var projectContext = $"Integration.SmellPaths.{Guid.NewGuid():N}";
+        var source = CreateNode(
+            id: $"{projectContext}.Core.PricingRules",
+            name: "PricingRules",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Core/PricingRules.cs",
+            namespaceName: $"{projectContext}.Core");
+        var middle = CreateNode(
+            id: $"{projectContext}.Application.OrderWorkflow",
+            name: "OrderWorkflow",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Application/OrderWorkflow.cs",
+            namespaceName: $"{projectContext}.Application");
+        var target = CreateNode(
+            id: $"{projectContext}.Infrastructure.Neo4jOrderStore",
+            name: "Neo4jOrderStore",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Infrastructure/Neo4jOrderStore.cs",
+            namespaceName: $"{projectContext}.Infrastructure");
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(source);
+            await _repository.UpsertNodeAsync(middle);
+            await _repository.UpsertNodeAsync(target);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = source.Id,
+                TargetId = middle.Id,
+                Type = CodeEdgeType.Uses
+            });
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = middle.Id,
+                TargetId = target.Id,
+                Type = CodeEdgeType.DependsOn
+            });
+
+            var results = await _repository.FindSmellPathsAsync(projectContext, maxDepth: 4);
+
+            results.Should().ContainSingle(path =>
+                path.Violation == "Core → Infrastructure"
+                && path.Source.Id == source.Id
+                && path.Target.Id == target.Id
+                && path.Distance == 2
+                && path.Steps.Select(step => step.Node.Id).SequenceEqual([source.Id, middle.Id, target.Id]));
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
     private async Task<CodeNode?> FindAnyTargetAsync()
     {
         var matches = await _repository!.QueryNodesAsync(

@@ -286,6 +286,14 @@ Finds Clean Architecture layer violations, such as `Core` depending on `Infrastr
 Find architecture violations in CodeMeridian.
 ```
 
+### `find_smell_paths`
+
+Finds shortest forbidden dependency paths across known architectural boundaries so a violation is explainable as a graph path instead of only a flat edge.
+
+```text
+Show dependency smell paths in CodeMeridian.
+```
+
 ### `find_high_churn`
 
 Finds nodes with the highest re-index count. High churn plus high fan-in is a useful technical-debt signal.
@@ -373,6 +381,14 @@ Documents can optionally include weak `relatedNodeIds` metadata when ingested; C
 
 ```text
 What CodeMeridian knowledge might be stale?
+```
+
+### `knowledge_decay`
+
+Alias of `find_stale_knowledge` for workflows that think in terms of knowledge decay rather than stale knowledge. It returns the same graph-backed findings.
+
+```text
+Show knowledge decay in CodeMeridian.
 ```
 
 ## Ingestion
