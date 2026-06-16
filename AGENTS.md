@@ -21,17 +21,22 @@ Read this first. Use the detailed references under `docs/agent/` when the task n
 
 Use CodeMeridian proactively. Prefer graph tools over terminal scans when the graph can answer the question.
 
-| Situation | Tool |
-|---|---|
-| Unfamiliar area at session start | `get_architectural_overview` |
-| Need a node ID | `query_codebase` or `resolve_exact_symbol` |
-| Before editing a method or class | `get_context_for_editing` |
-| Before a refactor or risky edit | `find_impact` |
-| Before suggesting a deletion | `find_unreferenced` |
-| Writing tests | `find_coverage_gaps` |
-| Comparing structure or relationships | `find_connection` |
-| Measuring size or refactor risk | `find_large_nodes`, `find_god_classes` |
-| Integrating with an external DB, API, or topic | `link_external_concept` |
+### Trigger rules
+
+| Situation | Tool to call |
+|-----------|--------------|
+| Before any non-trivial edit | `build_minimal_context` |
+| Before editing a specific method/class | `resolve_exact_symbol`, then `get_context_for_editing` |
+| Before a refactor | `find_impact` and `find_test_shield` |
+| Before deleting code | `find_unreferenced` |
+| Before starting a feature | `find_implementation_surface` |
+| Before trusting exact file targets | `check_graph_freshness` or `find_graph_drift` |
+| "How do X and Y relate?" | `find_connection` |
+| Looking for duplicate/refactor risk | `find_duplicate_candidates` or `find_similar_nodes` |
+| Looking for missing tests | `find_coverage_gaps` |
+| Searching docs/decisions | `search_documentation` |
+| Working with config | `find_config_definitions` and `find_config_usage` |
+| Looking for keyword-related context | `find_related_knowledge` |
 
 Store durable findings with `ingest_document` when they may help future sessions.
 

@@ -1,0 +1,116 @@
+---
+
+name: codemeridian-context
+description: Gather minimal, graph-grounded CodeMeridian context before implementation, refactoring, deletion, debugging, or test planning.
+-------------------------------------------------------------------------------------------------------------------------------------------
+
+# CodeMeridian Context Skill
+
+Use this skill when working in a repository indexed by CodeMeridian.
+
+The goal is to gather the smallest useful context pack before reading many files or making code changes.
+
+## When To Use
+
+Use this skill before:
+
+* implementing a non-trivial change
+* refactoring code
+* deleting code
+* changing public APIs
+* debugging unfamiliar behavior
+* reviewing impact
+* planning tests
+* modifying architecture-sensitive code
+
+## Workflow
+
+### 1. Check Graph Freshness
+
+When exact file targets, symbol names, or relationships matter, check whether the graph is fresh.
+
+Prefer:
+
+* `check_graph_freshness`
+* `find_graph_drift`
+
+If the graph is stale, incomplete, or uncertain, say so before relying on exact results.
+
+### 2. Build Minimal Context
+
+Use the smallest CodeMeridian query that fits the task.
+
+Prefer:
+
+* `build_minimal_context` for broad implementation tasks
+* `find_implementation_surface` for feature work
+* `resolve_exact_symbol` before editing a named class, method, interface, endpoint, or file
+* `get_context_for_editing` when preparing a focused edit
+
+Avoid loading large unrelated files unless CodeMeridian cannot answer the question.
+
+### 3. Check Impact And Tests
+
+Before behavior changes, refactors, deletions, or signature changes, inspect risk.
+
+Prefer:
+
+* `find_impact`
+* `find_test_shield`
+* `find_coverage_gaps`
+* `find_unreferenced` before deleting code
+
+### 4. Use Documentation Context
+
+When the task depends on prior decisions, architecture notes, or product behavior, search indexed documentation.
+
+Prefer:
+
+* `search_documentation`
+* `find_related_knowledge`
+* `find_stale_knowledge` when remembered knowledge may be outdated
+
+### 5. Report Confidence
+
+Separate proven graph facts from inferred relationships.
+
+Use wording like:
+
+* "The graph directly links..."
+* "The graph suggests..."
+* "This is inferred from..."
+* "The graph may be stale because..."
+
+Do not present stale or inferred context as certain.
+
+## Output Format
+
+Start with this compact summary before implementation:
+
+```text
+Graph freshness:
+Minimal context:
+Likely edit surface:
+Tests to inspect or run:
+Risks / unknowns:
+```
+
+Then continue with the requested implementation, review, or explanation.
+
+## Guardrails
+
+* Prefer CodeMeridian graph lookup before broad manual scanning.
+* Prefer source snippets and detail levels before loading whole files.
+* Do not return huge context dumps by default.
+* Do not trust exact graph results when freshness is low.
+* Do not ignore missing tests or weak coverage signals.
+* Do not leak secrets, tokens, or private data into logs, prompts, or summaries.
+
+## Failure Mode
+
+If CodeMeridian cannot answer the task:
+
+1. Say what was missing.
+2. Fall back to normal repository search.
+3. Keep the search narrow.
+4. Recommend re-indexing if the graph appears stale.
