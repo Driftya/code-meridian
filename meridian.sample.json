@@ -19,6 +19,9 @@
     "*.yml",
     "*.yaml"
   ],
+  "architecture": {
+    "path": ".meridian/architecture.json"
+  },
   "indexing": {
     "fileRoles": {
       "test": [

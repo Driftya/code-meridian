@@ -505,6 +505,7 @@ internal sealed class IndexCommandHandler(
             _settings.ApiKey,
             IndexedFileRoleClassifierFactory.Create(_settings.FileRoles),
             _settings.ConfigurationFiles,
+            _settings.ArchitecturePath,
             clearExistingConfiguration: clear || !_settings.Incremental,
             changedFiles: clear || !_settings.Incremental ? null : changedFiles,
             deletedFiles: clear || !_settings.Incremental ? [] : deletedFiles);

@@ -814,8 +814,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         var result = await sut.FindArchitectureViolationsAsync();
 
-        result.Should().Contain("No Clean Architecture violations found");
-        result.Should().Contain("Core and Application layers");
+        result.Should().Contain("No architecture violations found");
+        result.Should().Contain("Configured architecture layers");
     }
 
     [Fact]
@@ -831,11 +831,11 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var result = await sut.FindArchitectureViolationsAsync();
 
         result.Should().Contain("## Architecture Violations");
-        result.Should().Contain("**1** edges break");
+        result.Should().Contain("configured architecture layer rules");
         result.Should().Contain("CoreService");
         result.Should().Contain("DbContext");
         result.Should().Contain("Core → MyApp.Infrastructure");
-        result.Should().Contain("Rules:");
+        result.Should().Contain(".meridian/architecture.json");
     }
 
     // ── FindHighChurnAsync ────────────────────────────────────────────────────

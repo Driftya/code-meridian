@@ -1055,14 +1055,72 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
             var results = await _repository.FindSmellPathsAsync(projectContext, maxDepth: 4);
 
             results.Should().ContainSingle(path =>
-                path.Violation == "Core → Infrastructure"
-                && path.Source.Id == source.Id
+                path.Source.Id == source.Id
                 && path.Target.Id == target.Id
                 && path.Distance == 2
+                && path.Violation.Contains("Infrastructure", StringComparison.OrdinalIgnoreCase)
                 && path.Steps.Count == 3
                 && path.Steps[0].Node.Id == source.Id
                 && path.Steps[1].Node.Id == middle.Id
                 && path.Steps[2].Node.Id == target.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
+    public async Task FindArchitectureViolationsAsync_WithIndexedArchitectureConfig_UsesConfiguredLayers()
+    {
+        var projectContext = $"Integration.ArchitectureConfig.{Guid.NewGuid():N}";
+        var source = CreateNode(
+            id: $"{projectContext}.Domain.OrderRules",
+            name: "OrderRules",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Domain/OrderRules.cs",
+            namespaceName: $"{projectContext}.Domain");
+        var target = CreateNode(
+            id: $"{projectContext}.Persistence.SqlOrderStore",
+            name: "SqlOrderStore",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Persistence/SqlOrderStore.cs",
+            namespaceName: $"{projectContext}.Persistence");
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(source);
+            await _repository.UpsertNodeAsync(target);
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = source.Id,
+                TargetId = target.Id,
+                Type = CodeEdgeType.DependsOn
+            });
+
+            await IngestArchitectureConfigAsync(
+                projectContext,
+                ".meridian/architecture.json",
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["name"] = "Custom Onion",
+                    ["layers:0:id"] = "Domain",
+                    ["layers:0:namespaceContainsAny:0"] = ".Domain",
+                    ["layers:1:id"] = "Persistence",
+                    ["layers:1:namespaceContainsAny:0"] = ".Persistence",
+                    ["forbiddenDependencies:0:from"] = "Domain",
+                    ["forbiddenDependencies:0:to"] = "Persistence",
+                    ["forbiddenDependencies:0:reason"] = "Domain must not depend on Persistence"
+                });
+
+            var violations = await _repository.FindArchitectureViolationsAsync(projectContext);
+
+            violations.Should().ContainSingle(item =>
+                item.Source.Id == source.Id
+                && item.Target.Id == target.Id
+                && item.Violation == "Domain must not depend on Persistence");
         }
         finally
         {
@@ -1112,7 +1170,8 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
         string? namespaceName = null,
         int? lineNumber = null,
         string? summary = null,
-        string? sourceHash = null)
+        string? sourceHash = null,
+        Dictionary<string, string>? properties = null)
     {
         return new CodeNode
         {
@@ -1124,7 +1183,106 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
             Namespace = namespaceName,
             LineNumber = lineNumber,
             Summary = summary,
-            SourceHash = sourceHash
+            SourceHash = sourceHash,
+            Properties = properties ?? []
         };
+    }
+
+    private async Task IngestArchitectureConfigAsync(
+        string projectContext,
+        string architecturePath,
+        IReadOnlyDictionary<string, string> entries)
+    {
+        var meridianFile = CreateNode(
+            id: $"{projectContext}::ConfigurationFile::meridian.json",
+            name: "meridian.json",
+            type: CodeNodeType.ConfigurationFile,
+            projectContext: projectContext,
+            filePath: "meridian.json");
+        var architecturePathKey = CreateNode(
+            id: $"{projectContext}::ConfigurationKey::architecture:path",
+            name: "architecture:path",
+            type: CodeNodeType.ConfigurationKey,
+            projectContext: projectContext,
+            filePath: "meridian.json");
+        var architecturePathEntry = CreateNode(
+            id: $"{projectContext}::ConfigurationEntry::meridian.json::architecture-path",
+            name: "architecture:path",
+            type: CodeNodeType.ConfigurationEntry,
+            projectContext: projectContext,
+            filePath: "meridian.json",
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["canonicalKey"] = "architecture:path",
+                ["rawValuePreview"] = architecturePath
+            });
+        var architectureFile = CreateNode(
+            id: $"{projectContext}::ConfigurationFile::{architecturePath}",
+            name: Path.GetFileName(architecturePath),
+            type: CodeNodeType.ConfigurationFile,
+            projectContext: projectContext,
+            filePath: architecturePath);
+
+        await _repository!.UpsertNodeAsync(meridianFile);
+        await _repository.UpsertNodeAsync(architecturePathKey);
+        await _repository.UpsertNodeAsync(architecturePathEntry);
+        await _repository.UpsertNodeAsync(architectureFile);
+
+        await _repository.UpsertEdgeAsync(new CodeEdge
+        {
+            SourceId = meridianFile.Id,
+            TargetId = architecturePathEntry.Id,
+            Type = CodeEdgeType.DefinesConfig
+        });
+        await _repository.UpsertEdgeAsync(new CodeEdge
+        {
+            SourceId = architecturePathEntry.Id,
+            TargetId = architecturePathKey.Id,
+            Type = CodeEdgeType.DefinesConfig,
+            Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["valuePreview"] = architecturePath
+            }
+        });
+
+        var index = 0;
+        foreach (var entry in entries)
+        {
+            var keyId = $"{projectContext}::ConfigurationKey::{entry.Key}";
+            var entryId = $"{projectContext}::ConfigurationEntry::{architecturePath}::{index++}";
+            await _repository.UpsertNodeAsync(CreateNode(
+                keyId,
+                entry.Key,
+                CodeNodeType.ConfigurationKey,
+                projectContext,
+                architecturePath));
+            await _repository.UpsertNodeAsync(CreateNode(
+                entryId,
+                entry.Key,
+                CodeNodeType.ConfigurationEntry,
+                projectContext,
+                architecturePath,
+                properties: new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["canonicalKey"] = entry.Key,
+                    ["rawValuePreview"] = entry.Value
+                }));
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = architectureFile.Id,
+                TargetId = entryId,
+                Type = CodeEdgeType.DefinesConfig
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = entryId,
+                TargetId = keyId,
+                Type = CodeEdgeType.DefinesConfig,
+                Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["valuePreview"] = entry.Value
+                }
+            });
+        }
     }
 }

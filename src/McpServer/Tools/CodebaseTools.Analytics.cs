@@ -213,10 +213,9 @@ public sealed partial class CodebaseTools
 
     [McpServerTool(Name = "find_architecture_violations")]
     [Description(
-        "Check for Clean Architecture layer violations: Core depending on Application/Infrastructure/McpServer, " +
-        "or Application depending on Infrastructure/McpServer. " +
+        "Check for configured architecture layer violations using the project's indexed architecture rules. " +
         "Run this on every PR to enforce architectural boundaries automatically. " +
-        "Uses namespace patterns to classify layers.")]
+        "If no project architecture has been indexed yet, CodeMeridian falls back to the default clean-architecture template.")]
     public Task<string> FindArchitectureViolationsAsync(
         [Description("Project name to scope the check. Omit to check all projects.")]
         string? projectContext = null,
@@ -225,8 +224,8 @@ public sealed partial class CodebaseTools
 
     [McpServerTool(Name = "find_smell_paths")]
     [Description(
-        "Surface dependency smell paths as shortest forbidden layer-to-layer paths. " +
-        "Use this to explain Clean Architecture violations with an exact graph path instead of a flat edge list.")]
+        "Surface dependency smell paths as shortest forbidden layer-to-layer paths from the project's indexed architecture rules. " +
+        "Use this to explain architecture violations with an exact graph path instead of a flat edge list.")]
     public Task<string> FindSmellPathsAsync(
         [Description("Project name to scope the analysis. Omit to inspect all projects.")]
         string? projectContext = null,

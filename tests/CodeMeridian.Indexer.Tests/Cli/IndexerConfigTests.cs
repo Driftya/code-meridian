@@ -45,6 +45,7 @@ public sealed class IndexerConfigTests : IDisposable
         result.AllowRepoScripts.Should().BeTrue();
         result.UseGlobalCache.Should().BeTrue();
         result.ConfigurationFiles.Should().BeEquivalentTo([".env", "appsettings.*.json"]);
+        result.ArchitecturePath.Should().BeNull();
         result.FileRoles.Should().NotBeNull();
         result.FileRoles!.Generated.Should().BeEquivalentTo(["**/*.g.cs"]);
         result.FileRoles.Test.Should().BeEquivalentTo(["**/*.spec.ts"]);
@@ -129,6 +130,8 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"codeMeridianUrl\": \"http://localhost:5100\"");
         json.Should().Contain("\"allowRepoScripts\": true");
         json.Should().Contain("\"useGlobalCache\": false");
+        json.Should().Contain("\"architecture\"");
+        json.Should().Contain("\"path\": \".meridian/architecture.json\"");
         json.Should().Contain("\"analysis\"");
         json.Should().Contain("\"indexing\"");
         json.Should().Contain("\"fileRoles\"");
@@ -138,6 +141,12 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"DependencyInjection\"");
         json.Should().Contain("\"Startup\"");
         json.Should().Contain("\"CompositionRoot\"");
+        File.Exists(Path.Combine(_root, ".meridian", "architecture.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.clean.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.onion.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.hexagonal.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.layered.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.vertical-slice.template.json")).Should().BeTrue();
     }
 
     [Fact]
@@ -225,6 +234,7 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"allowRepoScripts\": true");
         json.Should().Contain("\"skipHeuristicSourcePrefixes\"");
         json.Should().Contain("\"fileRoles\"");
+        json.Should().Contain("\"architecture\"");
         json.Should().Contain("\"meridian.sample.json\"");
         json.Should().Contain("\".env\"");
         json.Should().Contain("\"appsettings.json\"");

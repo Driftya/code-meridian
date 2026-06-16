@@ -1,0 +1,57 @@
+{
+  "name": "CodeMeridian Clean Architecture",
+  "layers": [
+    {
+      "id": "Core",
+      "namespaceContainsAny": [
+        "CodeMeridian.Core."
+      ]
+    },
+    {
+      "id": "Application",
+      "namespaceContainsAny": [
+        "CodeMeridian.Application."
+      ]
+    },
+    {
+      "id": "Infrastructure",
+      "namespaceContainsAny": [
+        "CodeMeridian.Infrastructure."
+      ]
+    },
+    {
+      "id": "Presentation",
+      "namespaceContainsAny": [
+        "CodeMeridian.McpServer.",
+        "CodeMeridian.Api."
+      ]
+    }
+  ],
+  "forbiddenDependencies": [
+    {
+      "from": "Core",
+      "to": "Application",
+      "reason": "Core must not depend on Application"
+    },
+    {
+      "from": "Core",
+      "to": "Infrastructure",
+      "reason": "Core must not depend on Infrastructure"
+    },
+    {
+      "from": "Core",
+      "to": "Presentation",
+      "reason": "Core must not depend on Presentation"
+    },
+    {
+      "from": "Application",
+      "to": "Infrastructure",
+      "reason": "Application must not depend on Infrastructure"
+    },
+    {
+      "from": "Application",
+      "to": "Presentation",
+      "reason": "Application must not depend on Presentation"
+    }
+  ]
+}

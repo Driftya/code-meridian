@@ -29,6 +29,7 @@ internal sealed class ConfigurationCommand(IToolConfigurationService configurati
                 context.ApiKey,
                 IndexedFileRoleClassifierFactory.Create(context.LocalConfig?.FileRoles ?? context.GlobalConfig?.FileRoles),
                 context.LocalConfig?.ConfigurationFiles ?? context.GlobalConfig?.ConfigurationFiles,
+                context.LocalConfig?.ArchitecturePath ?? context.GlobalConfig?.ArchitecturePath ?? CodeMeridianConfigFileStore.DefaultArchitecturePath,
                 clearExistingConfiguration: true);
             Console.WriteLine($"Configuration graph rebuilt for '{project}'.");
             return 0;

@@ -56,6 +56,7 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Supports dry runs and capability listing for environment checks.
 - Can generate a local `meridian.json` and MCP client config with an auto-detected project name.
 - Can refresh an existing `meridian.json` in place by rerunning `codemeridian init .`, merging missing defaults without overwriting local settings.
+- Can seed `.meridian/architecture.json` and copy bundled templates from the package `architectures/` folder into `.meridian/architectures/` so architecture checks are project-owned and editable.
 - Can also read `CodeMeridian_Project` from `.env` when you want a fixed project name without `--project`.
 
 ## Package Contents

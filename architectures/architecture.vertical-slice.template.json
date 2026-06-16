@@ -1,0 +1,39 @@
+{
+  "name": "Vertical Slice Architecture",
+  "layers": [
+    {
+      "id": "Slices",
+      "namespaceContainsAny": [
+        ".Features",
+        ".Slices"
+      ]
+    },
+    {
+      "id": "SharedKernel",
+      "namespaceContainsAny": [
+        ".Shared",
+        ".Common",
+        ".Kernel"
+      ]
+    },
+    {
+      "id": "Infrastructure",
+      "namespaceContainsAny": [
+        ".Infrastructure",
+        ".Persistence"
+      ]
+    }
+  ],
+  "forbiddenDependencies": [
+    {
+      "from": "SharedKernel",
+      "to": "Slices",
+      "reason": "Shared kernel must not depend on feature slices"
+    },
+    {
+      "from": "SharedKernel",
+      "to": "Infrastructure",
+      "reason": "Shared kernel must not depend on Infrastructure"
+    }
+  ]
+}

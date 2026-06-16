@@ -40,6 +40,16 @@
       "items": { "type": "string" },
       "description": "File-name patterns used by configuration indexing. Supports '*' wildcards such as '.env', 'appsettings.*.json', or 'docker-compose*.yaml'."
     },
+    "architecture": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path to the active architecture rule file used by architecture-violation and smell-path analysis."
+        }
+      }
+    },
     "indexing": {
       "type": "object",
       "additionalProperties": true,

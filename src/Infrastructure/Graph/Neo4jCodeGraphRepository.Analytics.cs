@@ -600,40 +600,27 @@ public sealed partial class Neo4jCodeGraphRepository
         CancellationToken cancellationToken = default)
     {
         await using var session = _driver.AsyncSession();
-
-        // Clean Architecture rules: Core must not depend on Application/Infrastructure/McpServer;
-        // Application must not depend on Infrastructure/McpServer.
-        const string cypher = """
+        var architecture = await LoadArchitectureRulesAsync(session, projectContext, cancellationToken);
+        var ruleCypher = BuildArchitectureRuleCypher(architecture);
+        var cypher = $"""
             MATCH (source:CodeNode)-[:Calls|Uses|DependsOn]->(target:CodeNode)
             WHERE ($projectContextNormalized IS NULL OR source.projectContextNormalized = $projectContextNormalized)
               AND source.namespace IS NOT NULL
               AND target.namespace IS NOT NULL
-              AND (
-                (
-                  (source.namespace CONTAINS 'Core')
-                  AND (target.namespace CONTAINS 'Infrastructure'
-                       OR target.namespace CONTAINS 'McpServer'
-                       OR target.namespace CONTAINS 'Application')
-                )
-                OR
-                (
-                  (source.namespace CONTAINS 'Application')
-                  AND (target.namespace CONTAINS 'Infrastructure'
-                       OR target.namespace CONTAINS 'McpServer')
-                )
-              )
+              AND ({ruleCypher.WhereClause})
             WITH source, target,
                  CASE
-                   WHEN source.namespace CONTAINS 'Core' THEN 'Core \u2192 ' + target.namespace
-                   WHEN source.namespace CONTAINS 'Application' THEN 'Application \u2192 ' + target.namespace
-                   ELSE source.namespace + ' \u2192 ' + target.namespace
+                 {ruleCypher.CaseClause}
+                   ELSE source.namespace + ' → ' + target.namespace
                  END AS violation
             RETURN source, target, violation
-            ORDER BY violation
+            ORDER BY violation, source.name, target.name
             LIMIT 50
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
+        var parameters = ruleCypher.Parameters;
+        parameters["projectContextNormalized"] = Normalize(projectContext);
+        var cursor = await session.RunAsync(cypher, parameters);
         var results = new List<(CodeNode, CodeNode, string)>();
 
         await foreach (var record in cursor.WithCancellation(cancellationToken))
@@ -653,6 +640,8 @@ public sealed partial class Neo4jCodeGraphRepository
         CancellationToken cancellationToken = default)
     {
         await using var session = _driver.AsyncSession();
+        var architecture = await LoadArchitectureRulesAsync(session, projectContext, cancellationToken);
+        var ruleCypher = BuildArchitectureRuleCypher(architecture);
 
         var sourceRole = FileRoleExpression("source");
         var targetRole = FileRoleExpression("target");
@@ -664,25 +653,7 @@ public sealed partial class Neo4jCodeGraphRepository
               AND target.namespace IS NOT NULL
               AND {{sourceRole}} IN ['Source', 'Unknown']
               AND {{targetRole}} IN ['Source', 'Unknown']
-              AND (
-                (
-                  source.namespace CONTAINS 'Core'
-                  AND (target.namespace CONTAINS 'Infrastructure'
-                       OR target.namespace CONTAINS 'McpServer'
-                       OR target.namespace CONTAINS 'Application')
-                )
-                OR
-                (
-                  source.namespace CONTAINS 'Application'
-                  AND (target.namespace CONTAINS 'Infrastructure'
-                       OR target.namespace CONTAINS 'McpServer')
-                )
-                OR
-                (
-                  (source.namespace CONTAINS 'Api' OR source.namespace CONTAINS 'McpServer')
-                  AND target.namespace CONTAINS 'Infrastructure'
-                )
-              )
+              AND ({{ruleCypher.WhereClause}})
             WITH source, target, path, length(path) AS dist,
                  CASE
                    WHEN source.namespace CONTAINS 'Core' AND target.namespace CONTAINS 'Infrastructure' THEN 'Core → Infrastructure'
@@ -691,6 +662,11 @@ public sealed partial class Neo4jCodeGraphRepository
                    WHEN source.namespace CONTAINS 'Application' AND target.namespace CONTAINS 'Infrastructure' THEN 'Application → Infrastructure'
                    WHEN source.namespace CONTAINS 'Application' AND target.namespace CONTAINS 'McpServer' THEN 'Application → Presentation'
                    ELSE 'Presentation → Infrastructure'
+                 END AS violation
+            WITH source, target, path, dist,
+                 CASE
+                 {{ruleCypher.CaseClause}}
+                   ELSE violation
                  END AS violation
             ORDER BY violation, source.id, target.id, dist ASC
             WITH violation, source, target, collect(path)[0] AS shortestPath, min(dist) AS dist
@@ -704,10 +680,9 @@ public sealed partial class Neo4jCodeGraphRepository
             LIMIT 50
             """;
 
-        var cursor = await session.RunAsync(cypher, new
-        {
-            projectContextNormalized = (object?)Normalize(projectContext)
-        });
+        var parameters = ruleCypher.Parameters;
+        parameters["projectContextNormalized"] = Normalize(projectContext);
+        var cursor = await session.RunAsync(cypher, parameters);
 
         var results = new List<DependencySmellPath>();
 

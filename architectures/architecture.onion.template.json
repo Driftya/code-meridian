@@ -1,0 +1,60 @@
+{
+  "name": "Onion Architecture",
+  "layers": [
+    {
+      "id": "Domain",
+      "namespaceContainsAny": [
+        ".Domain",
+        ".Core"
+      ]
+    },
+    {
+      "id": "Application",
+      "namespaceContainsAny": [
+        ".Application"
+      ]
+    },
+    {
+      "id": "Infrastructure",
+      "namespaceContainsAny": [
+        ".Infrastructure",
+        ".Persistence"
+      ]
+    },
+    {
+      "id": "Presentation",
+      "namespaceContainsAny": [
+        ".Api",
+        ".Web",
+        ".UI"
+      ]
+    }
+  ],
+  "forbiddenDependencies": [
+    {
+      "from": "Domain",
+      "to": "Application",
+      "reason": "Domain must not depend on Application"
+    },
+    {
+      "from": "Domain",
+      "to": "Infrastructure",
+      "reason": "Domain must not depend on Infrastructure"
+    },
+    {
+      "from": "Domain",
+      "to": "Presentation",
+      "reason": "Domain must not depend on Presentation"
+    },
+    {
+      "from": "Application",
+      "to": "Infrastructure",
+      "reason": "Application must not depend on Infrastructure"
+    },
+    {
+      "from": "Application",
+      "to": "Presentation",
+      "reason": "Application must not depend on Presentation"
+    }
+  ]
+}

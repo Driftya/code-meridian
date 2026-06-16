@@ -174,6 +174,43 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
         settings.CurrentConfigVersion.Should().Be(CodeMeridianConfigFileStore.CurrentConfigVersion);
     }
 
+    [Fact]
+    public void Create_UsesConfiguredArchitecturePath()
+    {
+        File.WriteAllText(
+            Path.Combine(_root, "meridian.json"),
+            """
+            {
+              "version": 1,
+              "project": "MyApi",
+              "codeMeridianUrl": "http://local:5100",
+              "architecture": {
+                "path": ".meridian/architecture.custom.json"
+              }
+            }
+            """);
+
+        var settings = CreateFactory().Create(new IndexCommandOptions(
+            Path: _root,
+            Project: null,
+            CodeMeridianUrl: null,
+            Clear: false,
+            RebuildKeywords: false,
+            IncludeDocs: true,
+            Watch: false,
+            DryRun: false,
+            ListCapabilities: false,
+            SkipCSharp: false,
+            SkipTypeScript: false,
+            SkipConfiguration: false,
+            SkipDiagnostics: false,
+            AllowRepoScripts: false,
+            Incremental: true,
+            Storage: null));
+
+        settings.ArchitecturePath.Should().Be(".meridian/architecture.custom.json");
+    }
+
     public void Dispose()
     {
         Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", null);

@@ -1,0 +1,62 @@
+{
+  "name": "Hexagonal Architecture",
+  "layers": [
+    {
+      "id": "Domain",
+      "namespaceContainsAny": [
+        ".Domain",
+        ".Core"
+      ]
+    },
+    {
+      "id": "Application",
+      "namespaceContainsAny": [
+        ".Application",
+        ".UseCases"
+      ]
+    },
+    {
+      "id": "Ports",
+      "namespaceContainsAny": [
+        ".Ports",
+        ".Abstractions"
+      ]
+    },
+    {
+      "id": "Adapters",
+      "namespaceContainsAny": [
+        ".Adapters",
+        ".Infrastructure",
+        ".Persistence",
+        ".Api"
+      ]
+    }
+  ],
+  "forbiddenDependencies": [
+    {
+      "from": "Domain",
+      "to": "Application",
+      "reason": "Domain must not depend on Application"
+    },
+    {
+      "from": "Domain",
+      "to": "Ports",
+      "reason": "Domain must not depend on Ports"
+    },
+    {
+      "from": "Domain",
+      "to": "Adapters",
+      "reason": "Domain must not depend on Adapters"
+    },
+    {
+      "from": "Application",
+      "to": "Adapters",
+      "reason": "Application must not depend on Adapters"
+    },
+    {
+      "from": "Ports",
+      "to": "Adapters",
+      "reason": "Ports must not depend on Adapters"
+    }
+  ]
+}

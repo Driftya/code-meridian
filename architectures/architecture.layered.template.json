@@ -1,0 +1,57 @@
+{
+  "name": "Layered Architecture",
+  "layers": [
+    {
+      "id": "Presentation",
+      "namespaceContainsAny": [
+        ".Api",
+        ".Web",
+        ".UI"
+      ]
+    },
+    {
+      "id": "Service",
+      "namespaceContainsAny": [
+        ".Services",
+        ".Application"
+      ]
+    },
+    {
+      "id": "Domain",
+      "namespaceContainsAny": [
+        ".Domain",
+        ".Core"
+      ]
+    },
+    {
+      "id": "Data",
+      "namespaceContainsAny": [
+        ".Data",
+        ".Persistence",
+        ".Infrastructure"
+      ]
+    }
+  ],
+  "forbiddenDependencies": [
+    {
+      "from": "Domain",
+      "to": "Presentation",
+      "reason": "Domain must not depend on Presentation"
+    },
+    {
+      "from": "Domain",
+      "to": "Service",
+      "reason": "Domain must not depend on Service"
+    },
+    {
+      "from": "Domain",
+      "to": "Data",
+      "reason": "Domain must not depend on Data"
+    },
+    {
+      "from": "Service",
+      "to": "Presentation",
+      "reason": "Service must not depend on Presentation"
+    }
+  ]
+}

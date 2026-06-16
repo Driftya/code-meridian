@@ -151,6 +151,8 @@ codemeridian init .
 
 Run `codemeridian init .` again later to refresh an existing `meridian.json`. Missing defaults are merged in, the config `version` is bumped, and your existing project-specific values are preserved.
 
+`codemeridian init .` also seeds `.meridian/architecture.json` if it does not exist, and copies bundled templates from the package `architectures/` folder into `.meridian/architectures/`, including `architecture.clean.template.json`, `architecture.onion.template.json`, `architecture.hexagonal.template.json`, `architecture.layered.template.json`, and `architecture.vertical-slice.template.json`. The active architecture file is referenced from `meridian.json` at `architecture.path` and drives `find_architecture_violations` and `find_smell_paths` after indexing.
+
 Open this folder in VS Code or any MCP-capable client. The MCP server is registered through `.vscode/mcp.json`, and MCP-compatible clients can call CodeMeridian tools while you chat.
 
 ## Common Questions
@@ -211,6 +213,8 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `resolve_exact_symbol` | Resolve symbol/file/line hints to canonical node IDs before editing |
 | `clear_project_knowledge` | Clear one project's indexed graph and docs before rebuilding |
 | `clear_code_graph` | Clear all indexed code graph nodes while preserving docs |
+
+Architecture rules come from the indexed project configuration when `.meridian/architecture.json` is present and indexed. If no project-specific architecture has been indexed yet, CodeMeridian falls back to the default clean-architecture template.
 
 ## Documentation
 

@@ -37,12 +37,19 @@ public sealed class InitCommandTests : IDisposable
         File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".continue", "mcpServers", "code-meridian.yaml")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architecture.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.clean.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.onion.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.hexagonal.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.layered.template.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.vertical-slice.template.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".env")).Should().BeFalse();
         File.Exists(Path.Combine(_root, "docker-compose.codemeridian.yml")).Should().BeFalse();
 
         var meridianJson = File.ReadAllText(meridianJsonPath);
         meridianJson.Should().Contain("\"version\": 1");
         meridianJson.Should().Contain("\"allowRepoScripts\": true");
+        meridianJson.Should().Contain("\"path\": \".meridian/architecture.json\"");
     }
 
     [Fact]
@@ -100,6 +107,36 @@ public sealed class InitCommandTests : IDisposable
         meridianJson.Should().Contain("\"version\": 1");
         meridianJson.Should().Contain("\"allowRepoScripts\": true");
         File.Exists($"{meridianJsonPath}.bak").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Run_PrintsSelectedArchitectureAndAvailableTemplates()
+    {
+        var writer = new StringWriter();
+        var originalOut = Console.Out;
+
+        try
+        {
+            Console.SetOut(writer);
+
+            var exitCode = CreateCommand().Run(new InitCommandOptions(
+                Path: _root,
+                Project: "MyApi",
+                CodeMeridianUrl: "http://localhost:5100",
+                Force: false,
+                Global: false));
+
+            exitCode.Should().Be(0);
+            var output = writer.ToString();
+            output.Should().Contain("Architecture selected");
+            output.Should().Contain(".meridian/architecture.json");
+            output.Should().Contain("architecture.clean.template.json");
+            output.Should().Contain("architecture.vertical-slice.template.json");
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
     }
 
     public void Dispose()

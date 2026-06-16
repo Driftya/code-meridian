@@ -30,6 +30,7 @@ internal sealed class IndexCommandSettingsFactory(IToolConfigurationService conf
             SkipTypeScript = options.SkipTypeScript,
             SkipConfiguration = options.SkipConfiguration,
             ConfigurationFiles = context.LocalConfig?.ConfigurationFiles ?? context.GlobalConfig?.ConfigurationFiles,
+            ArchitecturePath = context.LocalConfig?.ArchitecturePath ?? context.GlobalConfig?.ArchitecturePath ?? CodeMeridianConfigFileStore.DefaultArchitecturePath,
             FileRoles = context.LocalConfig?.FileRoles ?? context.GlobalConfig?.FileRoles,
             SkipDiagnostics = options.SkipDiagnostics,
             AllowRepoScripts = configurationService.ResolveAllowRepoScripts(context, options.AllowRepoScripts),

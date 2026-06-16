@@ -36,6 +36,12 @@ internal sealed class InitCommand(
                 useGlobalCache: false,
                 overwrite: options.Force);
             var configPath = Path.Combine(rootPath.FullName, "meridian.json");
+            var selectedArchitecturePath = context.LocalConfig?.ArchitecturePath
+                ?? context.GlobalConfig?.ArchitecturePath
+                ?? CodeMeridianConfigFileStore.DefaultArchitecturePath;
+            var availableTemplates = string.Join(", ",
+                configFileStore.GetArchitectureTemplateFileNames()
+                    .Select(fileName => $".meridian/architectures/{fileName}"));
             var clientConfigChanges = serveWriter.ApplyClientConfig(rootPath, codeMeridianUrl, options.Force);
 
             Console.WriteLine(writeResult.Created
@@ -51,6 +57,8 @@ internal sealed class InitCommand(
                 Console.WriteLine($"  Backup  : {writeResult.BackupPath}");
             if (writeResult.AddedPaths.Count > 0)
                 Console.WriteLine($"  Added   : {string.Join(", ", writeResult.AddedPaths)}");
+            Console.WriteLine($"  Architecture selected  : {selectedArchitecturePath}");
+            Console.WriteLine($"  Architecture templates : {availableTemplates}");
             Console.WriteLine();
             Console.WriteLine("Client MCP config:");
             foreach (var change in clientConfigChanges)

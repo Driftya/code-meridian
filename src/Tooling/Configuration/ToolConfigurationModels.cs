@@ -6,6 +6,7 @@ public sealed record CodeMeridianConfigSnapshot(
     bool? AllowRepoScripts,
     bool? UseGlobalCache,
     IReadOnlyList<string>? ConfigurationFiles,
+    string? ArchitecturePath,
     CodeMeridianFileRolePatternSnapshot? FileRoles,
     int Version);
 
@@ -25,7 +26,13 @@ public sealed class CodeMeridianConfigFileOptions
     public bool? AllowRepoScripts { get; set; }
     public bool? UseGlobalCache { get; set; }
     public string[]? ConfigurationFiles { get; set; }
+    public CodeMeridianArchitectureOptions? Architecture { get; set; }
     public CodeMeridianIndexingOptions? Indexing { get; set; }
+}
+
+public sealed class CodeMeridianArchitectureOptions
+{
+    public string? Path { get; set; }
 }
 
 public sealed class CodeMeridianIndexingOptions

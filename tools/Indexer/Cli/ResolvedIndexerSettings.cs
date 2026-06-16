@@ -19,6 +19,7 @@ internal sealed class ResolvedIndexerSettings
     public bool SkipTypeScript { get; init; }
     public bool SkipConfiguration { get; init; }
     public IReadOnlyList<string>? ConfigurationFiles { get; init; }
+    public string? ArchitecturePath { get; init; }
     public CodeMeridianFileRolePatternSnapshot? FileRoles { get; init; }
     public bool SkipDiagnostics { get; init; }
     public bool AllowRepoScripts { get; init; }

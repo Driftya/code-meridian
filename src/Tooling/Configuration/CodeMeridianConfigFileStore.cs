@@ -8,8 +8,21 @@ public sealed class CodeMeridianConfigFileStore
 {
     public const int CurrentConfigVersion = 1;
 
+    public const string DefaultArchitecturePath = ".meridian/architecture.json";
+    public const string DefaultArchitectureTemplateFileName = "architecture.clean.template.json";
+
     private const string MeridianSampleFileName = "meridian.sample.json";
     private const string ConfigFileName = "meridian.json";
+    private static readonly string[] ArchitectureTemplateFileNames =
+    [
+        "architecture.clean.template.json",
+        "architecture.onion.template.json",
+        "architecture.hexagonal.template.json",
+        "architecture.layered.template.json",
+        "architecture.vertical-slice.template.json"
+    ];
+
+    public IReadOnlyList<string> GetArchitectureTemplateFileNames() => ArchitectureTemplateFileNames;
 
     public CodeMeridianConfigSnapshot? LoadLocal(DirectoryInfo startDirectory)
     {
@@ -145,6 +158,7 @@ public sealed class CodeMeridianConfigFileStore
         }
 
         WriteSchemaFile(rootDirectory, overwrite);
+        WriteArchitectureTemplates(rootDirectory, overwrite);
         return result;
     }
 
@@ -173,6 +187,7 @@ public sealed class CodeMeridianConfigFileStore
                 options.AllowRepoScripts,
                 options.UseGlobalCache,
                 NormalizePatterns(options.ConfigurationFiles),
+                NormalizeOptionalString(options.Architecture?.Path),
                 NormalizeFileRolePatterns(options.Indexing?.FileRoles),
                 ReadVersion(root));
         }
@@ -204,6 +219,25 @@ public sealed class CodeMeridianConfigFileStore
             File.Copy(sourcePath, targetPath, overwrite: true);
     }
 
+    private static void WriteArchitectureTemplates(DirectoryInfo rootDirectory, bool overwrite)
+    {
+        var meridianDirectory = Directory.CreateDirectory(Path.Combine(rootDirectory.FullName, ".meridian"));
+        var architecturesDirectory = Directory.CreateDirectory(Path.Combine(meridianDirectory.FullName, "architectures"));
+
+        foreach (var templateFileName in ArchitectureTemplateFileNames)
+        {
+            WriteTemplateFile(
+                new FileInfo(Path.Combine(architecturesDirectory.FullName, templateFileName)),
+                ReadRequiredTemplate(Path.Combine("architectures", templateFileName)),
+                overwrite);
+        }
+
+        WriteTemplateFile(
+            new FileInfo(Path.Combine(meridianDirectory.FullName, "architecture.json")),
+            ReadRequiredTemplate(Path.Combine("architectures", DefaultArchitectureTemplateFileName)),
+            overwrite: false);
+    }
+
     private static string ReadRequiredTemplate(string fileName)
     {
         var sourcePath = Path.Combine(AppContext.BaseDirectory, fileName);
@@ -211,6 +245,15 @@ public sealed class CodeMeridianConfigFileStore
             return File.ReadAllText(sourcePath);
 
         throw new InvalidOperationException($"Required template file is missing: {sourcePath}");
+    }
+
+    private static void WriteTemplateFile(FileInfo targetFile, string content, bool overwrite)
+    {
+        if (targetFile.Exists && !overwrite)
+            return;
+
+        Directory.CreateDirectory(targetFile.DirectoryName!);
+        File.WriteAllText(targetFile.FullName, content.TrimEnd() + Environment.NewLine);
     }
 
     private static FileInfo? FindLocalConfig(DirectoryInfo directory)

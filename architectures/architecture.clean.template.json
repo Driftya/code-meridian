@@ -1,0 +1,61 @@
+{
+  "name": "Clean Architecture",
+  "layers": [
+    {
+      "id": "Core",
+      "namespaceContainsAny": [
+        ".Core",
+        ".Domain"
+      ]
+    },
+    {
+      "id": "Application",
+      "namespaceContainsAny": [
+        ".Application"
+      ]
+    },
+    {
+      "id": "Infrastructure",
+      "namespaceContainsAny": [
+        ".Infrastructure",
+        ".Persistence"
+      ]
+    },
+    {
+      "id": "Presentation",
+      "namespaceContainsAny": [
+        ".Api",
+        ".Web",
+        ".UI",
+        ".McpServer"
+      ]
+    }
+  ],
+  "forbiddenDependencies": [
+    {
+      "from": "Core",
+      "to": "Application",
+      "reason": "Core must not depend on Application"
+    },
+    {
+      "from": "Core",
+      "to": "Infrastructure",
+      "reason": "Core must not depend on Infrastructure"
+    },
+    {
+      "from": "Core",
+      "to": "Presentation",
+      "reason": "Core must not depend on Presentation"
+    },
+    {
+      "from": "Application",
+      "to": "Infrastructure",
+      "reason": "Application must not depend on Infrastructure"
+    },
+    {
+      "from": "Application",
+      "to": "Presentation",
+      "reason": "Application must not depend on Presentation"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using CodeMeridian.Application.Services;
 using CodeMeridian.Sdk;
+using CodeMeridian.Tooling.Configuration;
 
 namespace CodeMeridian.Indexer.Cli.Configuration;
 
@@ -15,6 +16,7 @@ internal sealed class ConfigurationIndexer
         string? apiKey,
         IIndexedFileRoleClassifier fileRoleClassifier,
         IReadOnlyList<string>? configurationFilePatterns,
+        string? architecturePath,
         bool clearExistingConfiguration,
         IReadOnlyCollection<string>? changedFiles = null,
         IReadOnlyCollection<string>? deletedFiles = null,
@@ -45,6 +47,7 @@ internal sealed class ConfigurationIndexer
             .EnumerateFiles("*.*", SearchOption.AllDirectories)
             .Where(file => !Commands.IndexExecutionPlanBuilder.IsIgnoredPath(rootPath, file))
             .Where(file => ConfigurationFilePatternMatcher.IsConfigurationFile(file, configurationFilePatterns))
+            .Where(file => ShouldIndexConfigurationFile(rootPath, file, architecturePath))
             .Where(file => changedFiles is null || changedFiles.Contains(Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/'), StringComparer.OrdinalIgnoreCase))
             .OrderBy(ConfigurationFilePatternMatcher.GetOrder)
             .ThenBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
@@ -166,6 +169,19 @@ internal sealed class ConfigurationIndexer
         paths
             .Where(path => ConfigurationFilePatternMatcher.IsConfigurationFile(new FileInfo(path), patterns))
             .ToArray();
+
+    private static bool ShouldIndexConfigurationFile(DirectoryInfo rootPath, FileInfo file, string? architecturePath)
+    {
+        var relativePath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
+        if (!relativePath.StartsWith(".meridian/architectures/", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var activeArchitecturePath = string.IsNullOrWhiteSpace(architecturePath)
+            ? CodeMeridianConfigFileStore.DefaultArchitecturePath
+            : architecturePath.Replace('\\', '/');
+
+        return string.Equals(relativePath, activeArchitecturePath, StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string Hash(string value)
     {

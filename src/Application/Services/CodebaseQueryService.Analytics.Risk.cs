@@ -252,13 +252,13 @@ public partial class CodebaseQueryService
         var results = await codeGraph.FindArchitectureViolationsAsync(projectContext, cancellationToken);
 
         if (results.Count == 0)
-            return $"No Clean Architecture violations found" +
+            return $"No architecture violations found" +
                    $"{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "Core and Application layers have no illegal outbound dependencies.";
+                   "Configured architecture layers have no illegal outbound dependencies.";
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Architecture Violations{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{results.Count}** edges break Clean Architecture layer rules:\n");
+        sb.AppendLine($"**{results.Count}** edges break configured architecture layer rules:\n");
         sb.AppendLine("| Violation Rule | Source | Target | Source File |");
         sb.AppendLine("|---------------|--------|--------|-------------|");
 
@@ -269,8 +269,8 @@ public partial class CodebaseQueryService
         }
 
         sb.AppendLine();
-        sb.AppendLine("> Rules: Core must not depend on Application/Infrastructure/McpServer. " +
-                      "Application must not depend on Infrastructure/McpServer.");
+        sb.AppendLine("> Rules come from the indexed project architecture when `.meridian/architecture.json` is configured and indexed. " +
+                      "If no project rule set is present yet, CodeMeridian falls back to the default clean-architecture template.");
 
         return sb.ToString();
     }
