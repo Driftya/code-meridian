@@ -126,10 +126,15 @@ public sealed class KeywordGraphJobService(
             if (!_jobsById.TryGetValue(jobId, out var job) || job.State != "Running")
                 return;
 
+            var completedAt = timeProvider.GetUtcNow();
+            var completedState = completedAt > job.ExpiresAt
+                ? "Expired"
+                : state;
+
             _jobsById[jobId] = job with
             {
-                State = state,
-                CompletedAt = timeProvider.GetUtcNow(),
+                State = completedState,
+                CompletedAt = completedAt,
                 Summary = summary,
                 Error = error
             };
