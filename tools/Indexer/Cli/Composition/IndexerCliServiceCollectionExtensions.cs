@@ -1,5 +1,6 @@
 using CodeMeridian.Indexer.Cli.Commands;
 using CodeMeridian.Indexer.Cli.Configuration;
+using CodeMeridian.Indexer.Cli.SessionEvaluation;
 using CodeMeridian.Tooling.Composition;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,6 +21,10 @@ internal static class IndexerCliServiceCollectionExtensions
         services.AddTransient<ClearCommand>();
         services.AddTransient<ServeCommand>();
         services.AddTransient<StatusCommand>();
+        services.AddTransient<SessionEvaluationCommand>();
+        services.AddTransient<SessionUsefulnessEvaluator>();
+        services.AddTransient<SessionEvidenceReader>();
+        services.AddTransient<ISessionChangeSource, GitSessionChangeSource>();
         services.AddTransient<ServeWriter>();
 
         return services;

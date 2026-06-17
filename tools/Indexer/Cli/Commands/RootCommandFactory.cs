@@ -1,6 +1,7 @@
 using System.CommandLine;
 using CodeMeridian.Indexer.Cli;
 using CodeMeridian.Indexer.Cli.Configuration;
+using CodeMeridian.Indexer.Cli.SessionEvaluation;
 using CodeMeridian.Tooling.Configuration;
 using CodeMeridian.Tooling.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +18,8 @@ internal sealed class RootCommandFactory(
     ConfigurationCommand configurationCommand,
     ClearCommand clearCommand,
     ServeCommand serveCommand,
-    StatusCommand statusCommand)
+    StatusCommand statusCommand,
+    SessionEvaluationCommand sessionEvaluationCommand)
 {
     public RootCommand Create()
     {
@@ -32,6 +34,7 @@ internal sealed class RootCommandFactory(
         root.Add(CreateDoctorCommand());
         root.Add(CreateVersionCommand());
         root.Add(CreateCheckDriftCommand());
+        root.Add(CreateEvaluateSessionCommand());
         root.Add(CreateClearCommand());
 
         return root;
@@ -393,6 +396,28 @@ internal sealed class RootCommandFactory(
             parseResult.GetValue(projectOption),
             parseResult.GetValue(urlOption),
             parseResult.GetValue(allCodeGraphOption))));
+
+        return command;
+    }
+
+    private Command CreateEvaluateSessionCommand()
+    {
+        var command = new Command("evaluate-session", "Evaluate whether CodeMeridian evidence matched the files and tests used in an implementation session.");
+        var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Repository root. Defaults to the current directory." };
+        var projectOption = new Option<string?>("--project") { Description = "Project context name. If omitted, auto-detected from config or the target root." };
+        var sessionOption = new Option<string?>("--session") { Description = "Session evidence .jsonl file or directory. Defaults to the newest .meridian/sessions/*.jsonl file." };
+        var baseOption = new Option<string>("--base") { DefaultValueFactory = _ => "HEAD", Description = "Git base ref used to detect changed files. Defaults to HEAD." };
+
+        command.Add(pathArgument);
+        command.Add(projectOption);
+        command.Add(sessionOption);
+        command.Add(baseOption);
+
+        command.SetAction(async parseResult => await sessionEvaluationCommand.RunAsync(
+            parseResult.GetValue(pathArgument),
+            parseResult.GetValue(projectOption),
+            parseResult.GetValue(sessionOption),
+            parseResult.GetRequiredValue(baseOption)));
 
         return command;
     }

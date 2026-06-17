@@ -234,6 +234,7 @@ Architecture rules come from the indexed project configuration when `.meridian/a
 - [How CodeMeridian works](docs/how-it-works.md)
 - [Usage](docs/usage.md)
 - [Indexing projects](docs/indexing.md)
+- [Evaluating session usefulness](docs/evaluate.md)
 - [Feature reference](docs/features.md)
 - [Code embeddings and semantic search](docs/embeddings.md)
 - [Publishing the indexer tool](docs/publishing.md)
