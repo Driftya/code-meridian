@@ -8,6 +8,7 @@ using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
 using CodeMeridian.Tooling.Discovery;
 using CodeMeridian.Tooling.Storage;
+using CodeMeridian.Tooling.Watching;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

@@ -3,6 +3,7 @@ using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
 using CodeMeridian.Tooling.Composition;
 using CodeMeridian.Tooling.Configuration;
+using CodeMeridian.Tooling.Watching;
 using CodeMeridian.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -104,77 +105,26 @@ internal sealed class RoslynIndexCommandHandler(IOptions<RoslynIndexerSettings> 
             return 0;
 
         var logger = provider.GetRequiredService<ILogger<IndexerPipeline>>();
-        logger.LogInformation("Watch mode active monitoring {Path} for .cs and .md changes. Press Ctrl+C to exit.", _settings.RootPath.FullName);
-
-        System.Timers.Timer? debounceTimer = null;
-        var changedDuringDebounce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var deletedDuringDebounce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
-        void ScheduleReindex(string fullPath, bool deleted)
+        var watchLoop = new IndexWatchLoop(
+            _settings.RootPath,
+            logger,
+            includePath: path => string.Equals(Path.GetExtension(path), ".cs", StringComparison.OrdinalIgnoreCase));
+        await watchLoop.RunAsync(async (batch, cancellationToken) =>
         {
-            var relativePath = Path.GetRelativePath(_settings.RootPath.FullName, fullPath).Replace('\\', '/');
-            if (deleted)
-                deletedDuringDebounce.Add(relativePath);
-            else
-                changedDuringDebounce.Add(relativePath);
+            IReadOnlyCollection<string>? changedFiles = batch.ForceFullRescan ? null : batch.ChangedFiles;
+            IReadOnlyCollection<string> deletedFiles = batch.ForceFullRescan ? [] : batch.DeletedFiles;
 
-            debounceTimer?.Stop();
-            debounceTimer?.Dispose();
-            debounceTimer = new System.Timers.Timer(2_000) { AutoReset = false };
-            debounceTimer.Elapsed += async (_, _) =>
-            {
-                logger.LogInformation("[watch] Change detected re-indexing...");
-                var changedBatch = changedDuringDebounce.ToArray();
-                var deletedBatch = deletedDuringDebounce.ToArray();
-                changedDuringDebounce.Clear();
-                deletedDuringDebounce.Clear();
-
-                try
-                {
-                    await pipeline.RunAsync(
-                        _settings.RootPath,
-                        _settings.Project,
-                        clear: false,
-                        changedFiles: changedBatch,
-                        deletedFiles: deletedBatch,
-                        cancellationToken: cts.Token);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "[watch] Re-index failed.");
-                }
-            };
-            debounceTimer.Start();
-        }
-
-        using var fsWatcher = new FileSystemWatcher(_settings.RootPath.FullName)
-        {
-            IncludeSubdirectories = true,
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
-            EnableRaisingEvents = true,
-        };
-
-        fsWatcher.Filters.Add("*.cs");
-        fsWatcher.Changed += (_, e) => ScheduleReindex(e.FullPath, deleted: false);
-        fsWatcher.Created += (_, e) => ScheduleReindex(e.FullPath, deleted: false);
-        fsWatcher.Deleted += (_, e) => ScheduleReindex(e.FullPath, deleted: true);
-        fsWatcher.Renamed += (_, e) =>
-        {
-            ScheduleReindex(e.OldFullPath, deleted: true);
-            ScheduleReindex(e.FullPath, deleted: false);
-        };
-
-        try
-        {
-            await Task.Delay(Timeout.Infinite, cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-
-        logger.LogInformation("Watch mode stopped.");
+            await pipeline.RunAsync(
+                _settings.RootPath,
+                _settings.Project,
+                clear: false,
+                changedFiles: changedFiles,
+                deletedFiles: deletedFiles,
+                cancellationToken: cancellationToken);
+        }, cts.Token);
         return 0;
     }
 }
