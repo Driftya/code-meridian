@@ -29,7 +29,7 @@ This is the roadmap index. Each item links to a dedicated note under `docs/featu
 - [x] [P2 - Add Change-Route Planning](docs/features/24-add-change-route-planning.md) - Give the AI an ordered edit path instead of a file dump.
 - [x] [P2 - Add Bridge Node Detection](docs/features/25-add-bridge-node-detection.md) - Find small but structurally important nodes that connect separate parts of the system.
 - [x] [P2 - Add Natural Module Detection](docs/features/26-add-natural-module-detection.md) - Discover modules from the graph instead of from folders.
-- [ ] [P2 - Add Architecture Erosion Timeline](docs/features/27-add-architecture-erosion-timeline.md) - Track how architecture gets worse over time.
+- [x] [P2 - Add Architecture Erosion Timeline](docs/features/27-add-architecture-erosion-timeline.md) - Track how architecture gets worse over time.
 - [x] [P2 - Add Test Shield Map](docs/features/28-add-test-shield-map.md) - Show which tests protect a change path.
 - [x] [P2 - Add Refactor Extraction Candidates](docs/features/29-add-refactor-extraction-candidates.md) - Find tightly connected groups that are good extraction targets.
 - [x] [P2 - Add Blast Radius With Confidence](docs/features/30-add-blast-radius-with-confidence.md) - Make impact analysis explicit about what is proven versus inferred.
@@ -41,4 +41,7 @@ This is the roadmap index. Each item links to a dedicated note under `docs/featu
 - [ ] [P2 - Add Feature To Code Map](docs/features/36-add-feature-to-code-map.md) - Make features first-class graph nodes linked to code.
 - [ ] [P2 - Add Endpoint To Database Tracing](docs/features/37-add-endpoint-to-database-tracing.md) - Trace a web request through the full vertical slice.
 - [ ] [P3 - Add Architecture Weather Report](docs/features/38-add-architecture-weather-report.md) - Summarize graph health in a quick status report.
+- [ ] [P1 - Add Precision Feedback Loop](docs/features/39-add-precision-feedback-loop.md) - Use session evaluation results to improve future target ranking.
+- [ ] [P1 - Add Implementation Surface Pruning](docs/features/40-add-implementation-surface-pruning.md) - Return fewer, better files by collapsing broad graph matches into edit-ready targets.
+- [ ] [P2 - Add Test Target Precision](docs/features/41-add-test-target-precision.md) - Suggest the tests most likely to change or run, not every loosely related shield.
 

@@ -211,6 +211,18 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindCyclesAsync(projectContext, cancellationToken);
 
+    [McpServerTool(Name = "architecture_drift_history")]
+    [Description(
+        "Show a 30-day architecture erosion timeline from current graph signals: configured architecture violations, " +
+        "namespace cycles, and god-class growth. Uses indexed node timestamps and states when historical deleted-edge data is unavailable.")]
+    public Task<string> FindArchitectureErosionTimelineAsync(
+        [Description("Project name to scope the analysis. Omit to inspect all projects.")]
+        string? projectContext = null,
+        [Description("Number of days to include. Defaults to 30; clamped to 1-90.")]
+        int days = 30,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindArchitectureErosionTimelineAsync(projectContext, days, cancellationToken);
+
     [McpServerTool(Name = "find_architecture_violations")]
     [Description(
         "Check for configured architecture layer violations using the project's indexed architecture rules. " +

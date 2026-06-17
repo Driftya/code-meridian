@@ -245,6 +245,64 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
+    public async Task<string> FindArchitectureErosionTimelineAsync(
+        string? projectContext = null,
+        int days = 30,
+        CancellationToken cancellationToken = default)
+    {
+        var windowDays = Math.Clamp(days, 1, 90);
+        var today = DateTimeOffset.UtcNow.Date;
+        var start = today.AddDays(-(windowDays - 1));
+
+        var violations = await codeGraph.FindArchitectureViolationsAsync(projectContext, cancellationToken);
+        var cycles = await codeGraph.FindCyclesAsync(projectContext, cancellationToken);
+        var godClasses = await codeGraph.FindGodClassesAsync(projectContext, lineThreshold: 300, fanInThreshold: 3, cancellationToken);
+        var filteredGodClasses = godClasses.Where(item => AllowsProfile(item.Node, AnalysisProfile.DesignSmells)).ToArray();
+
+        if (violations.Count == 0 && cycles.Count == 0 && filteredGodClasses.Length == 0)
+        {
+            return $"No architecture erosion signals found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                   "Configured architecture rules, namespace cycles, and god-class thresholds are currently clean.";
+        }
+
+        var violationSignals = violations
+            .Select(item => RelevantSignalDate(item.Source, item.Target) ?? today)
+            .ToArray();
+        var godClassSignals = filteredGodClasses
+            .Select(item => (Date: RelevantSignalDate(item.Node) ?? today, item.LineCount))
+            .ToArray();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Architecture Erosion Timeline{(projectContext is not null ? $" - {projectContext}" : "")}");
+        sb.AppendLine($"Current erosion signals projected across the last {windowDays} days from indexed graph timestamps.\n");
+        sb.AppendLine("| Date | Cross-layer refs | Cycles | God classes | God-class lines |");
+        sb.AppendLine("|------|------------------|--------|-------------|-----------------|");
+
+        for (var offset = 0; offset < windowDays; offset++)
+        {
+            var day = start.AddDays(offset);
+            var crossLayerCount = violationSignals.Count(signalDate => signalDate.Date <= day);
+            var godClassCount = godClassSignals.Count(signal => signal.Date.Date <= day);
+            var godClassLineTotal = godClassSignals
+                .Where(signal => signal.Date.Date <= day)
+                .Sum(signal => signal.LineCount);
+
+            sb.AppendLine($"| {day:yyyy-MM-dd} | {crossLayerCount} | {cycles.Count} | {godClassCount} | {godClassLineTotal} |");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("### Current snapshot");
+        sb.AppendLine($"- Cross-layer references: {violations.Count}");
+        sb.AppendLine($"- Circular namespace dependencies: {cycles.Count}");
+        sb.AppendLine($"- God classes: {filteredGodClasses.Length}");
+        sb.AppendLine($"- God-class total lines: {filteredGodClasses.Sum(item => item.LineCount)}");
+        sb.AppendLine();
+        sb.AppendLine("> Timeline buckets use current graph findings plus indexed node timestamps. " +
+                      "Resolved or deleted historical violations are not recoverable from the current graph snapshot.");
+
+        return sb.ToString();
+    }
+
     public async Task<string> FindArchitectureViolationsAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
@@ -826,6 +884,17 @@ public partial class CodebaseQueryService
         node.FilePath is not null
             ? $" — `{node.FilePath}`{(node.LineNumber.HasValue ? $":{node.LineNumber}" : "")}"
             : string.Empty;
+
+    private static DateTimeOffset? RelevantSignalDate(params CodeNode[] nodes)
+    {
+        var dates = nodes
+            .Select(node => node.UpdatedAt ?? node.CreatedAt)
+            .Where(date => date.HasValue)
+            .Select(date => date!.Value)
+            .ToArray();
+
+        return dates.Length == 0 ? null : dates.Max();
+    }
 
     private static bool SameFile(CodeNode left, CodeNode right) =>
         !string.IsNullOrWhiteSpace(left.FilePath)

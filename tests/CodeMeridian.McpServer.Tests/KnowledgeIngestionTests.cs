@@ -41,6 +41,20 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task CodebaseTools_ArchitectureDriftHistoryAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.FindArchitectureErosionTimelineAsync("CodeMeridian", 14, Arg.Any<CancellationToken>())
+            .Returns("timeline");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.FindArchitectureErosionTimelineAsync("CodeMeridian", 14);
+
+        result.Should().Be("timeline");
+        await queryService.Received(1).FindArchitectureErosionTimelineAsync("CodeMeridian", 14, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task CodebaseTools_KnowledgeDecayAsync_ForwardsArguments()
     {
         var queryService = Substitute.For<ICodebaseQueryService>();

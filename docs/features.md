@@ -278,6 +278,14 @@ Detects namespace-level circular dependencies.
 Are there circular dependencies in this project?
 ```
 
+### `architecture_drift_history`
+
+Shows a 30-day architecture erosion timeline from current graph signals: cross-layer references, namespace cycles, and god-class growth.
+
+```text
+Show architecture drift history for CodeMeridian.
+```
+
 ### `find_architecture_violations`
 
 Finds Clean Architecture layer violations, such as `Core` depending on `Infrastructure`.
