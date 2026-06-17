@@ -19,12 +19,13 @@ Find the smallest useful graph-grounded context for the current task.
 Prioritize:
 
 1. freshness
-2. exact symbols
-3. implementation surface
-4. impact
-5. test shield
-6. architecture risk
-7. missing or stale knowledge
+2. feature implementation path when planning feature work
+3. exact symbols
+4. implementation surface
+5. impact
+6. test shield
+7. architecture risk
+8. missing or stale knowledge
 
 ## Tool Strategy
 
@@ -33,8 +34,9 @@ When CodeMeridian MCP tools are available, use them before broad manual scanning
 Use:
 
 * `check_graph_freshness` or `find_graph_drift` when exactness matters
+* `analyze_feature_implementation_path` for feature requests or `docs/features/*.md`
 * `build_minimal_context` for non-trivial implementation work
-* `find_implementation_surface` for feature work
+* `find_implementation_surface` for exact feature/fix targets after path analysis
 * `resolve_exact_symbol` before editing a named symbol
 * `get_context_for_editing` for focused edit context
 * `find_impact` before refactors, deletions, or signature changes
@@ -63,6 +65,11 @@ Minimal context:
 Likely edit surface:
 - Primary targets:
 - Secondary targets:
+
+Feature path:
+- Status:
+- Missing graph evidence:
+- Confidence / risk:
 
 Tests to inspect or run:
 - Existing tests:

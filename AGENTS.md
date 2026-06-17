@@ -29,7 +29,7 @@ Use CodeMeridian proactively. Prefer graph tools over terminal scans when the gr
 | Before editing a specific method/class | `resolve_exact_symbol`, then `get_context_for_editing` |
 | Before a refactor | `find_impact` and `find_test_shield` |
 | Before deleting code | `find_unreferenced` |
-| Before starting a feature | `find_implementation_surface` |
+| Before starting a feature | `analyze_feature_implementation_path`, then `find_implementation_surface` for exact targets |
 | Before trusting exact file targets | `check_graph_freshness` or `find_graph_drift` |
 | "How do X and Y relate?" | `find_connection` |
 | Looking for duplicate/refactor risk | `find_duplicate_candidates` or `find_similar_nodes` |
@@ -63,10 +63,11 @@ Keep files small and context-friendly.
 
 Typical flow:
 
-1. Resolve the target with `query_codebase` or `resolve_exact_symbol`.
-2. Inspect local context with `get_context_for_editing`.
-3. Check blast radius with `find_impact`.
-4. Use file reads only after the graph has narrowed the surface.
+1. For feature work, map the feature first with `analyze_feature_implementation_path`.
+2. Resolve the target with `query_codebase`, `find_implementation_surface`, or `resolve_exact_symbol`.
+3. Inspect local context with `get_context_for_editing`.
+4. Check blast radius with `find_impact`.
+5. Use file reads only after the graph has narrowed the surface.
 
 ## References
 
@@ -76,3 +77,4 @@ Typical flow:
 - [Architecture Rules](docs/agent/architecture.md)
 - [Coding And Testing Conventions](docs/agent/conventions.md)
 - [Local Dev And Operations](docs/agent/local-dev.md)
+- [Reusable Agent Capabilities](docs/agent-capabilities/agent-capabilities.md)

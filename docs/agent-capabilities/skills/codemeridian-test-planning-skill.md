@@ -68,6 +68,7 @@ Clarify the behavior in implementation terms.
 
 Prefer:
 
+* `analyze_feature_implementation_path` when testing a feature request or `docs/features/*.md`
 * `build_minimal_context`
 * `find_implementation_surface`
 * `resolve_exact_symbol`

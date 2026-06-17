@@ -15,6 +15,7 @@ The goal is to gather the smallest useful context pack before reading many files
 Use this skill before:
 
 * implementing a non-trivial change
+* planning or starting a feature from a request or `docs/features/*.md`
 * refactoring code
 * deleting code
 * changing public APIs
@@ -36,20 +37,37 @@ Prefer:
 
 If the graph is stale, incomplete, or uncertain, say so before relying on exact results.
 
-### 2. Build Minimal Context
+### 2. Map Feature Implementation Path
+
+When the task is feature work, start by mapping the implementation path.
+
+Prefer:
+
+* `analyze_feature_implementation_path` for a feature request or `docs/features/*.md`
+
+Use the result to report:
+
+* whether the feature is already documented or linked
+* closest code areas
+* likely touched services, repositories, endpoints, and tools
+* tests and docs to update
+* missing graph evidence
+* risk level and confidence
+
+### 3. Build Minimal Context
 
 Use the smallest CodeMeridian query that fits the task.
 
 Prefer:
 
 * `build_minimal_context` for broad implementation tasks
-* `find_implementation_surface` for feature work
+* `find_implementation_surface` for exact feature/fix targets after the feature path is mapped
 * `resolve_exact_symbol` before editing a named class, method, interface, endpoint, or file
 * `get_context_for_editing` when preparing a focused edit
 
 Avoid loading large unrelated files unless CodeMeridian cannot answer the question.
 
-### 3. Check Impact And Tests
+### 4. Check Impact And Tests
 
 Before behavior changes, refactors, deletions, or signature changes, inspect risk.
 
@@ -60,7 +78,7 @@ Prefer:
 * `find_coverage_gaps`
 * `find_unreferenced` before deleting code
 
-### 4. Use Documentation Context
+### 5. Use Documentation Context
 
 When the task depends on prior decisions, architecture notes, or product behavior, search indexed documentation.
 
@@ -70,7 +88,7 @@ Prefer:
 * `find_related_knowledge`
 * `find_stale_knowledge` when remembered knowledge may be outdated
 
-### 5. Report Confidence
+### 6. Report Confidence
 
 Separate proven graph facts from inferred relationships.
 

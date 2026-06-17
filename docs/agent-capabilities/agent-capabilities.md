@@ -10,11 +10,11 @@ The files in `meridian-agent-capabilities/` are intentionally provider-neutral w
 
 | Capability | File | Purpose |
 |---|---|---|
-| Context Skill | `docs/capabilities/skills/codemeridian-context-skill.md` | Build minimal graph-grounded context before code work. |
-| Refactor Skill | `docs/capabilities/skills/codemeridian-refactor-skill.md` | Plan safer refactors with impact, tests, and dependency risk. |
-| Test Planning Skill | `docs/capabilities/skills/codemeridian-test-planning-skill.md` | Find relevant tests and coverage gaps before behavior changes. |
-| Context Agent | `docs/capabilities/agents/codemeridian-context-agent.md` | Specialist agent for gathering CodeMeridian context. |
-| Architecture Review Agent | `docs/capabilities/agents/codemeridian-architecture-review-agent.md` | Specialist reviewer for architecture, impact, tests, and quality risks. |
+| Context Skill | `docs/agent-capabilities/skills/codemeridian-context-skill.md` | Build minimal graph-grounded context before code work. |
+| Refactor Skill | `docs/agent-capabilities/skills/codemeridian-refactor-skill.md` | Plan safer refactors with impact, tests, and dependency risk. |
+| Test Planning Skill | `docs/agent-capabilities/skills/codemeridian-test-planning-skill.md` | Find relevant tests and coverage gaps before behavior changes. |
+| Context Agent | `docs/agent-capabilities/agents/codemeridian-context-agent.md` | Specialist agent for gathering CodeMeridian context. |
+| Architecture Review Agent | `docs/agent-capabilities/agents/codemeridian-architecture-review-agent.md` | Specialist reviewer for architecture, impact, tests, and quality risks. |
 
 ## Recommended Usage
 
@@ -29,6 +29,25 @@ Use the context skill before:
 * reviewing impact or architecture risk
 
 Use the context agent when your provider supports specialist agents or subagents and you want a dedicated helper to gather CodeMeridian context before the main agent edits files.
+
+## When To Add More
+
+Do not add a new skill or agent only because CodeMeridian has more tools.
+
+Add a new capability only when there is a distinct, repeated workflow that the existing context, refactor, test-planning, or architecture-review capabilities do not cover. Prefer updating the existing capability routing when a new tool improves an existing workflow.
+
+Good reasons to add a capability:
+
+* a workflow has a different trigger and output contract
+* the agent needs a different role boundary, such as investigation versus review
+* the guidance would make an existing skill too broad or hard to follow
+
+Prefer updating existing capabilities for:
+
+* new graph tools that fit existing trigger rules
+* better ordering between current tools
+* clearer freshness, impact, test, or documentation checks
+* provider-specific placement notes
 
 ## Suggested Provider Locations
 

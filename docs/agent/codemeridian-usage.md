@@ -11,6 +11,7 @@ Use graph tools for:
 - cross-project dependencies
 - dead-code checks
 - coverage gaps
+- feature implementation planning
 - size and refactor-risk analysis
 - exact symbol resolution before edits
 
@@ -40,6 +41,8 @@ Do not guess callers or blast radius from file names or grep output.
 | Need the canonical symbol before editing | `resolve_exact_symbol` |
 | Before editing a method or class | `get_context_for_editing` |
 | Before suggesting a deletion | `find_unreferenced` |
+| Before starting feature work | `analyze_feature_implementation_path` |
+| Need exact files for a feature/fix | `find_implementation_surface` |
 | "How do X and Y relate?" | `find_connection` |
 | Starting work in a risky area | `find_hotspots` |
 | Writing new tests | `find_coverage_gaps` |
