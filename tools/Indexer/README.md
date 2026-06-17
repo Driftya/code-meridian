@@ -26,7 +26,7 @@ codemeridian keywords --project MyApp
 codemeridian keywords rebuild --project MyApp
 codemeridian keywords index --project MyApp
 codemeridian keywords classify --project MyApp
-codemeridian keywords rebuild --project MyApp --background
+codemeridian keywords rebuild --project MyApp
 codemeridian keywords status --job-id 11111111-2222-3333-4444-555555555555
 codemeridian config rebuild --project MyApp
 codemeridian index . --skip-csharp --skip-docs --skip-diagnostics
@@ -47,7 +47,7 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Skips unchanged files after the first successful run using `.meridian/cache`.
 - Can run compiler, TypeScript, and lint diagnostics unless you skip them.
 - Can trigger a backend keyword-graph rebuild after indexing with `--keywords`.
-- Can rebuild the keyword graph on demand without indexing through `codemeridian keywords`.
+- Can rebuild the keyword graph on demand without indexing through `codemeridian keywords`. Rebuild also runs keyword classification after the rebuild finishes.
 - Can classify already-built keywords on demand through `codemeridian keywords classify`.
 - Can rebuild the configuration graph on demand without rerunning language indexers through `codemeridian config rebuild`.
 - Can read `configurationFiles` from `meridian.json` to control which config file names or wildcard patterns are indexed.
@@ -79,12 +79,11 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Use `--skip-config` when you want to skip configuration-file parsing and config-usage graph edges for a run.
 - Use `--keywords` when you want the index run to finish by rebuilding derived `Keyword` nodes and `HAS_KEYWORD` relationships for the indexed project.
 - Use `codemeridian config rebuild --project <name>` when you want a clean rebuild of configuration-file nodes, canonical config keys, and C# config usage links.
-- Use `codemeridian keywords --project <name>` as the short form when you only want the rebuild.
-- Use `codemeridian keywords rebuild --project <name>` when you want an explicit maintenance command name.
+- Use `codemeridian keywords --project <name>` as the short form when you want a rebuild plus classification. It submits a background job and returns a job id immediately.
+- Use `codemeridian keywords rebuild --project <name>` when you want an explicit maintenance command name. It also submits a background job and runs classification after rebuild.
 - Use `codemeridian keywords index --project <name>` if you prefer `index` terminology; it is an alias of `rebuild`.
-- Use `codemeridian keywords classify --project <name>` when you only want to classify existing derived keywords without rebuilding relationships.
-- Use `codemeridian keywords rebuild --project <name> --background` or `codemeridian keywords classify --project <name> --background` when you want the job to start and return immediately with a job id.
-- Use `codemeridian keywords rebuild --project <name> --background --wait` when you want to start the job in the background but keep the CLI attached until it completes.
+- Use `codemeridian keywords classify --project <name>` when you only want to classify existing derived keywords without rebuilding relationships. It also submits a background job.
+- Use `codemeridian keywords rebuild --project <name> --wait` or `codemeridian keywords classify --project <name> --wait` when you want to start the job in the background but keep the CLI attached until it completes.
 - Use `codemeridian keywords status --job-id <id>` when you want to verify whether a background keyword job finished, failed, or expired.
 - Use `--allow-repo-scripts` only on trusted repos when you want `dotnet build` and repo lint commands to run.
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.

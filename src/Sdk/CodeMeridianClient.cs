@@ -206,21 +206,6 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task RebuildKeywordGraphAsync(
-        string? projectContext = null,
-        CancellationToken cancellationToken = default)
-    {
-        var response = await httpClient.PostAsJsonAsync(
-            "/api/v1/knowledge/keywords/rebuild",
-            new
-            {
-                ProjectContext = projectContext
-            },
-            cancellationToken);
-
-        response.EnsureSuccessStatusCode();
-    }
-
     public async Task<KeywordGraphJobSubmissionResponse?> StartRebuildKeywordGraphAsync(
         string? projectContext = null,
         int? leaseTtlSeconds = null,
@@ -231,27 +216,11 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
             new
             {
                 ProjectContext = projectContext,
-                Background = true,
                 LeaseTtlSeconds = leaseTtlSeconds
             },
             cancellationToken);
 
         return await ReadJobSubmissionResponseAsync(response, cancellationToken);
-    }
-
-    public async Task ClassifyKeywordsAsync(
-        string? projectContext = null,
-        CancellationToken cancellationToken = default)
-    {
-        var response = await httpClient.PostAsJsonAsync(
-            "/api/v1/knowledge/keywords/classify",
-            new
-            {
-                ProjectContext = projectContext
-            },
-            cancellationToken);
-
-        response.EnsureSuccessStatusCode();
     }
 
     public async Task<KeywordGraphJobSubmissionResponse?> StartClassifyKeywordsAsync(
@@ -264,7 +233,6 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
             new
             {
                 ProjectContext = projectContext,
-                Background = true,
                 LeaseTtlSeconds = leaseTtlSeconds
             },
             cancellationToken);

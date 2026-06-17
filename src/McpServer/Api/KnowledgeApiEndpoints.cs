@@ -130,38 +130,24 @@ public static class KnowledgeApiEndpoints
 
     private static async Task<IResult> RebuildKeywordGraph(
         RebuildKeywordGraphRequest req,
-        IKeywordGraphService keywordGraphService,
         IKeywordGraphJobService keywordJobService,
         CancellationToken ct)
     {
-        if (req.Background)
-        {
-            var job = await keywordJobService.StartRebuildAsync(req.ProjectContext, req.LeaseTtlSeconds is null ? null : TimeSpan.FromSeconds(req.LeaseTtlSeconds.Value), ct);
-            return job.Accepted
-                ? Results.Accepted($"/api/v1/knowledge/keywords/jobs/{job.Job.JobId:D}", job)
-                : Results.Conflict(job);
-        }
-
-        var result = await keywordGraphService.RebuildKeywordGraphAsync(req.ProjectContext, ct);
-        return Results.Ok(new KeywordRebuildResponse(result));
+        var job = await keywordJobService.StartRebuildAsync(req.ProjectContext, req.LeaseTtlSeconds is null ? null : TimeSpan.FromSeconds(req.LeaseTtlSeconds.Value), ct);
+        return job.Accepted
+            ? Results.Accepted($"/api/v1/knowledge/keywords/jobs/{job.Job.JobId:D}", job)
+            : Results.Conflict(job);
     }
 
     private static async Task<IResult> ClassifyKeywords(
         ClassifyKeywordsRequest req,
-        IKeywordGraphService keywordGraphService,
         IKeywordGraphJobService keywordJobService,
         CancellationToken ct)
     {
-        if (req.Background)
-        {
-            var job = await keywordJobService.StartClassifyAsync(req.ProjectContext, req.LeaseTtlSeconds is null ? null : TimeSpan.FromSeconds(req.LeaseTtlSeconds.Value), ct);
-            return job.Accepted
-                ? Results.Accepted($"/api/v1/knowledge/keywords/jobs/{job.Job.JobId:D}", job)
-                : Results.Conflict(job);
-        }
-
-        var result = await keywordGraphService.ClassifyKeywordsAsync(req.ProjectContext, ct);
-        return Results.Ok(new KeywordClassificationResponse(result));
+        var job = await keywordJobService.StartClassifyAsync(req.ProjectContext, req.LeaseTtlSeconds is null ? null : TimeSpan.FromSeconds(req.LeaseTtlSeconds.Value), ct);
+        return job.Accepted
+            ? Results.Accepted($"/api/v1/knowledge/keywords/jobs/{job.Job.JobId:D}", job)
+            : Results.Conflict(job);
     }
 
     private static async Task<IResult> GetKeywordJobStatus(
@@ -369,8 +355,8 @@ internal sealed record IngestDocumentRequest(
     string? RelatedNodeIdsCsv = null,
     string? RelatedDocumentIdsCsv = null);
 
-internal sealed record RebuildKeywordGraphRequest(string? ProjectContext = null, bool Background = false, int? LeaseTtlSeconds = null);
-internal sealed record ClassifyKeywordsRequest(string? ProjectContext = null, bool Background = false, int? LeaseTtlSeconds = null);
+internal sealed record RebuildKeywordGraphRequest(string? ProjectContext = null, int? LeaseTtlSeconds = null);
+internal sealed record ClassifyKeywordsRequest(string? ProjectContext = null, int? LeaseTtlSeconds = null);
 
 internal sealed record EmbeddingRequest(string Text);
 
@@ -382,6 +368,3 @@ internal sealed record EmbeddingResponse(
 internal sealed record EmbeddingAvailabilityResponse(
     string ProviderName,
     int Dimensions);
-
-internal sealed record KeywordRebuildResponse(string Summary);
-internal sealed record KeywordClassificationResponse(string Summary);

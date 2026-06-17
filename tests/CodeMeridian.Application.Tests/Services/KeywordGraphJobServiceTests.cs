@@ -40,7 +40,87 @@ public sealed class KeywordGraphJobServiceTests
 
         var completed = await sut.GetStatusAsync(first.Job.JobId);
         completed.Should().NotBeNull();
+        completed!.State.Should().Be("Expired");
+    }
+
+    [Fact]
+    public async Task StartRebuildAsync_RunsClassifyAfterRebuildCompletes()
+    {
+        var timeProvider = new MutableTimeProvider(DateTimeOffset.Parse("2026-06-17T10:00:00Z"));
+        var rebuildStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var classifyStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rebuildCompleted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var classifyCompleted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var keywordGraphService = Substitute.For<IKeywordGraphService>();
+
+        keywordGraphService
+            .RebuildKeywordGraphAsync("CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                rebuildStarted.TrySetResult();
+                return rebuildCompleted.Task;
+            });
+
+        keywordGraphService
+            .ClassifyKeywordsAsync("CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                classifyStarted.TrySetResult();
+                return classifyCompleted.Task;
+            });
+
+        var sut = CreateSut(timeProvider, keywordGraphService);
+
+        var submission = await sut.StartRebuildAsync("CodeMeridian", TimeSpan.FromMinutes(10));
+        submission.Accepted.Should().BeTrue();
+
+        await rebuildStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        classifyStarted.Task.IsCompleted.Should().BeFalse();
+
+        rebuildCompleted.SetResult("rebuild complete");
+        await classifyStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        classifyCompleted.SetResult("classify complete");
+
+        await WaitForCompletionAsync(sut, submission.Job.JobId);
+
+        var completed = await sut.GetStatusAsync(submission.Job.JobId);
+        completed.Should().NotBeNull();
         completed!.State.Should().Be("Completed");
+        completed.Summary.Should().Contain("rebuild complete");
+        completed.Summary.Should().Contain("classify complete");
+    }
+
+    [Fact]
+    public async Task StartClassifyAsync_RunsOnlyClassificationLogic()
+    {
+        var timeProvider = new MutableTimeProvider(DateTimeOffset.Parse("2026-06-17T10:00:00Z"));
+        var classifyStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var classifyCompleted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var keywordGraphService = Substitute.For<IKeywordGraphService>();
+
+        keywordGraphService
+            .ClassifyKeywordsAsync("CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                classifyStarted.TrySetResult();
+                return classifyCompleted.Task;
+            });
+
+        var sut = CreateSut(timeProvider, keywordGraphService);
+
+        var submission = await sut.StartClassifyAsync("CodeMeridian", TimeSpan.FromMinutes(10));
+        submission.Accepted.Should().BeTrue();
+
+        await classifyStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await keywordGraphService.DidNotReceive().RebuildKeywordGraphAsync("CodeMeridian", Arg.Any<CancellationToken>());
+
+        classifyCompleted.SetResult("classify complete");
+        await WaitForCompletionAsync(sut, submission.Job.JobId);
+
+        var completed = await sut.GetStatusAsync(submission.Job.JobId);
+        completed.Should().NotBeNull();
+        completed!.State.Should().Be("Completed");
+        completed.Summary.Should().Be("classify complete");
     }
 
     private static IKeywordGraphJobService CreateSut(TimeProvider timeProvider, IKeywordGraphService keywordGraphService)

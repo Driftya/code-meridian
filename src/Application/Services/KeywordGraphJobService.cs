@@ -20,7 +20,7 @@ public sealed class KeywordGraphJobService(
             projectContext,
             leaseTtl ?? DefaultLeaseTtl,
             cancellationToken,
-            static (service, project, ct) => service.RebuildKeywordGraphAsync(project, ct));
+            static (service, project, ct) => RebuildThenClassifyAsync(service, project, ct));
 
     public Task<KeywordGraphJobSubmissionResult> StartClassifyAsync(
         string? projectContext = null,
@@ -105,6 +105,18 @@ public sealed class KeywordGraphJobService(
         {
             CompleteJob(jobId, key, "Failed", summary: null, error: ex.Message);
         }
+    }
+
+    private static async Task<string> RebuildThenClassifyAsync(
+        IKeywordGraphService service,
+        string? projectContext,
+        CancellationToken cancellationToken)
+    {
+        var rebuildSummary = await service.RebuildKeywordGraphAsync(projectContext, cancellationToken);
+        var classifySummary = await service.ClassifyKeywordsAsync(projectContext, cancellationToken);
+        return string.Join(
+            Environment.NewLine,
+            new[] { rebuildSummary, classifySummary }.Where(summary => !string.IsNullOrWhiteSpace(summary)));
     }
 
     private void CompleteJob(Guid jobId, string key, string state, string? summary, string? error)

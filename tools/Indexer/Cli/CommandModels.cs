@@ -47,7 +47,6 @@ internal sealed record KeywordCommandOptions(
     string? Path,
     string? Project,
     string? CodeMeridianUrl,
-    bool Background = false,
     bool Wait = false,
     int? LeaseTtlSeconds = null,
     Guid? JobId = null,

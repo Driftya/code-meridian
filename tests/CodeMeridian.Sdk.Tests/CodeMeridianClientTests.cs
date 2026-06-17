@@ -142,27 +142,7 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
-    public async Task RebuildKeywordGraphAsync_SendsProjectContextBody()
-    {
-        var handler = new CapturingHandler();
-        var client = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new CodeMeridianClient(client);
-
-        await sut.RebuildKeywordGraphAsync("CodeMeridian");
-
-        handler.Request.Should().NotBeNull();
-        handler.Request!.Method.Should().Be(HttpMethod.Post);
-        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/keywords/rebuild");
-
-        var body = await handler.ReadBodyAsync();
-        body.GetProperty("projectContext").GetString().Should().Be("CodeMeridian");
-    }
-
-    [Fact]
-    public async Task StartRebuildKeywordGraphAsync_SendsBackgroundRequest()
+    public async Task StartRebuildKeywordGraphAsync_SendsProjectContextBody()
     {
         var handler = new CapturingHandler();
         var client = new HttpClient(handler)
@@ -178,7 +158,7 @@ public sealed class CodeMeridianClientTests
         handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/keywords/rebuild");
 
         var body = await handler.ReadBodyAsync();
-        body.GetProperty("background").GetBoolean().Should().BeTrue();
+        body.GetProperty("projectContext").GetString().Should().Be("CodeMeridian");
         body.GetProperty("leaseTtlSeconds").GetInt32().Should().Be(900);
         result.Should().NotBeNull();
         result!.Accepted.Should().BeTrue();
@@ -202,26 +182,6 @@ public sealed class CodeMeridianClientTests
         handler.Request.RequestUri!.AbsolutePath.Should().Be($"/api/v1/knowledge/keywords/jobs/{jobId:D}");
         status.Should().NotBeNull();
         status!.JobId.Should().Be(jobId);
-    }
-
-    [Fact]
-    public async Task ClassifyKeywordsAsync_SendsProjectContextBody()
-    {
-        var handler = new CapturingHandler();
-        var client = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new CodeMeridianClient(client);
-
-        await sut.ClassifyKeywordsAsync("CodeMeridian");
-
-        handler.Request.Should().NotBeNull();
-        handler.Request!.Method.Should().Be(HttpMethod.Post);
-        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/keywords/classify");
-
-        var body = await handler.ReadBodyAsync();
-        body.GetProperty("projectContext").GetString().Should().Be("CodeMeridian");
     }
 
         private sealed class CapturingHandler : HttpMessageHandler

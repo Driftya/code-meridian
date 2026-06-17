@@ -477,13 +477,21 @@ internal sealed class IndexCommandHandler(
 
         var client = new CodeMeridianClient(httpClient);
 
-        Console.WriteLine("Rebuilding keyword graph...");
+        Console.WriteLine("Starting keyword rebuild and classify job...");
 
         try
         {
-            await client.RebuildKeywordGraphAsync(_settings.Project);
-            Console.WriteLine($"Keyword graph rebuilt for '{_settings.Project}'.");
-            return 0;
+            var job = await client.StartRebuildKeywordGraphAsync(_settings.Project);
+            if (job is null)
+            {
+                Console.Error.WriteLine("error: keyword graph rebuild job could not be started.");
+                return 1;
+            }
+
+            Console.WriteLine(job.Accepted
+                ? $"Keyword rebuild and classify job started: {job.Job.JobId:D}"
+                : $"Keyword rebuild and classify job busy: {job.Message}");
+            return job.Accepted ? 0 : 2;
         }
         catch (HttpRequestException ex)
         {

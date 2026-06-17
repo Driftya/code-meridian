@@ -44,63 +44,43 @@ internal sealed class KeywordCommand(IToolConfigurationService configurationServ
                 return IsTerminal(status.State) ? (string.Equals(status.State, "Completed", StringComparison.OrdinalIgnoreCase) ? 0 : 1) : 2;
             }
 
-            if (options.Background)
+            var ttlSeconds = options.LeaseTtlSeconds ?? 1_800;
+            if (options.Action == KeywordCommandAction.Classify)
             {
-                var ttlSeconds = options.LeaseTtlSeconds ?? 1_800;
-                if (options.Action == KeywordCommandAction.Classify)
+                Console.WriteLine($"Starting keyword classification job at {codeMeridianUrl}{(string.IsNullOrWhiteSpace(project) ? " for all projects" : $" for '{project}'")}...");
+                var job = await client.StartClassifyKeywordsAsync(project, ttlSeconds);
+                if (job is null)
                 {
-                    Console.WriteLine($"Starting keyword classification job at {codeMeridianUrl}{(string.IsNullOrWhiteSpace(project) ? " for all projects" : $" for '{project}'")}...");
-                    var job = await client.StartClassifyKeywordsAsync(project, ttlSeconds);
-                    if (job is null)
-                    {
-                        Console.Error.WriteLine("error: keyword classification job could not be started.");
-                        return 1;
-                    }
-
-                    PrintJobSubmission(job);
-                    if (options.Wait)
-                        return await WaitForJobAsync(client, job.Job.JobId);
-
-                    return job.Accepted ? 0 : 2;
-                }
-
-                Console.WriteLine($"Starting keyword rebuild job at {codeMeridianUrl}{(string.IsNullOrWhiteSpace(project) ? " for all projects" : $" for '{project}'")}...");
-                var rebuildJob = await client.StartRebuildKeywordGraphAsync(project, ttlSeconds);
-                if (rebuildJob is null)
-                {
-                    Console.Error.WriteLine("error: keyword graph rebuild job could not be started.");
+                    Console.Error.WriteLine("error: keyword classification job could not be started.");
                     return 1;
                 }
 
-                PrintJobSubmission(rebuildJob);
+                PrintJobSubmission(job);
                 if (options.Wait)
-                    return await WaitForJobAsync(client, rebuildJob.Job.JobId);
+                    return await WaitForJobAsync(client, job.Job.JobId);
 
-                return rebuildJob.Accepted ? 0 : 2;
+                return job.Accepted ? 0 : 2;
             }
 
-            if (options.Action == KeywordCommandAction.Classify)
+                Console.WriteLine($"Starting keyword rebuild and classify job at {codeMeridianUrl}{(string.IsNullOrWhiteSpace(project) ? " for all projects" : $" for '{project}'")}...");
+            var rebuildJob = await client.StartRebuildKeywordGraphAsync(project, ttlSeconds);
+            if (rebuildJob is null)
             {
-                Console.WriteLine($"Classifying keywords at {codeMeridianUrl}{(string.IsNullOrWhiteSpace(project) ? " for all projects" : $" for '{project}'")}...");
-                await client.ClassifyKeywordsAsync(project);
-                Console.WriteLine(string.IsNullOrWhiteSpace(project)
-                    ? "Keywords classified for all indexed projects."
-                    : $"Keywords classified for '{project}'.");
-                return 0;
+                Console.Error.WriteLine("error: keyword graph rebuild job could not be started.");
+                return 1;
             }
 
-            Console.WriteLine($"Rebuilding keyword graph at {codeMeridianUrl}{(string.IsNullOrWhiteSpace(project) ? " for all projects" : $" for '{project}'")}...");
-            await client.RebuildKeywordGraphAsync(project);
-            Console.WriteLine(string.IsNullOrWhiteSpace(project)
-                ? "Keyword graph rebuilt for all indexed projects."
-                : $"Keyword graph rebuilt for '{project}'.");
-            return 0;
+            PrintJobSubmission(rebuildJob);
+            if (options.Wait)
+                return await WaitForJobAsync(client, rebuildJob.Job.JobId);
+
+            return rebuildJob.Accepted ? 0 : 2;
         }
         catch (Exception ex)
         {
             var operation = options.Action == KeywordCommandAction.Classify
                 ? "keyword classification"
-                : "keyword graph rebuild";
+                : "keyword rebuild and classify";
             Console.Error.WriteLine($"error: {operation} failed: {ex.Message}");
             return 1;
         }

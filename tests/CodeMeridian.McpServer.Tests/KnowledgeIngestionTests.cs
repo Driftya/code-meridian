@@ -162,13 +162,24 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
-    public async Task KnowledgeApiEndpoints_RebuildKeywordGraph_ForwardsProjectContext()
+    public async Task KnowledgeApiEndpoints_RebuildKeywordGraph_AlwaysQueuesBackgroundJob()
     {
-        var keywordGraphService = Substitute.For<IKeywordGraphService>();
         var keywordJobService = Substitute.For<IKeywordGraphJobService>();
-        keywordGraphService
-            .RebuildKeywordGraphAsync("CodeMeridian", Arg.Any<CancellationToken>())
-            .Returns("rebuild complete");
+        keywordJobService
+            .StartRebuildAsync("CodeMeridian", null, Arg.Any<CancellationToken>())
+            .Returns(new KeywordGraphJobSubmissionResult(
+                true,
+                "started",
+                new KeywordGraphJobStatus(
+                    Guid.Parse("11111111-2222-3333-4444-555555555555"),
+                    "rebuild",
+                    "CodeMeridian",
+                    "Running",
+                    DateTimeOffset.Parse("2026-06-17T10:00:00Z"),
+                    DateTimeOffset.Parse("2026-06-17T10:30:00Z"),
+                    null,
+                    null,
+                    null)));
 
         var routeHandler = typeof(KnowledgeApiEndpoints)
             .GetMethod("RebuildKeywordGraph", BindingFlags.NonPublic | BindingFlags.Static);
@@ -178,19 +189,18 @@ public sealed class KnowledgeIngestionTests
         var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.RebuildKeywordGraphRequest");
         requestType.Should().NotBeNull();
 
-        var request = Activator.CreateInstance(requestType!, "CodeMeridian", false, null);
+        var request = Activator.CreateInstance(requestType!, "CodeMeridian", null);
 
-        var task = (Task<IResult>)routeHandler!.Invoke(null, [request, keywordGraphService, keywordJobService, CancellationToken.None])!;
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [request, keywordJobService, CancellationToken.None])!;
         var result = await task;
 
-        await keywordGraphService.Received(1).RebuildKeywordGraphAsync("CodeMeridian", Arg.Any<CancellationToken>());
+        await keywordJobService.Received(1).StartRebuildAsync("CodeMeridian", null, Arg.Any<CancellationToken>());
         result.Should().NotBeNull();
     }
 
     [Fact]
-    public async Task KnowledgeApiEndpoints_RebuildKeywordGraph_BackgroundForwardsJobService()
+    public async Task KnowledgeApiEndpoints_RebuildKeywordGraph_UsesLeaseTtl()
     {
-        var keywordGraphService = Substitute.For<IKeywordGraphService>();
         var keywordJobService = Substitute.For<IKeywordGraphJobService>();
         keywordJobService
             .StartRebuildAsync("CodeMeridian", TimeSpan.FromSeconds(900), Arg.Any<CancellationToken>())
@@ -216,9 +226,9 @@ public sealed class KnowledgeIngestionTests
         var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.RebuildKeywordGraphRequest");
         requestType.Should().NotBeNull();
 
-        var request = Activator.CreateInstance(requestType!, "CodeMeridian", true, 900);
+        var request = Activator.CreateInstance(requestType!, "CodeMeridian", 900);
 
-        var task = (Task<IResult>)routeHandler!.Invoke(null, [request, keywordGraphService, keywordJobService, CancellationToken.None])!;
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [request, keywordJobService, CancellationToken.None])!;
         var result = await task;
 
         await keywordJobService.Received(1).StartRebuildAsync("CodeMeridian", TimeSpan.FromSeconds(900), Arg.Any<CancellationToken>());
@@ -226,13 +236,24 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
-    public async Task KnowledgeApiEndpoints_ClassifyKeywords_ForwardsProjectContext()
+    public async Task KnowledgeApiEndpoints_ClassifyKeywords_AlwaysQueuesBackgroundJob()
     {
-        var keywordGraphService = Substitute.For<IKeywordGraphService>();
         var keywordJobService = Substitute.For<IKeywordGraphJobService>();
-        keywordGraphService
-            .ClassifyKeywordsAsync("CodeMeridian", Arg.Any<CancellationToken>())
-            .Returns("classification complete");
+        keywordJobService
+            .StartClassifyAsync("CodeMeridian", null, Arg.Any<CancellationToken>())
+            .Returns(new KeywordGraphJobSubmissionResult(
+                true,
+                "started",
+                new KeywordGraphJobStatus(
+                    Guid.Parse("11111111-2222-3333-4444-555555555555"),
+                    "classify",
+                    "CodeMeridian",
+                    "Running",
+                    DateTimeOffset.Parse("2026-06-17T10:00:00Z"),
+                    DateTimeOffset.Parse("2026-06-17T10:30:00Z"),
+                    null,
+                    null,
+                    null)));
 
         var routeHandler = typeof(KnowledgeApiEndpoints)
             .GetMethod("ClassifyKeywords", BindingFlags.NonPublic | BindingFlags.Static);
@@ -242,12 +263,12 @@ public sealed class KnowledgeIngestionTests
         var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.ClassifyKeywordsRequest");
         requestType.Should().NotBeNull();
 
-        var request = Activator.CreateInstance(requestType!, "CodeMeridian", false, null);
+        var request = Activator.CreateInstance(requestType!, "CodeMeridian", null);
 
-        var task = (Task<IResult>)routeHandler!.Invoke(null, [request, keywordGraphService, keywordJobService, CancellationToken.None])!;
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [request, keywordJobService, CancellationToken.None])!;
         var result = await task;
 
-        await keywordGraphService.Received(1).ClassifyKeywordsAsync("CodeMeridian", Arg.Any<CancellationToken>());
+        await keywordJobService.Received(1).StartClassifyAsync("CodeMeridian", null, Arg.Any<CancellationToken>());
         result.Should().NotBeNull();
     }
 
