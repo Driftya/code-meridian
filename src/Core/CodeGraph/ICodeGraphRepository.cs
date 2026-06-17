@@ -15,6 +15,7 @@ public interface ICodeGraphRepository
     Task<long> CountCodeNodesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<long> CountCallEdgesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<long> CountDiagnosticsAsync(string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<string>> GetProjectContextsAsync(string? search = null, CancellationToken cancellationToken = default);
 
     /// <summary>Returns nodes that transitively depend on <paramref name="nodeId"/> up to <paramref name="depth"/> hops.</summary>
     Task<IReadOnlyList<(CodeNode Node, int Distance)>> FindImpactAsync(string nodeId, int depth = 5, CancellationToken cancellationToken = default);

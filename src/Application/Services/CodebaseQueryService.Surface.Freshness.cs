@@ -21,7 +21,10 @@ public partial class CodebaseQueryService
             cancellationToken);
 
         if (nodes.Count == 0)
-            return $"No graph nodes found{(projectContext is not null ? $" in '{projectContext}'" : "")}{(query is not null ? $" for `{query}`" : "")}.";
+        {
+            var projectHint = await BuildProjectContextHintAsync(projectContext, cancellationToken);
+            return $"No graph nodes found{(projectContext is not null ? $" in '{projectContext}'" : "")}{(query is not null ? $" for `{query}`" : "")}.{projectHint}";
+        }
 
         var checks = nodes.Select(BuildFreshness).ToArray();
         var high = checks.Count(c => c.Confidence == "High");
@@ -60,7 +63,10 @@ public partial class CodebaseQueryService
             cancellationToken);
 
         if (nodes.Count == 0)
-            return $"No graph nodes found{(projectContext is not null ? $" in '{projectContext}'" : "")}. Run the indexer before checking drift.";
+        {
+            var projectHint = await BuildProjectContextHintAsync(projectContext, cancellationToken);
+            return $"No graph nodes found{(projectContext is not null ? $" in '{projectContext}'" : "")}.{projectHint} Run the indexer before checking drift.";
+        }
 
         var checks = nodes.Select(BuildFreshness).ToArray();
         var missingFileMetadata = checks.Where(c => string.IsNullOrWhiteSpace(c.Node.FilePath)).ToArray();

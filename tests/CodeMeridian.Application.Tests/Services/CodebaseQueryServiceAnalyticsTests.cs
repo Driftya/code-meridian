@@ -2175,6 +2175,60 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task CheckGraphFreshnessAsync_WhenProjectContextHasNoNodes_SuggestsClosestProject()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .GetProjectContextsAsync("code-meridian", Arg.Any<CancellationToken>())
+            .Returns(["CodeMeridian"]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "code-meridian");
+
+        result.Should().Contain("No graph nodes found in 'code-meridian'");
+        result.Should().Contain("Did you mean 'CodeMeridian'?");
+    }
+
+    [Fact]
+    public async Task FindGraphDriftAsync_WhenProjectContextHasTypo_SuggestsClosestProject()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .GetProjectContextsAsync("code3meridian", Arg.Any<CancellationToken>())
+            .Returns(["CodeMeridian"]);
+
+        var result = await sut.FindGraphDriftAsync("code3meridian");
+
+        result.Should().Contain("No graph nodes found in 'code3meridian'");
+        result.Should().Contain("Did you mean 'CodeMeridian'?");
+        result.Should().Contain("Run the indexer");
+    }
+
+    [Fact]
+    public async Task FindGraphDriftAsync_WhenPrefilterFindsNoProjects_FallsBackToAllProjects()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .GetProjectContextsAsync("xode-meridian", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .GetProjectContextsAsync(null, Arg.Any<CancellationToken>())
+            .Returns(["CodeMeridian"]);
+
+        var result = await sut.FindGraphDriftAsync("xode-meridian");
+
+        result.Should().Contain("Did you mean 'CodeMeridian'?");
+    }
+
+    [Fact]
     public async Task FindGraphDriftAsync_WithIncompleteIndexedMetadata_ReturnsRecommendation()
     {
         var (sut, graph) = Build();

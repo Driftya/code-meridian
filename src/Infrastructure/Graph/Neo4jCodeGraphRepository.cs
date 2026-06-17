@@ -204,6 +204,49 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         return record["count"].As<long>();
     }
 
+    public async Task<IReadOnlyList<string>> GetProjectContextsAsync(string? search = null, CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+        var normalizedSearch = NormalizeForProjectContextSuggestion(search);
+        var first = normalizedSearch is { Length: > 0 } ? normalizedSearch[..1] : null;
+        var last = normalizedSearch is { Length: > 0 } ? normalizedSearch[^1..] : null;
+
+        const string cypher = """
+            MATCH (n:CodeNode)
+            WHERE n.projectContext IS NOT NULL
+              AND n.projectContextNormalized IS NOT NULL
+              AND trim(n.projectContext) <> ''
+              AND ($first IS NULL OR n.projectContextNormalized STARTS WITH $first)
+              AND ($last IS NULL OR n.projectContextNormalized ENDS WITH $last)
+            RETURN DISTINCT n.projectContext AS projectContext
+            ORDER BY projectContext
+            LIMIT 100
+            """;
+
+        var cursor = await session.RunAsync(cypher, new { first, last });
+        var results = new List<string>();
+
+        await foreach (var record in cursor.WithCancellation(cancellationToken))
+            results.Add(record["projectContext"].As<string>());
+
+        return results;
+    }
+
+    private static string? NormalizeForProjectContextSuggestion(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            if (char.IsLetterOrDigit(ch))
+                builder.Append(char.ToLowerInvariant(ch));
+        }
+
+        return builder.Length == 0 ? null : builder.ToString();
+    }
+
     public async Task<string> GetSubgraphSummaryAsync(
         string nodeId,
         CancellationToken cancellationToken = default)
