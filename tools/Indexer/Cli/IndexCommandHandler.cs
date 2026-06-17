@@ -452,7 +452,8 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  codemeridian index . --clear");
-        Console.WriteLine("  codemeridian index . --keywords");
+        Console.WriteLine("  codemeridian index .");
+        Console.WriteLine("  codemeridian index . --skip-keywords");
         Console.WriteLine("  codemeridian index . --storage global");
         Console.WriteLine("  codemeridian index . --storage repo");
         Console.WriteLine("  codemeridian index . --project MyProject --watch");

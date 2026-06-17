@@ -2,6 +2,7 @@ using System.Globalization;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
 using CodeMeridian.Application.Services;
+using CodeMeridian.McpServer.Keywording;
 
 namespace CodeMeridian.McpServer.Api;
 
@@ -35,6 +36,7 @@ public static class KnowledgeApiEndpoints
         IngestNodeRequest req,
         ICodeGraphRepository repo,
         IEmbeddingProvider embeddingProvider,
+        IKeywordRefreshQueue keywordRefreshQueue,
         ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
@@ -85,6 +87,8 @@ public static class KnowledgeApiEndpoints
                 embedding.Length);
         }
 
+        await keywordRefreshQueue.QueueAsync(new KeywordRefreshWorkItem(req.Id, req.ProjectContext), ct);
+
         return Results.Created($"/api/v1/knowledge/nodes/{Uri.EscapeDataString(req.Id)}", req.Id);
     }
 
@@ -114,16 +118,20 @@ public static class KnowledgeApiEndpoints
     private static async Task<IResult> IngestDocument(
         IngestDocumentRequest req,
         IVectorRepository vectorRepo,
+        IKeywordRefreshQueue keywordRefreshQueue,
         CancellationToken ct)
     {
+        var documentId = req.Id ?? Guid.NewGuid().ToString("N");
         await vectorRepo.UpsertAsync(new KnowledgeDocument
         {
-            Id = req.Id ?? Guid.NewGuid().ToString("N"),
+            Id = documentId,
             Content = req.Content,
             Source = req.Source,
             ProjectContext = req.ProjectContext,
             Metadata = ParseMetadata(req.RelatedNodeIdsCsv, req.RelatedDocumentIdsCsv)
         }, ct);
+
+        await keywordRefreshQueue.QueueAsync(new KeywordRefreshWorkItem(documentId, req.ProjectContext), ct);
 
         return Results.Created("/api/v1/knowledge/documents", null);
     }

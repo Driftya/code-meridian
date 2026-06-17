@@ -42,32 +42,12 @@ public sealed class KeywordGraphService(
             if (batch.Count == 0)
                 break;
 
-            foreach (var sourceNode in batch)
-            {
-                processedCount++;
-                var extraction = extractionService.Extract(sourceNode);
-
-                if (string.Equals(sourceNode.ExistingChecksum, extraction.Checksum, StringComparison.Ordinal))
-                {
-                    skippedCount++;
-                    continue;
-                }
-
-                await keywordGraph.ReplaceKeywordsAsync(
-                    new ReplaceKeywordRelationshipsCommand
-                    {
-                        SourceNodeId = sourceNode.Id,
-                        KeywordTextChecksum = extraction.Checksum,
-                        EnrichmentVersion = keywordOptions.EnrichmentVersion,
-                        Keywords = extraction.Keywords
-                    },
-                    cancellationToken);
-
-                updatedCount++;
-                keywordCount += extraction.Keywords.Count;
-                relationshipCount += extraction.Keywords.Count;
-                logger.LogTrace("Extracted {KeywordCount} keywords for node {NodeId}.", extraction.Keywords.Count, sourceNode.Id);
-            }
+            var result = await RefreshSourceNodesAsync(batch, cancellationToken);
+            processedCount += result.ProcessedCount;
+            skippedCount += result.SkippedCount;
+            updatedCount += result.UpdatedCount;
+            keywordCount += result.KeywordCount;
+            relationshipCount += result.RelationshipCount;
 
             if (batch.Count < keywordOptions.BatchSize)
                 break;
@@ -97,6 +77,50 @@ public sealed class KeywordGraphService(
         sb.AppendLine();
         sb.AppendLine("Confidence: `lexical`");
         sb.AppendLine("Keywords are derived from existing graph and knowledge-document text; they do not replace structural graph edges or embeddings.");
+        return sb.ToString();
+    }
+
+    public async Task<string> RefreshKeywordsAsync(
+        IReadOnlyCollection<string> sourceNodeIds,
+        string? projectContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!keywordOptions.Enabled)
+            return "Keyword enrichment is disabled. Set `KeywordEnrichment:Enabled` to `true` to refresh the derived keyword graph.";
+
+        var normalizedIds = sourceNodeIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (normalizedIds.Length == 0)
+            return "No keyword source nodes were queued for refresh.";
+
+        var sourceNodes = await keywordGraph.GetKeywordSourceNodesByIdAsync(
+            normalizedIds,
+            projectContext,
+            cancellationToken);
+
+        var result = await RefreshSourceNodesAsync(sourceNodes, cancellationToken);
+        await keywordGraph.RecalculateKeywordStatisticsAsync(projectContext, cancellationToken);
+
+        logger.LogInformation(
+            "Incremental keyword refresh completed for project {ProjectId}. Queued {QueuedCount} nodes, found {ProcessedCount}, updated {UpdatedCount}.",
+            projectContext ?? "all-projects",
+            normalizedIds.Length,
+            result.ProcessedCount,
+            result.UpdatedCount);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## Keyword Graph Incremental Refresh");
+        sb.AppendLine();
+        sb.AppendLine($"Project: `{projectContext ?? "all-projects"}`");
+        sb.AppendLine($"Queued **{normalizedIds.Length.ToString(CultureInfo.InvariantCulture)}** source nodes.");
+        sb.AppendLine($"Found **{result.ProcessedCount.ToString(CultureInfo.InvariantCulture)}** source nodes.");
+        sb.AppendLine($"Skipped **{result.SkippedCount.ToString(CultureInfo.InvariantCulture)}** unchanged nodes.");
+        sb.AppendLine($"Updated **{result.UpdatedCount.ToString(CultureInfo.InvariantCulture)}** nodes.");
+        sb.AppendLine($"Created **{result.KeywordCount.ToString(CultureInfo.InvariantCulture)}** derived keywords across **{result.RelationshipCount.ToString(CultureInfo.InvariantCulture)}** relationships.");
         return sb.ToString();
     }
 
@@ -303,4 +327,51 @@ public sealed class KeywordGraphService(
 
     private static bool Contains(IEnumerable<string> values, string value) =>
         values.Contains(value, StringComparer.OrdinalIgnoreCase);
+
+    private async Task<KeywordRefreshResult> RefreshSourceNodesAsync(
+        IReadOnlyCollection<KeywordSourceNode> sourceNodes,
+        CancellationToken cancellationToken)
+    {
+        var processedCount = 0;
+        var skippedCount = 0;
+        var updatedCount = 0;
+        var keywordCount = 0;
+        var relationshipCount = 0;
+
+        foreach (var sourceNode in sourceNodes)
+        {
+            processedCount++;
+            var extraction = extractionService.Extract(sourceNode);
+
+            if (string.Equals(sourceNode.ExistingChecksum, extraction.Checksum, StringComparison.Ordinal))
+            {
+                skippedCount++;
+                continue;
+            }
+
+            await keywordGraph.ReplaceKeywordsAsync(
+                new ReplaceKeywordRelationshipsCommand
+                {
+                    SourceNodeId = sourceNode.Id,
+                    KeywordTextChecksum = extraction.Checksum,
+                    EnrichmentVersion = keywordOptions.EnrichmentVersion,
+                    Keywords = extraction.Keywords
+                },
+                cancellationToken);
+
+            updatedCount++;
+            keywordCount += extraction.Keywords.Count;
+            relationshipCount += extraction.Keywords.Count;
+            logger.LogTrace("Extracted {KeywordCount} keywords for node {NodeId}.", extraction.Keywords.Count, sourceNode.Id);
+        }
+
+        return new KeywordRefreshResult(processedCount, skippedCount, updatedCount, keywordCount, relationshipCount);
+    }
+
+    private sealed record KeywordRefreshResult(
+        int ProcessedCount,
+        int SkippedCount,
+        int UpdatedCount,
+        int KeywordCount,
+        int RelationshipCount);
 }

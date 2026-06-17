@@ -40,6 +40,7 @@ codemeridian --list-capabilities
 codemeridian serve
 codemeridian index . --dry-run
 codemeridian index . --clear
+codemeridian index . --skip-keywords
 codemeridian doctor --project CodeMeridian
 codemeridian report --project CodeMeridian
 codemeridian check-drift --project CodeMeridian --fail-on high
@@ -208,6 +209,19 @@ Node.js 18+ is required for TypeScript / TSX indexing.
 The indexer ingests README and documentation files unless disabled with `--no-docs` or `--skip-docs`.
 
 Documentation becomes searchable through `search_documentation`.
+
+## Keyword Refresh
+
+When keyword enrichment is enabled, the MCP server queues an incremental keyword refresh after code nodes and documents are ingested. The queue batches and debounces changed source nodes, refreshes derived keyword relationships for those nodes, recalculates project keyword statistics, and then runs classification for the affected project.
+
+The index command also submits a keyword rebuild/classification job after a successful run by default. Use `--skip-keywords` when you want only structural indexing.
+
+Manual keyword commands remain useful for repair, rule changes, and full refreshes:
+
+```powershell
+codemeridian keywords rebuild --project CodeMeridian
+codemeridian keywords classify --project CodeMeridian
+```
 
 ## Diagnostics Indexing
 

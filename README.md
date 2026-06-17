@@ -140,6 +140,7 @@ Copy-Item .env.sample .env
 docker compose up -d
 dotnet run --project tools/Indexer -- . --clear
 dotnet run --project tools/Indexer -- config rebuild --project CodeMeridian
+dotnet run --project tools/Indexer -- index . --skip-keywords
 dotnet run --project tools/Indexer -- keywords rebuild --project CodeMeridian
 ```
 
@@ -256,9 +257,9 @@ Typical workflow:
 
 ```text
 1. Index your code and docs normally.
-2. Run rebuild_keyword_graph.
-3. Run classify_keywords if you want to suppress noise/common terms and improve lexical ranking.
-4. Use find_related_knowledge on a node ID when you want explainable lexical matches.
+2. The MCP server queues incremental keyword refresh as nodes and documents are ingested.
+3. Use find_related_knowledge on a node ID when you want explainable lexical matches.
+4. Run rebuild_keyword_graph or classify_keywords manually when you want a full repair or rule refresh.
 ```
 
 CLI equivalents:

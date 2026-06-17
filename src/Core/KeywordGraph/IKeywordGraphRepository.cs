@@ -8,6 +8,11 @@ public interface IKeywordGraphRepository
         KeywordSourceNodeQuery query,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<KeywordSourceNode>> GetKeywordSourceNodesByIdAsync(
+        IReadOnlyCollection<string> sourceNodeIds,
+        string? projectContext = null,
+        CancellationToken cancellationToken = default);
+
     Task ReplaceKeywordsAsync(
         ReplaceKeywordRelationshipsCommand command,
         CancellationToken cancellationToken = default);

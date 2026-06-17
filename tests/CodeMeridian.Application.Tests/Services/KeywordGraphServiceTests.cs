@@ -85,6 +85,60 @@ public sealed class KeywordGraphServiceTests
     }
 
     [Fact]
+    public async Task RefreshKeywordsAsync_ProcessesOnlyRequestedNodesAndRecalculatesStatistics()
+    {
+        var repository = Substitute.For<IKeywordGraphRepository>();
+        var extraction = Substitute.For<IKeywordExtractionService>();
+        var sourceNode = new KeywordSourceNode
+        {
+            Id = "node-2",
+            ProjectContext = "CodeMeridian",
+            Kind = "CodeNode",
+            ExistingChecksum = "old",
+            TextBySource = new Dictionary<string, string?> { ["summary"] = "Queue based keyword refresh" }
+        };
+
+        repository
+            .GetKeywordSourceNodesByIdAsync(
+                Arg.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(new[] { "node-2" })),
+                "CodeMeridian",
+                Arg.Any<CancellationToken>())
+            .Returns([sourceNode]);
+
+        extraction.Extract(sourceNode).Returns(new KeywordExtractionResult(
+            "new",
+            [
+                new ExtractedKeyword
+                {
+                    Value = "queue",
+                    NormalizedValue = "queue",
+                    Count = 1,
+                    Weight = 1,
+                    Sources = ["summary"]
+                }
+            ]));
+
+        var sut = new KeywordGraphService(
+            repository,
+            extraction,
+            Options.Create(new KeywordEnrichmentOptions()),
+            Options.Create(new KeywordClassificationOptions()),
+            NullLogger<KeywordGraphService>.Instance);
+
+        var result = await sut.RefreshKeywordsAsync(["node-2", "node-2"], "CodeMeridian");
+
+        await repository.Received(1).ReplaceKeywordsAsync(
+            Arg.Is<ReplaceKeywordRelationshipsCommand>(command =>
+                command.SourceNodeId == "node-2"
+                && command.KeywordTextChecksum == "new"
+                && command.Keywords.Count == 1),
+            Arg.Any<CancellationToken>());
+        await repository.Received(1).RecalculateKeywordStatisticsAsync("CodeMeridian", Arg.Any<CancellationToken>());
+        result.Should().Contain("Queued **1** source nodes");
+        result.Should().Contain("Updated **1** nodes");
+    }
+
+    [Fact]
     public async Task FindRelatedKnowledgeAsync_WithMatches_ReturnsRankedMarkdownAndKeywords()
     {
         var repository = Substitute.For<IKeywordGraphRepository>();

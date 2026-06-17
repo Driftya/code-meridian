@@ -5,6 +5,7 @@ using FluentAssertions;
 
 namespace CodeMeridian.Indexer.Tests.Cli;
 
+[Collection(EnvironmentVariableTestCollection.Name)]
 public sealed class StatusCommandTests
 {
     [Fact]

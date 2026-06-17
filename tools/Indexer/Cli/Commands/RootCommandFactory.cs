@@ -55,7 +55,8 @@ internal sealed class RootCommandFactory(
         var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
         urlOption.Aliases.Add("--CodeMeridian");
         var clearOption = new Option<bool>("--clear") { Description = "Remove existing knowledge before indexing. Applied only once." };
-        var keywordsOption = new Option<bool>("--keywords") { Description = "Rebuild the derived keyword graph after indexing completes." };
+        var keywordsOption = new Option<bool>("--keywords") { Description = "Rebuild the derived keyword graph after indexing completes. This is now the default." };
+        var skipKeywordsOption = new Option<bool>("--skip-keywords") { Description = "Skip rebuilding and classifying the derived keyword graph after indexing." };
         var skipDocsOption = new Option<bool>("--skip-docs") { Description = "Skip documentation ingestion." };
         skipDocsOption.Aliases.Add("--no-docs");
         var watchOption = new Option<bool>("--watch") { Description = "Watch mode. If both languages are present, C# watch runs first." };
@@ -75,6 +76,7 @@ internal sealed class RootCommandFactory(
         command.Add(urlOption);
         command.Add(clearOption);
         command.Add(keywordsOption);
+        command.Add(skipKeywordsOption);
         command.Add(skipDocsOption);
         command.Add(watchOption);
         command.Add(dryRunOption);
@@ -109,7 +111,7 @@ internal sealed class RootCommandFactory(
                     parseResult.GetValue(projectOption),
                     parseResult.GetValue(urlOption),
                     parseResult.GetValue(clearOption),
-                    RebuildKeywords: parseResult.GetValue(keywordsOption),
+                    RebuildKeywords: !parseResult.GetValue(skipKeywordsOption),
                     IncludeDocs: !parseResult.GetValue(skipDocsOption),
                     Watch: parseResult.GetValue(watchOption),
                     DryRun: parseResult.GetValue(dryRunOption),

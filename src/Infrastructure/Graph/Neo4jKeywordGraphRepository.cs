@@ -100,22 +100,67 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
         var results = new List<KeywordSourceNode>();
 
         await foreach (var record in cursor.WithCancellation(cancellationToken))
-        {
-            var rawMap = record["textBySource"].As<IDictionary<string, object?>>();
-            var textBySource = rawMap.ToDictionary(
-                static pair => pair.Key,
-                static pair => pair.Value?.ToString(),
-                StringComparer.Ordinal);
+            results.Add(MapKeywordSourceNode(record));
 
-            results.Add(new KeywordSourceNode
-            {
-                Id = record["id"].As<string>(),
-                ProjectContext = record["projectContext"].As<string?>(),
-                Kind = record["kind"].As<string>(),
-                ExistingChecksum = record["keywordTextChecksum"].As<string?>(),
-                TextBySource = textBySource
-            });
-        }
+        return results;
+    }
+
+    public async Task<IReadOnlyList<KeywordSourceNode>> GetKeywordSourceNodesByIdAsync(
+        IReadOnlyCollection<string> sourceNodeIds,
+        string? projectContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (sourceNodeIds.Count == 0)
+            return [];
+
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            CALL {
+              MATCH (node:CodeNode)
+              WHERE node.id IN $sourceNodeIds
+                AND ($projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
+              RETURN
+                node.id AS id,
+                node.projectContext AS projectContext,
+                coalesce(node.type, 'CodeNode') AS kind,
+                node.keywordTextChecksum AS keywordTextChecksum,
+                {
+                  name: node.name,
+                  summary: node.summary,
+                  namespace: node.namespace,
+                  filePath: node.filePath,
+                  type: node.type
+                } AS textBySource
+              UNION ALL
+              MATCH (document:KnowledgeDocument)
+              WHERE document.id IN $sourceNodeIds
+                AND ($projectContextNormalized IS NULL OR document.projectContextNormalized = $projectContextNormalized)
+              RETURN
+                document.id AS id,
+                document.projectContext AS projectContext,
+                'KnowledgeDocument' AS kind,
+                document.keywordTextChecksum AS keywordTextChecksum,
+                {
+                  title: document.source,
+                  content: document.content,
+                  source: document.source,
+                  kind: document.metadataKind
+                } AS textBySource
+            }
+            RETURN id, projectContext, kind, keywordTextChecksum, textBySource
+            ORDER BY id
+            """;
+
+        var cursor = await session.RunAsync(cypher, new
+        {
+            sourceNodeIds = sourceNodeIds.Distinct(StringComparer.Ordinal).ToArray(),
+            projectContextNormalized = (object?)Normalize(projectContext)
+        });
+
+        var results = new List<KeywordSourceNode>();
+        await foreach (var record in cursor.WithCancellation(cancellationToken))
+            results.Add(MapKeywordSourceNode(record));
 
         return results;
     }
@@ -419,6 +464,24 @@ public sealed class Neo4jKeywordGraphRepository : IKeywordGraphRepository, IAsyn
     }
 
     public async ValueTask DisposeAsync() => await _driver.DisposeAsync();
+
+    private static KeywordSourceNode MapKeywordSourceNode(IRecord record)
+    {
+        var rawMap = record["textBySource"].As<IDictionary<string, object?>>();
+        var textBySource = rawMap.ToDictionary(
+            static pair => pair.Key,
+            static pair => pair.Value?.ToString(),
+            StringComparer.Ordinal);
+
+        return new KeywordSourceNode
+        {
+            Id = record["id"].As<string>(),
+            ProjectContext = record["projectContext"].As<string?>(),
+            Kind = record["kind"].As<string>(),
+            ExistingChecksum = record["keywordTextChecksum"].As<string?>(),
+            TextBySource = textBySource
+        };
+    }
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
