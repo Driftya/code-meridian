@@ -1829,6 +1829,111 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task AnalyzeFeatureImplementationPathAsync_WithDocsCodeAndTests_ReturnsEvidenceAndRisk()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(graph, vector);
+        var service = Node(
+            "s1",
+            "FeatureImplementationAnalysisService",
+            CodeNodeType.Class,
+            "src/Application/Services/FeatureImplementationAnalysisService.cs",
+            12,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 60,
+            sourceHash: "abc",
+            summary: "Maps feature docs to likely implementation surfaces.");
+        var tool = Node(
+            "m1",
+            "AnalyzeFeatureImplementationPathAsync",
+            CodeNodeType.Method,
+            "src/McpServer/Tools/CodebaseTools.cs",
+            120,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 25,
+            sourceHash: "def",
+            summary: "MCP tool exposure for feature implementation path analysis.");
+        var test = Node(
+            "t1",
+            "FeatureImplementationAnalysisServiceTests",
+            CodeNodeType.Class,
+            "tests/CodeMeridian.Application.Tests/Services/FeatureImplementationAnalysisServiceTests.cs",
+            5,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 40,
+            sourceHash: "ghi",
+            fileRole: IndexedFileRole.Test);
+
+        vector
+            .SearchByTextAsync("Add Feature Implementation Path", "CodeMeridian", 6, Arg.Any<CancellationToken>())
+            .Returns([
+                new KnowledgeDocument
+                {
+                    Id = "feature-1",
+                    Content = """
+                              # Add Feature Implementation Path
+                              - Status: pending
+                              This feature maps feature docs to implementation surfaces and test seams.
+                              """,
+                    Source = "docs/features/39-add-feature-implementation-path.md",
+                    ProjectContext = "CodeMeridian"
+                }
+            ]);
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([service, tool]);
+        graph
+            .FindRelatedTestsAsync(service.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(test, "direct")]);
+        graph
+            .FindRelatedTestsAsync(tool.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.AnalyzeFeatureImplementationPathAsync(
+            "Add Feature Implementation Path",
+            "CodeMeridian");
+
+        result.Should().Contain("## Feature Implementation Path");
+        result.Should().Contain("documented_with_code_and_test_evidence");
+        result.Should().Contain("Confidence:** high");
+        result.Should().Contain("FeatureImplementationAnalysisService");
+        result.Should().Contain("Presentation/MCP");
+        result.Should().Contain("FeatureImplementationAnalysisServiceTests");
+        result.Should().Contain("docs/features/39-add-feature-implementation-path.md");
+        result.Should().Contain("Risk level");
+    }
+
+    [Fact]
+    public async Task AnalyzeFeatureImplementationPathAsync_WhenNoEvidence_ReturnsMissingGraphEvidence()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(graph, vector);
+
+        vector
+            .SearchByTextAsync("Add Ghost Feature", "CodeMeridian", 6, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.AnalyzeFeatureImplementationPathAsync(
+            "Add Ghost Feature",
+            "CodeMeridian");
+
+        result.Should().Contain("not_found_in_graph");
+        result.Should().Contain("Confidence:** low");
+        result.Should().Contain("No matching KnowledgeDocument");
+        result.Should().Contain("No CodeNode implementation surface matched");
+        result.Should().Contain("No related test nodes were linked");
+        result.Should().Contain("Risk level:** unknown");
+    }
+
+    [Fact]
     public async Task PlanEditRouteAsync_WithGraphMatches_ReturnsOrderedItinerary()
     {
         var (sut, graph) = Build();

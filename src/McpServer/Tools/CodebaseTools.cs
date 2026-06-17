@@ -129,6 +129,34 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindImplementationSurfaceAsync(goal, conceptsCsv, projectContext, limit, cancellationToken);
 
+    [McpServerTool(Name = "analyze_feature_implementation_path")]
+    [Description(
+        "Map a feature request or docs/features/*.md path to implementation status, closest code surfaces, " +
+        "likely touched areas, tests, docs, missing graph evidence, and risk. " +
+        "Use this before feature work when you need blast-radius planning without claiming the feature is complete.")]
+    public Task<string> AnalyzeFeatureImplementationPathAsync(
+        [Description("Feature title, request text, or docs/features/*.md path.")]
+        string feature,
+        [Description("Optional project name to scope graph and documentation search.")]
+        string? projectContext = null,
+        [Description("Include related test seams and suggested coverage. Default true.")]
+        bool includeTests = true,
+        [Description("Include matching documentation evidence and docs-to-update guidance. Default true.")]
+        bool includeDocs = true,
+        [Description("Include feature risk analysis. Default true.")]
+        bool includeRisk = true,
+        [Description("Maximum number of implementation surfaces to return.")]
+        int limit = 12,
+        CancellationToken cancellationToken = default) =>
+        queryService.AnalyzeFeatureImplementationPathAsync(
+            feature,
+            projectContext,
+            includeTests,
+            includeDocs,
+            includeRisk,
+            limit,
+            cancellationToken);
+
     [McpServerTool(Name = "plan_edit_route")]
     [Description(
         "Plan an ordered edit route for a feature or refactor goal. " +

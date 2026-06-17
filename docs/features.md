@@ -350,6 +350,22 @@ Ranks the most likely files, classes, and methods to edit for a feature goal. Re
 What is the best implementation surface for adding stale-knowledge detection?
 ```
 
+### `analyze_feature_implementation_path`
+
+Maps a feature request or `docs/features/*.md` path to graph-backed implementation planning evidence. The tool reports whether the feature is documented or linked, closest implementation surfaces by layer, likely touched areas, related tests, docs to update, missing graph evidence, confidence, and risk level.
+
+The first slice composes existing graph and documentation signals rather than adding a new Feature node schema:
+
+- full-text documentation search for feature specs and related docs
+- code-node semantic/name matches from the code graph
+- related test links from the closest code surfaces
+- layer heuristics for Application, Infrastructure, Presentation/MCP, Core/Domain, and Tests
+- freshness/confidence metadata on candidate code nodes
+
+```text
+Analyze the implementation path for docs/features/32-add-semantic-graph-hybrid-search.md.
+```
+
 ### `replace_surface`
 
 Groups dependency replacement work into safe and risky clusters before a broad migration.
