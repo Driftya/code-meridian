@@ -1,6 +1,6 @@
 # Add Context Workflow Planning
 
-Status: pending
+Status: implemented
 Priority: P2
 Feature: `plan_context_workflow`
 
@@ -17,6 +17,21 @@ Which CodeMeridian tools should I call, in what order, and why?
 ```
 
 This turns CodeMeridian from a collection of graph tools into an agent navigation system. The feature should be especially useful for smaller models that may not know how to combine CodeMeridian tools correctly.
+
+## Implemented
+
+Implemented `plan_context_workflow` and the optional `execute_context_workflow` MCP tool.
+
+The implementation uses a central Application catalog and deterministic recipes:
+
+```text
+src/Application/Services/ContextWorkflows/ContextWorkflowToolCatalog.cs
+src/Application/Services/ContextWorkflows/ContextWorkflowPlanner.cs
+```
+
+`execute_context_workflow` is intentionally conservative. It executes read-only workflow steps available through `ICodebaseQueryService`, refuses graph-mutating plans unless explicitly approved, and stops on missing required inputs instead of hiding partial failure.
+
+Detailed user documentation is in [Context workflows](../context-workflows.md).
 
 ## Problem
 
@@ -338,7 +353,7 @@ find_diagnostics_for_node
 build_minimal_context
 ```
 
-Future recommended tool once available:
+Recommended responsibility-slice tool:
 
 ```text
 suggest_responsibility_slices
@@ -346,7 +361,7 @@ suggest_responsibility_slices
 
 Rules:
 
-* Until `suggest_responsibility_slices` exists, use `suggest_extractions`, `find_large_nodes`, `find_god_classes`, `find_hotspots`, and `find_test_shield` as the planning substrate.
+* Use `suggest_responsibility_slices` as the primary planning substrate, then compare with `suggest_extractions`, `find_large_nodes`, `find_god_classes`, `find_hotspots`, and `find_test_shield`.
 * Recommend namespace/folder suggestions only as heuristic output unless explicit project conventions are indexed.
 * Label responsibility grouping as heuristic unless supported by strong graph evidence.
 

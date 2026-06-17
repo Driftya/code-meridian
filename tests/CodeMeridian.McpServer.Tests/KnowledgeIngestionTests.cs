@@ -120,6 +120,89 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task CodebaseTools_PlanContextWorkflowAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.PlanContextWorkflowAsync(
+                "Implement feature",
+                "docs/features/43-add-context-workflow-planning.md",
+                "CodeMeridian",
+                "feature_implementation",
+                6,
+                false,
+                true,
+                false,
+                Arg.Any<CancellationToken>())
+            .Returns("plan");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.PlanContextWorkflowAsync(
+            "Implement feature",
+            "docs/features/43-add-context-workflow-planning.md",
+            "CodeMeridian",
+            "feature_implementation",
+            6,
+            includeOptionalSteps: false,
+            includeStopConditions: true,
+            includeExecutionHints: false);
+
+        result.Should().Be("plan");
+        await queryService.Received(1).PlanContextWorkflowAsync(
+            "Implement feature",
+            "docs/features/43-add-context-workflow-planning.md",
+            "CodeMeridian",
+            "feature_implementation",
+            6,
+            false,
+            true,
+            false,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CodebaseTools_ExecuteContextWorkflowAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.ExecuteContextWorkflowAsync(
+                "Review diagnostics",
+                "OrderService",
+                "CodeMeridian",
+                "diagnostic_review",
+                3,
+                false,
+                false,
+                "OtherNode",
+                "System.Text.Json",
+                Arg.Any<CancellationToken>())
+            .Returns("execution");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.ExecuteContextWorkflowAsync(
+            "Review diagnostics",
+            "OrderService",
+            "CodeMeridian",
+            "diagnostic_review",
+            3,
+            includeOptionalSteps: false,
+            allowGraphMutation: false,
+            secondaryTarget: "OtherNode",
+            toDependency: "System.Text.Json");
+
+        result.Should().Be("execution");
+        await queryService.Received(1).ExecuteContextWorkflowAsync(
+            "Review diagnostics",
+            "OrderService",
+            "CodeMeridian",
+            "diagnostic_review",
+            3,
+            false,
+            false,
+            "OtherNode",
+            "System.Text.Json",
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task KnowledgeTools_IngestDocumentAsync_ForwardsWeakMentionMetadata()
     {
         var graph = Substitute.For<ICodeGraphRepository>();

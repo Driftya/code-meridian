@@ -216,6 +216,8 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `find_related_knowledge` | Find lexically related code and docs through shared keywords |
 | `find_implementation_surface` | Rank likely files and symbols to edit for a feature goal |
 | `analyze_feature_implementation_path` | Map a feature request or docs/features file to implementation status, touched areas, tests, docs, missing graph evidence, and risk |
+| `plan_context_workflow` | Plan the right sequence of CodeMeridian tools for an agent task |
+| `execute_context_workflow` | Execute an approved read-only context workflow and return per-step results |
 | `replace_surface` | Group dependency replacement work into safe and risky clusters before a library migration |
 | `suggest_extractions` | Rank tightly connected groups that look like good extraction candidates |
 | `check_graph_freshness` | Report graph confidence from indexed file, line, and timestamp metadata |
@@ -234,6 +236,7 @@ Architecture rules come from the indexed project configuration when `.meridian/a
 - [Installation](docs/installation.md)
 - [How CodeMeridian works](docs/how-it-works.md)
 - [Usage](docs/usage.md)
+- [Context workflows](docs/context-workflows.md)
 - [Indexing projects](docs/indexing.md)
 - [Evaluating session usefulness](docs/evaluate.md)
 - [Feature reference](docs/features.md)

@@ -374,6 +374,26 @@ The first slice composes existing graph and documentation signals rather than ad
 Analyze the implementation path for docs/features/32-add-semantic-graph-hybrid-search.md.
 ```
 
+### `plan_context_workflow`
+
+Plans the recommended CodeMeridian tool sequence for an agent task. The planner is deterministic and recipe-driven. It returns JSON with the selected workflow type, ordered steps, required versus optional flags, purpose, input hints, expected output, stop conditions, execution hints, safety flags, warnings, and final response guidance.
+
+Supported workflows include before-edit checks, feature implementation, refactor planning, responsibility slicing, architecture review, dependency replacement, knowledge health, diagnostic review, configuration review, cross-project tracing, semantic discovery, documentation ingestion, and extension-agent routing.
+
+```text
+Plan how to use CodeMeridian before refactoring CodebaseQueryService.
+```
+
+See [Context workflows](context-workflows.md) for the full recipe list and extension guidance.
+
+### `execute_context_workflow`
+
+Executes an approved context workflow and returns JSON step results. This first execution slice is conservative: it runs read-only query tools exposed through the application service, refuses graph-mutating workflows unless explicitly approved, stops on missing required inputs, and reports unsupported tools instead of silently skipping them.
+
+```text
+Execute a diagnostic review workflow for CodeMeridian with only required steps.
+```
+
 ### `replace_surface`
 
 Groups dependency replacement work into safe and risky clusters before a broad migration.

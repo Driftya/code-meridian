@@ -47,4 +47,6 @@ public interface ICodebaseQueryService
     Task<string> FindDiagnosticsForNodeAsync(string nodeId, CancellationToken cancellationToken = default);
     Task<string> FindConfigDefinitionsAsync(string canonicalKey, string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindConfigUsageAsync(string canonicalKey, string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<string> PlanContextWorkflowAsync(string goal, string? target = null, string? projectContext = null, string? workflowType = null, int maxSteps = 12, bool includeOptionalSteps = true, bool includeStopConditions = true, bool includeExecutionHints = true, CancellationToken cancellationToken = default);
+    Task<string> ExecuteContextWorkflowAsync(string goal, string? target = null, string? projectContext = null, string? workflowType = null, int maxSteps = 8, bool includeOptionalSteps = true, bool allowGraphMutation = false, string? secondaryTarget = null, string? toDependency = null, CancellationToken cancellationToken = default);
 }
