@@ -162,6 +162,49 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task StartRebuildKeywordGraphAsync_SendsBackgroundRequest()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var result = await sut.StartRebuildKeywordGraphAsync("CodeMeridian", leaseTtlSeconds: 900);
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Post);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/keywords/rebuild");
+
+        var body = await handler.ReadBodyAsync();
+        body.GetProperty("background").GetBoolean().Should().BeTrue();
+        body.GetProperty("leaseTtlSeconds").GetInt32().Should().Be(900);
+        result.Should().NotBeNull();
+        result!.Accepted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetKeywordGraphJobStatusAsync_SendsJobRequest()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+        var jobId = Guid.Parse("11111111-2222-3333-4444-555555555555");
+
+        var status = await sut.GetKeywordGraphJobStatusAsync(jobId);
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Get);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be($"/api/v1/knowledge/keywords/jobs/{jobId:D}");
+        status.Should().NotBeNull();
+        status!.JobId.Should().Be(jobId);
+    }
+
+    [Fact]
     public async Task ClassifyKeywordsAsync_SendsProjectContextBody()
     {
         var handler = new CapturingHandler();
@@ -181,24 +224,49 @@ public sealed class CodeMeridianClientTests
         body.GetProperty("projectContext").GetString().Should().Be("CodeMeridian");
     }
 
-    private sealed class CapturingHandler : HttpMessageHandler
-    {
-        public HttpRequestMessage? Request { get; private set; }
-        private string? _body;
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        private sealed class CapturingHandler : HttpMessageHandler
         {
-            Request = request;
-            _body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+            public HttpRequestMessage? Request { get; private set; }
+            private string? _body;
 
-            return new HttpResponseMessage(HttpStatusCode.Created)
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
-                Content = request.RequestUri!.AbsolutePath == "/api/v1/status/version"
-                    ? JsonContent.Create(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2))
-                    : JsonContent.Create(new DoctorStatusResponse(
-                        "My Project",
-                        true,
-                        1,
+                Request = request;
+                _body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+
+                return new HttpResponseMessage(HttpStatusCode.Created)
+                {
+                    Content = request.RequestUri!.AbsolutePath == "/api/v1/status/version"
+                        ? JsonContent.Create(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2))
+                        : request.RequestUri!.AbsolutePath.StartsWith("/api/v1/knowledge/keywords/jobs/", StringComparison.Ordinal)
+                            ? JsonContent.Create(new KeywordGraphJobStatusResponse(
+                                Guid.Parse("11111111-2222-3333-4444-555555555555"),
+                                "rebuild",
+                                "CodeMeridian",
+                                "Completed",
+                                DateTimeOffset.Parse("2026-06-17T10:00:00Z"),
+                                DateTimeOffset.Parse("2026-06-17T10:30:00Z"),
+                                DateTimeOffset.Parse("2026-06-17T10:05:00Z"),
+                                "done",
+                                null))
+                            : request.RequestUri!.AbsolutePath.StartsWith("/api/v1/knowledge/keywords/", StringComparison.Ordinal)
+                                ? JsonContent.Create(new KeywordGraphJobSubmissionResponse(
+                                    true,
+                                    "Started",
+                                    new KeywordGraphJobStatusResponse(
+                                        Guid.Parse("11111111-2222-3333-4444-555555555555"),
+                                        "rebuild",
+                                        "CodeMeridian",
+                                        "Running",
+                                        DateTimeOffset.Parse("2026-06-17T10:00:00Z"),
+                                        DateTimeOffset.Parse("2026-06-17T10:30:00Z"),
+                                        null,
+                                        null,
+                                        null)))
+                        : JsonContent.Create(new DoctorStatusResponse(
+                            "My Project",
+                            true,
+                            1,
                         2,
                         3,
                         4,

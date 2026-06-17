@@ -21,6 +21,7 @@ public static class KnowledgeApiEndpoints
         group.MapPost("/documents", IngestDocument);
         group.MapPost("/keywords/rebuild", RebuildKeywordGraph);
         group.MapPost("/keywords/classify", ClassifyKeywords);
+        group.MapGet("/keywords/jobs/{jobId:guid}", GetKeywordJobStatus);
         group.MapDelete("/project/{projectContext}/configuration", DeleteConfiguration);
         group.MapDelete("/project/{projectContext}/diagnostics", DeleteDiagnostics);
         group.MapDelete("/project/{projectContext}/files/{**filePath}", DeleteProjectFile);
@@ -130,8 +131,17 @@ public static class KnowledgeApiEndpoints
     private static async Task<IResult> RebuildKeywordGraph(
         RebuildKeywordGraphRequest req,
         IKeywordGraphService keywordGraphService,
+        IKeywordGraphJobService keywordJobService,
         CancellationToken ct)
     {
+        if (req.Background)
+        {
+            var job = await keywordJobService.StartRebuildAsync(req.ProjectContext, req.LeaseTtlSeconds is null ? null : TimeSpan.FromSeconds(req.LeaseTtlSeconds.Value), ct);
+            return job.Accepted
+                ? Results.Accepted($"/api/v1/knowledge/keywords/jobs/{job.Job.JobId:D}", job)
+                : Results.Conflict(job);
+        }
+
         var result = await keywordGraphService.RebuildKeywordGraphAsync(req.ProjectContext, ct);
         return Results.Ok(new KeywordRebuildResponse(result));
     }
@@ -139,10 +149,28 @@ public static class KnowledgeApiEndpoints
     private static async Task<IResult> ClassifyKeywords(
         ClassifyKeywordsRequest req,
         IKeywordGraphService keywordGraphService,
+        IKeywordGraphJobService keywordJobService,
         CancellationToken ct)
     {
+        if (req.Background)
+        {
+            var job = await keywordJobService.StartClassifyAsync(req.ProjectContext, req.LeaseTtlSeconds is null ? null : TimeSpan.FromSeconds(req.LeaseTtlSeconds.Value), ct);
+            return job.Accepted
+                ? Results.Accepted($"/api/v1/knowledge/keywords/jobs/{job.Job.JobId:D}", job)
+                : Results.Conflict(job);
+        }
+
         var result = await keywordGraphService.ClassifyKeywordsAsync(req.ProjectContext, ct);
         return Results.Ok(new KeywordClassificationResponse(result));
+    }
+
+    private static async Task<IResult> GetKeywordJobStatus(
+        Guid jobId,
+        IKeywordGraphJobService keywordJobService,
+        CancellationToken ct)
+    {
+        var status = await keywordJobService.GetStatusAsync(jobId, ct);
+        return status is null ? Results.NotFound() : Results.Ok(status);
     }
 
     private static async Task<IResult> DeleteProject(
@@ -341,8 +369,8 @@ internal sealed record IngestDocumentRequest(
     string? RelatedNodeIdsCsv = null,
     string? RelatedDocumentIdsCsv = null);
 
-internal sealed record RebuildKeywordGraphRequest(string? ProjectContext = null);
-internal sealed record ClassifyKeywordsRequest(string? ProjectContext = null);
+internal sealed record RebuildKeywordGraphRequest(string? ProjectContext = null, bool Background = false, int? LeaseTtlSeconds = null);
+internal sealed record ClassifyKeywordsRequest(string? ProjectContext = null, bool Background = false, int? LeaseTtlSeconds = null);
 
 internal sealed record EmbeddingRequest(string Text);
 

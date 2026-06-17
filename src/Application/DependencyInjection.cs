@@ -37,10 +37,12 @@ public static class DependencyInjection
         services.AddSingleton<IExtensionRegistry, ExtensionRegistry>();
         services.AddSingleton<IIndexedFileRoleClassifier, ConfiguredIndexedFileRoleClassifier>();
         services.AddSingleton<IAnalysisProfilePolicy, DefaultAnalysisProfilePolicy>();
+        services.AddSingleton(TimeProvider.System);
         services.AddTransient<ICodebaseQueryService, CodebaseQueryService>();
         services.AddTransient<ICodebaseStatusService, CodebaseStatusService>();
         services.AddSingleton<IKeywordExtractionService, DefaultKeywordExtractionService>();
         services.AddTransient<IKeywordGraphService, KeywordGraphService>();
+        services.AddSingleton<IKeywordGraphJobService, KeywordGraphJobService>();
 
         return services;
     }

@@ -47,6 +47,10 @@ internal sealed record KeywordCommandOptions(
     string? Path,
     string? Project,
     string? CodeMeridianUrl,
+    bool Background = false,
+    bool Wait = false,
+    int? LeaseTtlSeconds = null,
+    Guid? JobId = null,
     KeywordCommandAction Action = KeywordCommandAction.Rebuild);
 
 internal sealed record ConfigurationCommandOptions(
@@ -57,5 +61,6 @@ internal sealed record ConfigurationCommandOptions(
 internal enum KeywordCommandAction
 {
     Rebuild = 0,
-    Classify = 1
+    Classify = 1,
+    Status = 2
 }

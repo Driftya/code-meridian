@@ -221,6 +221,24 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<KeywordGraphJobSubmissionResponse?> StartRebuildKeywordGraphAsync(
+        string? projectContext = null,
+        int? leaseTtlSeconds = null,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.PostAsJsonAsync(
+            "/api/v1/knowledge/keywords/rebuild",
+            new
+            {
+                ProjectContext = projectContext,
+                Background = true,
+                LeaseTtlSeconds = leaseTtlSeconds
+            },
+            cancellationToken);
+
+        return await ReadJobSubmissionResponseAsync(response, cancellationToken);
+    }
+
     public async Task ClassifyKeywordsAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
@@ -234,6 +252,50 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
             cancellationToken);
 
         response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<KeywordGraphJobSubmissionResponse?> StartClassifyKeywordsAsync(
+        string? projectContext = null,
+        int? leaseTtlSeconds = null,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.PostAsJsonAsync(
+            "/api/v1/knowledge/keywords/classify",
+            new
+            {
+                ProjectContext = projectContext,
+                Background = true,
+                LeaseTtlSeconds = leaseTtlSeconds
+            },
+            cancellationToken);
+
+        return await ReadJobSubmissionResponseAsync(response, cancellationToken);
+    }
+
+    public async Task<KeywordGraphJobStatusResponse?> GetKeywordGraphJobStatusAsync(
+        Guid jobId,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.GetAsync(
+            $"/api/v1/knowledge/keywords/jobs/{jobId:D}",
+            cancellationToken);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<KeywordGraphJobStatusResponse>(cancellationToken: cancellationToken);
+    }
+
+    private static async Task<KeywordGraphJobSubmissionResponse?> ReadJobSubmissionResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var body = await response.Content.ReadFromJsonAsync<KeywordGraphJobSubmissionResponse>(cancellationToken: cancellationToken);
+        if (body is null)
+            return null;
+
+        return body with { StatusCode = response.StatusCode };
     }
 
     private sealed record EmbeddingResponse(float[] Embedding, string ProviderName, int Dimensions);
@@ -251,4 +313,23 @@ public sealed record DoctorStatusResponse(
     bool EmbeddingsEnabled,
     string EmbeddingProvider,
     int EmbeddingDimensions,
+    string? Error);
+
+public sealed record KeywordGraphJobSubmissionResponse(
+    bool Accepted,
+    string Message,
+    KeywordGraphJobStatusResponse Job)
+{
+    public System.Net.HttpStatusCode StatusCode { get; init; }
+}
+
+public sealed record KeywordGraphJobStatusResponse(
+    Guid JobId,
+    string Operation,
+    string? ProjectContext,
+    string State,
+    DateTimeOffset StartedAt,
+    DateTimeOffset ExpiresAt,
+    DateTimeOffset? CompletedAt,
+    string? Summary,
     string? Error);

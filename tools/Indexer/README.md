@@ -26,6 +26,8 @@ codemeridian keywords --project MyApp
 codemeridian keywords rebuild --project MyApp
 codemeridian keywords index --project MyApp
 codemeridian keywords classify --project MyApp
+codemeridian keywords rebuild --project MyApp --background
+codemeridian keywords status --job-id 11111111-2222-3333-4444-555555555555
 codemeridian config rebuild --project MyApp
 codemeridian index . --skip-csharp --skip-docs --skip-diagnostics
 codemeridian index . --skip-config
@@ -81,6 +83,9 @@ codemeridian check-drift --project CodeMeridian --fail-on high
 - Use `codemeridian keywords rebuild --project <name>` when you want an explicit maintenance command name.
 - Use `codemeridian keywords index --project <name>` if you prefer `index` terminology; it is an alias of `rebuild`.
 - Use `codemeridian keywords classify --project <name>` when you only want to classify existing derived keywords without rebuilding relationships.
+- Use `codemeridian keywords rebuild --project <name> --background` or `codemeridian keywords classify --project <name> --background` when you want the job to start and return immediately with a job id.
+- Use `codemeridian keywords rebuild --project <name> --background --wait` when you want to start the job in the background but keep the CLI attached until it completes.
+- Use `codemeridian keywords status --job-id <id>` when you want to verify whether a background keyword job finished, failed, or expired.
 - Use `--allow-repo-scripts` only on trusted repos when you want `dotnet build` and repo lint commands to run.
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
 - Use `codemeridian init .` to create or refresh `meridian.json`, `.vscode/mcp.json`, and `.codex/config.toml` for a project. When `meridian.json` already exists, `init` merges missing defaults, bumps the config `version`, and writes `meridian.json.bak` before replacing the file. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.

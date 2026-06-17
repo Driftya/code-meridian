@@ -165,43 +165,79 @@ internal sealed class RootCommandFactory(
         var rebuildCommand = new Command("rebuild", "Rebuild the derived keyword graph for one project or for all indexed projects.");
         rebuildCommand.Aliases.Add("index");
         var classifyCommand = new Command("classify", "Classify derived keywords without rebuilding the keyword graph relationships.");
+        var statusCommand = new Command("status", "Check the status of a keyword rebuild or classification job.");
 
         var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults. Defaults to the current directory." };
         var projectOption = new Option<string?>("--project") { Description = "Project context name. Omit to rebuild for all indexed projects." };
         var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
         urlOption.Aliases.Add("--CodeMeridian");
+        var jobIdOption = new Option<Guid>("--job-id") { Description = "Keyword job id to check with the status command." };
+        var rebuildBackgroundOption = new Option<bool>("--background") { Description = "Start the rebuild job in the background and return a job id immediately." };
+        var rebuildWaitOption = new Option<bool>("--wait") { Description = "Wait until the rebuild job finishes before returning." };
+        var rebuildTtlOption = new Option<int?>("--ttl-seconds") { Description = "Lease TTL for the background job lock in seconds. Defaults to 1800." };
+        var classifyBackgroundOption = new Option<bool>("--background") { Description = "Start the classification job in the background and return a job id immediately." };
+        var classifyWaitOption = new Option<bool>("--wait") { Description = "Wait until the classification job finishes before returning." };
+        var classifyTtlOption = new Option<int?>("--ttl-seconds") { Description = "Lease TTL for the background job lock in seconds. Defaults to 1800." };
 
         rebuildCommand.Add(pathArgument);
         rebuildCommand.Add(projectOption);
         rebuildCommand.Add(urlOption);
+        rebuildCommand.Add(rebuildBackgroundOption);
+        rebuildCommand.Add(rebuildWaitOption);
+        rebuildCommand.Add(rebuildTtlOption);
 
         rebuildCommand.SetAction(async parseResult => await keywordCommand.RunAsync(new KeywordCommandOptions(
             parseResult.GetValue(pathArgument),
             parseResult.GetValue(projectOption),
             parseResult.GetValue(urlOption),
-            KeywordCommandAction.Rebuild)));
+            Background: parseResult.GetValue(rebuildBackgroundOption),
+            Wait: parseResult.GetValue(rebuildWaitOption),
+            LeaseTtlSeconds: parseResult.GetValue(rebuildTtlOption),
+            Action: KeywordCommandAction.Rebuild)));
 
         classifyCommand.Add(pathArgument);
         classifyCommand.Add(projectOption);
         classifyCommand.Add(urlOption);
+        classifyCommand.Add(classifyBackgroundOption);
+        classifyCommand.Add(classifyWaitOption);
+        classifyCommand.Add(classifyTtlOption);
 
         classifyCommand.SetAction(async parseResult => await keywordCommand.RunAsync(new KeywordCommandOptions(
             parseResult.GetValue(pathArgument),
             parseResult.GetValue(projectOption),
             parseResult.GetValue(urlOption),
-            KeywordCommandAction.Classify)));
+            Background: parseResult.GetValue(classifyBackgroundOption),
+            Wait: parseResult.GetValue(classifyWaitOption),
+            LeaseTtlSeconds: parseResult.GetValue(classifyTtlOption),
+            Action: KeywordCommandAction.Classify)));
+
+        statusCommand.Add(pathArgument);
+        statusCommand.Add(projectOption);
+        statusCommand.Add(urlOption);
+        statusCommand.Add(jobIdOption);
+
+        statusCommand.SetAction(async parseResult => await keywordCommand.RunAsync(new KeywordCommandOptions(
+            parseResult.GetValue(pathArgument),
+            parseResult.GetValue(projectOption),
+            parseResult.GetValue(urlOption),
+            Background: false,
+            Wait: false,
+            LeaseTtlSeconds: null,
+            JobId: parseResult.GetRequiredValue(jobIdOption),
+            Action: KeywordCommandAction.Status)));
 
         command.Add(pathArgument);
         command.Add(projectOption);
         command.Add(urlOption);
         command.Add(rebuildCommand);
         command.Add(classifyCommand);
+        command.Add(statusCommand);
 
         command.SetAction(async parseResult => await keywordCommand.RunAsync(new KeywordCommandOptions(
             parseResult.GetValue(pathArgument),
             parseResult.GetValue(projectOption),
             parseResult.GetValue(urlOption),
-            KeywordCommandAction.Rebuild)));
+            Action: KeywordCommandAction.Rebuild)));
 
         return command;
     }
