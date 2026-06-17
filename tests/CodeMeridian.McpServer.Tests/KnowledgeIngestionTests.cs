@@ -99,6 +99,27 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task CodebaseTools_SuggestResponsibilitySlicesAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.SuggestResponsibilitySlicesAsync("CodebaseQueryService", "CodeMeridian", 4, true, false, true, false, Arg.Any<CancellationToken>())
+            .Returns("slices");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.SuggestResponsibilitySlicesAsync(
+            "CodebaseQueryService",
+            "CodeMeridian",
+            4,
+            includeNamespacePlan: true,
+            includeTestPlan: false,
+            includeMigrationSteps: true,
+            includeSourceSnippets: false);
+
+        result.Should().Be("slices");
+        await queryService.Received(1).SuggestResponsibilitySlicesAsync("CodebaseQueryService", "CodeMeridian", 4, true, false, true, false, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task KnowledgeTools_IngestDocumentAsync_ForwardsWeakMentionMetadata()
     {
         var graph = Substitute.For<ICodeGraphRepository>();

@@ -419,6 +419,32 @@ Results include:
 What tightly connected groups look like good extraction candidates in payments?
 ```
 
+### `suggest_responsibility_slices`
+
+Suggests responsibility-based extraction slices for a large class or service.
+
+The first deterministic slice uses existing graph evidence:
+
+- methods contained by the target class or in the same indexed file
+- shared downstream dependencies
+- workflow callers such as MCP tools, endpoints, commands, controllers, and CLI surfaces
+- related tests from the test-shield surface
+- documentation matches from the knowledge store
+- current folder and namespace patterns for the target
+
+Results include:
+
+- recommended folder and namespace root
+- candidate service and interface names per slice
+- methods to move
+- related tests or missing-test notes
+- migration strategy: facade-first, direct use-case replacement, or defer extraction
+- warnings for stale graph data and architecture-boundary risks
+
+```text
+Suggest responsibility slices for CodebaseQueryService.
+```
+
 ### `resolve_exact_symbol`
 
 Resolves a symbol, file path, and optional line hint to canonical CodeMeridian node IDs. Use it when graph search found the right file or area but an implementation step needs an exact method/class/interface ID for `get_context_for_editing`, `find_impact`, or `build_minimal_context`.

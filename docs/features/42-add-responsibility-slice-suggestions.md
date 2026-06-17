@@ -1,6 +1,6 @@
 # Add Responsibility Slice Suggestions
 
-Status: pending
+Status: implemented
 Priority: P2
 Feature: `suggest_responsibility_slices`
 

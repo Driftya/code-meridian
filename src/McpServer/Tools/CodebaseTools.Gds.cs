@@ -71,6 +71,37 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.SuggestExtractionsAsync(projectContext, limit, cancellationToken);
 
+    [McpServerTool(Name = "suggest_responsibility_slices")]
+    [Description(
+        "Suggest responsibility-based extraction slices for a large class or service. " +
+        "Clusters indexed methods with graph evidence from shared dependencies, workflow callers, tests, docs, and existing namespace/folder patterns. " +
+        "Returns folder, namespace, service, test, and migration recommendations without editing files.")]
+    public Task<string> SuggestResponsibilitySlicesAsync(
+        [Description("Class or service name to analyze, e.g. 'CodebaseQueryService'.")]
+        string target,
+        [Description("Project name to scope the analysis. Omit to analyse all projects.")]
+        string? projectContext = null,
+        [Description("Maximum number of responsibility slices to return. Default 6.")]
+        int maxSlices = 6,
+        [Description("Include recommended folder and namespace plan. Default true.")]
+        bool includeNamespacePlan = true,
+        [Description("Include related-test and missing-test notes. Default true.")]
+        bool includeTestPlan = true,
+        [Description("Include facade/direct/defer migration steps. Default true.")]
+        bool includeMigrationSteps = true,
+        [Description("Include source snippets when supported. Default false.")]
+        bool includeSourceSnippets = false,
+        CancellationToken cancellationToken = default) =>
+        queryService.SuggestResponsibilitySlicesAsync(
+            target,
+            projectContext,
+            maxSlices,
+            includeNamespacePlan,
+            includeTestPlan,
+            includeMigrationSteps,
+            includeSourceSnippets,
+            cancellationToken);
+
     [McpServerTool(Name = "find_similar_nodes")]
     [Description(
         "Find code nodes semantically similar to the given node using native Neo4j vector embeddings. " +
