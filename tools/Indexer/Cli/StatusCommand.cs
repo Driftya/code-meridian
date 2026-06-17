@@ -67,6 +67,33 @@ internal sealed class StatusCommand
         return SeverityAtLeast(status.GraphDrift, failOn) ? 2 : 0;
     }
 
+    public async Task<int> RunReportAsync(
+        string? project,
+        string codeMeridianUrl,
+        string? apiKey)
+    {
+        using var httpClient = _httpClientFactory(codeMeridianUrl, apiKey);
+        var client = new CodeMeridianClient(httpClient);
+
+        try
+        {
+            var report = await client.GetArchitectureReportAsync(project);
+            if (string.IsNullOrWhiteSpace(report))
+            {
+                PrintUnreachable("CodeMeridian report", "backend returned an empty or non-success response.");
+                return 1;
+            }
+
+            Console.WriteLine(report.TrimEnd());
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            PrintUnreachable("CodeMeridian report", ex.Message);
+            return 1;
+        }
+    }
+
     public async Task<int> RunVersionAsync(string codeMeridianUrl, string? apiKey)
     {
         var toolVersion = CodeMeridianVersionReader.ReadFrom(typeof(StatusCommand).Assembly, "CodeMeridian.Indexer");

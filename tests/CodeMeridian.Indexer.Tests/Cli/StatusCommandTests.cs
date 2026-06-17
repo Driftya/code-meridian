@@ -69,6 +69,36 @@ public sealed class StatusCommandTests
         }
     }
 
+    [Fact]
+    public async Task RunReportAsync_WhenServerResponds_PrintsReport()
+    {
+        var output = new StringWriter();
+        var originalOut = Console.Out;
+        Console.SetOut(output);
+
+        try
+        {
+            var sut = new StatusCommand((_, _) => new HttpClient(new StubHandler(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("# Architecture Weather Report\n\n**Weather:** Clear")
+            }))
+            {
+                BaseAddress = new Uri("http://localhost")
+            });
+
+            var exitCode = await sut.RunReportAsync("CodeMeridian", "http://localhost", null);
+
+            exitCode.Should().Be(0);
+            output.ToString().Should().Contain("# Architecture Weather Report");
+            output.ToString().Should().Contain("**Weather:** Clear");
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            output.Dispose();
+        }
+    }
+
     private sealed class StubHandler(HttpResponseMessage response) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>

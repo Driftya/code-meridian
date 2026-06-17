@@ -35,6 +35,7 @@ codemeridian index . --watch
 codemeridian init .
 codemeridian serve --no-start
 codemeridian doctor --project CodeMeridian
+codemeridian report --project CodeMeridian
 codemeridian check-drift --project CodeMeridian --fail-on high
 codemeridian evaluate-session . --project MyApp --session .meridian/sessions/session.jsonl
 ```
@@ -54,6 +55,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Can read `configurationFiles` from `meridian.json` to control which config file names or wildcard patterns are indexed.
 - Repo-controlled build and lint diagnostics are opt-in via `--allow-repo-scripts`.
 - Can query the backend for a `doctor` status report without talking to Neo4j directly from the client.
+- Can print an architecture weather report with graph counts, risks, bridge nodes, coverage gaps, and freshness.
 - Can verify graph drift with `codemeridian check-drift` or `codemeridian index --verify`.
 - Can evaluate whether CodeMeridian helped an implementation session by comparing provider-neutral session evidence with git changes.
 - Can create local MCP client config and start the backend stack with `codemeridian serve`.
@@ -76,6 +78,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Use `--project <name>` when you want a stable project context.
 - Use `CodeMeridian_Project` in `.env` when you want the same project context applied automatically.
 - Use `codemeridian doctor --project <name>` to ask the backend for graph health, drift, and counts.
+- Use `codemeridian report --project <name>` for a compact architecture weather report.
 - Use `codemeridian check-drift --project <name> --fail-on high` for a drift gate that exits non-zero in CI when the graph is too stale.
 - Use `codemeridian evaluate-session --project <name>` to read the newest `.meridian/sessions/*.jsonl` evidence file and report whether CodeMeridian suggestions matched changed files and tests. Pass `--session <file-or-directory>` to choose evidence explicitly and `--base <git-ref>` to change the diff base. See [Evaluating Session Usefulness](../../docs/evaluate.md) for the step-by-step workflow.
 - Use `codemeridian index --verify --project <name>` when you want the same drift gate as part of an indexer workflow.

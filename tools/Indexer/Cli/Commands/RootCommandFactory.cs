@@ -32,6 +32,7 @@ internal sealed class RootCommandFactory(
         root.Add(CreateConfigurationCommand());
         root.Add(CreateServeCommand());
         root.Add(CreateDoctorCommand());
+        root.Add(CreateReportCommand());
         root.Add(CreateVersionCommand());
         root.Add(CreateCheckDriftCommand());
         root.Add(CreateEvaluateSessionCommand());
@@ -330,6 +331,29 @@ internal sealed class RootCommandFactory(
             var project = configurationService.ResolveProject(context, parseResult.GetValue(projectOption));
             var codeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, parseResult.GetValue(urlOption));
             return await statusCommand.RunDoctorAsync(project, codeMeridianUrl, context.ApiKey);
+        });
+
+        return command;
+    }
+
+    private Command CreateReportCommand()
+    {
+        var command = new Command("report", "Show an architecture weather report for a project.");
+        var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults." };
+        var projectOption = new Option<string?>("--project") { Description = "Project context name." };
+        var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
+        urlOption.Aliases.Add("--CodeMeridian");
+
+        command.Add(pathArgument);
+        command.Add(projectOption);
+        command.Add(urlOption);
+
+        command.SetAction(async parseResult =>
+        {
+            var context = configurationService.CreateContext(parseResult.GetValue(pathArgument));
+            var project = configurationService.ResolveProject(context, parseResult.GetValue(projectOption));
+            var codeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, parseResult.GetValue(urlOption));
+            return await statusCommand.RunReportAsync(project, codeMeridianUrl, context.ApiKey);
         });
 
         return command;

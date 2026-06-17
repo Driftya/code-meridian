@@ -41,6 +41,7 @@ codemeridian serve
 codemeridian index . --dry-run
 codemeridian index . --clear
 codemeridian doctor --project CodeMeridian
+codemeridian report --project CodeMeridian
 codemeridian check-drift --project CodeMeridian --fail-on high
 codemeridian clear --project CodeMeridian
 ```
@@ -118,6 +119,12 @@ Check backend health and graph counts:
 
 ```powershell
 codemeridian doctor --project CodeMeridian
+```
+
+Generate an architecture weather report:
+
+```powershell
+codemeridian report --project CodeMeridian
 ```
 
 Verify graph drift before implementation or in CI:
@@ -240,6 +247,19 @@ Diagnostics are stored as `Diagnostic` code nodes with severity/code, source too
 - whether embeddings are enabled and which provider is active
 
 It does not talk to Neo4j directly from the client. The backend does the check so the result reflects the actual running MCP service.
+
+## `codemeridian report`
+
+`codemeridian report` asks the backend for a compact architecture weather report. It is distinct from `doctor`: `doctor` checks operational health, while `report` summarizes architecture signals from the graph.
+
+The report includes:
+
+- code-node and call-relationship counts
+- namespace cycles
+- architecture violations
+- bridge nodes from betweenness centrality when GDS is available
+- untested methods/classes from coverage-gap analysis
+- graph freshness confidence
 
 ## `codemeridian check-drift`
 

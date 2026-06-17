@@ -124,6 +124,25 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task GetArchitectureReportAsync_SendsProjectContextQuery()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var report = await sut.GetArchitectureReportAsync("My Project");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Get);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/status/report");
+        handler.Request.RequestUri.Query.Should().Contain("projectContext=My%20Project");
+        report.Should().Contain("# Architecture Weather Report");
+    }
+
+    [Fact]
     public async Task GetVersionAsync_SendsVersionRequest()
     {
         var handler = new CapturingHandler();
@@ -198,6 +217,8 @@ public sealed class CodeMeridianClientTests
                 {
                     Content = request.RequestUri!.AbsolutePath == "/api/v1/status/version"
                         ? JsonContent.Create(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2))
+                        : request.RequestUri!.AbsolutePath == "/api/v1/status/report"
+                            ? new StringContent("# Architecture Weather Report")
                         : request.RequestUri!.AbsolutePath.StartsWith("/api/v1/knowledge/keywords/jobs/", StringComparison.Ordinal)
                             ? JsonContent.Create(new KeywordGraphJobStatusResponse(
                                 Guid.Parse("11111111-2222-3333-4444-555555555555"),

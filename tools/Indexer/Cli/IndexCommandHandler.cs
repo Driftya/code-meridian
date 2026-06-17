@@ -461,6 +461,7 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine("  codemeridian init --global");
         Console.WriteLine("  codemeridian serve");
         Console.WriteLine("  codemeridian doctor --project MyProject");
+        Console.WriteLine("  codemeridian report --project MyProject");
         Console.WriteLine("  codemeridian check-drift --project MyProject --fail-on high");
         Console.WriteLine("  codemeridian clear --project MyProject");
         Console.WriteLine("  codemeridian clear --all-code-graph");

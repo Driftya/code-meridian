@@ -25,6 +25,21 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         return await response.Content.ReadFromJsonAsync<DoctorStatusResponse>(cancellationToken: cancellationToken);
     }
 
+    public async Task<string?> GetArchitectureReportAsync(
+        string? projectContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        var path = "/api/v1/status/report";
+        if (!string.IsNullOrWhiteSpace(projectContext))
+            path += $"?projectContext={Uri.EscapeDataString(projectContext)}";
+
+        var response = await httpClient.GetAsync(path, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
     public async Task<CodeMeridianComponentVersion?> GetVersionAsync(CancellationToken cancellationToken = default)
     {
         var response = await httpClient.GetAsync("/api/v1/status/version", cancellationToken);
