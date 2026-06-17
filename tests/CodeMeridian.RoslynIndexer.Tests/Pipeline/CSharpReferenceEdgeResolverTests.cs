@@ -32,13 +32,13 @@ public sealed class CSharpReferenceEdgeResolverTests
     }
 
     [Fact]
-    public void Resolve_FallsBackToTypeNameForRecordAndStructTargets()
+    public void Resolve_FallsBackToTypeNameForClassAndStructTargets()
     {
         var nodes = new List<IngestNodeRequest>
         {
             new("Project::Struct::Demo.Box", "Box", "Struct", "Demo", "src/Box.cs", 10, null),
-            new("Project::RecordStruct::Demo.Size", "Size", "RecordStruct", "Demo", "src/Size.cs", 10, null),
-            new("Project::RecordClass::Demo.Point", "Point", "RecordClass", "Demo", "src/Point.cs", 10, null)
+            new("Project::Struct::Demo.Size", "Size", "Struct", "Demo", "src/Size.cs", 10, null),
+            new("Project::Class::Demo.Point", "Point", "Class", "Demo", "src/Point.cs", 10, null)
         };
         var edges = new List<IngestEdgeRequest>
         {
@@ -50,9 +50,9 @@ public sealed class CSharpReferenceEdgeResolverTests
 
         result.Should().Contain(edge =>
             edge.SourceId == "Project::Struct::Demo.Box"
-            && edge.TargetId == "Project::RecordStruct::Demo.Size");
+            && edge.TargetId == "Project::Struct::Demo.Size");
         result.Should().Contain(edge =>
             edge.SourceId == "Project::Struct::Demo.Box"
-            && edge.TargetId == "Project::RecordClass::Demo.Point");
+            && edge.TargetId == "Project::Class::Demo.Point");
     }
 }

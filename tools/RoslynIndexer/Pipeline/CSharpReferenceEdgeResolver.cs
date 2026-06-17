@@ -10,12 +10,12 @@ internal static class CSharpReferenceEdgeResolver
             .GroupBy(n => n.Id, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         var typeCandidates = nodes
-            .Where(n => n.Type is "Class" or "Interface" or "Enum" or "Struct" or "RecordClass" or "RecordStruct" or "Delegate")
+            .Where(n => n.Type is "Class" or "Interface" or "Enum" or "Struct" or "Delegate")
             .Select(n => new TypeCandidate(n.Id, n.Type, n.Namespace, n.FilePath, n.Name, ShortTypeName(n.Id)))
             .GroupBy(n => (n.Type, n.Name), StringTupleComparer.OrdinalType)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringTupleComparer.OrdinalType);
         var typeCandidatesByName = nodes
-            .Where(n => n.Type is "Class" or "Interface" or "Enum" or "Struct" or "RecordClass" or "RecordStruct" or "Delegate")
+            .Where(n => n.Type is "Class" or "Interface" or "Enum" or "Struct" or "Delegate")
             .Select(n => new TypeCandidate(n.Id, n.Type, n.Namespace, n.FilePath, n.Name, ShortTypeName(n.Id)))
             .GroupBy(n => n.Name, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);

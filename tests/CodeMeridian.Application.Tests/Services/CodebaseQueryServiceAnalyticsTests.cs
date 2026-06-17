@@ -31,6 +31,14 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         return (new CodebaseQueryService(graph, vector, Options.Create(options)), graph);
     }
 
+    private static (CodebaseQueryService Sut, ICodeGraphRepository Graph, IEmbeddingProvider Embeddings) BuildWithEmbeddings()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var embeddings = Substitute.For<IEmbeddingProvider>();
+        return (new CodebaseQueryService(graph, vector, embeddings), graph, embeddings);
+    }
+
     private static CodeNode Node(
         string id,
         string name,
@@ -1235,6 +1243,39 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("RelatedHelper");
         result.Should().Contain("74.0%");
         result.Should().Contain("Semantic similarity");
+    }
+
+    [Fact]
+    public async Task FindHybridSearchAsync_WithResults_UsesEmbeddingAndGraphConstraints()
+    {
+        var (sut, graph, embeddings) = BuildWithEmbeddings();
+        embeddings.IsAvailableAsync(Arg.Any<CancellationToken>()).Returns(true);
+        var expectedEmbedding = new[] { 0.1f, 0.2f, 0.3f, 0.4f };
+        embeddings.GenerateEmbeddingAsync("retry policy", Arg.Any<CancellationToken>())
+            .Returns(expectedEmbedding);
+        graph.FindHybridMatchesAsync(
+                Arg.Is<float[]>(embedding => embedding.SequenceEqual(expectedEmbedding)),
+                "OrderService",
+                3,
+                "Shop",
+                true,
+                10,
+                Arg.Any<CancellationToken>())
+            .Returns([
+                (Node("n1", "RetryPolicy", CodeNodeType.Class, "src/RetryPolicy.cs"), 0.94),
+                (Node("n2", "BackoffHelper", CodeNodeType.Method, "src/BackoffHelper.cs"), 0.82)
+            ]);
+
+        var result = await sut.FindHybridSearchAsync("retry policy", nearNodeId: "OrderService", projectContext: "Shop");
+
+        result.Should().Contain("## Hybrid Semantic Graph Search");
+        result.Should().Contain("retry policy");
+        result.Should().Contain("OrderService");
+        result.Should().Contain("RetryPolicy");
+        result.Should().Contain("94.0%");
+        result.Should().Contain("BackoffHelper");
+        await embeddings.Received(1).GenerateEmbeddingAsync("retry policy", Arg.Any<CancellationToken>());
+        await graph.Received(1).FindHybridMatchesAsync(Arg.Any<float[]>(), "OrderService", 3, "Shop", true, 10, Arg.Any<CancellationToken>());
     }
 
     // ── FindDuplicateCandidatesAsync ─────────────────────────────────────────

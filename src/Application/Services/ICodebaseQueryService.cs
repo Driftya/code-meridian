@@ -24,6 +24,7 @@ public interface ICodebaseQueryService
     Task<string> ResolveExactSymbolAsync(string symbol, string? filePath = null, int? line = null, string? projectContext = null, int limit = 10, CancellationToken cancellationToken = default);
     Task<string> CheckGraphFreshnessAsync(string? query = null, string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
     Task<string> FindGraphDriftAsync(string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
+    Task<string> FindHybridSearchAsync(string query, string? nearNodeId = null, int maxHops = 3, string? projectContext = null, bool excludeTests = true, int limit = 10, CancellationToken cancellationToken = default);
 
     // ── New capabilities ──────────────────────────────────────────────────────
     Task<string> FindDownstreamAsync(string nodeId, int depth = 5, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);

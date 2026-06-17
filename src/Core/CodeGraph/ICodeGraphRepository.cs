@@ -82,6 +82,16 @@ public interface ICodeGraphRepository
     /// <summary>Native vector similarity — find nodes semantically similar to the given node using stored embeddings.</summary>
     Task<IReadOnlyList<(CodeNode Node, double Score)>> FindSimilarToNodeAsync(string nodeId, string? projectContext = null, int topK = 10, CancellationToken cancellationToken = default);
 
+    /// <summary>Hybrid semantic search — rank nodes by query embedding, then constrain results to a graph neighborhood.</summary>
+    Task<IReadOnlyList<(CodeNode Node, double Score)>> FindHybridMatchesAsync(
+        float[] queryEmbedding,
+        string? nearNodeId = null,
+        int maxHops = 3,
+        string? projectContext = null,
+        bool excludeTests = true,
+        int topK = 10,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Find semantically similar method/class pairs that are candidates for duplicate-code review.</summary>
     Task<IReadOnlyList<DuplicateCandidate>> FindDuplicateCandidatesAsync(
         string? projectContext = null,

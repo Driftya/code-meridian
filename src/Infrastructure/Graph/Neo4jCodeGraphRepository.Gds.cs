@@ -146,6 +146,76 @@ public sealed partial class Neo4jCodeGraphRepository
         }
     }
 
+    public async Task<IReadOnlyList<(CodeNode Node, double Score)>> FindHybridMatchesAsync(
+        float[] queryEmbedding,
+        string? nearNodeId = null,
+        int maxHops = 3,
+        string? projectContext = null,
+        bool excludeTests = true,
+        int topK = 10,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        var hops = Math.Clamp(maxHops, 1, 8);
+        IReadOnlyCollection<string>? allowedNodeIds = null;
+        if (!string.IsNullOrWhiteSpace(nearNodeId))
+        {
+            var neighborhoodCypher =
+                "MATCH (anchor:CodeNode {id: $nearNodeId})-[:Calls|Uses|DependsOn*1.." + hops + "]-(node:CodeNode) " +
+                "RETURN DISTINCT node.id AS id";
+
+            var neighborhoodCursor = await session.RunAsync(neighborhoodCypher, new { nearNodeId });
+            var neighborhoodIds = new List<string>();
+            await foreach (var record in neighborhoodCursor.WithCancellation(cancellationToken))
+                neighborhoodIds.Add(record["id"].As<string>());
+            allowedNodeIds = neighborhoodIds;
+        }
+
+        var roleFilter = excludeTests ? "AND coalesce(node.fileRole, 'Unknown') <> 'Test'" : string.Empty;
+
+        var cypher = $"""
+            MATCH (node:CodeNode)
+            WHERE node.embedding IS NOT NULL
+              AND ($projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
+              {roleFilter}
+            WITH node, vector.similarity.cosine(node.embedding, $embedding) AS score
+            RETURN node, score
+            ORDER BY score DESC
+            LIMIT $topKPlus
+            """;
+
+        try
+        {
+            var cursor = await session.RunAsync(cypher, new
+            {
+                embedding = queryEmbedding,
+                nearNodeId,
+                projectContextNormalized = (object?)Normalize(projectContext),
+                topK,
+                topKPlus = topK + 1
+            });
+
+            var results = new List<(CodeNode, double)>();
+            await foreach (var record in cursor.WithCancellation(cancellationToken))
+                results.Add((MapToCodeNode(record["node"].As<INode>()), record["score"].As<double>()));
+
+            if (allowedNodeIds is not null)
+            {
+                var allowedLookup = allowedNodeIds.ToHashSet(StringComparer.Ordinal);
+                results = results.Where(item => allowedLookup.Contains(item.Item1.Id)).ToList();
+            }
+
+            return results;
+        }
+        catch (Exception ex) when (ex.Message.Contains("vector", StringComparison.OrdinalIgnoreCase)
+                                   || ex.Message.Contains("index", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(ex, "Vector index not available. Ingest embeddings via ingest_code_node first.");
+            return [];
+        }
+    }
+
     // ── Private helper ────────────────────────────────────────────────────────
 
     /// <summary>

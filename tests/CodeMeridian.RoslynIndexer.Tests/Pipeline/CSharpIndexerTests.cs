@@ -175,11 +175,11 @@ public sealed class CSharpIndexerTests : IDisposable
 
         usesEdges.Should().Contain(edge =>
             edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Struct::Demo.Box"
-            && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::RecordStruct::Demo.Size");
+            && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::Struct::Demo.Size");
 
         usesEdges.Should().Contain(edge =>
             edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Field::Demo.CapturedPoint"
-            && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::RecordClass::Demo.Point");
+            && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::Class::Demo.Point");
     }
 
     [Fact]

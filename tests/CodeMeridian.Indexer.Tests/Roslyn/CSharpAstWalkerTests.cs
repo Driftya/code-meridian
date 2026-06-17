@@ -43,8 +43,8 @@ public sealed class CSharpAstWalkerTests
         var nodes = ExtractNodes(source, "src/Types.cs");
 
         nodes.Should().Contain(node => node.Type == "Struct" && node.Name == "Point");
-        nodes.Should().Contain(node => node.Type == "RecordClass" && node.Name == "Person");
-        nodes.Should().Contain(node => node.Type == "RecordStruct" && node.Name == "Size");
+        nodes.Should().Contain(node => node.Type == "Class" && node.Name == "Person");
+        nodes.Should().Contain(node => node.Type == "Struct" && node.Name == "Size");
         nodes.Should().Contain(node => node.Type == "Delegate" && node.Name == "Notifier");
     }
 
@@ -133,8 +133,8 @@ public sealed class CSharpAstWalkerTests
         nodes.Should().Contain(node => node.Type == "Indexer" && node.Name == "this(int)");
         nodes.Should().Contain(node => node.Type == "Operator" && node.Name == "operator +(Point,Point)");
         nodes.Should().Contain(node => node.Type == "Operator" && node.Name == "operator explicit(Point)");
-        nodes.Should().Contain(node => node.Type == "RecordClass" && node.Name == "Person");
-        nodes.Should().Contain(node => node.Type == "RecordStruct" && node.Name == "Size");
+        nodes.Should().Contain(node => node.Type == "Class" && node.Name == "Person");
+        nodes.Should().Contain(node => node.Type == "Struct" && node.Name == "Size");
         nodes.Should().Contain(node => node.Type == "Delegate" && node.Name == "Notifier");
         nodes.Should().Contain(node => node.Type == "Method" && node.Name == "Create()");
     }

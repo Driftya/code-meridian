@@ -14,6 +14,7 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
 {
     private readonly ICodeGraphRepository codeGraph;
     private readonly IVectorRepository vectorStore;
+    private readonly IEmbeddingProvider embeddingProvider;
     private readonly CodebaseAnalysisOptions analysisOptions;
     private readonly IIndexedFileRoleClassifier fileRoleClassifier;
     private readonly IAnalysisProfilePolicy analysisProfilePolicy;
@@ -24,6 +25,7 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         : this(
             codeGraph,
             vectorStore,
+            new NoOpEmbeddingProvider(),
             Options.Create(new CodebaseAnalysisOptions()),
             Options.Create(new CodebaseIndexingOptions()),
             new DefaultAnalysisProfilePolicy())
@@ -37,6 +39,7 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         : this(
             codeGraph,
             vectorStore,
+            new NoOpEmbeddingProvider(),
             analysisOptions,
             Options.Create(new CodebaseIndexingOptions()),
             new DefaultAnalysisProfilePolicy())
@@ -46,12 +49,28 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
     public CodebaseQueryService(
         ICodeGraphRepository codeGraph,
         IVectorRepository vectorStore,
+        IEmbeddingProvider embeddingProvider)
+        : this(
+            codeGraph,
+            vectorStore,
+            embeddingProvider,
+            Options.Create(new CodebaseAnalysisOptions()),
+            Options.Create(new CodebaseIndexingOptions()),
+            new DefaultAnalysisProfilePolicy())
+    {
+    }
+
+    public CodebaseQueryService(
+        ICodeGraphRepository codeGraph,
+        IVectorRepository vectorStore,
+        IEmbeddingProvider embeddingProvider,
         IOptions<CodebaseAnalysisOptions> analysisOptions,
         IOptions<CodebaseIndexingOptions> indexingOptions,
         IAnalysisProfilePolicy analysisProfilePolicy)
     {
         this.codeGraph = codeGraph;
         this.vectorStore = vectorStore;
+        this.embeddingProvider = embeddingProvider;
         this.analysisOptions = analysisOptions.Value;
         fileRoleClassifier = new ConfiguredIndexedFileRoleClassifier(indexingOptions);
         this.analysisProfilePolicy = analysisProfilePolicy;

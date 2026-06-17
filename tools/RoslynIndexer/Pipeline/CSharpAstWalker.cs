@@ -72,7 +72,7 @@ internal sealed class CSharpAstWalker(
 
     public override void VisitRecordDeclaration(RecordDeclarationSyntax node)
     {
-        var recordKind = node.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword) ? "RecordStruct" : "RecordClass";
+        var recordKind = node.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword) ? "Struct" : "Class";
         var id = AddTypeNode(recordKind, node.Identifier.Text, node, ExtractXmlSummary(node), node.BaseList);
         var prev = _currentTypeId;
         _currentTypeId = id;

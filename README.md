@@ -205,6 +205,7 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `find_coverage_gaps` | Production code not called by tests |
 | `find_test_shield` | Map direct test protection, indirect shields, and unshielded change-path nodes |
 | `find_similar_nodes` | Find duplicate code patterns (requires embeddings enabled) |
+| `hybrid_search` | Find semantically similar code near a node or subsystem boundary |
 | `find_duplicate_candidates` | Review likely duplicate methods/classes with refactor-risk signals |
 | `find_config_definitions` | Find where a canonical config key is defined or overridden |
 | `find_config_usage` | Find which code reads or binds a canonical config key |

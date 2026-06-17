@@ -310,6 +310,14 @@ Finds semantically similar code nodes using Neo4j vector search. Requires code-n
 Find code similar to PaymentGateway.ChargeAsync.
 ```
 
+### `hybrid_search`
+
+Finds semantically similar code nodes and then filters them to a graph neighborhood around a reference node or subsystem. Tests are excluded by default.
+
+```text
+Find retry policy code near OrderService.
+```
+
 ### `find_duplicate_candidates`
 
 Finds duplicate-code review candidates by comparing embedded method/class nodes. Supports project, namespace, node type, size, similarity, and test-exclusion filters. Results include similarity, size, fan-in risk, and direct test coverage signals.

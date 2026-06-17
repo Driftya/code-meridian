@@ -356,6 +356,64 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
+    public async Task<string> FindHybridSearchAsync(
+        string query,
+        string? nearNodeId = null,
+        int maxHops = 3,
+        string? projectContext = null,
+        bool excludeTests = true,
+        int limit = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await embeddingProvider.IsAvailableAsync(cancellationToken))
+        {
+            return "Hybrid search requires embeddings to be enabled. " +
+                   "Set `Embedding__Enabled=true` and re-index code nodes with embeddings stored on them.";
+        }
+
+        var queryEmbedding = await embeddingProvider.GenerateEmbeddingAsync(query, cancellationToken);
+        if (queryEmbedding is null or { Length: 0 })
+        {
+            return "Hybrid search could not generate a query embedding. " +
+                   "Check the embedding provider configuration and try again.";
+        }
+
+        var results = await codeGraph.FindHybridMatchesAsync(
+            queryEmbedding,
+            nearNodeId,
+            Math.Clamp(maxHops, 1, 8),
+            projectContext,
+            excludeTests,
+            Math.Clamp(limit, 1, 25),
+            cancellationToken);
+
+        if (results.Count == 0)
+        {
+            return "No hybrid-search results found. " +
+                   "Try broadening the graph neighborhood, lowering filters, or indexing more embedded nodes.";
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Hybrid Semantic Graph Search â€” `{query}`");
+        sb.AppendLine($"**{results.Count}** results ranked by embedding similarity and graph proximity.");
+        if (!string.IsNullOrWhiteSpace(nearNodeId))
+            sb.AppendLine($"Anchored near `{nearNodeId}` within {Math.Clamp(maxHops, 1, 8)} hops.");
+        sb.AppendLine();
+        sb.AppendLine("| Similarity | Type | Name | File |");
+        sb.AppendLine("|-----------|------|------|------|");
+
+        foreach (var (node, score) in results)
+        {
+            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "â€”";
+            sb.AppendLine($"| {(score * 100).ToString("F1", CultureInfo.InvariantCulture)}% | {node.Type} | `{node.Name}` | {file} |");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("> Hybrid search uses embeddings for relevance and graph distance for scope. Tests are excluded by default.");
+
+        return sb.ToString();
+    }
+
     public async Task<string> FindDuplicateCandidatesAsync(
         string? projectContext = null,
         string? namespaceFilter = null,

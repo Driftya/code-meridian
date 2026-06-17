@@ -85,6 +85,27 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindSimilarToNodeAsync(nodeId, projectContext, cancellationToken);
 
+    [McpServerTool(Name = "hybrid_search")]
+    [Description(
+        "Find semantically related code nodes using embeddings, then constrain the results to a graph neighborhood. " +
+        "Use this when you want concept matching that stays near a specific subsystem or node. " +
+        "Tests are excluded by default. Requires embeddings to be available and stored on code nodes.")]
+    public Task<string> FindHybridSearchAsync(
+        [Description("Free-text semantic query, e.g. 'retry policy'.")]
+        string query,
+        [Description("Optional node ID that anchors the graph neighborhood, e.g. 'OrderService'.")]
+        string? nearNodeId = null,
+        [Description("Maximum number of graph hops from the anchor node. Default 3.")]
+        int maxHops = 3,
+        [Description("Optional project name to narrow the search.")]
+        string? projectContext = null,
+        [Description("Exclude test files/namespaces by default.")]
+        bool excludeTests = true,
+        [Description("Maximum number of results to return. Default 10.")]
+        int limit = 10,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindHybridSearchAsync(query, nearNodeId, maxHops, projectContext, excludeTests, limit, cancellationToken);
+
     [McpServerTool(Name = "find_duplicate_candidates")]
     [Description(
         "Find duplicate-code review candidates by comparing embedded method/class nodes semantically. " +
