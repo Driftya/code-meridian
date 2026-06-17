@@ -10,10 +10,15 @@ internal static class CSharpReferenceEdgeResolver
             .GroupBy(n => n.Id, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         var typeCandidates = nodes
-            .Where(n => n.Type is "Class" or "Interface" or "Enum")
+            .Where(n => n.Type is "Class" or "Interface" or "Enum" or "Struct" or "RecordClass" or "RecordStruct" or "Delegate")
             .Select(n => new TypeCandidate(n.Id, n.Type, n.Namespace, n.FilePath, n.Name, ShortTypeName(n.Id)))
             .GroupBy(n => (n.Type, n.Name), StringTupleComparer.OrdinalType)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringTupleComparer.OrdinalType);
+        var typeCandidatesByName = nodes
+            .Where(n => n.Type is "Class" or "Interface" or "Enum" or "Struct" or "RecordClass" or "RecordStruct" or "Delegate")
+            .Select(n => new TypeCandidate(n.Id, n.Type, n.Namespace, n.FilePath, n.Name, ShortTypeName(n.Id)))
+            .GroupBy(n => n.Name, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
 
         var resolved = new List<IngestEdgeRequest>(edges.Count);
         foreach (var edge in edges)
@@ -33,7 +38,8 @@ internal static class CSharpReferenceEdgeResolver
             if (!nodesById.TryGetValue(edge.SourceId, out var source) || edge.TargetName is null || edge.TargetType is null)
                 continue;
 
-            if (!typeCandidates.TryGetValue((edge.TargetType, edge.TargetName), out var candidates))
+            if (!typeCandidates.TryGetValue((edge.TargetType, edge.TargetName), out var candidates) &&
+                !typeCandidatesByName.TryGetValue(edge.TargetName, out candidates))
                 continue;
 
             var selected = SelectBestTypeCandidate(source, candidates);

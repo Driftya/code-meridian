@@ -138,6 +138,47 @@ public sealed class CSharpConfigurationUsageExtractorTests : IDisposable
     }
 
     [Fact]
+    public async Task IndexAsync_ResolvesGetRequiredSectionBindings()
+    {
+        var optionsFile = WriteFile(
+            "src/StorageOptions.cs",
+            """
+            namespace Demo;
+
+            public sealed class StorageOptions
+            {
+            }
+            """);
+        var dependencyInjectionFile = WriteFile(
+            "src/DependencyInjection.cs",
+            """
+            namespace Demo;
+
+            public static class DependencyInjection
+            {
+                public static void Add(IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
+                {
+                    services.Configure<StorageOptions>(configuration.GetRequiredSection("Storage"));
+                }
+            }
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([optionsFile, dependencyInjectionFile], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "BindsConfig"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Add(IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::Storage"
+            && HasEdgeProperty(request.Body, "accessPattern", "Configure")
+            && HasEdgeProperty(request.Body, "optionsType", "StorageOptions"));
+    }
+
+    [Fact]
     public async Task IndexAsync_ResolvesInterpolatedSectionNamesFromCodeMeridianSolutionPattern()
     {
         var optionsFile = WriteFile(
@@ -263,5 +304,14 @@ public sealed class CSharpConfigurationUsageExtractorTests : IDisposable
                 Content = JsonContent.Create(new { })
             };
         }
+    }
+
+    private static bool HasEdgeProperty(JsonElement body, string name, string expectedValue)
+    {
+        if (!body.TryGetProperty("properties", out var properties))
+            return false;
+
+        return properties.TryGetProperty(name, out var propertyValue)
+            && string.Equals(propertyValue.GetString(), expectedValue, StringComparison.Ordinal);
     }
 }

@@ -7,6 +7,139 @@ namespace CodeMeridian.Indexer.Tests.Roslyn;
 public sealed class CSharpAstWalkerTests
 {
     [Fact]
+    public void InterfaceStaticAbstractMembers_AreIndexedAndContained()
+    {
+        const string source = """
+            namespace Demo;
+
+            public interface IFactory
+            {
+                static abstract Point Create();
+            }
+            """;
+
+        var (nodes, edges) = ExtractGraph(source, "src/Factory.cs");
+
+        nodes.Should().Contain(node => node.Type == "Interface" && node.Name == "IFactory");
+        nodes.Should().Contain(node => node.Type == "Method" && node.Name == "Create()");
+        edges.Should().Contain(edge =>
+            edge.SourceId == "Project::Interface::Demo.IFactory"
+            && edge.TargetId == "Project::Method::Demo.Create()"
+            && edge.RelationshipType == "Contains");
+    }
+
+    [Fact]
+    public void NewerTypeDeclarations_AreIndexedWithDistinctKinds()
+    {
+        const string source = """
+            namespace Demo;
+
+            public struct Point;
+            public record class Person(string Name);
+            public record struct Size(int Width);
+            public delegate void Notifier(string message);
+            """;
+
+        var nodes = ExtractNodes(source, "src/Types.cs");
+
+        nodes.Should().Contain(node => node.Type == "Struct" && node.Name == "Point");
+        nodes.Should().Contain(node => node.Type == "RecordClass" && node.Name == "Person");
+        nodes.Should().Contain(node => node.Type == "RecordStruct" && node.Name == "Size");
+        nodes.Should().Contain(node => node.Type == "Delegate" && node.Name == "Notifier");
+    }
+
+    [Fact]
+    public void FieldEventIndexerAndOperatorMembers_AreIndexed()
+    {
+        const string source = """
+            namespace Demo;
+
+            public struct Point
+            {
+                public int X;
+                public event System.EventHandler? Changed;
+
+                public event System.EventHandler? ExplicitChanged
+                {
+                    add { }
+                    remove { }
+                }
+
+                public int this[int index] => index;
+                public static Point operator +(Point left, Point right) => left;
+                public static explicit operator int(Point value) => value.X;
+            }
+            """;
+
+        var nodes = ExtractNodes(source, "src/Point.cs");
+
+        nodes.Should().Contain(node => node.Type == "Field" && node.Name == "X");
+        nodes.Should().Contain(node => node.Type == "Event" && node.Name == "Changed");
+        nodes.Should().Contain(node => node.Type == "Event" && node.Name == "ExplicitChanged");
+        nodes.Should().Contain(node => node.Type == "Indexer" && node.Name == "this(int)");
+        nodes.Should().Contain(node => node.Type == "Operator" && node.Name == "operator +(Point,Point)");
+        nodes.Should().Contain(node => node.Type == "Operator" && node.Name == "operator explicit(Point)");
+    }
+
+    [Fact]
+    public void TypeAndMemberDeclarations_AreIndexedForNewerCSharpSyntaxKinds()
+    {
+        const string source = """
+            namespace Demo;
+
+            public struct Point
+            {
+                public int X;
+                public event System.EventHandler? Changed;
+
+                public event System.EventHandler? ExplicitChanged
+                {
+                    add { Raise(); }
+                    remove { }
+                }
+
+                public int this[int index] => index;
+
+                public static Point operator +(Point left, Point right) => left;
+
+                public static explicit operator int(Point value) => value.X;
+
+                public void Raise()
+                {
+                    Helper();
+                }
+
+                private void Helper()
+                {
+                }
+            }
+
+            public record class Person(string Name);
+            public record struct Size(int Width);
+            public delegate void Notifier(string message);
+
+            public interface IFactory
+            {
+                static abstract Point Create();
+            }
+            """;
+
+        var (nodes, edges) = ExtractGraph(source, "src/Features.cs");
+
+        nodes.Should().Contain(node => node.Type == "Struct" && node.Name == "Point");
+        nodes.Should().Contain(node => node.Type == "Field" && node.Name == "X");
+        nodes.Should().Contain(node => node.Type == "Event" && node.Name == "Changed");
+        nodes.Should().Contain(node => node.Type == "Event" && node.Name == "ExplicitChanged");
+        nodes.Should().Contain(node => node.Type == "Indexer" && node.Name == "this(int)");
+        nodes.Should().Contain(node => node.Type == "Operator" && node.Name == "operator +(Point,Point)");
+        nodes.Should().Contain(node => node.Type == "Operator" && node.Name == "operator explicit(Point)");
+        nodes.Should().Contain(node => node.Type == "RecordClass" && node.Name == "Person");
+        nodes.Should().Contain(node => node.Type == "RecordStruct" && node.Name == "Size");
+        nodes.Should().Contain(node => node.Type == "Delegate" && node.Name == "Notifier");
+        nodes.Should().Contain(node => node.Type == "Method" && node.Name == "Create()");
+    }
+
+    [Fact]
     public void TopLevelLocalFunctions_WithSameSignatureInDifferentFiles_GetStableDistinctIds()
     {
         const string source = """
@@ -75,5 +208,16 @@ public sealed class CSharpAstWalkerTests
         new CSharpAstWalker(filePath, "Project", nodes, edges).Visit(root);
 
         return nodes;
+    }
+
+    private static (List<IngestNodeRequest> Nodes, List<IngestEdgeRequest> Edges) ExtractGraph(string source, string filePath)
+    {
+        var nodes = new List<IngestNodeRequest>();
+        var edges = new List<IngestEdgeRequest>();
+        var root = CSharpSyntaxTree.ParseText(source, path: filePath).GetCompilationUnitRoot();
+
+        new CSharpAstWalker(filePath, "Project", nodes, edges).Visit(root);
+
+        return (nodes, edges);
     }
 }

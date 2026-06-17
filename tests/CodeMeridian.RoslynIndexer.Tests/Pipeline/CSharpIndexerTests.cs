@@ -146,6 +146,43 @@ public sealed class CSharpIndexerTests : IDisposable
     }
 
     [Fact]
+    public async Task IndexAsync_ResolvesRecordAndStructTypeReferences()
+    {
+        var file = WriteFile(
+            "src/Types.cs",
+            """
+            namespace Demo;
+
+            public record struct Size(int Width);
+            public record class Point(int X);
+
+            public struct Box
+            {
+                public Size CapturedSize;
+                public Point CapturedPoint;
+            }
+            """);
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([file], "CodeMeridian", _root);
+
+        var usesEdges = handler.Requests
+            .Where(request => request.Path == "/api/v1/knowledge/nodes/edges"
+                              && request.Body.GetProperty("type").GetString() == "Uses")
+            .ToArray();
+
+        usesEdges.Should().Contain(edge =>
+            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Struct::Demo.Box"
+            && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::RecordStruct::Demo.Size");
+
+        usesEdges.Should().Contain(edge =>
+            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Field::Demo.CapturedPoint"
+            && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::RecordClass::Demo.Point");
+    }
+
+    [Fact]
     public async Task IndexAsync_ResolvesPropertyTypeToUsesEdge()
     {
         var service = WriteFile(
