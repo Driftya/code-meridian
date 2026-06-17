@@ -8,6 +8,7 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("meridian.json", optional: true, reloadOnChange: true);
+builder.Configuration.AddJsonFile(".meridian/keyword-classification.json", optional: true, reloadOnChange: true);
 builder.Logging.AddJsonConsole();
 
 // ── Neo4j knowledge graph ────────────────────────────────────────────────────

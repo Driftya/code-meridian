@@ -11,6 +11,8 @@ public sealed class CodeMeridianConfigFileStore
     public const string DefaultArchitecturePath = ".meridian/architecture.json";
     public const string DefaultArchitectureTemplateFileName = "architecture.clean.template.json";
     public const string DefaultAgentCapabilitiesDirectory = "meridian-agent-capabilities";
+    public const string DefaultKeywordClassificationPath = ".meridian/keyword-classification.json";
+    public const string DefaultKeywordClassificationSamplePath = "keyword-classification.sample.json";
 
     private const string MeridianSampleFileName = "meridian.sample.json";
     private const string ConfigFileName = "meridian.json";
@@ -106,6 +108,7 @@ public sealed class CodeMeridianConfigFileStore
 
         WriteSchemaFile(rootDirectory, overwrite);
         WriteArchitectureTemplates(rootDirectory, overwrite);
+        WriteKeywordClassificationFiles(rootDirectory, overwrite);
         WriteAgentCapabilitiesDocs(rootDirectory, overwrite);
         return result;
     }
@@ -162,6 +165,7 @@ public sealed class CodeMeridianConfigFileStore
 
         WriteSchemaFile(rootDirectory, overwrite);
         WriteArchitectureTemplates(rootDirectory, overwrite);
+        WriteKeywordClassificationFiles(rootDirectory, overwrite);
         WriteAgentCapabilitiesDocs(rootDirectory, overwrite);
         return result;
     }
@@ -240,6 +244,16 @@ public sealed class CodeMeridianConfigFileStore
             new FileInfo(Path.Combine(meridianDirectory.FullName, "architecture.json")),
             ReadRequiredTemplate(Path.Combine("architectures", DefaultArchitectureTemplateFileName)),
             overwrite: false);
+    }
+
+    private static void WriteKeywordClassificationFiles(DirectoryInfo rootDirectory, bool overwrite)
+    {
+        var meridianDirectory = Directory.CreateDirectory(Path.Combine(rootDirectory.FullName, ".meridian"));
+
+        WriteTemplateFile(
+            new FileInfo(Path.Combine(meridianDirectory.FullName, "keyword-classification.json")),
+            ReadRequiredTemplate(DefaultKeywordClassificationSamplePath),
+            overwrite);
     }
 
     private static void WriteAgentCapabilitiesDocs(DirectoryInfo rootDirectory, bool overwrite)

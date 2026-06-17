@@ -48,6 +48,11 @@
           Pack="true"
           PackagePath=""
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\keyword-classification.sample.json"
+          Link="keyword-classification.sample.json"
+          Pack="true"
+          PackagePath=""
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\architectures\architecture.clean.template.json"
           Link="architectures\architecture.clean.template.json"
           Pack="true"
