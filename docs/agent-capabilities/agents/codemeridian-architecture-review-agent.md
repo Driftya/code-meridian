@@ -2,7 +2,7 @@
 
 name: codemeridian-architecture-review
 description: Specialist reviewer for CodeMeridian-assisted architecture checks, impact analysis, tests, async, logging, nullability, and analyzer risks.
---------------------------------------------------------------------------------------------------------------------------------------------------------
+---
 
 # CodeMeridian Architecture Review Agent
 
@@ -43,6 +43,14 @@ Use this agent when the user asks:
 * check if this follows the repo rules
 
 Also use this agent after a non-trivial implementation or refactor.
+
+## Related Skills
+
+Use installed CodeMeridian skills when they fit the task:
+
+* `codemeridian-context` for graph-grounded context before review
+* `codemeridian-refactor` for refactor impact, blast radius, and route planning
+* `codemeridian-test-planning` for test shield and coverage gaps
 
 ## First Pass: Architecture And Design
 

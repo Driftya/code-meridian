@@ -20,6 +20,7 @@
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
+    <NoWarn>$(NoWarn);NU5110;NU5111</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -82,6 +83,11 @@
           Link="docs\agent-capabilities\%(RecursiveDir)%(Filename)%(Extension)"
           Pack="true"
           PackagePath="docs\agent-capabilities\"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\meridian-agent-capabilities\**\*"
+          Link="scripts\meridian-agent-capabilities\%(RecursiveDir)%(Filename)%(Extension)"
+          Pack="true"
+          PackagePath="scripts\meridian-agent-capabilities\"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\.env.sample"
           Link=".env.sample"

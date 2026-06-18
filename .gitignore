@@ -434,5 +434,5 @@ meridian.json
 .continue/mcpServers/code-meridian.yaml
 meridian.json.bak
 .meridian/architectures
-meridian-agent-capabilities
+./meridian-agent-capabilities/
 .meridian/sessions

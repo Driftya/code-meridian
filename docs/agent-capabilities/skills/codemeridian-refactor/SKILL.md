@@ -1,9 +1,7 @@
----
-
+﻿---
 name: codemeridian-refactor
 description: Plan safer refactors with CodeMeridian by checking graph freshness, exact symbols, impact, tests, duplication, and architecture risk before editing.
------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
+---
 # CodeMeridian Refactor Skill
 
 Use this skill when working in a repository indexed by CodeMeridian and the user asks to refactor, rename, split, extract, move, simplify, deduplicate, delete, or replace code.
@@ -325,3 +323,4 @@ If CodeMeridian cannot provide enough context:
 3. Avoid wide file dumps.
 4. Recommend re-indexing if graph freshness is stale.
 5. Continue only with clearly stated assumptions.
+

@@ -1,0 +1,5 @@
+interface:
+  display_name: "CodeMeridian Context"
+  short_description: "Gather graph-grounded edit context"
+  default_prompt: "Use $codemeridian-context to gather focused CodeMeridian context before changing code."
+

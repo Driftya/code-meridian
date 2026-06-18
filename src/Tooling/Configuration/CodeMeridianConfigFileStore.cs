@@ -258,11 +258,23 @@ public sealed class CodeMeridianConfigFileStore
 
     private static void WriteAgentCapabilitiesDocs(DirectoryInfo rootDirectory, bool overwrite)
     {
-        var sourceDirectory = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "docs", "agent-capabilities"));
+        var targetDirectory = new DirectoryInfo(Path.Combine(rootDirectory.FullName, DefaultAgentCapabilitiesDirectory));
+        CopyRequiredTemplateDirectory(
+            Path.Combine("docs", "agent-capabilities"),
+            targetDirectory,
+            overwrite);
+        CopyRequiredTemplateDirectory(
+            Path.Combine("scripts", DefaultAgentCapabilitiesDirectory),
+            targetDirectory,
+            overwrite);
+    }
+
+    private static void CopyRequiredTemplateDirectory(string relativeSourcePath, DirectoryInfo targetDirectory, bool overwrite)
+    {
+        var sourceDirectory = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, relativeSourcePath));
         if (!sourceDirectory.Exists)
             throw new InvalidOperationException($"Required template directory is missing: {sourceDirectory.FullName}");
 
-        var targetDirectory = new DirectoryInfo(Path.Combine(rootDirectory.FullName, DefaultAgentCapabilitiesDirectory));
         CopyDirectory(sourceDirectory, targetDirectory, overwrite);
     }
 

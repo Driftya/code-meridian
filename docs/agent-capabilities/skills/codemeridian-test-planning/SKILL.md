@@ -1,9 +1,7 @@
----
-
+﻿---
 name: codemeridian-test-planning
 description: Plan focused tests with CodeMeridian by finding relevant test shields, coverage gaps, impacted behavior, and the smallest useful test set before implementation.
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
+---
 # CodeMeridian Test Planning Skill
 
 Use this skill when working in a repository indexed by CodeMeridian and the user asks to add, update, review, or plan tests.
@@ -329,3 +327,4 @@ If CodeMeridian cannot provide enough test context:
 4. Avoid broad file dumps.
 5. Recommend re-indexing if graph freshness is stale.
 6. Continue only with clearly stated assumptions.
+

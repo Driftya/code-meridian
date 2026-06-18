@@ -1,9 +1,7 @@
----
-
+﻿---
 name: codemeridian-context
 description: Gather minimal, graph-grounded CodeMeridian context before implementation, refactoring, deletion, debugging, or test planning.
--------------------------------------------------------------------------------------------------------------------------------------------
-
+---
 # CodeMeridian Context Skill
 
 Use this skill when working in a repository indexed by CodeMeridian.
@@ -132,3 +130,4 @@ If CodeMeridian cannot answer the task:
 2. Fall back to normal repository search.
 3. Keep the search narrow.
 4. Recommend re-indexing if the graph appears stale.
+

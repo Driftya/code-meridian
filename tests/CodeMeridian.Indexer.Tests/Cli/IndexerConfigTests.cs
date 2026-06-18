@@ -150,7 +150,9 @@ public sealed class IndexerConfigTests : IDisposable
         File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.vertical-slice.template.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "agent-capabilities.md")).Should().BeTrue();
         File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "agents", "codemeridian-context-agent.md")).Should().BeTrue();
-        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "skills", "codemeridian-context-skill.md")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "skills", "codemeridian-context", "SKILL.md")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "install-codex-skills.ps1")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "install-codex-agents.ps1")).Should().BeTrue();
     }
 
     [Fact]
@@ -175,7 +177,9 @@ public sealed class IndexerConfigTests : IDisposable
         File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architectures", "architecture.vertical-slice.template.json")).Should().BeTrue();
         File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "agent-capabilities.md")).Should().BeTrue();
         File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "agents", "codemeridian-context-agent.md")).Should().BeTrue();
-        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "skills", "codemeridian-context-skill.md")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "skills", "codemeridian-context", "SKILL.md")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "install-codex-skills.ps1")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "install-codex-agents.ps1")).Should().BeTrue();
     }
 
     [Fact]

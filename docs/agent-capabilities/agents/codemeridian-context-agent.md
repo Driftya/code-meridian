@@ -2,7 +2,7 @@
 
 name: codemeridian-context
 description: Specialist agent for gathering minimal CodeMeridian graph context before code changes.
----------------------------------------------------------------------------------------------------
+---
 
 # CodeMeridian Context Agent
 
@@ -26,6 +26,14 @@ Prioritize:
 6. test shield
 7. architecture risk
 8. missing or stale knowledge
+
+## Related Skills
+
+Use installed CodeMeridian skills when they fit the task:
+
+* `codemeridian-context` for graph-grounded context workflows
+* `codemeridian-refactor` for refactor impact and route planning
+* `codemeridian-test-planning` for test shield and coverage gaps
 
 ## Tool Strategy
 

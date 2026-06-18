@@ -10,9 +10,9 @@ The files in `meridian-agent-capabilities/` are intentionally provider-neutral w
 
 | Capability | File | Purpose |
 |---|---|---|
-| Context Skill | `docs/agent-capabilities/skills/codemeridian-context-skill.md` | Build minimal graph-grounded context before code work. |
-| Refactor Skill | `docs/agent-capabilities/skills/codemeridian-refactor-skill.md` | Plan safer refactors with impact, tests, and dependency risk. |
-| Test Planning Skill | `docs/agent-capabilities/skills/codemeridian-test-planning-skill.md` | Find relevant tests and coverage gaps before behavior changes. |
+| Context Skill | `docs/agent-capabilities/skills/codemeridian-context/SKILL.md` | Build minimal graph-grounded context before code work. |
+| Refactor Skill | `docs/agent-capabilities/skills/codemeridian-refactor/SKILL.md` | Plan safer refactors with impact, tests, and dependency risk. |
+| Test Planning Skill | `docs/agent-capabilities/skills/codemeridian-test-planning/SKILL.md` | Find relevant tests and coverage gaps before behavior changes. |
 | Context Agent | `docs/agent-capabilities/agents/codemeridian-context-agent.md` | Specialist agent for gathering CodeMeridian context. |
 | Architecture Review Agent | `docs/agent-capabilities/agents/codemeridian-architecture-review-agent.md` | Specialist reviewer for architecture, impact, tests, and quality risks. |
 
@@ -55,10 +55,12 @@ These locations are examples only. Check your provider documentation before rely
 
 | Provider / Tool                  | Suggested Use                                                                                                                               |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code skill                | Copy `codemeridian-context-skill.md` to `.claude/skills/codemeridian-context/SKILL.md` or `~/.claude/skills/codemeridian-context/SKILL.md`. |
+| Claude Code skill                | Copy `skills/codemeridian-context/` to `.claude/skills/codemeridian-context/` or `~/.claude/skills/codemeridian-context/`. |
 | Claude Code agent                | Copy `codemeridian-context-agent.md` to `.claude/agents/codemeridian-context.md` or `~/.claude/agents/codemeridian-context.md`.             |
 | GitHub Copilot                   | Copy the relevant guidance into `.github/copilot-instructions.md` or `AGENTS.md`.                                                           |
-| Codex / ChatGPT-style tools      | Use the skill as a reusable prompt or capability file if the tool supports skills. Otherwise paste the content into the chat.               |
+| Codex skills                     | Copy skill folders to `.agents/skills/` for repo-scoped skills or `$HOME/.agents/skills/` for user-scoped skills.                          |
+| Codex agents                     | Run `install-codex-agents.ps1` to generate `.toml` custom agents under `.codex/agents/` or `$HOME/.codex/agents/` from the neutral markdown. |
+| ChatGPT-style tools              | Use the skill as a reusable prompt or capability file if the tool supports skills. Otherwise paste the content into the chat.               |
 | Continue / Cursor / other agents | Use the skill or agent text as custom instructions where supported.                                                                         |
 
 ## Source of Truth

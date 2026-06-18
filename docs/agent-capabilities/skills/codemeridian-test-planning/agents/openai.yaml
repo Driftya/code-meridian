@@ -1,0 +1,5 @@
+interface:
+  display_name: "CodeMeridian Test Planning"
+  short_description: "Find focused test coverage targets"
+  default_prompt: "Use $codemeridian-test-planning to identify the smallest useful test set."
+

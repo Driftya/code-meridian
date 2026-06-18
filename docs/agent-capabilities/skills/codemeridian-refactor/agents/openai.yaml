@@ -1,0 +1,5 @@
+interface:
+  display_name: "CodeMeridian Refactor"
+  short_description: "Plan safer graph-aware refactors"
+  default_prompt: "Use $codemeridian-refactor to plan a safer graph-aware refactor."
+
