@@ -21,7 +21,7 @@ function Get-RepositoryRoot {
 }
 
 function Get-DefaultDestinationRoot {
-    return (Join-Path $HOME '.agents\skills')
+    return (Join-Path $HOME '.codex\skills')
 }
 
 function Get-DefaultSourceRoot {
@@ -62,6 +62,25 @@ function Get-ResolvedPathOrDefault {
     }
 
     return $Path
+}
+
+function Read-InstallTargetSelection {
+    while ($true) {
+        $choice = Read-Host "Install skills to repo .agents\skills? [y/N]"
+
+        if ([string]::IsNullOrWhiteSpace($choice)) {
+            return 'User'
+        }
+
+        switch ($choice.Trim().ToLowerInvariant()) {
+            'y' { return 'Repo' }
+            'yes' { return 'Repo' }
+            'n' { return 'User' }
+            'no' { return 'User' }
+        }
+
+        Write-Host "Please answer y or n."
+    }
 }
 
 function Read-SkillMetadata {
@@ -151,7 +170,19 @@ if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($DestinationRoot)) {
-    $DestinationRoot = Get-DefaultDestinationRoot
+    if ([Environment]::UserInteractive) {
+        $selection = Read-InstallTargetSelection
+
+        if ($selection -eq 'Repo') {
+            $DestinationRoot = Join-Path (Get-RepositoryRoot) '.agents\skills'
+        }
+        else {
+            $DestinationRoot = Get-DefaultDestinationRoot
+        }
+    }
+    else {
+        $DestinationRoot = Get-DefaultDestinationRoot
+    }
 }
 
 $resolvedSourceRoot = Get-ResolvedPathOrDefault -Path $SourceRoot

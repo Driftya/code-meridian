@@ -24,6 +24,25 @@ function Get-DefaultDestinationRoot {
     return (Join-Path $HOME '.codex\agents')
 }
 
+function Read-InstallTargetSelection {
+    while ($true) {
+        $choice = Read-Host "Install agents to repo .codex\agents? [y/N]"
+
+        if ([string]::IsNullOrWhiteSpace($choice)) {
+            return 'User'
+        }
+
+        switch ($choice.Trim().ToLowerInvariant()) {
+            'y' { return 'Repo' }
+            'yes' { return 'Repo' }
+            'n' { return 'User' }
+            'no' { return 'User' }
+        }
+
+        Write-Host "Please answer y or n."
+    }
+}
+
 function Get-DefaultSourceRoot {
     $scriptPath = $PSScriptRoot
 
@@ -187,7 +206,19 @@ if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($DestinationRoot)) {
-    $DestinationRoot = Get-DefaultDestinationRoot
+    if ([Environment]::UserInteractive) {
+        $selection = Read-InstallTargetSelection
+
+        if ($selection -eq 'Repo') {
+            $DestinationRoot = Join-Path (Get-RepositoryRoot) '.codex\agents'
+        }
+        else {
+            $DestinationRoot = Get-DefaultDestinationRoot
+        }
+    }
+    else {
+        $DestinationRoot = Get-DefaultDestinationRoot
+    }
 }
 
 $resolvedSourceRoot = Get-ResolvedPathOrDefault -Path $SourceRoot
