@@ -23,7 +23,11 @@ public sealed class InitCommandTests : IDisposable
     [Fact]
     public void Run_CreatesMeridianJsonAndMcpClientConfigs()
     {
-        var exitCode = CreateCommand().Run(new InitCommandOptions(
+        var promptService = new PromptAnswerService(
+            selections: [true, true, true],
+            yesNoAnswers: [true]);
+
+        var exitCode = CreateCommand(promptService).Run(new InitCommandOptions(
             Path: _root,
             Project: "MyApi",
             CodeMeridianUrl: "http://localhost:5100",
@@ -47,8 +51,8 @@ public sealed class InitCommandTests : IDisposable
         File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "agent-capabilities.md")).Should().BeTrue();
         File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "agents", "codemeridian-context-agent.md")).Should().BeTrue();
         File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "skills", "codemeridian-context", "SKILL.md")).Should().BeTrue();
-        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "install-codex-skills.ps1")).Should().BeTrue();
-        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "install-codex-agents.ps1")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "codex-scripts", "install-codex-skills.ps1")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "codex-scripts", "install-codex-agents.ps1")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".env")).Should().BeFalse();
         File.Exists(Path.Combine(_root, "docker-compose.codemeridian.yml")).Should().BeFalse();
 
@@ -64,7 +68,7 @@ public sealed class InitCommandTests : IDisposable
         var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
         Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", globalRoot.FullName);
 
-        var exitCode = CreateCommand().Run(new InitCommandOptions(
+        var exitCode = CreateCommand(new PromptAnswerService(selections: [], yesNoAnswers: [true])).Run(new InitCommandOptions(
             Path: _root,
             Project: null,
             CodeMeridianUrl: "http://global:5100",
@@ -85,8 +89,8 @@ public sealed class InitCommandTests : IDisposable
         File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "agent-capabilities.md")).Should().BeTrue();
         File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "agents", "codemeridian-context-agent.md")).Should().BeTrue();
         File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "skills", "codemeridian-context", "SKILL.md")).Should().BeTrue();
-        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "install-codex-skills.ps1")).Should().BeTrue();
-        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "install-codex-agents.ps1")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "codex-scripts", "install-codex-skills.ps1")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, "meridian-agent-capabilities", "codex-scripts", "install-codex-agents.ps1")).Should().BeTrue();
         File.Exists(Path.Combine(_root, "meridian.json")).Should().BeFalse();
         File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeFalse();
         File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeFalse();
@@ -113,7 +117,7 @@ public sealed class InitCommandTests : IDisposable
             }
             """);
 
-        var exitCode = CreateCommand().Run(new InitCommandOptions(
+        var exitCode = CreateCommand(new PromptAnswerService(selections: [true, true, true], yesNoAnswers: [true])).Run(new InitCommandOptions(
             Path: _root,
             Project: "MyApi",
             CodeMeridianUrl: "http://localhost:5100",
@@ -137,7 +141,7 @@ public sealed class InitCommandTests : IDisposable
         {
             Console.SetOut(writer);
 
-            var exitCode = CreateCommand().Run(new InitCommandOptions(
+            var exitCode = CreateCommand(new PromptAnswerService(selections: [true, true, true], yesNoAnswers: [true])).Run(new InitCommandOptions(
                 Path: _root,
                 Project: "MyApi",
                 CodeMeridianUrl: "http://localhost:5100",
@@ -157,6 +161,40 @@ public sealed class InitCommandTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Run_CanSkipClientConfigsAndAgentCapabilities()
+    {
+        var exitCode = CreateCommand(new PromptAnswerService(selections: [false, false, false], yesNoAnswers: [false])).Run(new InitCommandOptions(
+            Path: _root,
+            Project: "MyApi",
+            CodeMeridianUrl: "http://localhost:5100",
+            Force: false,
+            Global: false));
+
+        exitCode.Should().Be(0);
+        File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeFalse();
+        File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeFalse();
+        File.Exists(Path.Combine(_root, ".continue", "mcpServers", "code-meridian.yaml")).Should().BeFalse();
+        Directory.Exists(Path.Combine(_root, "meridian-agent-capabilities")).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Run_DefaultsExistingClientConfigsToSkipped()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, ".vscode"));
+        File.WriteAllText(Path.Combine(_root, ".vscode", "mcp.json"), "{}");
+
+        var promptService = new PromptAnswerService(selections: [false, true, true], yesNoAnswers: [false]);
+        CreateCommand(promptService).Run(new InitCommandOptions(
+            Path: _root,
+            Project: "MyApi",
+            CodeMeridianUrl: "http://localhost:5100",
+            Force: false,
+            Global: false));
+
+        promptService.SelectionDefaults.Should().ContainSingle(defaultSelected => !defaultSelected);
+    }
+
     public void Dispose()
     {
         Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", null);
@@ -173,7 +211,7 @@ public sealed class InitCommandTests : IDisposable
         }
     }
 
-    private static InitCommand CreateCommand()
+    private static InitCommand CreateCommand(IInitPromptService? promptService = null)
     {
         var fileStore = new CodeMeridianConfigFileStore();
         var discovery = new ProjectDiscoveryService();
@@ -182,6 +220,35 @@ public sealed class InitCommandTests : IDisposable
             discovery,
             Options.Create(new ToolCliDefaults()));
 
-        return new InitCommand(configuration, fileStore, discovery, new ServeWriter());
+        return new InitCommand(configuration, fileStore, discovery, new ServeWriter(), promptService ?? new PromptAnswerService());
+    }
+
+    private sealed class PromptAnswerService(bool[]? selections = null, bool[]? yesNoAnswers = null) : IInitPromptService
+    {
+        private readonly Queue<bool> _selections = new(selections ?? []);
+        private readonly Queue<bool> _yesNoAnswers = new(yesNoAnswers ?? []);
+        public List<bool> SelectionDefaults { get; } = [];
+
+        public bool ReadYesNo(string message, bool defaultAnswer)
+        {
+            if (_yesNoAnswers.Count > 0)
+                return _yesNoAnswers.Dequeue();
+
+            return defaultAnswer;
+        }
+
+        public IReadOnlyList<string> ReadSelections(string message, IReadOnlyList<PromptSelection> selections)
+        {
+            var chosen = new List<string>();
+            foreach (var selection in selections)
+            {
+                SelectionDefaults.Add(selection.DefaultSelected);
+                var selected = _selections.Count > 0 ? _selections.Dequeue() : selection.DefaultSelected;
+                if (selected)
+                    chosen.Add(selection.Label);
+            }
+
+            return chosen;
+        }
     }
 }

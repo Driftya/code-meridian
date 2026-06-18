@@ -66,7 +66,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Can refresh an existing `meridian.json` in place by rerunning `codemeridian init .`, merging missing defaults without overwriting local settings.
 - Can seed `.meridian/architecture.json` and copy bundled templates from the package `architectures/` folder into `.meridian/architectures/` so architecture checks are project-owned and editable.
 - Can seed `.meridian/keyword-classification.json` from the packaged root `keyword-classification.sample.json` so keyword classification rules live in the repo instead of being hardcoded in the backend.
-- Can copy bundled agent guidance into `meridian-agent-capabilities/` so repo-local agent instructions travel with the setup without writing into a user-owned `docs/` tree.
+- Can copy bundled agent guidance into `meridian-agent-capabilities/` so repo-local agent instructions travel with the setup without writing into a user-owned `docs/` tree, including Codex-specific helper scripts under `codex-scripts/`.
 - Can also read `CodeMeridian_Project` from `.env` when you want a fixed project name without `--project`.
 
 ## Package Contents
@@ -96,7 +96,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Use `codemeridian keywords status --job-id <id>` when you want to verify whether a background keyword job finished, failed, or expired.
 - Use `--allow-repo-scripts` only on trusted repos when you want `dotnet build` and repo lint commands to run.
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
-- Use `codemeridian init .` to create or refresh `meridian.json`, `.vscode/mcp.json`, and `.codex/config.toml` for a project. When `meridian.json` already exists, `init` merges missing defaults, bumps the config `version`, and writes `meridian.json.bak` before replacing the file. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.
+- Use `codemeridian init .` to create or refresh `meridian.json` for a project and then step through prompts for `.vscode`, `.continue`, `.codex`, and `meridian-agent-capabilities`. When `meridian.json` already exists, `init` merges missing defaults, bumps the config `version`, and writes `meridian.json.bak` before replacing the file. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.
 - Use `codemeridian init --global --url http://localhost:5100` to create a user-level fallback config when you want the CLI to work across many repos without project-local config. Global init also seeds `.meridian/architecture.json`, `.meridian/keyword-classification.json`, `.meridian/architectures/`, and `meridian-agent-capabilities/` under the global config root.
 - Use `codemeridian serve` to create `.env`, `.vscode/mcp.json`, `.codex/config.toml`, and `docker-compose.codemeridian.yml`, then start the backend stack.
 - Use `codemeridian serve --no-start` when you only want to write or merge those files.

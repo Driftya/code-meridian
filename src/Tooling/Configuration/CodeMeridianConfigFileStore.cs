@@ -109,7 +109,6 @@ public sealed class CodeMeridianConfigFileStore
         WriteSchemaFile(rootDirectory, overwrite);
         WriteArchitectureTemplates(rootDirectory, overwrite);
         WriteKeywordClassificationFiles(rootDirectory, overwrite);
-        WriteAgentCapabilitiesDocs(rootDirectory, overwrite);
         return result;
     }
 
@@ -166,7 +165,6 @@ public sealed class CodeMeridianConfigFileStore
         WriteSchemaFile(rootDirectory, overwrite);
         WriteArchitectureTemplates(rootDirectory, overwrite);
         WriteKeywordClassificationFiles(rootDirectory, overwrite);
-        WriteAgentCapabilitiesDocs(rootDirectory, overwrite);
         return result;
     }
 
@@ -256,7 +254,7 @@ public sealed class CodeMeridianConfigFileStore
             overwrite);
     }
 
-    private static void WriteAgentCapabilitiesDocs(DirectoryInfo rootDirectory, bool overwrite)
+    public void WriteAgentCapabilities(DirectoryInfo rootDirectory, bool overwrite)
     {
         var targetDirectory = new DirectoryInfo(Path.Combine(rootDirectory.FullName, DefaultAgentCapabilitiesDirectory));
         CopyRequiredTemplateDirectory(

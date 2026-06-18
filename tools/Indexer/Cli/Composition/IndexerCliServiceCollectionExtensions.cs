@@ -26,6 +26,7 @@ internal static class IndexerCliServiceCollectionExtensions
         services.AddTransient<SessionEvidenceReader>();
         services.AddTransient<ISessionChangeSource, GitSessionChangeSource>();
         services.AddTransient<ServeWriter>();
+        services.AddTransient<IInitPromptService, ConsoleInitPromptService>();
 
         return services;
     }

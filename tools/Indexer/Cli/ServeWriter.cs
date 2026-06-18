@@ -27,17 +27,27 @@ internal sealed class ServeWriter
         return new ServeApplyResult(composePath, changes);
     }
 
-    public IReadOnlyList<ServeFileChange> ApplyClientConfig(DirectoryInfo rootDirectory, string codeMeridianUrl, bool force)
+    public IReadOnlyList<ServeFileChange> ApplyClientConfig(
+        DirectoryInfo rootDirectory,
+        string codeMeridianUrl,
+        bool force,
+        IReadOnlyList<string>? selectedTargets = null)
     {
         Directory.CreateDirectory(rootDirectory.FullName);
         var mcpUrl = BuildMcpUrl(codeMeridianUrl);
+        var targets = new HashSet<string>(selectedTargets ?? [], StringComparer.OrdinalIgnoreCase);
+        var changes = new List<ServeFileChange>();
 
-        return
-        [
-            WriteMcpJson(rootDirectory, mcpUrl, force),
-            WriteCodexToml(rootDirectory, mcpUrl, force),
-            WriteContinueMcpServer(rootDirectory, mcpUrl, force),
-        ];
+        if (targets.Count == 0 || targets.Contains(".vscode/mcp.json"))
+            changes.Add(WriteMcpJson(rootDirectory, mcpUrl, force));
+
+        if (targets.Count == 0 || targets.Contains(".codex/config.toml"))
+            changes.Add(WriteCodexToml(rootDirectory, mcpUrl, force));
+
+        if (targets.Count == 0 || targets.Contains(".continue/mcpServers/code-meridian.yaml"))
+            changes.Add(WriteContinueMcpServer(rootDirectory, mcpUrl, force));
+
+        return changes;
     }
 
     private static ServeFileChange WriteEnv(ServeOptions options)
