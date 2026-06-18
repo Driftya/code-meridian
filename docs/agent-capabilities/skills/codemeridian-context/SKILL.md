@@ -35,6 +35,24 @@ Prefer:
 
 If the graph is stale, incomplete, or uncertain, say so before relying on exact results.
 
+### Session Evidence
+
+During an implementation session, always record provider-neutral session evidence under `.meridian/sessions/*.jsonl` so `codemeridian evaluate-session` can measure whether CodeMeridian helped.
+
+Write one compact JSON object per line. Omit fields that do not apply.
+
+Use this event shape:
+
+```json
+{"timestamp":"<ISO-8601 UTC time>","provider":"<codex|copilot|claude|continue|other>","project":"MyApp","kind":"<graph-call|codemeridian-tool|suggestion|tool-result|command|manual-fallback|test-run|stale-warning>","toolName":"<CodeMeridian MCP tool name when applicable>","command":"<shell command when applicable>","targetConfidence":"<exact|file-only|heuristic|stale, comma-separated if needed>","staleWarning":<true|false>,"files":["<repo-relative file path>"],"tests":["<repo-relative test file path>"]}
+```
+
+For each CodeMeridian tool call, record `kind=graph-call`, `toolName`, files suggested by the tool, tests suggested by the tool, `targetConfidence`, and `staleWarning` when present.
+
+For manual search fallback commands such as `rg`, `grep`, `find`, `Get-ChildItem`, or `Select-String`, record `kind=command` and `command`.
+
+For test execution, record `kind=test-run`, `command`, and `tests` when known.
+
 ### 2. Map Feature Implementation Path
 
 When the task is feature work, start by mapping the implementation path.
