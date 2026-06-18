@@ -35,6 +35,68 @@ public sealed class TypeScriptIndexerProcessRunnerTests
     }
 
     [Fact]
+    public async Task EnsureDependenciesAsync_UsesInstallWhenPackageLockIsMissing()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.WriteFile("package.json", """{"name":"test"}""");
+        var invocations = new List<string[]>();
+
+        var result = await TypeScriptIndexerProcessRunner.EnsureDependenciesAsync(
+            workspace.Root,
+            (fileName, arguments, workingDirectory, environmentVariables) =>
+            {
+                invocations.Add(arguments.ToArray());
+                return Task.FromResult(0);
+            });
+
+        result.Should().Be(0);
+        invocations.Should().ContainSingle().Which.Should().Equal("install");
+    }
+
+    [Fact]
+    public async Task EnsureDependenciesAsync_FallsBackToInstallWhenCiFails()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.WriteFile("package.json", """{"name":"test"}""");
+        workspace.WriteFile("package-lock.json", """{"name":"test","lockfileVersion":3}""");
+        var invocations = new List<string[]>();
+
+        var result = await TypeScriptIndexerProcessRunner.EnsureDependenciesAsync(
+            workspace.Root,
+            (fileName, arguments, workingDirectory, environmentVariables) =>
+            {
+                var captured = arguments.ToArray();
+                invocations.Add(captured);
+                return Task.FromResult(captured[0] == "ci" ? 1 : 0);
+            });
+
+        result.Should().Be(0);
+        invocations.Should().HaveCount(2);
+        invocations[0].Should().Equal("ci");
+        invocations[1].Should().Equal("install");
+    }
+
+    [Fact]
+    public async Task EnsureDependenciesAsync_DoesNotFallbackWhenCiSucceeds()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.WriteFile("package.json", """{"name":"test"}""");
+        workspace.WriteFile("package-lock.json", """{"name":"test","lockfileVersion":3}""");
+        var invocations = new List<string[]>();
+
+        var result = await TypeScriptIndexerProcessRunner.EnsureDependenciesAsync(
+            workspace.Root,
+            (fileName, arguments, workingDirectory, environmentVariables) =>
+            {
+                invocations.Add(arguments.ToArray());
+                return Task.FromResult(0);
+            });
+
+        result.Should().Be(0);
+        invocations.Should().ContainSingle().Which.Should().Equal("ci");
+    }
+
+    [Fact]
     public void ResolveTsxCommand_ReturnsBinaryPathWhenPresent()
     {
         using var workspace = TestWorkspace.Create();

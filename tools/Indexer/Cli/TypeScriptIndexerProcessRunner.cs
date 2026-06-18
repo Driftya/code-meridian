@@ -6,6 +6,13 @@ internal static class TypeScriptIndexerProcessRunner
 {
     public static async Task<int> EnsureDependenciesAsync(DirectoryInfo tsIndexerRoot)
     {
+        return await EnsureDependenciesAsync(tsIndexerRoot, RunAsync);
+    }
+
+    internal static async Task<int> EnsureDependenciesAsync(
+        DirectoryInfo tsIndexerRoot,
+        Func<string, IReadOnlyList<string>, DirectoryInfo, IReadOnlyDictionary<string, string?>?, Task<int>> runCommandAsync)
+    {
         var localTsx = ResolveTsxCommand(tsIndexerRoot);
 
         if (localTsx is not null)
@@ -17,12 +24,17 @@ internal static class TypeScriptIndexerProcessRunner
         Console.WriteLine();
         Console.WriteLine("TypeScript indexer dependencies not found. Restoring npm packages...");
 
-        var packageLock = Path.Combine(tsIndexerRoot.FullName, "package-lock.json");
-        var arguments = File.Exists(packageLock)
-            ? new[] { "ci" }
-            : new[] { "install" };
+        var npmCommand = ExternalCommandResolver.NpmCommand();
+        var packageLockExists = File.Exists(Path.Combine(tsIndexerRoot.FullName, "package-lock.json"));
+        if (!packageLockExists)
+            return await runCommandAsync(npmCommand, ["install"], tsIndexerRoot, null);
 
-        return await RunAsync(ExternalCommandResolver.NpmCommand(), arguments, tsIndexerRoot);
+        var installExitCode = await runCommandAsync(npmCommand, ["ci"], tsIndexerRoot, null);
+        if (installExitCode == 0)
+            return 0;
+
+        Console.WriteLine("npm ci failed. Retrying with npm install to recover from a packaged lockfile mismatch.");
+        return await runCommandAsync(npmCommand, ["install"], tsIndexerRoot, null);
     }
 
     public static async Task<int> RunAsync(
