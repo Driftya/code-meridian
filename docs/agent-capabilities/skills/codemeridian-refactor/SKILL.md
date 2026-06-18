@@ -1,4 +1,4 @@
-﻿---
+---
 name: codemeridian-refactor
 description: Plan safer refactors with CodeMeridian by checking graph freshness, exact symbols, impact, tests, duplication, and architecture risk before editing.
 ---

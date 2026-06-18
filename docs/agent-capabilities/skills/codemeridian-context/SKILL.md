@@ -1,4 +1,4 @@
-﻿---
+---
 name: codemeridian-context
 description: Gather minimal, graph-grounded CodeMeridian context before implementation, refactoring, deletion, debugging, or test planning.
 ---

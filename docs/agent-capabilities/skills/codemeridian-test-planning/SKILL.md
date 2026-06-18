@@ -1,4 +1,4 @@
-﻿---
+---
 name: codemeridian-test-planning
 description: Plan focused tests with CodeMeridian by finding relevant test shields, coverage gaps, impacted behavior, and the smallest useful test set before implementation.
 ---
