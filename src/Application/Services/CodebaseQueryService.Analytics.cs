@@ -475,22 +475,7 @@ public partial class CodebaseQueryService
         sb.AppendLine($"## Edit Context — `{ctx.Node.Name}`");
         sb.AppendLine($"**Type:** {ctx.Node.Type} | **File:** `{ctx.Node.FilePath ?? "—"}`{(ctx.Node.LineNumber.HasValue ? $":{ctx.Node.LineNumber}" : "")}{sizeHint}\n");
 
-        if (ctx.Callers.Count > 0)
-        {
-            sb.AppendLine($"### Callers ({ctx.Callers.Count}) — will be affected by changes");
-            foreach (var caller in ctx.Callers)
-            {
-                var loc = caller.FilePath is not null
-                    ? $"`{caller.FilePath}`{(caller.LineNumber.HasValue ? $":{caller.LineNumber}" : "")}"
-                    : "—";
-                sb.AppendLine($"- **{caller.Type}** `{caller.Name}` — {loc}");
-            }
-            sb.AppendLine();
-        }
-        else
-        {
-            sb.AppendLine("### Callers — none (safe to change signature)\n");
-        }
+        AppendCallerSections(sb, FilterNodesByProfile(ctx.Callers, AnalysisProfile.AgentContext), detailLevel);
 
         if (ctx.Callees.Count > 0)
         {
@@ -518,6 +503,139 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
+    private void AppendCallerSections(
+        StringBuilder sb,
+        IReadOnlyCollection<CodeNode> callers,
+        ContextDetailLevel detailLevel)
+    {
+        if (callers.Count == 0)
+        {
+            sb.AppendLine("### Callers — none (safe to change signature)\n");
+            return;
+        }
+
+        var grouped = ClassifyCallerGroups(callers);
+        var visibleCount = grouped.DirectMethodCallers.Count
+            + grouped.ClassOrInterfaceCallers.Count
+            + grouped.TestCallers.Count
+            + grouped.ContextOnlyCallers.Count;
+
+        sb.AppendLine($"### Caller summary — showing {visibleCount} of {callers.Count} callers");
+        if (grouped.SuppressedFileCallerCount > 0)
+            sb.AppendLine($"- Suppressed {grouped.SuppressedFileCallerCount} duplicate file-only callers because exact callers from the same file are already listed.");
+        sb.AppendLine();
+
+        AppendCallerGroup(sb, "Direct method callers", grouped.DirectMethodCallers);
+        AppendCallerGroup(sb, "Class/interface callers", grouped.ClassOrInterfaceCallers);
+        AppendCallerGroup(sb, "Test callers", grouped.TestCallers);
+        AppendCallerGroup(sb, "Context-only file callers", grouped.ContextOnlyCallers);
+
+        if (detailLevel == ContextDetailLevel.Full)
+        {
+            sb.AppendLine($"### Raw caller inventory ({callers.Count})");
+            foreach (var caller in RankNodesForDisplay(callers).DistinctBy(node => node.Id))
+                sb.AppendLine($"- **{caller.Type}** `{caller.Name}`{FormatLocation(caller)}");
+            sb.AppendLine();
+        }
+    }
+
+    private void AppendCallerGroup(
+        StringBuilder sb,
+        string title,
+        IReadOnlyCollection<CallerFinding> callers)
+    {
+        sb.AppendLine($"### {title} ({callers.Count})");
+        if (callers.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        foreach (var caller in callers)
+        {
+            sb.Append($"- **{caller.Node.Type}** `{caller.Node.Name}`{FormatLocation(caller.Node)}");
+            if (!string.IsNullOrWhiteSpace(caller.Reason))
+                sb.Append($" — {caller.Reason}");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine();
+    }
+
+    private CallerGroups ClassifyCallerGroups(IEnumerable<CodeNode> callers)
+    {
+        var rankedCallers = RankNodesForDisplay(callers)
+            .DistinctBy(node => node.Id)
+            .ToArray();
+        var exactCallerFilePaths = rankedCallers
+            .Where(node => node.Type is not CodeNodeType.File)
+            .Select(node => node.FilePath)
+            .OfType<string>()
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var directMethodCallers = new List<CallerFinding>();
+        var classOrInterfaceCallers = new List<CallerFinding>();
+        var testCallers = new List<CallerFinding>();
+        var contextOnlyCallers = new List<CallerFinding>();
+        var suppressedFileCallerCount = 0;
+
+        foreach (var caller in rankedCallers)
+        {
+            if (IsConfiguredTestNode(caller))
+            {
+                testCallers.Add(new CallerFinding(caller, CallerReason(caller)));
+                continue;
+            }
+
+            switch (caller.Type)
+            {
+                case CodeNodeType.Method:
+                    directMethodCallers.Add(new CallerFinding(caller, CallerReason(caller)));
+                    break;
+                case CodeNodeType.Class:
+                case CodeNodeType.Interface:
+                    classOrInterfaceCallers.Add(new CallerFinding(caller, CallerReason(caller)));
+                    break;
+                case CodeNodeType.File:
+                    if (caller.FilePath is not null && exactCallerFilePaths.Contains(caller.FilePath))
+                    {
+                        suppressedFileCallerCount++;
+                        break;
+                    }
+
+                    contextOnlyCallers.Add(new CallerFinding(caller, CallerReason(caller)));
+                    break;
+                default:
+                    contextOnlyCallers.Add(new CallerFinding(caller, CallerReason(caller)));
+                    break;
+            }
+        }
+
+        return new CallerGroups(
+            directMethodCallers,
+            classOrInterfaceCallers,
+            testCallers,
+            contextOnlyCallers,
+            suppressedFileCallerCount);
+    }
+
+    private string CallerReason(CodeNode caller)
+    {
+        if (IsConfiguredTestNode(caller))
+            return "nearby test seam";
+
+        return caller.Type switch
+        {
+            CodeNodeType.Method => "direct production caller",
+            CodeNodeType.Class or CodeNodeType.Interface => "class-level usage edge",
+            CodeNodeType.ApiEndpoint => "heuristic route metadata caller",
+            CodeNodeType.File => "expanded from broader file edge",
+            _ => "heuristic contextual caller"
+        };
+    }
+
     private sealed record ShieldEntry(
         CodeNode TestNode,
         string Reason,
@@ -526,6 +644,15 @@ public partial class CodebaseQueryService
         bool IsExactCallerPath,
         int SharedDependencyCount,
         bool SharesLocation);
+
+    private sealed record CallerFinding(CodeNode Node, string Reason);
+
+    private sealed record CallerGroups(
+        IReadOnlyCollection<CallerFinding> DirectMethodCallers,
+        IReadOnlyCollection<CallerFinding> ClassOrInterfaceCallers,
+        IReadOnlyCollection<CallerFinding> TestCallers,
+        IReadOnlyCollection<CallerFinding> ContextOnlyCallers,
+        int SuppressedFileCallerCount);
 
     private ShieldEntry CreateShieldEntry(
         CodeNode testNode,

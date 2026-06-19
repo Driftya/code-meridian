@@ -675,10 +675,12 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("## Edit Context — `SaveAsync`");
         result.Should().Contain("25 lines");
-        result.Should().Contain("### Callers (1)");
+        result.Should().Contain("### Caller summary — showing 1 of 1 callers");
+        result.Should().Contain("### Direct method callers (1)");
         result.Should().Contain("`OrderController.Create`");
         result.Should().Contain("src/Ctrl.cs");
         result.Should().Contain(":10");
+        result.Should().Contain("direct production caller");
     }
 
     [Fact]
@@ -713,6 +715,53 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("### Implements");
         result.Should().Contain("`IOrderRepository`");
         result.Should().Contain("find_impact");
+    }
+
+    [Fact]
+    public async Task GetContextForEditingAsync_PrunesDuplicateFileOnlyCallers_AndGroupsCallerSections()
+    {
+        var (sut, graph) = Build();
+        var target = Node("t1", "ChainService", CodeNodeType.Class, "src/Application/ChainService.cs", 12);
+        var methodCaller = Node("m1", "ModerationWorkflow.Handle", CodeNodeType.Method, "src/Application/ModerationWorkflow.cs", 28);
+        var classCaller = Node("c1", "ModerationWorkflow", CodeNodeType.Class, "src/Application/ModerationWorkflow.cs", 5);
+        var duplicateFileCaller = Node("f1", "ModerationWorkflow.cs", CodeNodeType.File, "src/Application/ModerationWorkflow.cs", 1);
+        var routeCaller = Node("r1", "POST /chains/{id}/moderate", CodeNodeType.ApiEndpoint, "src/Api/ChainsEndpoints.cs", 33);
+        var testCaller = Node("t2", "ChainServiceTests", CodeNodeType.Class, "tests/Application/ChainServiceTests.cs", 7, fileRole: IndexedFileRole.Test);
+
+        graph.GetContextForEditingAsync("t1", Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [duplicateFileCaller, routeCaller, classCaller, testCaller, methodCaller], [], []));
+
+        var result = await sut.GetContextForEditingAsync("t1");
+
+        result.Should().Contain("### Direct method callers (1)");
+        result.Should().Contain("ModerationWorkflow.Handle");
+        result.Should().Contain("### Class/interface callers (1)");
+        result.Should().Contain("`ModerationWorkflow`");
+        result.Should().Contain("### Test callers (1)");
+        result.Should().Contain("ChainServiceTests");
+        result.Should().Contain("### Context-only file callers (1)");
+        result.Should().Contain("POST /chains/{id}/moderate");
+        result.Should().Contain("heuristic route metadata caller");
+        result.Should().Contain("Suppressed 1 duplicate file-only callers");
+        result.Should().NotContain("`ModerationWorkflow.cs` — `src/Application/ModerationWorkflow.cs`:1");
+    }
+
+    [Fact]
+    public async Task GetContextForEditingAsync_WithFullDetail_IncludesRawCallerInventory()
+    {
+        var (sut, graph) = Build();
+        var target = Node("t1", "ChainService", CodeNodeType.Class, "src/Application/ChainService.cs", 12);
+        var methodCaller = Node("m1", "ModerationWorkflow.Handle", CodeNodeType.Method, "src/Application/ModerationWorkflow.cs", 28);
+        var duplicateFileCaller = Node("f1", "ModerationWorkflow.cs", CodeNodeType.File, "src/Application/ModerationWorkflow.cs", 1);
+
+        graph.GetContextForEditingAsync("t1", Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [duplicateFileCaller, methodCaller], [], []));
+
+        var result = await sut.GetContextForEditingAsync("t1", ContextDetailLevel.Full);
+
+        result.Should().Contain("### Raw caller inventory (2)");
+        result.Should().Contain("`ModerationWorkflow.cs`");
+        result.Should().Contain("`ModerationWorkflow.Handle`");
     }
 
     // ── FindGodClassesAsync ───────────────────────────────────────────────────

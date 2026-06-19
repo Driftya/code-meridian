@@ -1,6 +1,6 @@
 # Add Edit-Context Caller Pruning
 
-- Status: pending
+- Status: implemented
 - Priority: P2
 - Note: Improve `get_context_for_editing` so the caller list is smaller, more actionable, and less noisy for class-level targets.
 
@@ -20,3 +20,10 @@
 - Class-level `get_context_for_editing` results contain fewer file-only or obviously non-actionable caller entries by default.
 - Exact callers are easier to spot without manual source inspection.
 - Sessions that use `get_context_for_editing` before refactors report higher target usefulness without losing uncertainty visibility.
+
+## Implemented
+
+- Grouped caller output into direct method callers, class/interface callers, test callers, and context-only caller sections.
+- Suppressed duplicate file-only callers when a stronger caller from the same file is already present.
+- Added caller reasons for route-metadata, file-expanded, and other heuristic/contextual entries.
+- Added `Full` detail raw caller inventory as the opt-in escape hatch for the unpruned list.
