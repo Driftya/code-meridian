@@ -46,6 +46,41 @@ describe('walkTypeScript graph indexing', () => {
     });
   });
 
+  it('indexes constructors as method nodes and captures constructor calls', () => {
+    project.writeFile(
+      'editor.ts',
+      `export class TextSlideVideoEditorState {
+  constructor() {
+    this.snapshot();
+  }
+
+  snapshot() {
+    return {};
+  }
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+
+    expect(result.nodes).toContainEqual(
+      expect.objectContaining({
+        id: 'Proj:Method:editor.ts:TextSlideVideoEditorState.constructor',
+        type: 'Method',
+      }),
+    );
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Class:editor.ts:TextSlideVideoEditorState',
+      targetId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.constructor',
+      type: 'Contains',
+    });
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.constructor',
+      targetId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.snapshot',
+      type: 'Calls',
+    });
+  });
+
   it('resolves same-class method calls', () => {
     project.writeFile(
       'editor.ts',
@@ -85,6 +120,37 @@ function format() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:math.ts:calculate',
+      targetId: 'Proj:Method:math.ts:format',
+      type: 'Calls',
+    });
+  });
+
+  it('indexes top-level arrow-function variables as method-like nodes and resolves calls to them', () => {
+    project.writeFile(
+      'math.ts',
+      `export const format = () => 'ok';
+
+export function calculate() {
+  return format();
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+
+    expect(result.nodes).toContainEqual(
+      expect.objectContaining({
+        id: 'Proj:Method:math.ts:format',
+        type: 'Method',
+      }),
+    );
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:File:math.ts',
+      targetId: 'Proj:Method:math.ts:format',
+      type: 'Contains',
+    });
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:math.ts:calculate',
       targetId: 'Proj:Method:math.ts:format',
@@ -190,6 +256,31 @@ export function renderTotal() {
 
 export function renderTotal() {
   return formatCurrency();
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:consumer.ts:renderTotal',
+      targetId: 'Proj:Method:shared_format.ts:formatAmount',
+      type: 'Calls',
+    });
+  });
+
+  it('resolves imported calls to exported arrow-function variables', () => {
+    project.writeFile(
+      'shared/format.ts',
+      `export const formatAmount = () => '$10';
+`,
+    );
+    project.writeFile(
+      'consumer.ts',
+      `import { formatAmount } from './shared/format';
+
+export function renderTotal() {
+  return formatAmount();
 }
 `,
     );

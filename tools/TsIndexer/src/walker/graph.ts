@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { CallExpression, Node, SourceFile, Symbol as TsSymbol, TypeReferenceNode } from 'ts-morph';
+import type { ArrowFunction, CallExpression, FunctionExpression, Node, SourceFile, Symbol as TsSymbol, TypeReferenceNode, VariableDeclaration } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import type { CodeEdgeDto, CodeNodeDto } from '../types.js';
 import { addNode, fileId, getNamespaceForPath, hashText, isTestFilePath, nodeId, sourceHash, sourceSnippet } from './common.js';
@@ -76,6 +76,23 @@ export function collectNodes(
       }, classifyFileRole);
     }
 
+    for (const ctor of cls.getConstructors()) {
+      const ctorName = `${name}.constructor`;
+      const ctorId = nodeId(projectName, relPath, ctorName, 'Method');
+      addNode(nodes, knownIds, {
+        id: ctorId,
+        name: ctorName,
+        type: 'Method',
+        namespace,
+        filePath: relPath,
+        lineNumber: ctor.getStartLineNumber(),
+        lineCount: ctor.getEndLineNumber() - ctor.getStartLineNumber() + 1,
+        sourceSnippet: sourceSnippet(sourceFile, ctor.getStartLineNumber(), ctor.getEndLineNumber()),
+        sourceHash: sourceHash(sourceFile, ctor.getStartLineNumber(), ctor.getEndLineNumber()),
+        projectContext: projectName,
+      }, classifyFileRole);
+    }
+
     for (const prop of cls.getProperties()) {
       const pName = `${name}.${prop.getName()}`;
       const pId = nodeId(projectName, relPath, pName, 'Property');
@@ -141,6 +158,23 @@ export function collectNodes(
       lineCount: fn.getEndLineNumber() - fn.getStartLineNumber() + 1,
       sourceSnippet: sourceSnippet(sourceFile, fn.getStartLineNumber(), fn.getEndLineNumber()),
       sourceHash: sourceHash(sourceFile, fn.getStartLineNumber(), fn.getEndLineNumber()),
+      projectContext: projectName,
+    }, classifyFileRole);
+  }
+
+  for (const variable of getTopLevelFunctionVariables(sourceFile)) {
+    const name = variable.getName();
+    const id = nodeId(projectName, relPath, name, 'Method');
+    addNode(nodes, knownIds, {
+      id,
+      name,
+      type: 'Method',
+      namespace,
+      filePath: relPath,
+      lineNumber: variable.getStartLineNumber(),
+      lineCount: variable.getEndLineNumber() - variable.getStartLineNumber() + 1,
+      sourceSnippet: sourceSnippet(sourceFile, variable.getStartLineNumber(), variable.getEndLineNumber()),
+      sourceHash: sourceHash(sourceFile, variable.getStartLineNumber(), variable.getEndLineNumber()),
       projectContext: projectName,
     }, classifyFileRole);
   }
@@ -222,6 +256,16 @@ export function collectEdges(
       addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds);
     }
 
+    for (const ctor of cls.getConstructors()) {
+      const ctorId = nodeId(projectName, relPath, `${name}.constructor`, 'Method');
+      if (knownIds.has(ctorId)) edges.push({ sourceId: cId, targetId: ctorId, type: 'Contains' });
+      addCallEdges(projectName, rootPath, knownIds, ctorId, ctor.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, {
+        filePath: relPath,
+        className: name,
+      });
+      addTypeUseEdges(projectName, rootPath, relPath, ctor, ctorId, edges, knownIds);
+    }
+
     for (const prop of cls.getProperties()) {
       const pId = nodeId(projectName, relPath, `${name}.${prop.getName()}`, 'Property');
       if (knownIds.has(pId)) edges.push({ sourceId: cId, targetId: pId, type: 'Contains' });
@@ -266,6 +310,19 @@ export function collectEdges(
       filePath: relPath,
     });
     addTypeUseEdges(projectName, rootPath, relPath, fn, fnId, edges, knownIds);
+  }
+
+  for (const variable of getTopLevelFunctionVariables(sourceFile)) {
+    const variableId = nodeId(projectName, relPath, variable.getName(), 'Method');
+    if (knownIds.has(variableId)) edges.push({ sourceId: fId, targetId: variableId, type: 'Contains' });
+    const initializer = variable.getInitializerIfKind(SyntaxKind.ArrowFunction)
+      ?? variable.getInitializerIfKind(SyntaxKind.FunctionExpression);
+    if (!initializer) continue;
+
+    addCallEdges(projectName, rootPath, knownIds, variableId, initializer.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, {
+      filePath: relPath,
+    });
+    addTypeUseEdges(projectName, rootPath, relPath, variable, variableId, edges, knownIds);
   }
 
   for (const typeAlias of sourceFile.getTypeAliases()) {
@@ -620,7 +677,7 @@ function resolveDeclarationTargetId(
         ? 'Enum'
         : kind === 'TypeAliasDeclaration'
           ? 'Interface'
-          : kind === 'FunctionDeclaration' || kind === 'MethodDeclaration'
+          : kind === 'FunctionDeclaration' || kind === 'MethodDeclaration' || kind === 'Constructor' || kind === 'VariableDeclaration'
             ? 'Method'
             : undefined;
 
@@ -631,6 +688,17 @@ function resolveDeclarationTargetId(
 }
 
 function buildMethodDeclarationName(declaration: Node): string {
+  if (declaration.getKindName() === 'Constructor') {
+    const ctor = declaration.asKindOrThrow(SyntaxKind.Constructor);
+    const className = ctor.getFirstAncestorByKind(SyntaxKind.ClassDeclaration)?.getName();
+    return className ? `${className}.constructor` : 'constructor';
+  }
+
+  if (declaration.getKindName() === 'VariableDeclaration') {
+    const variable = declaration.asKindOrThrow(SyntaxKind.VariableDeclaration);
+    return variable.getName();
+  }
+
   if (declaration.getKindName() !== 'MethodDeclaration') {
     return declaration.getSymbol()?.getName() ?? declaration.getText().split(/\s+/)[0];
   }
@@ -639,6 +707,19 @@ function buildMethodDeclarationName(declaration: Node): string {
   const classDecl = method.getFirstAncestorByKind(SyntaxKind.ClassDeclaration);
   const className = classDecl?.getName();
   return className ? `${className}.${method.getName()}` : method.getName();
+}
+
+function getTopLevelFunctionVariables(sourceFile: SourceFile): VariableDeclaration[] {
+  return sourceFile
+    .getVariableStatements()
+    .flatMap(statement => statement.getDeclarations())
+    .filter(isFunctionValuedVariable);
+}
+
+function isFunctionValuedVariable(variable: VariableDeclaration): boolean {
+  const initializer = variable.getInitializer();
+  return initializer?.isKind(SyntaxKind.ArrowFunction) === true
+    || initializer?.isKind(SyntaxKind.FunctionExpression) === true;
 }
 
 function resolveHeritageTargetId(
