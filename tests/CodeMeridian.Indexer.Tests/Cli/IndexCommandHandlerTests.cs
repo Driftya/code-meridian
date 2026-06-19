@@ -96,6 +96,65 @@ public sealed class IndexCommandHandlerTests
             .Which.Should().Be(new KeyValuePair<string, string?>("CodeMeridian_Auth_ApiKey", "secret-key"));
     }
 
+    [Fact]
+    public void WriteHtmlCssBatchFile_WritesRelativePathsAndClassifiedRoles()
+    {
+        using var workspace = TestWorkspace.Create();
+        var htmlFile = workspace.WriteFile("src/app.html", "<div class=\"hero\"></div>");
+        var scssFile = workspace.WriteFile("styles/site.scss", ".hero { color: red; }");
+        var cacheDirectory = new DirectoryInfo(Path.Combine(workspace.Root.FullName, ".meridian", "cache"));
+        var classifier = IndexedFileRoleClassifierFactory.Create(snapshot: null);
+        var handler = CreateHandler(CreateSettings(workspace.Root, clear: false, incremental: true));
+
+        var method = typeof(IndexCommandHandler).GetMethod(
+            "WriteHtmlCssBatchFile",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+        var batchFile = (FileInfo?)method!.Invoke(handler, [cacheDirectory, workspace.Root, new[] { htmlFile.FullName, scssFile.FullName }, classifier]);
+
+        batchFile.Should().NotBeNull();
+        batchFile!.Exists.Should().BeTrue();
+
+        var payload = JsonSerializer.Deserialize<TypeScriptBatchEntry[]>(File.ReadAllText(batchFile.FullName));
+        payload.Should().NotBeNull();
+        payload.Should().BeEquivalentTo(
+        [
+            new TypeScriptBatchEntry("src/app.html", "Unknown"),
+            new TypeScriptBatchEntry("styles/site.scss", "Unknown"),
+        ]);
+    }
+
+    [Fact]
+    public void BuildExecutionContext_FindsHtmlCssRootsWhenNoTypeScriptRootExists()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.WriteFile("src/app.html", "<div class=\"hero\"></div>");
+        workspace.WriteFile("styles/site.scss", ".hero { color: red; }");
+
+        var handler = CreateHandler(CreateSettings(workspace.Root, clear: false, incremental: true));
+        var buildExecutionContext = typeof(IndexCommandHandler).GetMethod(
+            "BuildExecutionContext",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        buildExecutionContext.Should().NotBeNull();
+        var context = buildExecutionContext!.Invoke(handler, [false]);
+
+        context.Should().NotBeNull();
+        var hasHtmlCss = (bool)context!
+            .GetType()
+            .GetProperty("HasHtmlCss", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .GetValue(context)!;
+        var htmlCssRoots = (IReadOnlyList<DirectoryInfo>)context
+            .GetType()
+            .GetProperty("HtmlCssRoots", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .GetValue(context)!;
+
+        hasHtmlCss.Should().BeTrue();
+        htmlCssRoots.Should().ContainSingle();
+        htmlCssRoots[0].FullName.Should().Be(workspace.Root.FullName);
+    }
+
     private static IndexCommandHandler CreateHandler(ResolvedIndexerSettings settings)
         => new(
             Options.Create(settings),

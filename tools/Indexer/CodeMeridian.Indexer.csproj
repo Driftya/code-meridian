@@ -117,6 +117,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\IndexerShared\package.json"
+          Link="tools\IndexerShared\package.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\IndexerShared\package-lock.json"
+          Link="tools\IndexerShared\package-lock.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\IndexerShared\dist\**\*"
+          Link="tools\IndexerShared\dist\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\TsIndexer\package.json"
           Link="tools\TsIndexer\package.json"
           CopyToOutputDirectory="PreserveNewest" />
@@ -128,6 +137,24 @@
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\TsIndexer\src\**\*"
           Link="tools\TsIndexer\src\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\HtmlCssIndexer\package.json"
+          Link="tools\HtmlCssIndexer\package.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\HtmlCssIndexer\package-lock.json"
+          Link="tools\HtmlCssIndexer\package-lock.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\HtmlCssIndexer\tsconfig.json"
+          Link="tools\HtmlCssIndexer\tsconfig.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\HtmlCssIndexer\vitest.config.ts"
+          Link="tools\HtmlCssIndexer\vitest.config.ts"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\HtmlCssIndexer\supports.md"
+          Link="tools\HtmlCssIndexer\supports.md"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\HtmlCssIndexer\src\**\*"
+          Link="tools\HtmlCssIndexer\src\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

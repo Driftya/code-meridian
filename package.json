@@ -5,10 +5,12 @@
     "tools/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace codemeridian-ts-indexer",
-    "test": "npm run test --workspace codemeridian-ts-indexer",
+    "build": "npm run build --workspace @codemeridian/indexer-shared && npm run build --workspace codemeridian-ts-indexer && npm run build --workspace codemeridian-html-css-indexer",
+    "test": "npm run test --workspace @codemeridian/indexer-shared && npm run test --workspace codemeridian-ts-indexer && npm run test --workspace codemeridian-html-css-indexer",
     "test:tools": "npm run test --workspaces --if-present",
     "start:ts-indexer": "npm run start --workspace codemeridian-ts-indexer",
-    "index:ts": "npm run index --workspace codemeridian-ts-indexer"
+    "start:html-css-indexer": "npm run start --workspace codemeridian-html-css-indexer",
+    "index:ts": "npm run index --workspace codemeridian-ts-indexer",
+    "index:html-css": "npm run index --workspace codemeridian-html-css-indexer"
   }
 }

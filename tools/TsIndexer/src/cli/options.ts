@@ -1,14 +1,1 @@
-export interface IndexCommandOptions {
-  path: string;
-  project: string;
-  url: string;
-  batchFile: string;
-}
-
-export interface ResolvedIndexCommandOptions {
-  rootPath: string;
-  projectName: string;
-  serverUrl: string;
-  apiKey?: string;
-  batchFilePath: string;
-}
+export type { IndexCommandOptions, ResolvedIndexCommandOptions } from '@codemeridian/indexer-shared';

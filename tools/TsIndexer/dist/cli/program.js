@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { Command } from 'commander';
-import { loadEnvironmentForInvocation } from '../config/load-environment.js';
+import { loadEnvironmentForInvocation } from '@codemeridian/indexer-shared';
 export async function parseCommandLine(argv) {
     const program = new Command()
         .name('codemeridian-ts-indexer')

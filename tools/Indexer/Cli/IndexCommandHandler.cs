@@ -53,7 +53,7 @@ internal sealed class IndexCommandHandler(
             Console.WriteLine($"warning: run `codemeridian init .` to merge version {_settings.CurrentConfigVersion} defaults into the existing file.");
         }
 
-        if (!context.HasCSharp && !context.HasTypeScript && !context.HasConfiguration)
+        if (!context.HasCSharp && !context.HasTypeScript && !context.HasHtmlCss && !context.HasConfiguration)
         {
             Console.WriteLine("No enabled indexers found matching this project.");
             Console.WriteLine("Use --list-capabilities to inspect available indexers.");
@@ -62,7 +62,7 @@ internal sealed class IndexCommandHandler(
 
         if (_settings.DryRun)
         {
-            PrintDryRun(context.HasCSharp, context.TypeScriptRoots, context.IncrementalPlan, _settings.Incremental && !_settings.Clear);
+            PrintDryRun(context.HasCSharp, context.TypeScriptRoots, context.HtmlCssRoots, context.IncrementalPlan, _settings.Incremental && !_settings.Clear);
             return 0;
         }
 
@@ -169,6 +169,15 @@ internal sealed class IndexCommandHandler(
             clearNextIndexer = false;
         }
 
+        if (context.HasHtmlCss)
+        {
+            exitCode = await RunHtmlCssIndexerAsync(context, changedFiles, deletedFiles);
+            if (exitCode != 0)
+                return exitCode;
+
+            clearNextIndexer = false;
+        }
+
         if (_settings.IncludeDocs)
         {
             exitCode = await RunDocumentIndexerAsync(changedFiles, deletedFiles);
@@ -236,6 +245,7 @@ internal sealed class IndexCommandHandler(
     private void PrintDryRun(
         bool hasCSharp,
         IReadOnlyList<DirectoryInfo> typeScriptRoots,
+        IReadOnlyList<DirectoryInfo> htmlCssRoots,
         IncrementalIndexPlan incrementalPlan,
         bool incremental)
     {
@@ -251,10 +261,14 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Rebuild keywords  : {_settings.RebuildKeywords}");
         Console.WriteLine($"  C# indexer        : {(hasCSharp ? "enabled" : "not applicable")}");
         Console.WriteLine($"  TypeScript roots  : {(typeScriptRoots.Count == 0 ? "none" : typeScriptRoots.Count)}");
+        Console.WriteLine($"  HTML/CSS roots    : {(htmlCssRoots.Count == 0 ? "none" : htmlCssRoots.Count)}");
         Console.WriteLine($"  Config indexer    : {(_settings.SkipConfiguration ? "skipped" : "enabled")}");
 
         foreach (var typeScriptRoot in typeScriptRoots)
             Console.WriteLine($"    - {Path.GetRelativePath(_settings.RootPath.FullName, typeScriptRoot.FullName)}");
+
+        foreach (var htmlCssRoot in htmlCssRoots)
+            Console.WriteLine($"    - {Path.GetRelativePath(_settings.RootPath.FullName, htmlCssRoot.FullName)}");
 
         Console.WriteLine($"  Project context   : {_settings.Project}");
     }
@@ -264,6 +278,8 @@ internal sealed class IndexCommandHandler(
         var hasCSharp = !_settings.SkipCSharp && projectDiscoveryService.ContainsFile(_settings.RootPath, ".cs");
         var typeScriptRoots = _settings.SkipTypeScript ? [] : projectDiscoveryService.FindTypeScriptRoots(_settings.RootPath);
         var hasTypeScript = typeScriptRoots.Count > 0;
+        var htmlCssRoots = _settings.SkipTypeScript ? [] : ResolveHtmlCssRoots(typeScriptRoots);
+        var hasHtmlCss = htmlCssRoots.Count > 0;
         var configurationFilePatterns = _settings.ConfigurationFiles;
         var hasConfiguration = !_settings.SkipConfiguration &&
                                _settings.RootPath.EnumerateFiles("*.*", SearchOption.AllDirectories)
@@ -281,6 +297,8 @@ internal sealed class IndexCommandHandler(
             hasCSharp,
             typeScriptRoots,
             hasTypeScript,
+            htmlCssRoots,
+            hasHtmlCss,
             hasConfiguration,
             cacheDirectory,
             cache,
@@ -345,10 +363,71 @@ internal sealed class IndexCommandHandler(
         return 0;
     }
 
+    private async Task<int> RunHtmlCssIndexerAsync(
+        IndexExecutionContext context,
+        IReadOnlyCollection<string>? changedFiles,
+        IReadOnlyCollection<string> deletedFiles)
+    {
+        if (changedFiles is not null || deletedFiles.Count > 0)
+        {
+            await new ProjectFileDeletionService(_settings.CodeMeridianUrl, _settings.ApiKey, _settings.Project, _settings.RootPath).DeleteAsync(
+                context.HtmlCssRoots.SelectMany(root => FilterHtmlCssFiles(changedFiles ?? [], root))
+                    .Concat(context.HtmlCssRoots.SelectMany(root => FilterHtmlCssFiles(deletedFiles, root))));
+        }
+
+        var htmlCssIndexerRoot = ResolveHtmlCssIndexerRoot();
+        if (htmlCssIndexerRoot is null)
+        {
+            Console.Error.WriteLine("error: HTML/CSS indexer assets were not found.");
+            Console.Error.WriteLine("Reinstall the CodeMeridian indexer tool or run from a source checkout.");
+            return 1;
+        }
+
+        var exitCode = await HtmlCssIndexerProcessRunner.EnsureDependenciesAsync(htmlCssIndexerRoot);
+        if (exitCode != 0)
+            return exitCode;
+
+        var tsxCommand = HtmlCssIndexerProcessRunner.ResolveTsxCommand(htmlCssIndexerRoot);
+        if (tsxCommand is null)
+        {
+            Console.Error.WriteLine("error: local tsx binary was not found for the HTML/CSS indexer.");
+            Console.Error.WriteLine("Reinstall the indexer dependencies or run from a source checkout.");
+            return 1;
+        }
+
+        var fileRoleClassifier = IndexedFileRoleClassifierFactory.Create(_settings.FileRoles);
+
+        foreach (var htmlCssRoot in context.HtmlCssRoots)
+        {
+            var files = SelectHtmlCssFilesForRoot(changedFiles, htmlCssRoot).ToArray();
+            if (files.Length == 0)
+                continue;
+
+            var batchFile = WriteHtmlCssBatchFile(context.CacheDirectory, htmlCssRoot, files, fileRoleClassifier);
+            var args = HtmlCssIndexerCommandBuilder.BuildHtmlCssIndexerArgs(htmlCssIndexerRoot, htmlCssRoot, _settings.Project);
+            HtmlCssIndexerCommandBuilder.AddHtmlCssIndexerOptions(args, _settings.CodeMeridianUrl, batchFile);
+
+            exitCode = await HtmlCssIndexerProcessRunner.RunAsync(
+                tsxCommand,
+                args,
+                htmlCssIndexerRoot,
+                CreateHtmlCssIndexerEnvironment());
+            if (exitCode != 0)
+                return exitCode;
+        }
+
+        return 0;
+    }
+
     private IEnumerable<string> FilterTypeScriptFiles(
         IEnumerable<string> relativePaths,
         DirectoryInfo typeScriptRoot) =>
         FilterFilesForRoot(relativePaths, typeScriptRoot, IndexExecutionPlanBuilder.IsTypeScriptSourceFile);
+
+    private IEnumerable<string> FilterHtmlCssFiles(
+        IEnumerable<string> relativePaths,
+        DirectoryInfo htmlCssRoot) =>
+        FilterFilesForRoot(relativePaths, htmlCssRoot, IndexExecutionPlanBuilder.IsHtmlCssSourceFile);
 
     private IEnumerable<string> SelectTypeScriptFilesForRoot(
         IReadOnlyCollection<string>? changedFiles,
@@ -364,6 +443,22 @@ internal sealed class IndexCommandHandler(
         }
 
         return FilterTypeScriptFiles(changedFiles, typeScriptRoot);
+    }
+
+    private IEnumerable<string> SelectHtmlCssFilesForRoot(
+        IReadOnlyCollection<string>? changedFiles,
+        DirectoryInfo htmlCssRoot)
+    {
+        if (changedFiles is null)
+        {
+            return htmlCssRoot
+                .EnumerateFiles("*.*", SearchOption.AllDirectories)
+                .Where(file => !IndexExecutionPlanBuilder.IsIgnoredPath(_settings.RootPath, file))
+                .Where(IndexExecutionPlanBuilder.IsHtmlCssSourceFile)
+                .Select(file => file.FullName);
+        }
+
+        return FilterHtmlCssFiles(changedFiles, htmlCssRoot);
     }
 
     private IEnumerable<string> FilterFilesForRoot(
@@ -408,10 +503,38 @@ internal sealed class IndexCommandHandler(
         return file;
     }
 
+    private FileInfo WriteHtmlCssBatchFile(
+        DirectoryInfo cacheDirectory,
+        DirectoryInfo languageRoot,
+        IReadOnlyCollection<string> fullPaths,
+        Application.Services.IIndexedFileRoleClassifier fileRoleClassifier)
+    {
+        cacheDirectory.Create();
+        var file = new FileInfo(Path.Combine(
+            cacheDirectory.FullName,
+            $"html-css-batch-{Hash($"{_settings.Project}|{languageRoot.FullName}")}.json"));
+
+        var payload = fullPaths
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .Select(fullPath =>
+            {
+                var relativeToSolutionRoot = Path.GetRelativePath(_settings.RootPath.FullName, fullPath).Replace('\\', '/');
+                var relativeToLanguageRoot = Path.GetRelativePath(languageRoot.FullName, fullPath).Replace('\\', '/');
+                return new TypeScriptBatchEntry(relativeToLanguageRoot, fileRoleClassifier.Classify(relativeToSolutionRoot).ToString());
+            })
+            .ToArray();
+
+        File.WriteAllText(file.FullName, System.Text.Json.JsonSerializer.Serialize(payload));
+        return file;
+    }
+
     private IReadOnlyDictionary<string, string?> CreateTypeScriptIndexerEnvironment() =>
         string.IsNullOrWhiteSpace(_settings.ApiKey)
             ? new Dictionary<string, string?>()
             : new Dictionary<string, string?> { ["CodeMeridian_Auth_ApiKey"] = _settings.ApiKey };
+
+    private IReadOnlyDictionary<string, string?> CreateHtmlCssIndexerEnvironment() =>
+        CreateTypeScriptIndexerEnvironment();
 
     private DirectoryInfo? ResolveTypeScriptIndexerRoot()
     {
@@ -427,6 +550,37 @@ internal sealed class IndexCommandHandler(
 
         var packagedRoot = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "tools", "TsIndexer"));
         return File.Exists(Path.Combine(packagedRoot.FullName, "src", "index.ts")) ? packagedRoot : null;
+    }
+
+    private DirectoryInfo? ResolveHtmlCssIndexerRoot()
+    {
+        var repositoryRoot = projectDiscoveryService.FindRepositoryRoot(new DirectoryInfo(Directory.GetCurrentDirectory()))
+            ?? projectDiscoveryService.FindRepositoryRoot(new DirectoryInfo(AppContext.BaseDirectory));
+
+        if (repositoryRoot is not null)
+        {
+            var sourceRoot = new DirectoryInfo(Path.Combine(repositoryRoot.FullName, "tools", "HtmlCssIndexer"));
+            if (File.Exists(Path.Combine(sourceRoot.FullName, "src", "index.ts")))
+                return sourceRoot;
+        }
+
+        var packagedRoot = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "tools", "HtmlCssIndexer"));
+        return File.Exists(Path.Combine(packagedRoot.FullName, "src", "index.ts")) ? packagedRoot : null;
+    }
+
+    private IReadOnlyList<DirectoryInfo> ResolveHtmlCssRoots(IReadOnlyList<DirectoryInfo> typeScriptRoots)
+    {
+        var roots = typeScriptRoots
+            .Where(root => projectDiscoveryService.ContainsFile(root, ".html", ".css", ".scss"))
+            .ToList();
+
+        if (roots.Count == 0 && projectDiscoveryService.ContainsFile(_settings.RootPath, ".html", ".css", ".scss"))
+            roots.Add(_settings.RootPath);
+
+        return roots
+            .DistinctBy(root => root.FullName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(root => root.FullName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static string Hash(string value)
@@ -448,6 +602,7 @@ internal sealed class IndexCommandHandler(
             """);
 
         Console.WriteLine($"  TypeScript/TSX   {(tsIndexerRoot is null ? "no - assets not found" : "yes")}");
+        Console.WriteLine($"  HTML/CSS/SCSS    {(ResolveHtmlCssIndexerRoot() is null ? "no - assets not found" : "yes - placeholder worker")}");
         Console.WriteLine("  Diagnostics      yes - skip with --skip-diagnostics");
         Console.WriteLine();
         Console.WriteLine("Commands:");
@@ -537,6 +692,8 @@ internal sealed class IndexCommandHandler(
         bool HasCSharp,
         IReadOnlyList<DirectoryInfo> TypeScriptRoots,
         bool HasTypeScript,
+        IReadOnlyList<DirectoryInfo> HtmlCssRoots,
+        bool HasHtmlCss,
         bool HasConfiguration,
         DirectoryInfo CacheDirectory,
         IncrementalIndexCache Cache,

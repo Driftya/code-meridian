@@ -1,9 +1,7 @@
-import path from 'node:path';
-import { CodeMeridianClient } from '../client.js';
+import { CodeMeridianClient, readIndexerBatchFile } from '@codemeridian/indexer-shared';
 import { walkTypeScript } from '../walker.js';
 import { indexTypeScriptDiagnostics } from '../diagnostics/type-script-diagnostics.js';
 import { analyzeTypeScriptBoundaries } from '../analysis/type-script-boundaries.js';
-import fs from 'node:fs';
 export class TypeScriptIndexerApplication {
     async run(options) {
         const client = new CodeMeridianClient(options.serverUrl, options.apiKey);
@@ -16,7 +14,7 @@ export class TypeScriptIndexerApplication {
         if (boundaries.length > 0) {
             console.log(`  Detected ${boundaries.length} TypeScript project boundary/boundaries`);
         }
-        const batch = readBatchFile(options.rootPath, options.batchFilePath);
+        const batch = readIndexerBatchFile(options.rootPath, options.batchFilePath);
         console.log(`  Batch size: ${batch.files.length} file(s)`);
         const { nodes, edges } = walkTypeScript(options.rootPath, options.projectName, batch.files, relativePath => batch.fileRoles.get(relativePath));
         console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
@@ -52,19 +50,4 @@ export class TypeScriptIndexerApplication {
         console.log(`  Indexed ${diagnosticsCount} TypeScript diagnostic(s)`);
         console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
     }
-}
-function readBatchFile(rootPath, batchFilePath) {
-    const payload = JSON.parse(fs.readFileSync(batchFilePath, 'utf8'));
-    const files = [];
-    const fileRoles = new Map();
-    for (const entry of payload) {
-        const normalizedEntryPath = entry.path.replace(/[\\/]/g, path.sep);
-        const fullPath = path.resolve(rootPath, normalizedEntryPath);
-        files.push(fullPath);
-        if (entry.fileRole) {
-            const relativePath = path.relative(rootPath, fullPath).replace(/\\/g, '/');
-            fileRoles.set(relativePath, entry.fileRole);
-        }
-    }
-    return { files, fileRoles };
 }

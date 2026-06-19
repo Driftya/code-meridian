@@ -37,6 +37,7 @@ internal static class IndexExecutionPlanBuilder
             .Where(file =>
                 (includeCSharp && IsCSharpSourceFile(file)) ||
                 (includeTypeScript && IsTypeScriptSourceFile(file)) ||
+                (includeTypeScript && IsHtmlCssSourceFile(file)) ||
                 (includeDocs && IsDocumentationFile(file)) ||
                 (includeConfiguration && IsConfigurationFile(file)))
             .ToArray();
@@ -49,6 +50,11 @@ internal static class IndexExecutionPlanBuilder
         (file.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
          file.Extension.Equals(".tsx", StringComparison.OrdinalIgnoreCase)) &&
         !file.Name.EndsWith(".d.ts", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsHtmlCssSourceFile(FileInfo file) =>
+        file.Extension.Equals(".html", StringComparison.OrdinalIgnoreCase) ||
+        file.Extension.Equals(".css", StringComparison.OrdinalIgnoreCase) ||
+        file.Extension.Equals(".scss", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsDocumentationFile(FileInfo file) =>
         file.Extension.Equals(".md", StringComparison.OrdinalIgnoreCase) ||

@@ -1,10 +1,8 @@
-import path from 'node:path';
-import { CodeMeridianClient } from '../client.js';
+import { CodeMeridianClient, readIndexerBatchFile } from '@codemeridian/indexer-shared';
 import { walkTypeScript } from '../walker.js';
 import type { ResolvedIndexCommandOptions } from '../cli/options.js';
 import { indexTypeScriptDiagnostics } from '../diagnostics/type-script-diagnostics.js';
 import { analyzeTypeScriptBoundaries } from '../analysis/type-script-boundaries.js';
-import fs from 'node:fs';
 
 export class TypeScriptIndexerApplication {
   async run(options: ResolvedIndexCommandOptions): Promise<number> {
@@ -23,7 +21,7 @@ export class TypeScriptIndexerApplication {
       console.log(`  Detected ${boundaries.length} TypeScript project boundary/boundaries`);
     }
 
-    const batch = readBatchFile(options.rootPath, options.batchFilePath);
+    const batch = readIndexerBatchFile(options.rootPath, options.batchFilePath);
     console.log(`  Batch size: ${batch.files.length} file(s)`);
 
     const { nodes, edges } = walkTypeScript(
@@ -66,42 +64,4 @@ export class TypeScriptIndexerApplication {
 
     console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
   }
-}
-
-interface TypeScriptBatchFile {
-  files: string[];
-  fileRoles: Map<string, string>;
-}
-
-interface TypeScriptBatchEntry {
-  path?: string;
-  Path?: string;
-  fileRole?: string;
-  FileRole?: string;
-}
-
-function readBatchFile(rootPath: string, batchFilePath: string): TypeScriptBatchFile {
-  const payload = JSON.parse(fs.readFileSync(batchFilePath, 'utf8')) as TypeScriptBatchEntry[];
-
-  const files: string[] = [];
-  const fileRoles = new Map<string, string>();
-
-  for (const entry of payload) {
-    const rawPath = entry.path ?? entry.Path;
-    if (!rawPath) {
-      throw new Error(`Batch file '${batchFilePath}' contains an entry without a path.`);
-    }
-
-    const normalizedEntryPath = rawPath.replace(/[\\/]/g, path.sep);
-    const fullPath = path.resolve(rootPath, normalizedEntryPath);
-    files.push(fullPath);
-
-    const fileRole = entry.fileRole ?? entry.FileRole;
-    if (fileRole) {
-      const relativePath = path.relative(rootPath, fullPath).replace(/\\/g, '/');
-      fileRoles.set(relativePath, fileRole);
-    }
-  }
-
-  return { files, fileRoles };
 }

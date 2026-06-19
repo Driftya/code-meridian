@@ -57,6 +57,15 @@ public sealed class IndexExecutionPlanBuilderTests
     }
 
     [Fact]
+    public void IsHtmlCssSourceFile_RecognizesFrontendMarkupAndStyles()
+    {
+        IndexExecutionPlanBuilder.IsHtmlCssSourceFile(new FileInfo(Path.Combine("C:", "repo", "src", "app.html"))).Should().BeTrue();
+        IndexExecutionPlanBuilder.IsHtmlCssSourceFile(new FileInfo(Path.Combine("C:", "repo", "src", "site.css"))).Should().BeTrue();
+        IndexExecutionPlanBuilder.IsHtmlCssSourceFile(new FileInfo(Path.Combine("C:", "repo", "src", "site.scss"))).Should().BeTrue();
+        IndexExecutionPlanBuilder.IsHtmlCssSourceFile(new FileInfo(Path.Combine("C:", "repo", "src", "app.ts"))).Should().BeFalse();
+    }
+
+    [Fact]
     public void IsDocumentationFile_RecognizesCommonRepositoryDocs()
     {
         var file = new FileInfo(Path.Combine("C:", "repo", "README.md"));
