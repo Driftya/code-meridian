@@ -1,5 +1,5 @@
 export type CodeNodeType = 'Namespace' | 'Class' | 'Interface' | 'Method' | 'Property' | 'Field' | 'Enum' | 'File' | 'Module' | 'ExternalConcept' | 'DatabaseTable' | 'ApiEndpoint' | 'MessageTopic' | 'ExternalService' | 'Diagnostic' | 'ConfigurationFile' | 'ConfigurationKey' | 'ConfigurationEntry';
-export type CodeEdgeType = 'Contains' | 'Calls' | 'Implements' | 'Inherits' | 'Uses' | 'DependsOn' | 'Overrides' | 'Reads' | 'Writes' | 'PublishesTo' | 'SubscribesTo' | 'DefinesConfig' | 'OverridesConfig' | 'ReadsConfig' | 'BindsConfig';
+export type CodeEdgeType = 'Contains' | 'Calls' | 'Implements' | 'Inherits' | 'Uses' | 'UsesClass' | 'UsesId' | 'DependsOn' | 'Overrides' | 'DefinesSelector' | 'ImportsStyle' | 'UsesCssVariable' | 'DefinesCssVariable' | 'Reads' | 'Writes' | 'PublishesTo' | 'SubscribesTo' | 'DefinesConfig' | 'OverridesConfig' | 'ReadsConfig' | 'BindsConfig';
 export interface CodeNodeDto {
     id: string;
     name: string;

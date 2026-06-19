@@ -62,6 +62,8 @@ public sealed class IndexExecutionPlanBuilderTests
         IndexExecutionPlanBuilder.IsHtmlCssSourceFile(new FileInfo(Path.Combine("C:", "repo", "src", "app.html"))).Should().BeTrue();
         IndexExecutionPlanBuilder.IsHtmlCssSourceFile(new FileInfo(Path.Combine("C:", "repo", "src", "site.css"))).Should().BeTrue();
         IndexExecutionPlanBuilder.IsHtmlCssSourceFile(new FileInfo(Path.Combine("C:", "repo", "src", "site.scss"))).Should().BeTrue();
+        IndexExecutionPlanBuilder.IsHtmlCssSourceFile(new FileInfo(Path.Combine("C:", "repo", "src", "Card.tsx"))).Should().BeTrue();
+        IndexExecutionPlanBuilder.IsHtmlCssSourceFile(new FileInfo(Path.Combine("C:", "repo", "src", "Card.jsx"))).Should().BeTrue();
         IndexExecutionPlanBuilder.IsHtmlCssSourceFile(new FileInfo(Path.Combine("C:", "repo", "src", "app.ts"))).Should().BeFalse();
     }
 

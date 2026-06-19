@@ -571,10 +571,10 @@ internal sealed class IndexCommandHandler(
     private IReadOnlyList<DirectoryInfo> ResolveHtmlCssRoots(IReadOnlyList<DirectoryInfo> typeScriptRoots)
     {
         var roots = typeScriptRoots
-            .Where(root => projectDiscoveryService.ContainsFile(root, ".html", ".css", ".scss"))
+            .Where(root => projectDiscoveryService.ContainsFile(root, ".html", ".css", ".scss", ".tsx", ".jsx"))
             .ToList();
 
-        if (roots.Count == 0 && projectDiscoveryService.ContainsFile(_settings.RootPath, ".html", ".css", ".scss"))
+        if (roots.Count == 0 && projectDiscoveryService.ContainsFile(_settings.RootPath, ".html", ".css", ".scss", ".tsx", ".jsx"))
             roots.Add(_settings.RootPath);
 
         return roots

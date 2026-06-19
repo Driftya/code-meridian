@@ -1,6 +1,6 @@
 ﻿# Add HTML / CSS / SCSS Relationship Indexing
 
-- Status: pending
+- Status: implemented
 - Priority: P2
 - Note: Frontend context is not only TypeScript
 
@@ -43,4 +43,28 @@
 **Effort:** High  
 **Value:** Medium to high for frontend-heavy repos  
 **Risk:** High if it tries to model the full cascade; medium if the first version stays static and relationship-focused.
+
+## Implemented
+
+- Added a dedicated `HtmlCssIndexer` worker to the unified `CodeMeridian.Indexer` flow.
+- Indexed static relationships from:
+  - HTML `class` and `id` usage
+  - CSS / SCSS selector definitions
+  - CSS custom property definitions and usages
+  - local stylesheet imports in HTML, CSS / SCSS, and TSX / JSX
+  - static TSX / JSX `className` and `id` usage
+- Emitted explicit graph edges for:
+  - `UsesClass`
+  - `UsesId`
+  - `DefinesSelector`
+  - `ImportsStyle`
+  - `UsesCssVariable`
+  - `DefinesCssVariable`
+- Reused the shared workspace package for the internal worker contract and client/batch-loading utilities.
+
+## Current Limits
+
+- The current version is static and conservative by design.
+- Full cascade resolution, specificity analysis, and dynamic runtime class-name evaluation are still out of scope.
+- Near-duplicate spacing/style clustering remains a future follow-up rather than part of this indexing MVP.
 

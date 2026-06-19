@@ -54,7 +54,9 @@ internal static class IndexExecutionPlanBuilder
     public static bool IsHtmlCssSourceFile(FileInfo file) =>
         file.Extension.Equals(".html", StringComparison.OrdinalIgnoreCase) ||
         file.Extension.Equals(".css", StringComparison.OrdinalIgnoreCase) ||
-        file.Extension.Equals(".scss", StringComparison.OrdinalIgnoreCase);
+        file.Extension.Equals(".scss", StringComparison.OrdinalIgnoreCase) ||
+        file.Extension.Equals(".tsx", StringComparison.OrdinalIgnoreCase) ||
+        file.Extension.Equals(".jsx", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsDocumentationFile(FileInfo file) =>
         file.Extension.Equals(".md", StringComparison.OrdinalIgnoreCase) ||

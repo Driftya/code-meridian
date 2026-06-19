@@ -21,7 +21,7 @@ This is the roadmap index. Each item links to a dedicated note under `docs/featu
 - [x] [P1 - Add Session Usefulness Evaluation](docs/features/17-add-session-usefulness-evaluation.md) - CodeMeridian should be able to answer whether it actually helped an implementation session
 - [x] [P1 - Package the Indexers for Easier Use](docs/features/18-package-the-indexers-for-easier-use.md) - The old language-specific indexer commands worked for contributors, but they were not a polished user experience
 - [x] [P2 - Improve Cross-Language Connection Quality](docs/features/19-improve-cross-language-connection-quality.md) - Current C# and TypeScript indexing share the graph, but true frontend-to-backend tracing needs stronger edges than imports and class relationships.
-- [ ] [P2 - Add HTML / CSS / SCSS Relationship Indexing](docs/features/20-add-html-css-scss-relationship-indexing.md) - Frontend context is not only TypeScript
+- [x] [P2 - Add HTML / CSS / SCSS Relationship Indexing](docs/features/20-add-html-css-scss-relationship-indexing.md) - Frontend context is not only TypeScript
 - [ ] [P2 - Add CI-Friendly Context Reports](docs/features/21-add-ci-friendly-context-reports.md) - CodeMeridian can produce PR context summaries without relying on an interactive assistant.
 - [x] [P2 - Add Duplicate-Code Workflow](docs/features/22-add-duplicate-code-workflow.md) - Once embeddings work, CodeMeridian can turn `find_similar_nodes` into a practical duplicate-code review flow.
 - [ ] [P3 - Add More External Concept Indexers](docs/features/23-add-more-external-concept-indexers.md) - `link_external_concept` is powerful, but manual linking limits adoption.
