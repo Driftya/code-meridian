@@ -1,6 +1,6 @@
 # Add Slice-Aware Test Shield Ranking
 
-- Status: pending
+- Status: done
 - Priority: P1
 - Note: Turn `find_test_shield` into a smaller verification planner for the selected seam, not just a broad shield inventory.
 
@@ -20,3 +20,9 @@
 - Suggested tests changed or run improves for refactor sessions that already have exact targets.
 - New characterization-test opportunities are surfaced earlier for weakly shielded seams.
 - `build_minimal_context`, `plan_context_workflow`, and refactor-oriented tool flows can consume the tighter ranked shield list instead of broad raw matches.
+
+**Implemented:**
+
+- `find_test_shield` now separates direct callers from a primary seam-aware verification list and a secondary awareness list.
+- Primary ranking prefers exact caller-path tests and nearby slice signals that share dependency or contract context with the target seam.
+- Weakly shielded paths now surface characterization seams through the unshielded section, and the tool emits a minimal `dotnet test` command when one focused candidate resolves cleanly.

@@ -389,9 +389,14 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var frontendCaller = Node("w1", "submitOrder", CodeNodeType.Method, "src/web/orders-client.ts", 22, "Shop.Web");
         var directTest = Node("t1", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 5, "Shop");
         var routeShield = Node("t2", "OrdersEndpointTests", CodeNodeType.Class, "tests/Api/OrdersEndpointTests.cs", 8, "Shop");
+        var repository = Node("repo1", "IOrderRepository", CodeNodeType.Interface, "src/Orders/IOrderRepository.cs", 4, "Shop");
 
         graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
-             .Returns(new EditingContext(target, [endpoint], [], []));
+             .Returns(new EditingContext(target, [endpoint], [], [repository]));
+        graph.GetContextForEditingAsync(endpoint.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(endpoint, [], [repository], []));
+        graph.GetContextForEditingAsync(frontendCaller.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(frontendCaller, [], [], []));
         graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
              .Returns([(endpoint, 1), (frontendCaller, 2)]);
         graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
@@ -404,16 +409,19 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var result = await sut.FindTestShieldAsync(target.Id, depth: 2);
 
         result.Should().Contain("## Test Shield Map");
-        result.Should().Contain("1 direct, 1 indirect, 1 unshielded path nodes");
+        result.Should().Contain("1 direct, 1 primary, 0 secondary, 1 unshielded path nodes");
         result.Should().Contain("### Direct test shield (1)");
         result.Should().Contain("OrderServiceTests");
         result.Should().Contain("direct `Calls` edge to `PlaceOrder`");
-        result.Should().Contain("### Indirect test shield (1)");
+        result.Should().Contain("### Primary verification tests (1)");
         result.Should().Contain("OrdersEndpointTests");
-        result.Should().Contain("directly protects `POST /api/orders` on the caller path");
+        result.Should().Contain("directly protects `POST /api/orders`; exact caller-path seam; shares 1 dependency/contract signal with the target slice");
+        result.Should().Contain("### Secondary shield awareness (0)");
         result.Should().Contain("### Unshielded path nodes (1)");
         result.Should().Contain("submitOrder");
         result.Should().Contain("no direct or heuristic related tests found");
+        result.Should().Contain("### Suggested test command");
+        result.Should().Contain("- none");
     }
 
     [Fact]
@@ -448,6 +456,55 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("CodebaseQueryServiceAnalyticsTests");
         result.Should().NotContain("GeneratedClient.Invoke");
+    }
+
+    [Fact]
+    public async Task FindTestShieldAsync_KeepsHeuristicTargetTestsInSecondarySection()
+    {
+        var (sut, graph) = Build();
+        var target = Node("m1", "ChargeAsync", CodeNodeType.Method, "src/Payments/PaymentGateway.cs", 42, "Shop");
+        var directTest = Node("t1", "PaymentGatewayTests", CodeNodeType.Class, "tests/Payments/PaymentGatewayTests.cs", 5, "Shop");
+        var heuristicTest = Node("t2", "ChargeWorkflowTests", CodeNodeType.Class, "tests/Payments/ChargeWorkflowTests.cs", 8, "Shop");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([(directTest, "direct"), (heuristicTest, "heuristic")]);
+
+        var result = await sut.FindTestShieldAsync(target.Id, depth: 2);
+
+        result.Should().Contain("### Primary verification tests (0)");
+        result.Should().Contain("### Secondary shield awareness (1)");
+        result.Should().Contain("ChargeWorkflowTests");
+        result.Should().Contain("heuristic match for `ChargeAsync`");
+    }
+
+    [Fact]
+    public async Task FindTestShieldAsync_WithSinglePrimaryCandidate_SuggestsFocusedCommand()
+    {
+        var (sut, graph) = Build();
+        var target = Node("m1", "SaveAsync", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop");
+        var endpoint = Node("e1", "POST /api/orders", CodeNodeType.ApiEndpoint, project: "Shop");
+        var repository = Node("repo1", "IOrderRepository", CodeNodeType.Interface, "src/Orders/IOrderRepository.cs", 4, "Shop");
+        var routeShield = Node("t2", "OrdersEndpointTests", CodeNodeType.Class, "tests/Api/OrdersEndpointTests.cs", 8, "Shop");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [endpoint], [], [repository]));
+        graph.GetContextForEditingAsync(endpoint.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(endpoint, [], [repository], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(endpoint, 1)]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindRelatedTestsAsync(endpoint.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([(routeShield, "direct")]);
+
+        var result = await sut.FindTestShieldAsync(target.Id, depth: 2);
+
+        result.Should().Contain("### Suggested test command");
+        result.Should().Contain("`dotnet test --filter FullyQualifiedName~OrdersEndpointTests`");
     }
 
     [Fact]

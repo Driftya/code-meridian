@@ -221,6 +221,7 @@ public partial class CodebaseQueryService
         var scope = ctx.Node.ProjectContext ?? projectContext;
         var impact = await codeGraph.FindImpactAsync(ctx.Node.Id, Math.Clamp(depth, 1, 8), cancellationToken);
         var directAndHeuristicTargetTests = await codeGraph.FindRelatedTestsAsync(ctx.Node.Id, scope, cancellationToken);
+        var targetDependencyKeys = BuildDependencyKeys(ctx.Callees.Concat(ctx.Interfaces));
 
         var pathNodes = new[] { ctx.Node }
             .Concat(ctx.Callers)
@@ -238,22 +239,28 @@ public partial class CodebaseQueryService
             .Take(Math.Clamp(limit, 1, 50))
             .ToArray();
 
-        var indirectShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
+        var primaryShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
+        var secondaryShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
         foreach (var match in directAndHeuristicTargetTests.Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase)))
         {
             if (!AllowsProfile(match.Node, AnalysisProfile.TestShield))
                 continue;
 
-            indirectShield[match.Node.Id] = new ShieldEntry(
+            secondaryShield[match.Node.Id] = CreateShieldEntry(
                 match.Node,
-                $"heuristic match for target `{ctx.Node.Name}`",
                 ctx.Node,
-                "heuristic");
+                "heuristic",
+                targetDependencyKeys,
+                targetDependencyKeys,
+                isExactCallerPath: false);
         }
 
         var unshielded = new List<CodeNode>();
         foreach (var pathNode in pathNodes)
         {
+            var pathContext = pathNode.Id == ctx.Node.Id
+                ? ctx
+                : await codeGraph.GetContextForEditingAsync(pathNode.Id, cancellationToken);
             var relatedTests = pathNode.Id == ctx.Node.Id
                 ? directAndHeuristicTargetTests
                 : await codeGraph.FindRelatedTestsAsync(pathNode.Id, scope, cancellationToken);
@@ -271,26 +278,44 @@ public partial class CodebaseQueryService
                 if (directShield.Any(test => test.Id == match.Node.Id))
                     continue;
 
-                var reason = match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase)
-                    ? $"directly protects `{pathNode.Name}` on the caller path"
-                    : $"heuristic match for `{pathNode.Name}` on the caller path";
-                indirectShield[match.Node.Id] = new ShieldEntry(
+                var shieldEntry = CreateShieldEntry(
                     match.Node,
-                    reason,
                     pathNode,
-                    match.MatchType);
+                    match.MatchType,
+                    targetDependencyKeys,
+                    BuildDependencyKeys(pathContext.Callees.Concat(pathContext.Interfaces)),
+                    isExactCallerPath: pathNode.Id != ctx.Node.Id);
+                var targetBucket = IsPrimaryShieldCandidate(shieldEntry)
+                    ? primaryShield
+                    : secondaryShield;
+                targetBucket[match.Node.Id] = shieldEntry;
+                if (targetBucket == primaryShield)
+                    secondaryShield.Remove(match.Node.Id);
             }
 
             if (!hasShield)
                 unshielded.Add(pathNode);
         }
 
+        var rankedPrimaryShield = primaryShield.Values
+            .OrderByDescending(ScoreShieldEntry)
+            .ThenBy(entry => entry.TestNode.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Clamp(limit, 1, 50))
+            .ToArray();
+        var rankedSecondaryShield = secondaryShield.Values
+            .Where(entry => primaryShield.ContainsKey(entry.TestNode.Id) is false)
+            .OrderByDescending(ScoreShieldEntry)
+            .ThenBy(entry => entry.TestNode.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Clamp(limit, 1, 50))
+            .ToArray();
+        var suggestedCommand = BuildSuggestedTestCommand(directShield, rankedPrimaryShield);
+
         var sb = new StringBuilder();
         sb.AppendLine($"## Test Shield Map - `{ctx.Node.Name}`");
         sb.AppendLine($"**Target:** {ctx.Node.Type} `{ctx.Node.Name}`");
         sb.AppendLine($"**File:** `{ctx.Node.FilePath ?? "—"}`{(ctx.Node.LineNumber.HasValue ? $":{ctx.Node.LineNumber}" : "")}");
         sb.AppendLine($"**Path depth:** {Math.Clamp(depth, 1, 8)}");
-        sb.AppendLine($"**Shield summary:** {directShield.Length} direct, {indirectShield.Count} indirect, {unshielded.Count} unshielded path nodes");
+        sb.AppendLine($"**Shield summary:** {directShield.Length} direct, {rankedPrimaryShield.Length} primary, {rankedSecondaryShield.Length} secondary, {unshielded.Count} unshielded path nodes");
         sb.AppendLine();
 
         sb.AppendLine($"### Direct test shield ({directShield.Length})");
@@ -305,20 +330,29 @@ public partial class CodebaseQueryService
         }
         sb.AppendLine();
 
-        sb.AppendLine($"### Indirect test shield ({indirectShield.Count})");
-        if (indirectShield.Count == 0)
+        sb.AppendLine($"### Primary verification tests ({rankedPrimaryShield.Length})");
+        if (rankedPrimaryShield.Length == 0)
         {
             sb.AppendLine("- none");
         }
         else
         {
-            foreach (var shield in indirectShield.Values
-                         .OrderBy(entry => entry.ProtectedNode.Id == ctx.Node.Id ? 0 : 1)
-                         .ThenBy(entry => entry.TestNode.Name, StringComparer.OrdinalIgnoreCase)
-                         .Take(Math.Clamp(limit, 1, 50)))
+            foreach (var shield in rankedPrimaryShield)
             {
                 sb.AppendLine($"- **{shield.TestNode.Type}** `{shield.TestNode.Name}`{FormatLocation(shield.TestNode)} — {shield.Reason}");
             }
+        }
+        sb.AppendLine();
+
+        sb.AppendLine($"### Secondary shield awareness ({rankedSecondaryShield.Length})");
+        if (rankedSecondaryShield.Length == 0)
+        {
+            sb.AppendLine("- none");
+        }
+        else
+        {
+            foreach (var shield in rankedSecondaryShield)
+                sb.AppendLine($"- **{shield.TestNode.Type}** `{shield.TestNode.Name}`{FormatLocation(shield.TestNode)} — {shield.Reason}");
         }
         sb.AppendLine();
 
@@ -334,7 +368,11 @@ public partial class CodebaseQueryService
         }
         sb.AppendLine();
 
-        sb.AppendLine("> Direct shield means a test directly calls the target. Indirect shield means tests protect callers or nearby path nodes, or only heuristic matches exist. Unshielded path nodes are the highest-priority places to add tests before changing behavior.");
+        sb.AppendLine("### Suggested test command");
+        sb.AppendLine(suggestedCommand is null ? "- none" : $"- `{suggestedCommand}`");
+        sb.AppendLine();
+
+        sb.AppendLine("> Direct shield means a test directly calls the target. Primary verification tests protect the exact caller path or adjacent slice dependencies first. Secondary shield awareness keeps broader or heuristic tests visible without mixing them into the first-run verification set. Unshielded path nodes are the best seams for new characterization tests before changing behavior.");
 
         return sb.ToString();
     }
@@ -484,7 +522,106 @@ public partial class CodebaseQueryService
         CodeNode TestNode,
         string Reason,
         CodeNode ProtectedNode,
-        string MatchType);
+        string MatchType,
+        bool IsExactCallerPath,
+        int SharedDependencyCount,
+        bool SharesLocation);
+
+    private ShieldEntry CreateShieldEntry(
+        CodeNode testNode,
+        CodeNode protectedNode,
+        string matchType,
+        ISet<string> targetDependencyKeys,
+        ISet<string> protectedDependencyKeys,
+        bool isExactCallerPath)
+    {
+        var sharedDependencyCount = targetDependencyKeys.Intersect(protectedDependencyKeys, StringComparer.OrdinalIgnoreCase).Count();
+        var sharesLocation = SameFile(testNode, protectedNode) || SameNamespace(testNode, protectedNode) || FileNameLooksRelated(testNode, protectedNode);
+        var reasonParts = new List<string>();
+
+        if (matchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
+            reasonParts.Add($"directly protects `{protectedNode.Name}`");
+        else
+            reasonParts.Add($"heuristic match for `{protectedNode.Name}`");
+
+        if (isExactCallerPath)
+            reasonParts.Add("exact caller-path seam");
+
+        if (sharedDependencyCount > 0)
+            reasonParts.Add(sharedDependencyCount == 1
+                ? "shares 1 dependency/contract signal with the target slice"
+                : $"shares {sharedDependencyCount} dependency/contract signals with the target slice");
+
+        if (sharesLocation)
+            reasonParts.Add("same file/namespace test locality");
+
+        return new ShieldEntry(
+            testNode,
+            string.Join("; ", reasonParts),
+            protectedNode,
+            matchType,
+            isExactCallerPath,
+            sharedDependencyCount,
+            sharesLocation);
+    }
+
+    private static ISet<string> BuildDependencyKeys(IEnumerable<CodeNode> nodes) =>
+        nodes.Select(node =>
+            !string.IsNullOrWhiteSpace(node.Id) ? node.Id :
+            !string.IsNullOrWhiteSpace(node.Name) ? node.Name :
+            node.FilePath)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private bool IsPrimaryShieldCandidate(ShieldEntry entry) =>
+        entry.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase) &&
+        (entry.IsExactCallerPath || entry.SharedDependencyCount > 0 || entry.SharesLocation);
+
+    private static int ScoreShieldEntry(ShieldEntry entry)
+    {
+        var score = 0;
+        if (entry.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
+            score += 100;
+        if (entry.IsExactCallerPath)
+            score += 50;
+        score += entry.SharedDependencyCount * 10;
+        if (entry.SharesLocation)
+            score += 5;
+
+        return score;
+    }
+
+    private static string? BuildSuggestedTestCommand(IEnumerable<CodeNode> directShield, IEnumerable<ShieldEntry> primaryShield)
+    {
+        var candidates = directShield
+            .Concat(primaryShield.Select(entry => entry.TestNode))
+            .DistinctBy(node => node.Id)
+            .ToArray();
+
+        if (candidates.Length == 0)
+            return null;
+
+        if (candidates.Length == 1)
+            return $"dotnet test --filter FullyQualifiedName~{SanitizeFilterValue(candidates[0].Name)}";
+
+        var directory = candidates
+            .Select(node => Path.GetDirectoryName(node.FilePath ?? string.Empty))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (directory.Length == 1)
+            return $"dotnet test --filter FullyQualifiedName~{SanitizeFilterValue(Path.GetFileName(directory[0]) ?? "Tests")}";
+
+        return null;
+    }
+
+    private static string SanitizeFilterValue(string value)
+    {
+        var sanitized = Regex.Replace(value, "[^A-Za-z0-9_.]+", string.Empty);
+        return string.IsNullOrWhiteSpace(sanitized) ? "Tests" : sanitized;
+    }
 
     public async Task<string> BuildMinimalContextAsync(
         string target,
