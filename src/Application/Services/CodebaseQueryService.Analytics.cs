@@ -498,17 +498,34 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         var ctx = await codeGraph.GetContextForEditingAsync(target, cancellationToken);
+        var degradations = new List<ContextPackDegradation>();
 
         if (ctx.Node is null)
             return $"Target `{target}` not found in the graph. Run query_codebase first to find the correct node ID.";
 
-        var impact = await codeGraph.FindImpactAsync(ctx.Node.Id, depth: 2, cancellationToken);
-        var downstream = await codeGraph.FindDownstreamAsync(ctx.Node.Id, depth: 2, cancellationToken);
+        var impact = await TryContextStepAsync(
+            "impact_analysis",
+            () => codeGraph.FindImpactAsync(ctx.Node.Id, depth: 2, cancellationToken),
+            Array.Empty<(CodeNode Node, int Distance)>(),
+            degradations);
+        var downstream = await TryContextStepAsync(
+            "downstream_traversal",
+            () => codeGraph.FindDownstreamAsync(ctx.Node.Id, depth: 2, cancellationToken),
+            Array.Empty<(CodeNode Node, int Distance)>(),
+            degradations);
         var coverageGaps = includeTests
-            ? await codeGraph.FindCoverageGapsAsync(ctx.Node.ProjectContext, cancellationToken)
+            ? await TryContextStepAsync(
+                "coverage_gap_lookup",
+                () => codeGraph.FindCoverageGapsAsync(ctx.Node.ProjectContext, cancellationToken),
+                Array.Empty<CodeNode>(),
+                degradations)
             : [];
         var relatedTests = includeTests
-            ? await codeGraph.FindRelatedTestsAsync(ctx.Node.Id, ctx.Node.ProjectContext, cancellationToken)
+            ? await TryContextStepAsync(
+                "related_test_ranking",
+                () => codeGraph.FindRelatedTestsAsync(ctx.Node.Id, ctx.Node.ProjectContext, cancellationToken),
+                Array.Empty<(CodeNode Node, string MatchType)>(),
+                degradations)
             : [];
 
         var relatedCoverageGaps = coverageGaps
@@ -539,19 +556,29 @@ public partial class CodebaseQueryService
             .Concat(heuristicRelatedTests)
             .Where(node => AllowsProfile(node, AnalysisProfile.AgentContext))
             .Select(n => n.FilePath)
+            .OfType<string>()
             .Where(f => !string.IsNullOrWhiteSpace(f))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(20)
             .ToArray();
 
-        var contextCost = EstimateContextCost(
-            ctx,
-            impact,
-            downstream,
-            relatedCoverageGaps,
-            directRelatedTests.Length + heuristicRelatedTests.Length,
-            candidateFiles.Length,
-            includeSourceSnippets);
+        ContextCost contextCost;
+        try
+        {
+            contextCost = EstimateContextCost(
+                ctx,
+                impact,
+                downstream,
+                relatedCoverageGaps,
+                directRelatedTests.Length + heuristicRelatedTests.Length,
+                candidateFiles.Length,
+                includeSourceSnippets);
+        }
+        catch (Exception ex)
+        {
+            degradations.Add(new ContextPackDegradation("token_budgeting", ex));
+            contextCost = EstimateFallbackContextCost(ctx, impact, downstream, includeSourceSnippets);
+        }
         var filteredCallers = FilterNodesByProfile(ctx.Callers, AnalysisProfile.AgentContext);
         var filteredCallees = FilterNodesByProfile(ctx.Callees, AnalysisProfile.AgentContext);
         var filteredInterfaces = FilterNodesByProfile(ctx.Interfaces, AnalysisProfile.AgentContext);
@@ -561,18 +588,32 @@ public partial class CodebaseQueryService
         var snippetBudget = includeSourceSnippets
             ? Math.Max(0, maxTokens - contextCost.EstimatedTokens + contextCost.SourceSnippetTokens)
             : 0;
-        var snippets = includeSourceSnippets
-            ? BuildSourceSnippets(
-                new[] { ctx.Node }
-                    .Concat(ctx.Callees)
-                    .Concat(ctx.Interfaces)
-                    .Concat(directRelatedTests)
-                    .Where(node => AllowsProfile(node, AnalysisProfile.AgentContext))
-                    .DistinctBy(n => n.Id)
-                    .Take(detailLevel == ContextDetailLevel.Full ? 5 : 3),
-                snippetBudget,
-                detailLevel)
-            : [];
+        IReadOnlyList<SourceSnippet> snippets;
+        if (!includeSourceSnippets)
+        {
+            snippets = [];
+        }
+        else
+        {
+            try
+            {
+                snippets = BuildSourceSnippets(
+                    new[] { ctx.Node }
+                        .Concat(ctx.Callees)
+                        .Concat(ctx.Interfaces)
+                        .Concat(directRelatedTests)
+                        .Where(node => AllowsProfile(node, AnalysisProfile.AgentContext))
+                        .DistinctBy(n => n.Id)
+                        .Take(detailLevel == ContextDetailLevel.Full ? 5 : 3),
+                    snippetBudget,
+                    detailLevel);
+            }
+            catch (Exception ex)
+            {
+                degradations.Add(new ContextPackDegradation("source_snippet_budgeting", ex));
+                snippets = [];
+            }
+        }
 
         sb.AppendLine($"## Minimal Context Pack — `{ctx.Node.Name}`");
         if (!string.IsNullOrWhiteSpace(goal))
@@ -602,26 +643,31 @@ public partial class CodebaseQueryService
         {
             if (explainPaths)
             {
-                var explainedFiles = await BuildExplainedFilesAsync(
-                    ctx.Node,
-                    filteredCallers,
-                    filteredCallees,
-                    filteredInterfaces,
-                    filteredImpact,
-                    filteredDownstream,
-                    directRelatedTests,
-                    heuristicRelatedTests,
-                    relatedCoverageGaps,
-                    cancellationToken);
+                try
+                {
+                    var explainedFiles = await BuildExplainedFilesAsync(
+                        ctx.Node,
+                        filteredCallers,
+                        filteredCallees,
+                        filteredInterfaces,
+                        filteredImpact,
+                        filteredDownstream,
+                        directRelatedTests,
+                        heuristicRelatedTests,
+                        relatedCoverageGaps,
+                        cancellationToken);
 
-                AppendExplainedFiles(sb, explainedFiles);
+                    AppendExplainedFiles(sb, explainedFiles);
+                }
+                catch (Exception ex)
+                {
+                    AppendCandidateFiles(sb, candidateFiles);
+                    degradations.Add(new ContextPackDegradation("file_path_explanation", ex));
+                }
             }
             else
             {
-                sb.AppendLine("### Files likely needed");
-                foreach (var file in candidateFiles)
-                    sb.AppendLine($"- `{file}`");
-                sb.AppendLine();
+                AppendCandidateFiles(sb, candidateFiles);
             }
         }
 
@@ -631,8 +677,79 @@ public partial class CodebaseQueryService
         if (includeExternalConcepts)
             sb.AppendLine("> External concepts are included when present in callers/callees/impact/downstream graph results.");
 
+        AppendDegradedContextSection(sb, degradations);
         sb.AppendLine($"> Token estimate is approximate. {(contextCost.EstimatedTokens > maxTokens ? "Consider Summary detail, fewer optional sections, or a larger context budget." : "Current pack fits the requested budget.")}");
 
         return sb.ToString();
+    }
+
+    private static async Task<T> TryContextStepAsync<T>(
+        string step,
+        Func<Task<T>> action,
+        T fallback,
+        ICollection<ContextPackDegradation> degradations)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (Exception ex)
+        {
+            degradations.Add(new ContextPackDegradation(step, ex));
+            return fallback;
+        }
+    }
+
+    private static void AppendCandidateFiles(StringBuilder sb, IReadOnlyCollection<string> candidateFiles)
+    {
+        sb.AppendLine("### Files likely needed");
+        foreach (var file in candidateFiles)
+            sb.AppendLine($"- `{file}`");
+        sb.AppendLine();
+    }
+
+    private static void AppendDegradedContextSection(StringBuilder sb, IReadOnlyCollection<ContextPackDegradation> degradations)
+    {
+        if (degradations.Count == 0)
+            return;
+
+        sb.AppendLine("### Degraded mode");
+        sb.AppendLine("`context_pack_status=degraded`");
+        foreach (var degradation in degradations)
+        {
+            sb.AppendLine($"- failed_step: `{degradation.Step}`");
+            sb.AppendLine($"- exception: `{degradation.ExceptionType}`");
+        }
+        sb.AppendLine("- fallback: use `resolve_exact_symbol`, `find_impact`, and `find_test_shield` for exact target, blast radius, and test coverage when one or more context-pack sub-steps fail.");
+        sb.AppendLine();
+    }
+
+    private static ContextCost EstimateFallbackContextCost(
+        EditingContext ctx,
+        IReadOnlyCollection<(CodeNode Node, int Distance)> impact,
+        IReadOnlyCollection<(CodeNode Node, int Distance)> downstream,
+        bool includeSourceSnippets)
+    {
+        var nodeCount = 1 + ctx.Callers.Count + ctx.Callees.Count + ctx.Interfaces.Count + impact.Count + downstream.Count;
+        var sourceSnippetTokens = includeSourceSnippets ? 300 : 0;
+        var estimatedTokens = 400 + (nodeCount * 60) + sourceSnippetTokens;
+        var complexity = nodeCount > 20 ? "High" : nodeCount > 8 ? "Medium" : "Low";
+        var expansionRisk = nodeCount > 20 ? "High" : nodeCount > 8 ? "Medium" : "Low";
+        var modelGuidance = nodeCount > 20
+            ? "Use a larger reasoning model or larger context window because fallback cost estimation detected a broad graph slice."
+            : nodeCount > 8
+                ? "Use a medium-capability model because fallback cost estimation detected a moderate graph slice."
+                : "Small or fast model likely sufficient for this fallback-sized context pack.";
+        var reason = "Fallback estimate derived from the available target, edit context, and surviving graph slices after degraded-mode recovery.";
+
+        return new ContextCost(estimatedTokens, sourceSnippetTokens, complexity, modelGuidance, expansionRisk, reason);
+    }
+
+    private sealed record ContextPackDegradation(string Step, string ExceptionType)
+    {
+        public ContextPackDegradation(string step, Exception exception)
+            : this(step, exception.GetType().Name)
+        {
+        }
     }
 }

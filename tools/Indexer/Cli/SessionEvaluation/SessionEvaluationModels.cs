@@ -24,6 +24,9 @@ internal sealed record SessionUsefulnessReport(
     int StaleTargets,
     int StaleWarnings,
     int ManualFallbackCommands,
+    int ContextPackFullSuccesses,
+    int ContextPackDegradedSuccesses,
+    int ContextPackHardFailures,
     IReadOnlyList<string> Notes)
 {
     public int SuggestedFilesEdited => SuggestedFiles.Count(ChangedFiles.Contains);

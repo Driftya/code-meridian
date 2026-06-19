@@ -55,6 +55,7 @@ Common event shapes:
 {"project":"MyApp","provider":"codex","kind":"command","command":"rg -n \"Order\" src tests"}
 {"project":"MyApp","provider":"codex","kind":"test-run","command":"dotnet test tests/App.Tests","tests":["tests/App.Tests/OrderServiceTests.cs"]}
 {"project":"MyApp","provider":"codex","kind":"stale-warning"}
+{"project":"MyApp","provider":"codex","kind":"tool-result","toolName":"mcp__CodeMeridian.build_minimal_context","contextPackStatus":"degraded","files":["src/App/OrderService.cs"],"tests":["tests/App.Tests/OrderServiceTests.cs"]}
 ```
 
 The evaluator does not require provider-specific transcript formats. Keep the evidence factual: tool called, files suggested, tests suggested or run, confidence labels, stale warnings, and fallback commands.
@@ -95,6 +96,7 @@ Heuristic targets verified manually: 2
 Stale targets: 0
 Stale warnings: 1
 Manual fallback commands after graph lookup: 14
+Context packs: full 2, degraded 1, hard failure 0
 ```
 
 Ratings:
@@ -118,6 +120,7 @@ Useful JSONL fields:
 - `command`: shell command run during the session.
 - `targetConfidence`: comma-separated confidence labels such as `exact`, `file-only`, `heuristic`, or `stale`.
 - `staleWarning`: `true` when a tool result warned that graph data may be stale.
+- `contextPackStatus`: for `build_minimal_context` result events, record `full`, `degraded`, or `failed` so the evaluator can count bounded success separately from hard failure.
 
 Unknown fields are allowed. Importers can preserve provider-specific metadata without breaking the evaluator.
 
@@ -127,6 +130,7 @@ The evaluator uses these rules:
 
 - A graph call is counted when `kind` is `graph-call` or `codemeridian-tool`, or when `toolName` starts with `mcp__CodeMeridian.` or `CodeMeridian.`.
 - Suggested files and tests are read from `files` and `tests` on graph call, suggestion, or tool-result events.
+- Context-pack outcomes are counted from `contextPackStatus` on `build_minimal_context` result events.
 - Manual fallback commands are counted when `kind` is `manual-fallback`, or when `kind` is `command` and `command` starts with `rg`, `grep`, `find`, `Get-ChildItem`, or `Select-String`.
 - Test runs are counted when `kind` is `test-run`, or when `kind` is `command` and `command` contains common test runners such as `dotnet test`, `npm test`, `pnpm test`, `yarn test`, `vitest`, or `pytest`.
 - Stale warnings are counted when `kind` is `stale-warning` or `staleWarning` is `true`.
@@ -150,9 +154,9 @@ Use a prompt like this at the start of a session:
 Use CodeMeridian before implementation. Record session evidence as newline-delimited JSON under .meridian/sessions/session.jsonl.
 
 Use this event schema:
-{"timestamp":"<ISO-8601 UTC time>","provider":"<codex|copilot|claude|continue|other>","project":"MyApp","kind":"<graph-call|codemeridian-tool|suggestion|tool-result|command|manual-fallback|test-run|stale-warning>","toolName":"<CodeMeridian MCP tool name when applicable>","command":"<shell command when applicable>","targetConfidence":"<exact|file-only|heuristic|stale, comma-separated if needed>","staleWarning":<true|false>,"files":["<repo-relative file path>"],"tests":["<repo-relative test file path>"]}
+{"timestamp":"<ISO-8601 UTC time>","provider":"<codex|copilot|claude|continue|other>","project":"MyApp","kind":"<graph-call|codemeridian-tool|suggestion|tool-result|command|manual-fallback|test-run|stale-warning>","toolName":"<CodeMeridian MCP tool name when applicable>","command":"<shell command when applicable>","targetConfidence":"<exact|file-only|heuristic|stale, comma-separated if needed>","staleWarning":<true|false>,"contextPackStatus":"<full|degraded|failed when recording build_minimal_context results>","files":["<repo-relative file path>"],"tests":["<repo-relative test file path>"]}
 
-Write one compact JSON object per line. Omit fields that do not apply. For each CodeMeridian tool call, record kind=graph-call, toolName, files suggested by the tool, tests suggested by the tool, targetConfidence, and staleWarning when present. For manual search fallback commands such as rg, grep, find, Get-ChildItem, or Select-String, record kind=command and command. For test execution, record kind=test-run, command, and tests when known.
+Write one compact JSON object per line. Omit fields that do not apply. For each CodeMeridian tool call, record kind=graph-call, toolName, files suggested by the tool, tests suggested by the tool, targetConfidence, and staleWarning when present. When recording a build_minimal_context result as a tool-result event, also record contextPackStatus as full, degraded, or failed. For manual search fallback commands such as rg, grep, find, Get-ChildItem, or Select-String, record kind=command and command. For test execution, record kind=test-run, command, and tests when known.
 ```
 
 After the work is done, run:

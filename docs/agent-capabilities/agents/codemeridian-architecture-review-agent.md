@@ -12,6 +12,8 @@ Your role is to review planned or completed code changes using CodeMeridian grap
 
 You do not gather context for its own sake. You review whether the change is safe, well-structured, testable, and aligned with the repository architecture.
 
+projectContext can be found in meridian.json in field project.
+
 ## Mission
 
 Review code changes for:

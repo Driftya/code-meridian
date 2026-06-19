@@ -22,6 +22,9 @@ internal sealed class SessionUsefulnessEvaluator(
         var staleTargets = 0;
         var staleWarnings = 0;
         var manualFallbackCommands = 0;
+        var contextPackFullSuccesses = 0;
+        var contextPackDegradedSuccesses = 0;
+        var contextPackHardFailures = 0;
 
         foreach (var item in projectEvents)
         {
@@ -36,6 +39,13 @@ internal sealed class SessionUsefulnessEvaluator(
 
             if (item.StaleWarning == true || kind.Equals("stale-warning", StringComparison.OrdinalIgnoreCase))
                 staleWarnings++;
+
+            CountContextPackStatus(
+                toolName,
+                item.ContextPackStatus,
+                ref contextPackFullSuccesses,
+                ref contextPackDegradedSuccesses,
+                ref contextPackHardFailures);
 
             CountTargetConfidence(item.TargetConfidence, ref exactTargets, ref fileOnlyTargets, ref heuristicTargets, ref staleTargets);
 
@@ -95,6 +105,9 @@ internal sealed class SessionUsefulnessEvaluator(
             staleTargets,
             staleWarnings,
             manualFallbackCommands,
+            contextPackFullSuccesses,
+            contextPackDegradedSuccesses,
+            contextPackHardFailures,
             notes);
     }
 
@@ -208,6 +221,37 @@ internal sealed class SessionUsefulnessEvaluator(
             }
         }
     }
+
+    private static void CountContextPackStatus(
+        string toolName,
+        string? contextPackStatus,
+        ref int fullSuccesses,
+        ref int degradedSuccesses,
+        ref int hardFailures)
+    {
+        if (!IsBuildMinimalContextTool(toolName) || string.IsNullOrWhiteSpace(contextPackStatus))
+            return;
+
+        switch (contextPackStatus.Trim().ToLowerInvariant())
+        {
+            case "full":
+            case "success":
+                fullSuccesses++;
+                break;
+            case "degraded":
+            case "partial":
+                degradedSuccesses++;
+                break;
+            case "failed":
+            case "hard-failure":
+            case "hard_failure":
+                hardFailures++;
+                break;
+        }
+    }
+
+    private static bool IsBuildMinimalContextTool(string toolName) =>
+        toolName.EndsWith("build_minimal_context", StringComparison.OrdinalIgnoreCase);
 
     private static string Rate(
         int suggestedFiles,

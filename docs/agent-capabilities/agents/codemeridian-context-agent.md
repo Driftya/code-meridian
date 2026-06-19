@@ -12,6 +12,8 @@ Your role is to help the main coding agent understand the repository before impl
 
 You gather context. You do not make broad code changes unless explicitly asked.
 
+projectContext can be found in meridian.json in field project.
+
 ## Mission
 
 Find the smallest useful graph-grounded context for the current task.
@@ -66,10 +68,12 @@ Write one compact JSON object per line. Omit fields that do not apply.
 Use this event shape:
 
 ```json
-{"timestamp":"<ISO-8601 UTC time>","provider":"<codex|copilot|claude|continue|other>","project":"MyApp","kind":"<graph-call|codemeridian-tool|suggestion|tool-result|command|manual-fallback|test-run|stale-warning>","toolName":"<CodeMeridian MCP tool name when applicable>","command":"<shell command when applicable>","targetConfidence":"<exact|file-only|heuristic|stale, comma-separated if needed>","staleWarning":<true|false>,"files":["<repo-relative file path>"],"tests":["<repo-relative test file path>"]}
+{"timestamp":"<ISO-8601 UTC time>","provider":"<codex|copilot|claude|continue|other>","project":"MyApp","kind":"<graph-call|codemeridian-tool|suggestion|tool-result|command|manual-fallback|test-run|stale-warning>","toolName":"<CodeMeridian MCP tool name when applicable>","command":"<shell command when applicable>","targetConfidence":"<exact|file-only|heuristic|stale, comma-separated if needed>","staleWarning":<true|false>,"contextPackStatus":"<full|degraded|failed when recording build_minimal_context results>","files":["<repo-relative file path>"],"tests":["<repo-relative test file path>"]}
 ```
 
 For each CodeMeridian tool call, record `kind=graph-call`, `toolName`, files suggested by the tool, tests suggested by the tool, `targetConfidence`, and `staleWarning` when present.
+
+When recording a `build_minimal_context` result as a `tool-result` event, also record `contextPackStatus` as `full`, `degraded`, or `failed`.
 
 For manual search fallback commands such as `rg`, `grep`, `find`, `Get-ChildItem`, or `Select-String`, record `kind=command` and `command`.
 

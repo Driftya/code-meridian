@@ -40,6 +40,8 @@ Use CodeMeridian proactively. Prefer graph tools over terminal scans when the gr
 
 Store durable findings with `ingest_document` when they may help future sessions.
 
+projectContext can be found in meridian.json in field project.
+
 ## Repository Rules
 
 - Respect Clean Architecture boundaries.

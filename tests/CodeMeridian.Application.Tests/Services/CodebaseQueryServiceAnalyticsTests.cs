@@ -1685,6 +1685,78 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task BuildMinimalContextAsync_WhenExplainPathsFails_ReturnsDegradedContextPack()
+    {
+        var (sut, graph) = Build();
+        var target = Node("target", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24, fileRole: IndexedFileRole.Source);
+        var caller = Node("caller", "OrdersController.Post", CodeNodeType.Method, "src/Api/OrdersController.cs", 18, "Shop", fileRole: IndexedFileRole.Source);
+        var directTest = Node("test", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 7, "Shop", fileRole: IndexedFileRole.Test);
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [caller], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([(caller, 1)]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([(directTest, "direct")]);
+        graph.FindConnectionAsync(target.Id, caller.Id, Arg.Any<CancellationToken>())
+             .ThrowsAsync(new KeyNotFoundException("The given key 'name' was not present in the dictionary."));
+        graph.FindDiagnosticsForNodeAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns([]);
+
+        var result = await sut.BuildMinimalContextAsync(
+            target.Id,
+            explainPaths: true);
+
+        result.Should().Contain("## Minimal Context Pack");
+        result.Should().Contain("### Files likely needed");
+        result.Should().Contain("`src/Orders/OrderService.cs`");
+        result.Should().Contain("`src/Api/OrdersController.cs`");
+        result.Should().Contain("`tests/Orders/OrderServiceTests.cs`");
+        result.Should().Contain("### Degraded mode");
+        result.Should().Contain("`context_pack_status=degraded`");
+        result.Should().Contain("failed_step: `file_path_explanation`");
+        result.Should().Contain("exception: `KeyNotFoundException`");
+        result.Should().Contain("`resolve_exact_symbol`, `find_impact`, and `find_test_shield`");
+    }
+
+    [Fact]
+    public async Task BuildMinimalContextAsync_WhenImpactLookupFails_ReturnsPartialPackAndListsFailure()
+    {
+        var (sut, graph) = Build();
+        var target = Node("target", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24, fileRole: IndexedFileRole.Source);
+        var caller = Node("caller", "OrdersController.Post", CodeNodeType.Method, "src/Api/OrdersController.cs", 18, "Shop", fileRole: IndexedFileRole.Source);
+        var directTest = Node("test", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 7, "Shop", fileRole: IndexedFileRole.Test);
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [caller], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .ThrowsAsync(new InvalidOperationException("impact failed"));
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([(directTest, "direct")]);
+
+        var result = await sut.BuildMinimalContextAsync(target.Id);
+
+        result.Should().Contain("## Minimal Context Pack");
+        result.Should().Contain("### Direct callers (1)");
+        result.Should().Contain("OrdersController.Post");
+        result.Should().Contain("### Relevant tests (1)");
+        result.Should().Contain("OrderServiceTests");
+        result.Should().Contain("### Degraded mode");
+        result.Should().Contain("`context_pack_status=degraded`");
+        result.Should().Contain("failed_step: `impact_analysis`");
+        result.Should().Contain("exception: `InvalidOperationException`");
+        result.Should().Contain("### Files likely needed");
+    }
+
+    [Fact]
     public async Task FindStaleKnowledgeAsync_WhenNoSignals_ReturnsGuidance()
     {
         var (sut, graph) = Build();

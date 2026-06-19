@@ -8,6 +8,8 @@ Use this skill when working in a repository indexed by CodeMeridian and the user
 
 The goal is to make refactoring safer by using graph context before changing files.
 
+projectContext can be found in meridian.json in field project.
+
 ## When To Use
 
 Use this skill when the request includes words or intent like:

@@ -56,6 +56,7 @@ internal sealed class SessionEvaluationCommand(
         Console.WriteLine($"Stale targets: {report.StaleTargets}");
         Console.WriteLine($"Stale warnings: {report.StaleWarnings}");
         Console.WriteLine($"Manual fallback commands after graph lookup: {report.ManualFallbackCommands}");
+        Console.WriteLine($"Context packs: full {report.ContextPackFullSuccesses}, degraded {report.ContextPackDegradedSuccesses}, hard failure {report.ContextPackHardFailures}");
 
         if (report.Notes.Count == 0)
             return;

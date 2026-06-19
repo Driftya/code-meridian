@@ -76,6 +76,7 @@ Manual fallback commands after graph lookup: 14
 
 - Rates sessions as `high`, `partial`, `low`, or `unknown`.
 - Reports suggested files edited, suggested tests changed/run, graph calls, confidence counts, stale warnings, and manual fallback commands.
+- Counts `build_minimal_context` results recorded as `contextPackStatus: full|degraded|failed` so context-pack degradation can be tracked separately from hard failures.
 - Keeps the format provider-neutral so integrations can be added as importers instead of hardcoding Copilot/Codex/Claude transcript formats into the evaluator.
 
 **Effort:** Medium to high  

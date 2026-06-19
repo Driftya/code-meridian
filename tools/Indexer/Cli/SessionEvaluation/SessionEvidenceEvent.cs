@@ -21,6 +21,8 @@ internal sealed class SessionEvidenceEvent
 
     public bool? StaleWarning { get; init; }
 
+    public string? ContextPackStatus { get; init; }
+
     public IReadOnlyList<string> Files { get; init; } = [];
 
     public IReadOnlyList<string> Tests { get; init; } = [];

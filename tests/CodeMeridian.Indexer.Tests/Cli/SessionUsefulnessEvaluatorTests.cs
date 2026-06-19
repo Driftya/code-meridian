@@ -109,6 +109,32 @@ public sealed class SessionUsefulnessEvaluatorTests : IDisposable
         result.HeuristicTargets.Should().Be(1);
     }
 
+    [Fact]
+    public async Task EvaluateAsync_CountsContextPackOutcomeStatuses()
+    {
+        var sessionFile = WriteSession(
+            """
+            {"project":"App","kind":"tool-result","toolName":"mcp__CodeMeridian.build_minimal_context","contextPackStatus":"full","files":["src/App/OrderService.cs"]}
+            {"project":"App","kind":"tool-result","toolName":"mcp__CodeMeridian.build_minimal_context","contextPackStatus":"degraded","files":["src/App/OrderRepository.cs"]}
+            {"project":"App","kind":"tool-result","toolName":"mcp__CodeMeridian.build_minimal_context","contextPackStatus":"failed"}
+            """);
+
+        var sut = CreateEvaluator([
+            "src/App/OrderService.cs",
+            "src/App/OrderRepository.cs"
+        ]);
+
+        var result = await sut.EvaluateAsync(new SessionEvaluationOptions(
+            new DirectoryInfo(_root),
+            "App",
+            sessionFile,
+            "HEAD"));
+
+        result.ContextPackFullSuccesses.Should().Be(1);
+        result.ContextPackDegradedSuccesses.Should().Be(1);
+        result.ContextPackHardFailures.Should().Be(1);
+    }
+
     private FileInfo WriteSession(string content)
     {
         var sessionDirectory = Directory.CreateDirectory(Path.Combine(_root, ".meridian", "sessions"));
