@@ -4,6 +4,7 @@ public sealed class CodebaseAnalysisOptions
 {
     public StaleKnowledgeOptions StaleKnowledge { get; set; } = new();
     public RankingOptions Ranking { get; set; } = new();
+    public PrecisionFeedbackOptions PrecisionFeedback { get; set; } = new();
 }
 
 public sealed class StaleKnowledgeOptions
@@ -131,4 +132,23 @@ public sealed class RankingOptions
         "AppModule",
         "ContainerModule"
     ];
+}
+
+public sealed class PrecisionFeedbackOptions
+{
+    public bool Enabled { get; set; } = true;
+
+    public string FeedbackFilePath { get; set; } = ".meridian/precision-feedback.json";
+
+    public int AcceptedFileBoost { get; set; } = 4;
+
+    public int AcceptedTestBoost { get; set; } = 2;
+
+    public int IgnoredFilePenalty { get; set; } = 3;
+
+    public int FileOnlyPenalty { get; set; } = 2;
+
+    public int HeuristicPenalty { get; set; } = 1;
+
+    public int StalePenalty { get; set; } = 2;
 }

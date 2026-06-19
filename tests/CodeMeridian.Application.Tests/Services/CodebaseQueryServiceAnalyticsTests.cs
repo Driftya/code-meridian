@@ -71,6 +71,13 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         FileRole = fileRole
     };
 
+    private static string WritePrecisionFeedbackFile(string content)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"codemeridian-precision-feedback-{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, content);
+        return path;
+    }
+
     // ── FindImpactAsync ───────────────────────────────────────────────────────
 
     [Fact]
@@ -2060,6 +2067,62 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindImplementationSurfaceAsync_UsesPrecisionFeedbackToExplainAcceptedAndIgnoredTargets()
+    {
+        var feedbackPath = WritePrecisionFeedbackFile(
+            """
+            {
+              "project": "CodeMeridian",
+              "sessionFile": ".meridian/sessions/session.jsonl",
+              "generatedAtUtc": "2026-06-19T00:00:00Z",
+              "tools": [
+                {
+                  "toolName": "mcp__CodeMeridian.find_implementation_surface",
+                  "suggestedFileCount": 2,
+                  "acceptedFileCount": 1,
+                  "ignoredFileCount": 1,
+                  "suggestedTestCount": 0,
+                  "acceptedTestCount": 0,
+                  "ignoredTestCount": 0,
+                  "exactTargets": 1,
+                  "fileOnlyTargets": 1,
+                  "heuristicTargets": 0,
+                  "staleTargets": 0,
+                  "staleWarnings": 0,
+                  "manualFallbackCommands": 0,
+                  "files": [
+                    { "path": "src/Application/Preferred.cs", "suggestedCount": 1, "acceptedCount": 1, "ignoredCount": 0 },
+                    { "path": "src/Application/Broad.cs", "suggestedCount": 1, "acceptedCount": 0, "ignoredCount": 1 }
+                  ],
+                  "tests": []
+                }
+              ]
+            }
+            """);
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            PrecisionFeedback = new PrecisionFeedbackOptions
+            {
+                FeedbackFilePath = feedbackPath
+            }
+        });
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                Node("preferred", "PreferredTarget", CodeNodeType.Class, "src/Application/Preferred.cs", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, sourceHash: "abc"),
+                Node("broad", "BroadTarget", CodeNodeType.Class, "src/Application/Broad.cs", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, sourceHash: "def")
+            ]);
+
+        var result = await sut.FindImplementationSurfaceAsync("preferred target", projectContext: "CodeMeridian");
+
+        result.IndexOf("src/Application/Preferred.cs", StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(result.IndexOf("src/Application/Broad.cs", StringComparison.Ordinal));
+        result.Should().Contain("feedback accepted 1/1 prior sessions");
+        result.Should().Contain("feedback ignored 1/1 prior sessions");
+    }
+
+    [Fact]
     public async Task AnalyzeFeatureImplementationPathAsync_WithDocsCodeAndTests_ReturnsEvidenceAndRisk()
     {
         var graph = Substitute.For<ICodeGraphRepository>();
@@ -2136,6 +2199,79 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("FeatureImplementationAnalysisServiceTests");
         result.Should().Contain("docs/features/39-add-feature-implementation-path.md");
         result.Should().Contain("Risk level");
+    }
+
+    [Fact]
+    public async Task AnalyzeFeatureImplementationPathAsync_UsesPrecisionFeedbackInSurfaceReasons()
+    {
+        var feedbackPath = WritePrecisionFeedbackFile(
+            """
+            {
+              "project": "CodeMeridian",
+              "sessionFile": ".meridian/sessions/session.jsonl",
+              "generatedAtUtc": "2026-06-19T00:00:00Z",
+              "tools": [
+                {
+                  "toolName": "mcp__CodeMeridian.analyze_feature_implementation_path",
+                  "suggestedFileCount": 1,
+                  "acceptedFileCount": 1,
+                  "ignoredFileCount": 0,
+                  "suggestedTestCount": 0,
+                  "acceptedTestCount": 0,
+                  "ignoredTestCount": 0,
+                  "exactTargets": 1,
+                  "fileOnlyTargets": 0,
+                  "heuristicTargets": 0,
+                  "staleTargets": 0,
+                  "staleWarnings": 0,
+                  "manualFallbackCommands": 0,
+                  "files": [
+                    { "path": "src/Application/Services/FeatureImplementationAnalysisService.cs", "suggestedCount": 1, "acceptedCount": 1, "ignoredCount": 0 }
+                  ],
+                  "tests": []
+                }
+              ]
+            }
+            """);
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(
+            graph,
+            vector,
+            Options.Create(new CodebaseAnalysisOptions
+            {
+                PrecisionFeedback = new PrecisionFeedbackOptions
+                {
+                    FeedbackFilePath = feedbackPath
+                }
+            }));
+        var service = Node(
+            "s1",
+            "FeatureImplementationAnalysisService",
+            CodeNodeType.Class,
+            "src/Application/Services/FeatureImplementationAnalysisService.cs",
+            12,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 60,
+            sourceHash: "abc",
+            summary: "Maps feature docs to implementation surfaces.");
+
+        vector
+            .SearchByTextAsync("Add Feature Implementation Path", "CodeMeridian", 6, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([service]);
+        graph
+            .FindRelatedTestsAsync(service.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.AnalyzeFeatureImplementationPathAsync(
+            "Add Feature Implementation Path",
+            "CodeMeridian");
+
+        result.Should().Contain("feedback accepted 1/1 prior sessions");
     }
 
     [Fact]

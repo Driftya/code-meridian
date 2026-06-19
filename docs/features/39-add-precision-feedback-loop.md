@@ -1,6 +1,6 @@
 # Add Precision Feedback Loop
 
-- Status: pending
+- Status: implemented
 - Priority: P1
 - Note: Use session evaluation results to improve future target ranking.
 
@@ -20,3 +20,10 @@
 - `evaluate-session` output can identify target precision regressions.
 - `find_implementation_surface` and `analyze_feature_implementation_path` can consume summarized precision signals.
 - Recommendations stay explainable and do not hide behind opaque scoring.
+
+## Implemented
+
+- `evaluate-session` now emits a summarized `.meridian/precision-feedback.json` file with per-tool accepted and ignored file/test signals.
+- `find_implementation_surface` consumes that feedback to boost historically accepted files, penalize historically ignored files, and explain those adjustments inline.
+- `analyze_feature_implementation_path` consumes the same feedback and appends ranking reasons when prior sessions repeatedly accepted a surface.
+- The feedback remains explainable: output reasons call out accepted/ignored history plus prior file-only, heuristic, or stale pressure instead of hiding the adjustment behind an opaque score.

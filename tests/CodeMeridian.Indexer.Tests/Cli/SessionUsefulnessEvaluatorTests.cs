@@ -41,6 +41,9 @@ public sealed class SessionUsefulnessEvaluatorTests : IDisposable
         result.SuggestedTestsChangedOrRun.Should().Be(1);
         result.ExactTargets.Should().Be(1);
         result.GraphCalls.Should().Be(1);
+        result.PrecisionFeedback.Tools.Should().ContainSingle();
+        result.PrecisionFeedback.Tools[0].AcceptedFileCount.Should().Be(2);
+        result.PrecisionFeedback.Tools[0].IgnoredFileCount.Should().Be(0);
     }
 
     [Fact]
@@ -66,6 +69,9 @@ public sealed class SessionUsefulnessEvaluatorTests : IDisposable
         result.FileOnlyTargets.Should().Be(1);
         result.ManualFallbackCommands.Should().Be(1);
         result.StaleWarnings.Should().Be(1);
+        result.PrecisionFeedback.Tools[0].AcceptedFileCount.Should().Be(1);
+        result.PrecisionFeedback.Tools[0].IgnoredFileCount.Should().Be(1);
+        result.PrecisionFeedback.Tools[0].FileOnlyTargets.Should().Be(1);
     }
 
     [Fact]

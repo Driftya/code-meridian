@@ -1,6 +1,6 @@
 # Evaluating Session Usefulness
 
-Use `codemeridian evaluate-session` after an implementation session to check whether CodeMeridian actually helped. The command compares provider-neutral session evidence with files changed in git and reports an explainable usefulness result.
+Use `codemeridian evaluate-session` after an implementation session to check whether CodeMeridian actually helped. The command compares provider-neutral session evidence with files changed in git, reports an explainable usefulness result, and writes `.meridian/precision-feedback.json` for later ranking feedback.
 
 This works with Codex, GitHub Copilot, Claude Code, Continue, Cline, or any other agent workflow that can write or export JSONL facts.
 
@@ -80,6 +80,8 @@ Use `--base` when your session started from a different git ref:
 codemeridian evaluate-session . --project MyApp --base origin/main
 ```
 
+After a successful run, CodeMeridian also updates `.meridian/precision-feedback.json`. Ranking-oriented queries such as `find_implementation_surface` and `analyze_feature_implementation_path` can use that summarized accepted/ignored target history to explain narrower future suggestions.
+
 ## 4. Read The Result
 
 Example output:
@@ -135,6 +137,7 @@ The evaluator uses these rules:
 - Test runs are counted when `kind` is `test-run`, or when `kind` is `command` and `command` contains common test runners such as `dotnet test`, `npm test`, `pnpm test`, `yarn test`, `vitest`, or `pytest`.
 - Stale warnings are counted when `kind` is `stale-warning` or `staleWarning` is `true`.
 - Target confidence counts come from `targetConfidence`, split by comma.
+- A summarized per-tool precision snapshot is written to `.meridian/precision-feedback.json`, including accepted and ignored suggested files/tests for feedback-aware ranking.
 
 ## What Git Is Used For
 

@@ -25,20 +25,36 @@ internal sealed class SessionUsefulnessEvaluator(
         var contextPackFullSuccesses = 0;
         var contextPackDegradedSuccesses = 0;
         var contextPackHardFailures = 0;
+        var toolStats = new Dictionary<string, ToolPrecisionBuilder>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in projectEvents)
         {
             var kind = item.Kind ?? string.Empty;
             var toolName = item.ToolName ?? string.Empty;
+            var normalizedFiles = item.Files.Select(SessionPathNormalizer.Normalize).Where(path => path.Length > 0).ToArray();
+            var normalizedTests = item.Tests.Select(SessionPathNormalizer.Normalize).Where(path => path.Length > 0).ToArray();
+            var toolStat = GetToolStat(toolStats, toolName);
 
             if (IsGraphCall(kind, toolName))
+            {
                 graphCalls++;
+                if (toolStat is not null)
+                    toolStat.GraphCalls++;
+            }
 
             if (IsManualFallback(kind, item.Command))
+            {
                 manualFallbackCommands++;
+                foreach (var stat in toolStats.Values)
+                    stat.ManualFallbackCommands++;
+            }
 
             if (item.StaleWarning == true || kind.Equals("stale-warning", StringComparison.OrdinalIgnoreCase))
+            {
                 staleWarnings++;
+                foreach (var stat in toolStats.Values)
+                    stat.StaleWarnings++;
+            }
 
             CountContextPackStatus(
                 toolName,
@@ -47,21 +63,36 @@ internal sealed class SessionUsefulnessEvaluator(
                 ref contextPackDegradedSuccesses,
                 ref contextPackHardFailures);
 
-            CountTargetConfidence(item.TargetConfidence, ref exactTargets, ref fileOnlyTargets, ref heuristicTargets, ref staleTargets);
+            CountTargetConfidence(
+                item.TargetConfidence,
+                ref exactTargets,
+                ref fileOnlyTargets,
+                ref heuristicTargets,
+                ref staleTargets,
+                toolStat);
 
-            foreach (var file in item.Files.Select(SessionPathNormalizer.Normalize).Where(path => path.Length > 0))
+            foreach (var file in normalizedFiles)
             {
                 if (IsSuggestionEvent(kind, toolName))
+                {
                     suggestedFiles.Add(file);
+                    toolStat?.SuggestedFiles.Add(file);
+                }
             }
 
-            foreach (var test in item.Tests.Select(SessionPathNormalizer.Normalize).Where(path => path.Length > 0))
+            foreach (var test in normalizedTests)
             {
                 if (IsSuggestionEvent(kind, toolName))
+                {
                     suggestedTests.Add(test);
+                    toolStat?.SuggestedTests.Add(test);
+                }
 
                 if (IsTestRunEvent(kind, item.Command))
+                {
                     runTests.Add(test);
+                    toolStat?.RunTests.Add(test);
+                }
             }
         }
 
@@ -89,6 +120,12 @@ internal sealed class SessionUsefulnessEvaluator(
             graphCalls,
             manualFallbackCommands,
             staleWarnings);
+        var precisionFeedback = BuildPrecisionFeedback(
+            options.Project,
+            sessionFile,
+            changedTests,
+            changes.ChangedFiles,
+            toolStats);
 
         return new SessionUsefulnessReport(
             rating,
@@ -108,6 +145,7 @@ internal sealed class SessionUsefulnessEvaluator(
             contextPackFullSuccesses,
             contextPackDegradedSuccesses,
             contextPackHardFailures,
+            precisionFeedback,
             notes);
     }
 
@@ -196,7 +234,8 @@ internal sealed class SessionUsefulnessEvaluator(
         ref int exactTargets,
         ref int fileOnlyTargets,
         ref int heuristicTargets,
-        ref int staleTargets)
+        ref int staleTargets,
+        ToolPrecisionBuilder? toolStat)
     {
         if (string.IsNullOrWhiteSpace(targetConfidence))
             return;
@@ -207,16 +246,24 @@ internal sealed class SessionUsefulnessEvaluator(
             {
                 case "exact":
                     exactTargets++;
+                    if (toolStat is not null)
+                        toolStat.ExactTargets++;
                     break;
                 case "file-only":
                 case "file":
                     fileOnlyTargets++;
+                    if (toolStat is not null)
+                        toolStat.FileOnlyTargets++;
                     break;
                 case "heuristic":
                     heuristicTargets++;
+                    if (toolStat is not null)
+                        toolStat.HeuristicTargets++;
                     break;
                 case "stale":
                     staleTargets++;
+                    if (toolStat is not null)
+                        toolStat.StaleTargets++;
                     break;
             }
         }
@@ -276,5 +323,97 @@ internal sealed class SessionUsefulnessEvaluator(
             return "partial";
 
         return "low";
+    }
+
+    private static ToolPrecisionBuilder? GetToolStat(
+        IDictionary<string, ToolPrecisionBuilder> toolStats,
+        string toolName)
+    {
+        if (!IsGraphToolForFeedback(toolName))
+            return null;
+
+        if (!toolStats.TryGetValue(toolName, out var stat))
+        {
+            stat = new ToolPrecisionBuilder(toolName);
+            toolStats[toolName] = stat;
+        }
+
+        return stat;
+    }
+
+    private static bool IsGraphToolForFeedback(string toolName) =>
+        !string.IsNullOrWhiteSpace(toolName)
+        && (toolName.EndsWith("find_implementation_surface", StringComparison.OrdinalIgnoreCase)
+            || toolName.EndsWith("analyze_feature_implementation_path", StringComparison.OrdinalIgnoreCase));
+
+    private static SessionPrecisionFeedback BuildPrecisionFeedback(
+        string? project,
+        FileInfo sessionFile,
+        IReadOnlySet<string> changedTests,
+        IReadOnlySet<string> changedFiles,
+        IReadOnlyDictionary<string, ToolPrecisionBuilder> toolStats)
+    {
+        var tools = toolStats.Values
+            .OrderBy(builder => builder.ToolName, StringComparer.OrdinalIgnoreCase)
+            .Select(builder => builder.Build(changedFiles, changedTests))
+            .ToArray();
+
+        return new SessionPrecisionFeedback(
+            project,
+            sessionFile.FullName,
+            DateTimeOffset.UtcNow,
+            tools);
+    }
+
+    private sealed class ToolPrecisionBuilder(string toolName)
+    {
+        public string ToolName { get; } = toolName;
+        public HashSet<string> SuggestedFiles { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> SuggestedTests { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> RunTests { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public int GraphCalls { get; set; }
+        public int ExactTargets { get; set; }
+        public int FileOnlyTargets { get; set; }
+        public int HeuristicTargets { get; set; }
+        public int StaleTargets { get; set; }
+        public int StaleWarnings { get; set; }
+        public int ManualFallbackCommands { get; set; }
+
+        public ToolPrecisionFeedback Build(IReadOnlySet<string> changedFiles, IReadOnlySet<string> changedTests)
+        {
+            var fileSignals = SuggestedFiles
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .Select(path => new PathPrecisionFeedback(
+                    path,
+                    1,
+                    changedFiles.Contains(path) ? 1 : 0,
+                    changedFiles.Contains(path) ? 0 : 1))
+                .ToArray();
+            var testSignals = SuggestedTests
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .Select(path => new PathPrecisionFeedback(
+                    path,
+                    1,
+                    changedTests.Contains(path) || RunTests.Contains(path) ? 1 : 0,
+                    changedTests.Contains(path) || RunTests.Contains(path) ? 0 : 1))
+                .ToArray();
+
+            return new ToolPrecisionFeedback(
+                ToolName,
+                fileSignals.Length,
+                fileSignals.Sum(signal => signal.AcceptedCount),
+                fileSignals.Sum(signal => signal.IgnoredCount),
+                testSignals.Length,
+                testSignals.Sum(signal => signal.AcceptedCount),
+                testSignals.Sum(signal => signal.IgnoredCount),
+                ExactTargets,
+                FileOnlyTargets,
+                HeuristicTargets,
+                StaleTargets,
+                StaleWarnings,
+                ManualFallbackCommands,
+                fileSignals,
+                testSignals);
+        }
     }
 }

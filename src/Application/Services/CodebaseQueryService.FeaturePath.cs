@@ -127,7 +127,7 @@ public partial class CodebaseQueryService
         return tokens;
     }
 
-    private static int ScoreFeaturePathNode(CodeNode node, string feature, IReadOnlyCollection<string> keywords)
+    private int ScoreFeaturePathNode(CodeNode node, string feature, IReadOnlyCollection<string> keywords)
     {
         var score = node.Type switch
         {
@@ -151,6 +151,12 @@ public partial class CodebaseQueryService
             score += 2;
         if (node.FileRole == IndexedFileRole.Test || TextMatches(node.FilePath, "test"))
             score -= 2;
+
+        if (!string.IsNullOrWhiteSpace(node.FilePath))
+        {
+            var feedback = EvaluateSurfaceFeedback("mcp__CodeMeridian.analyze_feature_implementation_path", node.FilePath!);
+            score += feedback.ScoreAdjustment;
+        }
 
         return score;
     }
@@ -374,17 +380,27 @@ public partial class CodebaseQueryService
 
     private string BuildFeatureSurfaceReason(CodeNode node)
     {
+        var feedback = string.IsNullOrWhiteSpace(node.FilePath)
+            ? SurfaceFeedback.None
+            : EvaluateSurfaceFeedback("mcp__CodeMeridian.analyze_feature_implementation_path", node.FilePath!);
+
+        string baseReason;
         if (IsContractNode(node))
-            return "contract or port likely shapes the feature boundary";
-        if (IsApiNode(node) || TextMatches(node.FilePath, "McpServer"))
-            return "public endpoint or MCP tool exposure point";
-        if (IsInfrastructureNode(node))
-            return "adapter or persistence surface likely touched by graph/document lookup";
-        if (IsConfiguredTestNode(node))
-            return "test seam close to the candidate implementation";
-        if (IsApplicationNode(node) || IsDomainNode(node))
-            return "application/domain behavior surface";
-        return "keyword or semantic graph match";
+            baseReason = "contract or port likely shapes the feature boundary";
+        else if (IsApiNode(node) || TextMatches(node.FilePath, "McpServer"))
+            baseReason = "public endpoint or MCP tool exposure point";
+        else if (IsInfrastructureNode(node))
+            baseReason = "adapter or persistence surface likely touched by graph/document lookup";
+        else if (IsConfiguredTestNode(node))
+            baseReason = "test seam close to the candidate implementation";
+        else if (IsApplicationNode(node) || IsDomainNode(node))
+            baseReason = "application/domain behavior surface";
+        else
+            baseReason = "keyword or semantic graph match";
+
+        return string.IsNullOrWhiteSpace(feedback.Reason)
+            ? baseReason
+            : $"{baseReason}; {feedback.Reason}";
     }
 
     private string ClassifyFeatureArea(CodeNode node)

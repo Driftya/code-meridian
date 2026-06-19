@@ -36,7 +36,7 @@ public partial class CodebaseQueryService
         var ranked = candidates
             .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
             .GroupBy(n => n.FilePath!, StringComparer.OrdinalIgnoreCase)
-            .Select(group => BuildSurfaceCandidate(group.Key, group, goal, concepts))
+            .Select(group => BuildSurfaceCandidate("mcp__CodeMeridian.find_implementation_surface", group.Key, group, goal, concepts))
             .OrderByDescending(candidate => candidate.Score)
             .ThenBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase)
             .Take(Math.Clamp(limit, 1, 50))
@@ -225,7 +225,8 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    private static SurfaceCandidate BuildSurfaceCandidate(
+    private SurfaceCandidate BuildSurfaceCandidate(
+        string toolName,
         string filePath,
         IEnumerable<CodeNode> nodes,
         string goal,
@@ -237,11 +238,13 @@ public partial class CodebaseQueryService
             .ToArray();
         var score = nodeArray.Sum(node => ScoreSurfaceNode(node, goal, concepts));
         var freshness = BuildFreshness(nodeArray.First());
+        var feedback = EvaluateSurfaceFeedback(toolName, filePath);
+        score += feedback.ScoreAdjustment;
         var confidence = score >= 12 && freshness.Confidence != "Low" ? "High"
             : score >= 6 || freshness.Confidence == "Medium" ? "Medium"
             : "Low";
-        var targetConfidence = ResolveTargetConfidence(nodeArray, goal, concepts, freshness);
-        var reason = BuildSurfaceReason(nodeArray, concepts);
+        var targetConfidence = ResolveTargetConfidence(nodeArray, goal, concepts, freshness, feedback.Tool);
+        var reason = BuildSurfaceReason(nodeArray, concepts, feedback);
 
         return new SurfaceCandidate(filePath, nodeArray, score, confidence, targetConfidence, reason, freshness);
     }
@@ -276,7 +279,10 @@ public partial class CodebaseQueryService
         return score;
     }
 
-    private static string BuildSurfaceReason(IReadOnlyCollection<CodeNode> nodes, IReadOnlyCollection<string> concepts)
+    private static string BuildSurfaceReason(
+        IReadOnlyCollection<CodeNode> nodes,
+        IReadOnlyCollection<string> concepts,
+        SurfaceFeedback feedback)
     {
         var methodCount = nodes.Count(n => n.Type == CodeNodeType.Method);
         var typeCount = nodes.Count(n => n.Type is CodeNodeType.Class or CodeNodeType.Interface);
@@ -288,6 +294,7 @@ public partial class CodebaseQueryService
         if (conceptHits > 0) parts.Add($"{conceptHits} concept matches");
         var exactIds = nodes.Count(n => n.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface);
         if (exactIds > 0) parts.Add($"{exactIds} canonical IDs");
+        if (!string.IsNullOrWhiteSpace(feedback.Reason)) parts.Add(feedback.Reason);
 
         return parts.Count == 0 ? "related graph matches" : string.Join(", ", parts);
     }
@@ -296,7 +303,8 @@ public partial class CodebaseQueryService
         IReadOnlyCollection<CodeNode> nodes,
         string goal,
         IReadOnlyCollection<string> concepts,
-        FreshnessCheck freshness)
+        FreshnessCheck freshness,
+        ToolPrecisionSnapshot? feedback)
     {
         if (freshness.Confidence == "Low")
             return "stale";
@@ -307,6 +315,9 @@ public partial class CodebaseQueryService
 
         if (exactNode)
             return "exact";
+
+        if (feedback is not null && feedback.FileOnlyTargets > 0 && nodes.Any(node => node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface))
+            return "heuristic";
 
         if (nodes.Any(node => node.Type == CodeNodeType.File || !string.IsNullOrWhiteSpace(node.FilePath)))
             return "file-only";

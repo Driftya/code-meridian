@@ -1,4 +1,5 @@
 using CodeMeridian.Tooling.Configuration;
+using System.Text.Json;
 
 namespace CodeMeridian.Indexer.Cli.SessionEvaluation;
 
@@ -28,6 +29,7 @@ internal sealed class SessionEvaluationCommand(
         }
 
         Print(report);
+        WritePrecisionFeedback(context.RootPath, report.PrecisionFeedback);
         return 0;
     }
 
@@ -65,5 +67,19 @@ internal sealed class SessionEvaluationCommand(
         Console.WriteLine("Notes:");
         foreach (var note in report.Notes)
             Console.WriteLine($"- {note}");
+    }
+
+    private static void WritePrecisionFeedback(DirectoryInfo root, SessionPrecisionFeedback feedback)
+    {
+        var directory = Directory.CreateDirectory(Path.Combine(root.FullName, ".meridian"));
+        var path = Path.Combine(directory.FullName, "precision-feedback.json");
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            WriteIndented = true
+        };
+
+        File.WriteAllText(path, JsonSerializer.Serialize(feedback, options));
+        Console.WriteLine();
+        Console.WriteLine($"Precision feedback: {path}");
     }
 }
