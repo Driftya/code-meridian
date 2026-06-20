@@ -324,6 +324,50 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task KnowledgeApiEndpoints_IngestNode_AcceptsStructNodeType()
+    {
+        var repo = Substitute.For<ICodeGraphRepository>();
+        var embeddings = Substitute.For<IEmbeddingProvider>();
+        embeddings.IsAvailableAsync(Arg.Any<CancellationToken>()).Returns(false);
+        var queue = Substitute.For<IKeywordRefreshQueue>();
+        var routeHandler = typeof(KnowledgeApiEndpoints)
+            .GetMethod("IngestNode", BindingFlags.NonPublic | BindingFlags.Static);
+
+        routeHandler.Should().NotBeNull();
+
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.IngestNodeRequest");
+        requestType.Should().NotBeNull();
+
+        var request = Activator.CreateInstance(
+            requestType!,
+            "node-struct",
+            "Money",
+            "Struct",
+            "Shop.Domain",
+            "src/Money.cs",
+            3,
+            12,
+            "Value object",
+            null,
+            "def",
+            "Source",
+            "CodeMeridian",
+            null,
+            null);
+
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [request, repo, embeddings, queue, Substitute.For<ILoggerFactory>(), CancellationToken.None])!;
+        var result = await task;
+
+        result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Created<string>>();
+        await repo.Received(1).UpsertNodeAsync(
+            Arg.Is<CodeNode>(node =>
+                node.Id == "node-struct" &&
+                node.Type == CodeNodeType.Struct &&
+                node.Name == "Money"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task KnowledgeApiEndpoints_IngestDocument_QueuesKeywordRefreshWithGeneratedId()
     {
         var vector = Substitute.For<IVectorRepository>();
