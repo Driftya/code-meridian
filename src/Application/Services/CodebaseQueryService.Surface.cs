@@ -13,6 +13,7 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         var concepts = ParseConcepts(conceptsCsv);
+        var frontendGoal = LooksLikeFrontendGoal(goal, concepts);
         var queries = new[] { goal }.Concat(concepts).Where(q => !string.IsNullOrWhiteSpace(q)).Distinct(StringComparer.OrdinalIgnoreCase);
         var candidates = new List<CodeNode>();
 
@@ -28,6 +29,9 @@ public partial class CodebaseQueryService
                 cancellationToken);
 
             candidates.AddRange(nodes);
+
+            if (frontendGoal || nodes.Any(IsFrontendGraphNode))
+                candidates.AddRange(await ExpandFrontendSurfaceCandidatesAsync(nodes, cancellationToken));
         }
 
         if (candidates.Count == 0)
@@ -255,6 +259,7 @@ public partial class CodebaseQueryService
         {
             CodeNodeType.Method => 5,
             CodeNodeType.Class or CodeNodeType.Interface => 4,
+            CodeNodeType.ExternalConcept => 4,
             CodeNodeType.File => 3,
             _ => 1
         };
@@ -263,6 +268,9 @@ public partial class CodebaseQueryService
             score += 4;
 
         score += concepts.Count(concept => TextMatches(node.Name, concept) || TextMatches(node.Summary, concept) || TextMatches(node.FilePath, concept)) * 3;
+
+        if (LooksLikeFrontendGoal(goal, concepts) && IsFrontendGraphNode(node))
+            score += node.Type == CodeNodeType.ExternalConcept ? 4 : 3;
 
         if (node.FilePath?.Contains("test", StringComparison.OrdinalIgnoreCase) == true)
             score += 1;
@@ -286,13 +294,15 @@ public partial class CodebaseQueryService
     {
         var methodCount = nodes.Count(n => n.Type == CodeNodeType.Method);
         var typeCount = nodes.Count(n => n.Type is CodeNodeType.Class or CodeNodeType.Interface);
+        var frontendSignals = nodes.Count(IsFrontendGraphNode);
         var conceptHits = concepts.Count(concept => nodes.Any(n => TextMatches(n.Name, concept) || TextMatches(n.FilePath, concept)));
 
         var parts = new List<string>();
         if (methodCount > 0) parts.Add($"{methodCount} method hits");
         if (typeCount > 0) parts.Add($"{typeCount} type hits");
+        if (frontendSignals > 0) parts.Add($"{frontendSignals} frontend graph matches");
         if (conceptHits > 0) parts.Add($"{conceptHits} concept matches");
-        var exactIds = nodes.Count(n => n.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface);
+        var exactIds = nodes.Count(n => n.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.ExternalConcept);
         if (exactIds > 0) parts.Add($"{exactIds} canonical IDs");
         if (!string.IsNullOrWhiteSpace(feedback.Reason)) parts.Add(feedback.Reason);
 
@@ -310,7 +320,7 @@ public partial class CodebaseQueryService
             return "stale";
 
         var exactNode = nodes.Any(node =>
-            node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface
+            node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.ExternalConcept
             && (TextMatches(goal, node.Name) || concepts.Any(concept => TextMatches(node.Name, concept))));
 
         if (exactNode)
@@ -328,7 +338,7 @@ public partial class CodebaseQueryService
     private static string FormatCanonicalIds(IReadOnlyCollection<CodeNode> nodes)
     {
         var ids = nodes
-            .Where(n => n.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
+            .Where(n => n.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.ExternalConcept)
             .Take(3)
             .Select(n => $"`{n.Id}`")
             .ToArray();
@@ -395,6 +405,75 @@ public partial class CodebaseQueryService
         !string.IsNullOrWhiteSpace(haystack)
         && !string.IsNullOrWhiteSpace(needle)
         && haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
+
+    private async Task<IReadOnlyCollection<CodeNode>> ExpandFrontendSurfaceCandidatesAsync(
+        IReadOnlyCollection<CodeNode> nodes,
+        CancellationToken cancellationToken)
+    {
+        var anchors = nodes
+            .Where(IsFrontendGraphNode)
+            .DistinctBy(node => node.Id)
+            .Take(6)
+            .ToArray();
+
+        if (anchors.Length == 0)
+            return [];
+
+        var expanded = new List<CodeNode>();
+        foreach (var anchor in anchors)
+        {
+            var impact = await codeGraph.FindImpactAsync(anchor.Id, depth: 2, cancellationToken);
+            expanded.AddRange(impact.Select(item => item.Node).Where(node => !string.IsNullOrWhiteSpace(node.FilePath)));
+
+            var downstream = await codeGraph.FindDownstreamAsync(anchor.Id, depth: 2, cancellationToken);
+            expanded.AddRange(downstream.Select(item => item.Node).Where(node => !string.IsNullOrWhiteSpace(node.FilePath)));
+        }
+
+        return expanded
+            .DistinctBy(node => node.Id)
+            .ToArray();
+    }
+
+    private static bool LooksLikeFrontendGoal(string goal, IReadOnlyCollection<string> concepts)
+    {
+        var terms = new[] { goal }.Concat(concepts);
+        return terms.Any(term =>
+            TextMatches(term, "frontend")
+            || TextMatches(term, "html")
+            || TextMatches(term, "css")
+            || TextMatches(term, "scss")
+            || TextMatches(term, "jsx")
+            || TextMatches(term, "tsx")
+            || TextMatches(term, "selector")
+            || TextMatches(term, "stylesheet")
+            || TextMatches(term, "style")
+            || TextMatches(term, "class")
+            || TextMatches(term, "id")
+            || TextMatches(term, "token")
+            || TextMatches(term, "variable"));
+    }
+
+    private static bool IsFrontendGraphNode(CodeNode node) =>
+        IsFrontendExternalConcept(node) || IsFrontendFile(node);
+
+    private static bool IsFrontendExternalConcept(CodeNode node) =>
+        node.Type == CodeNodeType.ExternalConcept
+        && node.Properties.TryGetValue("externalKind", out var kind)
+        && kind is "CssClass" or "CssId" or "CssSelector" or "CssVariable";
+
+    private static bool IsFrontendFile(CodeNode node)
+    {
+        if (node.Properties.TryGetValue("frontendRole", out var frontendRole)
+            && !string.IsNullOrWhiteSpace(frontendRole))
+            return true;
+
+        return node.FilePath is not null
+            && (node.FilePath.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+                || node.FilePath.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+                || node.FilePath.EndsWith(".scss", StringComparison.OrdinalIgnoreCase)
+                || node.FilePath.EndsWith(".tsx", StringComparison.OrdinalIgnoreCase)
+                || node.FilePath.EndsWith(".jsx", StringComparison.OrdinalIgnoreCase));
+    }
 
     private IReadOnlyList<EditRouteStep> BuildEditRouteSteps(
         IReadOnlyCollection<CodeNode> nodes,

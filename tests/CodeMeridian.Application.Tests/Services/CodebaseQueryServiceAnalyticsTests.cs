@@ -269,6 +269,38 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindConnectionAsync_WithFrontendPath_SummarizesFrontendSignals()
+    {
+        var (sut, graph) = Build();
+        graph.FindConnectionAsync("component", "style", Arg.Any<CancellationToken>())
+             .Returns([
+                 (Node("component", "HeroCard", CodeNodeType.File, "src/web/HeroCard.tsx", project: "Shop.Web"), (string?)null),
+                 (new CodeNode
+                 {
+                     Id = "hero-class",
+                     Name = "hero",
+                     Type = CodeNodeType.ExternalConcept,
+                     ProjectContext = "Shop.Web"
+                 }, "UsesClass"),
+                 (new CodeNode
+                 {
+                     Id = "hero-selector",
+                     Name = ".hero",
+                     Type = CodeNodeType.ExternalConcept,
+                     ProjectContext = "Shop.Web"
+                 }, "UsesClass"),
+                 (Node("style", "HeroCard.scss", CodeNodeType.File, "src/web/HeroCard.scss", project: "Shop.Web"), "DefinesSelector")
+             ]);
+
+        var result = await sut.FindConnectionAsync("component", "style");
+
+        result.Should().Contain("HeroCard");
+        result.Should().Contain("UsesClass");
+        result.Should().Contain("DefinesSelector");
+        result.Should().Contain("Frontend signals: class usage, selector definition.");
+    }
+
+    [Fact]
     public async Task FindUnreferencedAsync_WithResults_GroupsByTypeAndIncludesDisclaimer()
     {
         var (sut, graph) = Build();
@@ -2064,6 +2096,56 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("exact");
         result.Should().Contain("`m1`");
         result.Should().Contain("Freshness");
+    }
+
+    [Fact]
+    public async Task FindImplementationSurfaceAsync_WithFrontendConceptMatch_ExpandsToConnectedMarkupAndStylesheetFiles()
+    {
+        var (sut, graph) = Build();
+        var heroClass = new CodeNode
+        {
+            Id = "Shop.Web:ExternalConcept:CssClass:hero",
+            Name = "hero",
+            Type = CodeNodeType.ExternalConcept,
+            ProjectContext = "Shop.Web",
+            Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "CssClass"
+            }
+        };
+        var markupFile = Node("markup", "HeroCard.tsx", CodeNodeType.File, "src/web/HeroCard.tsx", 1, "Shop.Web");
+        var stylesheetFile = Node("style", "HeroCard.scss", CodeNodeType.File, "src/web/HeroCard.scss", 1, "Shop.Web");
+        var selectorNode = new CodeNode
+        {
+            Id = "Shop.Web:ExternalConcept:CssSelector:hero",
+            Name = ".hero",
+            Type = CodeNodeType.ExternalConcept,
+            ProjectContext = "Shop.Web",
+            Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "CssSelector"
+            }
+        };
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([heroClass]);
+        graph
+            .FindImpactAsync(heroClass.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(markupFile, 1), (selectorNode, 1)]);
+        graph
+            .FindDownstreamAsync(heroClass.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(selectorNode, 1), (stylesheetFile, 2)]);
+
+        var result = await sut.FindImplementationSurfaceAsync(
+            "update hero class styling",
+            "hero,scss",
+            "Shop.Web");
+
+        result.Should().Contain("src/web/HeroCard.tsx");
+        result.Should().Contain("src/web/HeroCard.scss");
+        result.Should().Contain("frontend graph matches");
+        result.Should().Contain("Target confidence");
     }
 
     [Fact]

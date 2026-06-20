@@ -993,6 +993,244 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FindConnectionAsync_WithFrontendFixture_ReturnsFrontendRelationshipPath()
+    {
+        var projectContext = $"Integration.Connection.Frontend.{Guid.NewGuid():N}";
+        var component = CreateNode(
+            id: $"{projectContext}.Component",
+            name: "HeroCard.tsx",
+            type: CodeNodeType.File,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/HeroCard.tsx",
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["frontendRole"] = "ComponentFile"
+            });
+        var classConcept = CreateNode(
+            id: $"{projectContext}.CssClass.hero",
+            name: "hero",
+            type: CodeNodeType.ExternalConcept,
+            projectContext: projectContext,
+            filePath: string.Empty,
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "CssClass"
+            });
+        var selector = CreateNode(
+            id: $"{projectContext}.CssSelector.hero",
+            name: ".hero",
+            type: CodeNodeType.ExternalConcept,
+            projectContext: projectContext,
+            filePath: string.Empty,
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "CssSelector"
+            });
+        var stylesheet = CreateNode(
+            id: $"{projectContext}.Stylesheet",
+            name: "HeroCard.scss",
+            type: CodeNodeType.File,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/HeroCard.scss",
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["frontendRole"] = "StyleSheetFile"
+            });
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(component);
+            await _repository.UpsertNodeAsync(classConcept);
+            await _repository.UpsertNodeAsync(selector);
+            await _repository.UpsertNodeAsync(stylesheet);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = component.Id,
+                TargetId = classConcept.Id,
+                Type = CodeEdgeType.UsesClass
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = selector.Id,
+                TargetId = classConcept.Id,
+                Type = CodeEdgeType.UsesClass
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = stylesheet.Id,
+                TargetId = selector.Id,
+                Type = CodeEdgeType.DefinesSelector
+            });
+
+            var connection = await _repository.FindConnectionAsync(component.Id, stylesheet.Id);
+
+            connection.Should().HaveCount(4);
+            connection[0].Node.Id.Should().Be(component.Id);
+            connection[0].ViaRelationship.Should().Be("UsesClass");
+            connection[1].Node.Id.Should().Be(classConcept.Id);
+            connection[1].ViaRelationship.Should().Be("UsesClass");
+            connection[2].Node.Id.Should().Be(selector.Id);
+            connection[2].ViaRelationship.Should().Be("DefinesSelector");
+            connection[3].Node.Id.Should().Be(stylesheet.Id);
+            connection[3].ViaRelationship.Should().BeNull();
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
+    public async Task FindImpactAsync_WithFrontendConceptFixture_ReturnsMarkupAndStylesheetDependents()
+    {
+        var projectContext = $"Integration.Impact.Frontend.{Guid.NewGuid():N}";
+        var classConcept = CreateNode(
+            id: $"{projectContext}.CssClass.hero",
+            name: "hero",
+            type: CodeNodeType.ExternalConcept,
+            projectContext: projectContext,
+            filePath: string.Empty,
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "CssClass"
+            });
+        var component = CreateNode(
+            id: $"{projectContext}.Component",
+            name: "HeroCard.tsx",
+            type: CodeNodeType.File,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/HeroCard.tsx",
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["frontendRole"] = "ComponentFile"
+            });
+        var selector = CreateNode(
+            id: $"{projectContext}.CssSelector.hero",
+            name: ".hero",
+            type: CodeNodeType.ExternalConcept,
+            projectContext: projectContext,
+            filePath: string.Empty,
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "CssSelector"
+            });
+        var stylesheet = CreateNode(
+            id: $"{projectContext}.Stylesheet",
+            name: "HeroCard.scss",
+            type: CodeNodeType.File,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/HeroCard.scss",
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["frontendRole"] = "StyleSheetFile"
+            });
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(classConcept);
+            await _repository.UpsertNodeAsync(component);
+            await _repository.UpsertNodeAsync(selector);
+            await _repository.UpsertNodeAsync(stylesheet);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = component.Id,
+                TargetId = classConcept.Id,
+                Type = CodeEdgeType.UsesClass
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = selector.Id,
+                TargetId = classConcept.Id,
+                Type = CodeEdgeType.UsesClass
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = stylesheet.Id,
+                TargetId = selector.Id,
+                Type = CodeEdgeType.DefinesSelector
+            });
+
+            var impact = await _repository.FindImpactAsync(classConcept.Id, depth: 3);
+
+            impact.Should().Contain(item => item.Node.Id == component.Id && item.Distance == 1);
+            impact.Should().Contain(item => item.Node.Id == selector.Id && item.Distance == 1);
+            impact.Should().Contain(item => item.Node.Id == stylesheet.Id && item.Distance == 2);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
+    public async Task GetContextForEditingAsync_WithFrontendFixture_ReturnsImportingFilesAndDefinedSelectors()
+    {
+        var projectContext = $"Integration.Context.Frontend.{Guid.NewGuid():N}";
+        var stylesheet = CreateNode(
+            id: $"{projectContext}.Stylesheet",
+            name: "HeroCard.scss",
+            type: CodeNodeType.File,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/HeroCard.scss",
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["frontendRole"] = "StyleSheetFile"
+            });
+        var component = CreateNode(
+            id: $"{projectContext}.Component",
+            name: "HeroCard.tsx",
+            type: CodeNodeType.File,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/HeroCard.tsx",
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["frontendRole"] = "ComponentFile"
+            });
+        var selector = CreateNode(
+            id: $"{projectContext}.CssSelector.hero",
+            name: ".hero",
+            type: CodeNodeType.ExternalConcept,
+            projectContext: projectContext,
+            filePath: string.Empty,
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "CssSelector"
+            });
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(stylesheet);
+            await _repository.UpsertNodeAsync(component);
+            await _repository.UpsertNodeAsync(selector);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = component.Id,
+                TargetId = stylesheet.Id,
+                Type = CodeEdgeType.ImportsStyle
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = stylesheet.Id,
+                TargetId = selector.Id,
+                Type = CodeEdgeType.DefinesSelector
+            });
+
+            var context = await _repository.GetContextForEditingAsync(stylesheet.Id);
+
+            context.Node.Should().NotBeNull();
+            context.Callers.Should().Contain(node => node.Id == component.Id);
+            context.Callees.Should().Contain(node => node.Id == selector.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
     public async Task FindCrossProjectDependenciesAsync_WithTemporaryFixtures_ReturnsCrossProjectEdge()
     {
         var sourceProject = $"Integration.CrossProject.Source.{Guid.NewGuid():N}";

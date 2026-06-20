@@ -195,7 +195,7 @@ public partial class CodebaseQueryService
 
         if (results.Count == 0)
             return $"No downstream dependencies found for `{nodeId}` within {depth} hops. " +
-                   "The node may not exist or has no outbound Calls/Uses/DependsOn edges.";
+                   "The node may not exist or has no outbound dependency edges.";
 
         if (detailLevel == ContextDetailLevel.Summary)
             return $"Downstream summary for `{nodeId}`: {results.Count} dependencies within {depth} hops. " +
@@ -878,6 +878,30 @@ public partial class CodebaseQueryService
         }
 
         return string.Join(" ", parts);
+    }
+
+    private static string[] SummarizeFrontendRelationships(IEnumerable<string?> relationships)
+    {
+        var signals = new List<string>();
+        var kinds = relationships
+            .Where(type => !string.IsNullOrWhiteSpace(type))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (kinds.Any(type => string.Equals(type, nameof(CodeEdgeType.UsesClass), StringComparison.OrdinalIgnoreCase)))
+            signals.Add("class usage");
+        if (kinds.Any(type => string.Equals(type, nameof(CodeEdgeType.UsesId), StringComparison.OrdinalIgnoreCase)))
+            signals.Add("ID usage");
+        if (kinds.Any(type => string.Equals(type, nameof(CodeEdgeType.DefinesSelector), StringComparison.OrdinalIgnoreCase)))
+            signals.Add("selector definition");
+        if (kinds.Any(type => string.Equals(type, nameof(CodeEdgeType.ImportsStyle), StringComparison.OrdinalIgnoreCase)))
+            signals.Add("stylesheet import");
+        if (kinds.Any(type => string.Equals(type, nameof(CodeEdgeType.UsesCssVariable), StringComparison.OrdinalIgnoreCase)))
+            signals.Add("CSS variable usage");
+        if (kinds.Any(type => string.Equals(type, nameof(CodeEdgeType.DefinesCssVariable), StringComparison.OrdinalIgnoreCase)))
+            signals.Add("CSS variable definition");
+
+        return signals.ToArray();
     }
 
     private static string FormatLocation(CodeNode node) =>

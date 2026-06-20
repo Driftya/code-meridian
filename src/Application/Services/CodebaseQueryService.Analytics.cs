@@ -29,7 +29,7 @@ public partial class CodebaseQueryService
                    "The node may not exist in the graph or has no inbound dependencies.";
 
         if (detailLevel == ContextDetailLevel.Summary)
-            return $"Impact summary for `{nodeId}`: {results.Count} affected code elements within {depth} hops. " +
+            return $"Impact summary for `{nodeId}`: {results.Count} affected graph elements within {depth} hops. " +
                    $"Nearest distance: {results.Min(r => r.Distance)}. Farthest distance: {results.Max(r => r.Distance)}.";
 
         var sb = new StringBuilder();
@@ -89,7 +89,7 @@ public partial class CodebaseQueryService
 
         if (detailLevel == ContextDetailLevel.Summary)
             return $"Connection summary: `{fromId}` reaches `{toId}` in {path.Count - 1} hops through " +
-                   $"{path.Count} code nodes.";
+                   $"{path.Count} graph nodes.";
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Connection — `{fromId}` → `{toId}`");
@@ -102,6 +102,13 @@ public partial class CodebaseQueryService
             if (node.FilePath is not null) sb.Append($" ({node.FilePath})");
             if (via is not null) sb.Append($"\n  —[{via}]→");
             sb.AppendLine();
+        }
+
+        var frontendSignals = SummarizeFrontendRelationships(path.Select(step => step.ViaRelationship));
+        if (frontendSignals.Length > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"Frontend signals: {string.Join(", ", frontendSignals)}.");
         }
 
         return sb.ToString();
@@ -632,6 +639,7 @@ public partial class CodebaseQueryService
             CodeNodeType.Class or CodeNodeType.Interface => "class-level usage edge",
             CodeNodeType.ApiEndpoint => "heuristic route metadata caller",
             CodeNodeType.File => "expanded from broader file edge",
+            CodeNodeType.ExternalConcept => "frontend concept bridge",
             _ => "heuristic contextual caller"
         };
     }
