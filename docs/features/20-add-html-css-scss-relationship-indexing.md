@@ -68,3 +68,9 @@
 - Full cascade resolution, specificity analysis, and dynamic runtime class-name evaluation are still out of scope.
 - Near-duplicate spacing/style clustering remains a future follow-up rather than part of this indexing MVP.
 
+## Follow-up Slices
+
+- [Add Frontend Style Near-Duplicate Clustering](47-add-frontend-style-near-duplicate-clustering.md)
+- [Add Frontend Cascade And Specificity Analysis](48-add-frontend-cascade-and-specificity-analysis.md)
+- [Add Frontend Relationship Awareness To Existing Tools](49-add-frontend-relationship-awareness-to-existing-tools.md)
+
