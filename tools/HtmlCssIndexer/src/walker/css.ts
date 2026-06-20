@@ -3,7 +3,7 @@ import path from 'node:path';
 import postcss from 'postcss';
 import postcssScss from 'postcss-scss';
 import type { CodeEdgeDto, CodeNodeDto } from '@codemeridian/indexer-shared';
-import { addNode, fileNodeId, frontendConceptId, hashText, lineCountFromContent, lineNumberAt, normalizeImportTarget, selectorNodeId, toRelativePath } from './common.js';
+import { addNode, fileNodeId, frontendConceptId, hashText, lineCountFromContent, normalizeImportTarget, selectorNodeId, styleDeclarationNodeId, toRelativePath } from './common.js';
 
 const CLASS_SELECTOR = /\.([_a-zA-Z][\w-]*)/g;
 const ID_SELECTOR = /#([_a-zA-Z][\w-]*)/g;
@@ -165,6 +165,33 @@ export function collectStyleArtifacts(
           callSite: `${relativePath}:${declarationLine}`,
         });
       }
+
+      const declarationId = styleDeclarationNodeId(projectName, relativePath, selectorText, decl.prop, declarationLine, decl.value);
+      addNode(nodes, knownIds, {
+        id: declarationId,
+        name: `${decl.prop}: ${decl.value}`,
+        type: 'ExternalConcept',
+        filePath: relativePath,
+        lineNumber: declarationLine,
+        lineCount: 1,
+        projectContext: projectName,
+        properties: {
+          externalKind: 'CssDeclaration',
+          selectorText,
+          propertyName: decl.prop,
+          rawValue: decl.value,
+        },
+      }, resolveFileRole);
+
+      edges.push({
+        sourceId: selectorId,
+        targetId: declarationId,
+        type: 'Uses',
+        callSite: `${relativePath}:${declarationLine}`,
+        properties: {
+          relationshipKind: 'DefinesStyleDeclaration',
+        },
+      });
 
       for (const variableName of extractAll(decl.value, CSS_VARIABLE)) {
         const variableId = frontendConceptId(projectName, 'CssVariable', variableName);

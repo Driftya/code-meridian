@@ -71,6 +71,31 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         FileRole = fileRole
     };
 
+    private static CodeNode CreateFrontendStyleDeclaration(
+        string id,
+        string selectorText,
+        string filePath,
+        int lineNumber,
+        string propertyName,
+        string rawValue,
+        string project = "Shop.Web") => new()
+    {
+        Id = id,
+        Name = $"{propertyName}: {rawValue}",
+        Type = CodeNodeType.ExternalConcept,
+        FilePath = filePath,
+        LineNumber = lineNumber,
+        LineCount = 1,
+        ProjectContext = project,
+        Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["externalKind"] = "CssDeclaration",
+            ["selectorText"] = selectorText,
+            ["propertyName"] = propertyName,
+            ["rawValue"] = rawValue
+        }
+    };
+
     private static string WritePrecisionFeedbackFile(string content)
     {
         var path = Path.Combine(Path.GetTempPath(), $"codemeridian-precision-feedback-{Guid.NewGuid():N}.json");
@@ -1527,6 +1552,35 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("Unknown duplicate candidate node type");
         result.Should().Contain("Method");
         result.Should().Contain("Class");
+        result.Should().Contain("ExternalConcept");
+    }
+
+    [Fact]
+    public async Task FindDuplicateCandidatesAsync_WithFrontendStyleDeclarations_ReturnsNearDuplicateClusters()
+    {
+        var (sut, graph) = Build();
+        graph.QueryNodesAsync(Arg.Is<CodeGraphQuery>(q => q.TypeFilter == CodeNodeType.ExternalConcept), Arg.Any<CancellationToken>())
+            .Returns([
+                CreateFrontendStyleDeclaration("n1", ".card", "src/web/Card.scss", 10, "padding", "1rem"),
+                CreateFrontendStyleDeclaration("n2", ".card--wide", "src/web/Card.scss", 16, "padding", "16px"),
+                CreateFrontendStyleDeclaration("n3", ".card--hero", "src/web/HeroCard.scss", 4, "padding", "1.02rem"),
+                CreateFrontendStyleDeclaration("n4", ".panel", "src/web/Panel.scss", 9, "color", "#ff0000"),
+                CreateFrontendStyleDeclaration("n5", ".panel--muted", "src/web/Panel.scss", 14, "color", "rgb(250, 4, 4)")
+            ]);
+
+        var result = await sut.FindDuplicateCandidatesAsync(
+            projectContext: "Shop.Web",
+            nodeType: "ExternalConcept");
+
+        result.Should().Contain("## Frontend Style Near-Duplicate Clusters - Shop.Web");
+        result.Should().Contain("`padding`");
+        result.Should().Contain("bounded numeric/unit drift");
+        result.Should().Contain("16px");
+        result.Should().Contain("1.02rem");
+        result.Should().Contain("base-class variant review around `.card`");
+        result.Should().Contain("colors within Euclidean RGBA distance");
+        result.Should().Contain("`color`");
+        result.Should().Contain(".panel--muted");
     }
 
     [Fact]

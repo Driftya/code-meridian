@@ -328,7 +328,7 @@ Find retry policy code near OrderService.
 
 ### `find_duplicate_candidates`
 
-Finds duplicate-code review candidates by comparing embedded method/class nodes. Supports project, namespace, node type, size, similarity, and test-exclusion filters. Results include similarity, size, fan-in risk, and direct test coverage signals.
+Finds duplicate-review candidates through a shared generic surface. Method/class mode compares embedded code nodes semantically. `ExternalConcept` mode clusters indexed frontend style declarations by normalized value shape so near-duplicate spacing, color, and other CSS values surface with selectors, files, normalized values, and tolerance notes.
 
 ```text
 Find duplicate candidates in MyApi excluding tests.

@@ -139,16 +139,15 @@ public sealed partial class CodebaseTools
 
     [McpServerTool(Name = "find_duplicate_candidates")]
     [Description(
-        "Find duplicate-code review candidates by comparing embedded method/class nodes semantically. " +
-        "Groups similar methods/classes by score, filters by project, namespace, node type, and size, " +
-        "excludes tests by default, and reports lightweight refactor risk using fan-in and direct test callers. " +
-        "Requires backend embeddings to be enabled and indexed.")]
+        "Find duplicate-review candidates through the existing generic duplicate-analysis surface. " +
+        "For Method/Class nodes it compares embedded code nodes semantically; for ExternalConcept it clusters indexed frontend style declarations by normalized value shape. " +
+        "Supports project, node type, size, similarity, and test-exclusion filters, and keeps recommendations explainable.")]
     public Task<string> FindDuplicateCandidatesAsync(
         [Description("Optional project name to scope duplicate discovery.")]
         string? projectContext = null,
-        [Description("Optional namespace substring filter, e.g. 'Payments' or 'Infrastructure.Graph'.")]
+        [Description("Optional namespace substring filter for Method/Class nodes, or a frontend property/selector/file/value filter when nodeType is ExternalConcept.")]
         string? namespaceFilter = null,
-        [Description("Optional node type filter. Valid values: Method, Class. Omit to include both.")]
+        [Description("Optional node type filter. Valid values: Method, Class, ExternalConcept. Omit to include Method and Class.")]
         string? nodeType = null,
         [Description("Minimum line count for both nodes in a candidate pair. Default 5.")]
         int minLineCount = 5,

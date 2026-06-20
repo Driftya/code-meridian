@@ -427,13 +427,16 @@ public partial class CodebaseQueryService
         if (!string.IsNullOrWhiteSpace(nodeType))
         {
             if (!Enum.TryParse<CodeNodeType>(nodeType, ignoreCase: true, out var value) ||
-                value is not (CodeNodeType.Method or CodeNodeType.Class))
+                value is not (CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.ExternalConcept))
             {
-                return $"Unknown duplicate candidate node type `{nodeType}`. Valid values: `Method`, `Class`.";
+                return $"Unknown duplicate candidate node type `{nodeType}`. Valid values: `Method`, `Class`, `ExternalConcept`.";
             }
 
             parsedType = value;
         }
+
+        if (parsedType == CodeNodeType.ExternalConcept)
+            return await FindFrontendStyleDuplicateCandidatesAsync(projectContext, namespaceFilter, excludeTests, cancellationToken);
 
         minLineCount = Math.Max(0, minLineCount);
         minSimilarity = Math.Clamp(minSimilarity, 0.0, 1.0);

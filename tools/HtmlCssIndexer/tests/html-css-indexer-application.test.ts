@@ -82,6 +82,7 @@ describe('HtmlCssIndexerApplication', () => {
       expect.objectContaining({ type: 'UsesClass' }),
       expect.objectContaining({ type: 'DefinesSelector' }),
       expect.objectContaining({ type: 'ImportsStyle' }),
+      expect.objectContaining({ type: 'Uses', properties: expect.objectContaining({ relationshipKind: 'DefinesStyleDeclaration' }) }),
     ]));
   });
 });

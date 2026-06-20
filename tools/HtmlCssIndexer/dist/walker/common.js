@@ -15,6 +15,10 @@ export function frontendConceptId(projectName, kind, name) {
 export function selectorNodeId(projectName, relativePath, selectorText, lineNumber) {
     return `${projectName}:ExternalConcept:${sanitize(relativePath)}:CssSelector:${lineNumber}:${sanitize(selectorText)}`;
 }
+export function styleDeclarationNodeId(projectName, relativePath, selectorText, propertyName, lineNumber, rawValue) {
+    const fingerprint = hashText(`${selectorText}|${propertyName}|${rawValue}`).slice(0, 12);
+    return `${projectName}:ExternalConcept:${sanitize(relativePath)}:CssDeclaration:${lineNumber}:${sanitize(propertyName)}:${fingerprint}`;
+}
 export function addNode(nodes, knownIds, node, resolveFileRole) {
     if (knownIds.has(node.id))
         return;

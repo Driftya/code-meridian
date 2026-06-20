@@ -38,11 +38,32 @@ describe('walkFrontend', () => {
     const selectorNodes = result.nodes.filter(node => node.properties?.externalKind === 'CssSelector').map(node => node.name);
     expect(selectorNodes).toEqual(expect.arrayContaining(['.hero', '#main-panel', '.card', ':root']));
 
+    const declarationNodes = result.nodes.filter(node => node.properties?.externalKind === 'CssDeclaration');
+    expect(declarationNodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: 'color: red',
+        properties: expect.objectContaining({
+          propertyName: 'color',
+          rawValue: 'red',
+          selectorText: '.hero',
+        }),
+      }),
+      expect.objectContaining({
+        name: 'padding: 1rem',
+        properties: expect.objectContaining({
+          propertyName: 'padding',
+          rawValue: '1rem',
+          selectorText: '#main-panel',
+        }),
+      }),
+    ]));
+
     expect(result.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'UsesClass' }),
         expect.objectContaining({ type: 'DefinesSelector' }),
         expect.objectContaining({ type: 'ImportsStyle' }),
+        expect.objectContaining({ type: 'Uses', properties: expect.objectContaining({ relationshipKind: 'DefinesStyleDeclaration' }) }),
         expect.objectContaining({ type: 'UsesId' }),
         expect.objectContaining({ type: 'DefinesCssVariable' }),
         expect.objectContaining({ type: 'UsesCssVariable' }),

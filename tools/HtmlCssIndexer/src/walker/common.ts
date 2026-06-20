@@ -23,6 +23,18 @@ export function selectorNodeId(projectName: string, relativePath: string, select
   return `${projectName}:ExternalConcept:${sanitize(relativePath)}:CssSelector:${lineNumber}:${sanitize(selectorText)}`;
 }
 
+export function styleDeclarationNodeId(
+  projectName: string,
+  relativePath: string,
+  selectorText: string,
+  propertyName: string,
+  lineNumber: number,
+  rawValue: string,
+): string {
+  const fingerprint = hashText(`${selectorText}|${propertyName}|${rawValue}`).slice(0, 12);
+  return `${projectName}:ExternalConcept:${sanitize(relativePath)}:CssDeclaration:${lineNumber}:${sanitize(propertyName)}:${fingerprint}`;
+}
+
 export function addNode(
   nodes: CodeNodeDto[],
   knownIds: Set<string>,

@@ -2,7 +2,8 @@ export type FrontendConceptKind =
   | 'CssClass'
   | 'CssId'
   | 'CssSelector'
-  | 'CssVariable';
+  | 'CssVariable'
+  | 'CssDeclaration';
 
 export interface FrontendWalkResult {
   nodes: import('@codemeridian/indexer-shared').CodeNodeDto[];
