@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CodeMeridian Docs</title>
+  <meta name="description" content="CodeMeridian documentation index, guides, and feature roadmap.">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/docs-index.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero__backdrop"></div>
+      <div class="hero__content">
+        <img class="hero__logo" src="assets/icon.svg" alt="CodeMeridian logo">
+        <div class="hero__copy">
+          <p class="eyebrow">Documentation Hub</p>
+          <h1>CodeMeridian</h1>
+          <p class="hero__text">
+            A quick index for the docs set, feature notes, and roadmap slices.
+            Start with the guides, then drop into the feature files when you need the implementation history.
+          </p>
+          <nav class="hero__nav" aria-label="Quick links">
+            <a class="button button--primary" href="#guides">Guides</a>
+            <a class="button button--ghost" href="#roadmap">Feature Roadmap</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="panel panel--intro">
+        <div class="panel__header">
+          <p class="eyebrow">Overview</p>
+          <h2>What is here</h2>
+        </div>
+        <div class="stats">
+          <article class="stat-card">
+            <span class="stat-card__value">12</span>
+            <span class="stat-card__label">Top-level guides</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-card__value">50</span>
+            <span class="stat-card__label">Feature notes</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-card__value">3</span>
+            <span class="stat-card__label">Primary entry points</span>
+          </article>
+        </div>
+        <div class="shortcut-grid">
+          <a class="shortcut-card" href="usage.md">
+            <span class="shortcut-card__title">Usage Guide</span>
+            <span class="shortcut-card__meta">Operational commands and workflows</span>
+          </a>
+          <a class="shortcut-card" href="features.md">
+            <span class="shortcut-card__title">Feature Reference</span>
+            <span class="shortcut-card__meta">Tool-by-tool capabilities</span>
+          </a>
+          <a class="shortcut-card" href="features/README.md">
+            <span class="shortcut-card__title">Feature Notes</span>
+            <span class="shortcut-card__meta">Detailed per-slice history</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="panel" id="guides">
+        <div class="panel__header">
+          <p class="eyebrow">Table of Contents</p>
+          <h2>Guides</h2>
+        </div>
+        <div class="guide-grid">
+          <a class="guide-card" href="context-workflows.md"><span>Context Workflows</span></a>
+          <a class="guide-card" href="embeddings.md"><span>Code Node Embeddings Setup &amp; Configuration</span></a>
+          <a class="guide-card" href="evaluate.md"><span>Evaluating Session Usefulness</span></a>
+          <a class="guide-card" href="features.md"><span>CodeMeridian Feature Reference</span></a>
+          <a class="guide-card" href="how-it-works.md"><span>How CodeMeridian Works</span></a>
+          <a class="guide-card" href="indexing.md"><span>Indexing Projects</span></a>
+          <a class="guide-card" href="installation.md"><span>Installation</span></a>
+          <a class="guide-card" href="installation-global.md"><span>Global CodeMeridian Configuration</span></a>
+          <a class="guide-card" href="publishing.md"><span>Publishing the Indexer Tool</span></a>
+          <a class="guide-card" href="ubuntu-headless-deploy.md"><span>Ubuntu Headless Deployment</span></a>
+          <a class="guide-card" href="usage.md"><span>CodeMeridian Usage Guide</span></a>
+          <a class="guide-card" href="versioning.md"><span>Versioning</span></a>
+        </div>
+      </section>
+
+      <section class="panel" id="roadmap">
+        <div class="panel__header">
+          <p class="eyebrow">Feature Notes</p>
+          <h2>Roadmap Table</h2>
+          <p class="panel__text">
+            Each row links directly to the feature markdown note under <code>docs/features/</code>.
+          </p>
+        </div>
+        <div class="table-wrap">
+          <table class="feature-table">
+            <thead>
+              <tr>
+                <th scope="col">Feature</th>
+                <th scope="col">Status</th>
+                <th scope="col">File</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><a href="features/01-add-build-minimal-context.md">Add <code>build_minimal_context</code></a></td><td><span class="status status--done">done</span></td><td><code>01-add-build-minimal-context.md</code></td></tr>
+              <tr><td><a href="features/02-add-context-detail-levels.md">Add Context Detail Levels</a></td><td><span class="status status--done">done</span></td><td><code>02-add-context-detail-levels.md</code></td></tr>
+              <tr><td><a href="features/03-fix-code-node-embeddings-in-the-indexers.md">Fix Code Node Embeddings in the Indexers</a></td><td><span class="status status--done">done</span></td><td><code>03-fix-code-node-embeddings-in-the-indexers.md</code></td></tr>
+              <tr><td><a href="features/04-fix-stable-ids-for-top-level-local-functions.md">Fix Stable IDs for Top-Level Local Functions</a></td><td><span class="status status--done">done</span></td><td><code>04-fix-stable-ids-for-top-level-local-functions.md</code></td></tr>
+              <tr><td><a href="features/05-add-token-cost-estimation.md">Add Token Cost Estimation</a></td><td><span class="status status--done">done</span></td><td><code>05-add-token-cost-estimation.md</code></td></tr>
+              <tr><td><a href="features/06-add-complexity-based-model-guidance.md">Add Complexity-Based Model Guidance</a></td><td><span class="status status--done">done</span></td><td><code>06-add-complexity-based-model-guidance.md</code></td></tr>
+              <tr><td><a href="features/07-improve-test-discovery-and-coverage-context.md">Improve Test Discovery and Coverage Context</a></td><td><span class="status status--done">done</span></td><td><code>07-improve-test-discovery-and-coverage-context.md</code></td></tr>
+              <tr><td><a href="features/08-index-compiler-analyzer-typescript-and-lint-diagnostics.md">Index Compiler, Analyzer, TypeScript, and Lint Diagnostics</a></td><td><span class="status status--done">done</span></td><td><code>08-index-compiler-analyzer-typescript-and-lint-diagnostics.md</code></td></tr>
+              <tr><td><a href="features/09-add-source-snippet-support-with-strict-budgets.md">Add Source Snippet Support With Strict Budgets</a></td><td><span class="status status--done">done</span></td><td><code>09-add-source-snippet-support-with-strict-budgets.md</code></td></tr>
+              <tr><td><a href="features/10-find-stale-knowledge.md">Find Stale Knowledge</a></td><td><span class="status status--done">done</span></td><td><code>10-find-stale-knowledge.md</code></td></tr>
+              <tr><td><a href="features/11-find-implementation-surface.md">Find Implementation Surface</a></td><td><span class="status status--done">done</span></td><td><code>11-find-implementation-surface.md</code></td></tr>
+              <tr><td><a href="features/12-add-graph-freshness-and-confidence-signals.md">Add Graph Freshness And Confidence Signals</a></td><td><span class="status status--done">done</span></td><td><code>12-add-graph-freshness-and-confidence-signals.md</code></td></tr>
+              <tr><td><a href="features/13-detect-graph-drift-before-implementation.md">Detect Graph Drift Before Implementation</a></td><td><span class="status status--done">done</span></td><td><code>13-detect-graph-drift-before-implementation.md</code></td></tr>
+              <tr><td><a href="features/14-improve-exact-symbol-resolution.md">Improve Exact Symbol Resolution</a></td><td><span class="status status--done">done</span></td><td><code>14-improve-exact-symbol-resolution.md</code></td></tr>
+              <tr><td><a href="features/15-add-index-verification-command.md">Add Index Verification Command</a></td><td><span class="status status--done">done</span></td><td><code>15-add-index-verification-command.md</code></td></tr>
+              <tr><td><a href="features/16-add-codemeridian-doctor.md">Add <code>codemeridian doctor</code></a></td><td><span class="status status--done">done</span></td><td><code>16-add-codemeridian-doctor.md</code></td></tr>
+              <tr><td><a href="features/17-add-session-usefulness-evaluation.md">Add Session Usefulness Evaluation</a></td><td><span class="status status--implemented">implemented</span></td><td><code>17-add-session-usefulness-evaluation.md</code></td></tr>
+              <tr><td><a href="features/18-package-the-indexers-for-easier-use.md">Package the Indexers for Easier Use</a></td><td><span class="status status--done">done</span></td><td><code>18-package-the-indexers-for-easier-use.md</code></td></tr>
+              <tr><td><a href="features/19-improve-cross-language-connection-quality.md">Improve Cross-Language Connection Quality</a></td><td><span class="status status--done">done</span></td><td><code>19-improve-cross-language-connection-quality.md</code></td></tr>
+              <tr><td><a href="features/20-add-html-css-scss-relationship-indexing.md">Add HTML / CSS / SCSS Relationship Indexing</a></td><td><span class="status status--implemented">implemented</span></td><td><code>20-add-html-css-scss-relationship-indexing.md</code></td></tr>
+              <tr><td><a href="features/21-add-ci-friendly-context-reports.md">Add CI-Friendly Context Reports</a></td><td><span class="status status--pending">pending</span></td><td><code>21-add-ci-friendly-context-reports.md</code></td></tr>
+              <tr><td><a href="features/22-add-duplicate-code-workflow.md">Add Duplicate-Code Workflow</a></td><td><span class="status status--done">done</span></td><td><code>22-add-duplicate-code-workflow.md</code></td></tr>
+              <tr><td><a href="features/23-add-more-external-concept-indexers.md">Add More External Concept Indexers</a></td><td><span class="status status--pending">pending</span></td><td><code>23-add-more-external-concept-indexers.md</code></td></tr>
+              <tr><td><a href="features/24-add-change-route-planning.md">Add Change-Route Planning</a></td><td><span class="status status--done">done</span></td><td><code>24-add-change-route-planning.md</code></td></tr>
+              <tr><td><a href="features/25-add-bridge-node-detection.md">Add Bridge Node Detection</a></td><td><span class="status status--pending">pending</span></td><td><code>25-add-bridge-node-detection.md</code></td></tr>
+              <tr><td><a href="features/26-add-natural-module-detection.md">Add Natural Module Detection</a></td><td><span class="status status--pending">pending</span></td><td><code>26-add-natural-module-detection.md</code></td></tr>
+              <tr><td><a href="features/27-add-architecture-erosion-timeline.md">Add Architecture Erosion Timeline</a></td><td><span class="status status--done">done</span></td><td><code>27-add-architecture-erosion-timeline.md</code></td></tr>
+              <tr><td><a href="features/28-add-test-shield-map.md">Add Test Shield Map</a></td><td><span class="status status--done">done</span></td><td><code>28-add-test-shield-map.md</code></td></tr>
+              <tr><td><a href="features/29-add-refactor-extraction-candidates.md">Add Refactor Extraction Candidates</a></td><td><span class="status status--implemented">implemented</span></td><td><code>29-add-refactor-extraction-candidates.md</code></td></tr>
+              <tr><td><a href="features/30-add-blast-radius-with-confidence.md">Add Blast Radius With Confidence</a></td><td><span class="status status--pending">pending</span></td><td><code>30-add-blast-radius-with-confidence.md</code></td></tr>
+              <tr><td><a href="features/31-add-path-explained-context-packs.md">Add Path-Explained Context Packs</a></td><td><span class="status status--pending">pending</span></td><td><code>31-add-path-explained-context-packs.md</code></td></tr>
+              <tr><td><a href="features/32-add-semantic-graph-hybrid-search.md">Add Semantic Graph Hybrid Search</a></td><td><span class="status status--done">done</span></td><td><code>32-add-semantic-graph-hybrid-search.md</code></td></tr>
+              <tr><td><a href="features/33-add-dependency-smell-paths.md">Add Dependency Smell Paths</a></td><td><span class="status status--pending">pending</span></td><td><code>33-add-dependency-smell-paths.md</code></td></tr>
+              <tr><td><a href="features/34-add-safe-replacement-surface-guidance.md">Add Safe Replacement Surface Guidance</a></td><td><span class="status status--implemented">implemented</span></td><td><code>34-add-safe-replacement-surface-guidance.md</code></td></tr>
+              <tr><td><a href="features/35-add-knowledge-decay-graph.md">Add Knowledge Decay Graph</a></td><td><span class="status status--pending">pending</span></td><td><code>35-add-knowledge-decay-graph.md</code></td></tr>
+              <tr><td><a href="features/36-add-feature-to-code-map.md">Add Feature To Code Map</a></td><td><span class="status status--pending">pending</span></td><td><code>36-add-feature-to-code-map.md</code></td></tr>
+              <tr><td><a href="features/37-add-endpoint-to-database-tracing.md">Add Endpoint To Database Tracing</a></td><td><span class="status status--pending">pending</span></td><td><code>37-add-endpoint-to-database-tracing.md</code></td></tr>
+              <tr><td><a href="features/38-add-architecture-weather-report.md">Add Architecture Weather Report</a></td><td><span class="status status--implemented">implemented</span></td><td><code>38-add-architecture-weather-report.md</code></td></tr>
+              <tr><td><a href="features/39-add-precision-feedback-loop.md">Add Precision Feedback Loop</a></td><td><span class="status status--implemented">implemented</span></td><td><code>39-add-precision-feedback-loop.md</code></td></tr>
+              <tr><td><a href="features/40-add-implementation-surface-pruning.md">Add Implementation Surface Pruning</a></td><td><span class="status status--pending">pending</span></td><td><code>40-add-implementation-surface-pruning.md</code></td></tr>
+              <tr><td><a href="features/41-add-test-target-precision.md">Add Test Target Precision</a></td><td><span class="status status--pending">pending</span></td><td><code>41-add-test-target-precision.md</code></td></tr>
+              <tr><td><a href="features/42-add-responsibility-slice-suggestions.md">Add Responsibility Slice Suggestions</a></td><td><span class="status status--na">n/a</span></td><td><code>42-add-responsibility-slice-suggestions.md</code></td></tr>
+              <tr><td><a href="features/43-add-context-workflow-planning.md">Add Context Workflow Planning</a></td><td><span class="status status--na">n/a</span></td><td><code>43-add-context-workflow-planning.md</code></td></tr>
+              <tr><td><a href="features/44-add-context-pack-degraded-mode.md">Add Context Pack Degraded Mode</a></td><td><span class="status status--implemented">implemented</span></td><td><code>44-add-context-pack-degraded-mode.md</code></td></tr>
+              <tr><td><a href="features/45-add-edit-context-caller-pruning.md">Add Edit-Context Caller Pruning</a></td><td><span class="status status--implemented">implemented</span></td><td><code>45-add-edit-context-caller-pruning.md</code></td></tr>
+              <tr><td><a href="features/46-add-slice-aware-test-shield-ranking.md">Add Slice-Aware Test Shield Ranking</a></td><td><span class="status status--done">done</span></td><td><code>46-add-slice-aware-test-shield-ranking.md</code></td></tr>
+              <tr><td><a href="features/47-add-frontend-style-near-duplicate-clustering.md">Add Frontend Style Near-Duplicate Clustering</a></td><td><span class="status status--pending">pending</span></td><td><code>47-add-frontend-style-near-duplicate-clustering.md</code></td></tr>
+              <tr><td><a href="features/48-add-frontend-cascade-and-specificity-analysis.md">Add Frontend Cascade And Specificity Analysis</a></td><td><span class="status status--pending">pending</span></td><td><code>48-add-frontend-cascade-and-specificity-analysis.md</code></td></tr>
+              <tr><td><a href="features/49-add-frontend-relationship-awareness-to-existing-tools.md">Add Frontend Relationship Awareness To Existing Tools</a></td><td><span class="status status--done">done</span></td><td><code>49-add-frontend-relationship-awareness-to-existing-tools.md</code></td></tr>
+              <tr><td><a href="features/README.md">Feature Notes</a></td><td><span class="status status--na">n/a</span></td><td><code>README.md</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

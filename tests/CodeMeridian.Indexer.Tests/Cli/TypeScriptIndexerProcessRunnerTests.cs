@@ -113,6 +113,20 @@ public sealed class TypeScriptIndexerProcessRunnerTests
     }
 
     [Fact]
+    public void ResolveTsxCommand_FindsWorkspaceHoistedBinaryInParentDirectory()
+    {
+        using var workspace = TestWorkspace.Create();
+        var indexerRoot = workspace.CreateDirectory("tools/TsIndexer");
+        var expectedBinary = OperatingSystem.IsWindows()
+            ? workspace.WriteFile(@"node_modules/.bin/tsx.cmd", "echo")
+            : workspace.WriteFile(@"node_modules/.bin/tsx", "echo");
+
+        TypeScriptIndexerProcessRunner.ResolveTsxCommand(indexerRoot)
+            .Should()
+            .Be(expectedBinary.FullName);
+    }
+
+    [Fact]
     public async Task RunAsync_PassesConfiguredEnvironmentVariablesToChildProcess()
     {
         if (!OperatingSystem.IsWindows())
@@ -157,6 +171,13 @@ public sealed class TypeScriptIndexerProcessRunnerTests
             file.Directory!.Create();
             File.WriteAllText(file.FullName, content);
             return file;
+        }
+
+        public DirectoryInfo CreateDirectory(string relativePath)
+        {
+            var directory = new DirectoryInfo(Path.Combine(Root.FullName, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            directory.Create();
+            return directory;
         }
 
         public void Dispose()

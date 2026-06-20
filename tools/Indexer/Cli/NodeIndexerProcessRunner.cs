@@ -75,19 +75,14 @@ internal static class NodeIndexerProcessRunner
 
     public static string? ResolveTsxCommand(DirectoryInfo indexerRoot)
     {
-        var candidates = OperatingSystem.IsWindows()
-            ? new[]
-            {
-                CombinePath(indexerRoot, "node_modules", ".bin", "tsx.cmd"),
-                CombinePath(indexerRoot, "node_modules", ".bin", "tsx")
-            }
-            : new[]
-            {
-                CombinePath(indexerRoot, "node_modules", ".bin", "tsx"),
-                CombinePath(indexerRoot, "node_modules", ".bin", "tsx.cmd")
-            };
+        foreach (var searchRoot in EnumerateSearchRoots(indexerRoot))
+        {
+            var match = EnumerateTsxCandidates(searchRoot).FirstOrDefault(File.Exists);
+            if (match is not null)
+                return match;
+        }
 
-        return candidates.FirstOrDefault(File.Exists);
+        return null;
     }
 
     private static string QuoteIfNeeded(string value) =>
@@ -100,6 +95,25 @@ internal static class NodeIndexerProcessRunner
             return string.Join("\\", new[] { basePath.TrimEnd('\\', '/') }.Concat(segments));
 
         return Path.Combine(new[] { root.FullName }.Concat(segments).ToArray());
+    }
+
+    private static IEnumerable<DirectoryInfo> EnumerateSearchRoots(DirectoryInfo indexerRoot)
+    {
+        for (var current = indexerRoot; current is not null; current = current.Parent)
+            yield return current;
+    }
+
+    private static IEnumerable<string> EnumerateTsxCandidates(DirectoryInfo root)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            yield return CombinePath(root, "node_modules", ".bin", "tsx.cmd");
+            yield return CombinePath(root, "node_modules", ".bin", "tsx");
+            yield break;
+        }
+
+        yield return CombinePath(root, "node_modules", ".bin", "tsx");
+        yield return CombinePath(root, "node_modules", ".bin", "tsx.cmd");
     }
 
     private static bool LooksLikeWindowsAbsolutePath(string path) =>
