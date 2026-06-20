@@ -9,6 +9,11 @@ const CLASS_SELECTOR = /\.([_a-zA-Z][\w-]*)/g;
 const ID_SELECTOR = /#([_a-zA-Z][\w-]*)/g;
 const CSS_VARIABLE = /var\(\s*(--[\w-]+)\s*(?:,[^)]+)?\)/g;
 const STYLE_IMPORT = /(?:url\()?["']([^"']+\.(?:css|scss|sass))(?:["']\))?/i;
+const ATTRIBUTE_SELECTOR = /\[[^\]]+\]/g;
+const PSEUDO_ELEMENT_SELECTOR = /::[\w-]+(?:\([^)]*\))?/g;
+const PSEUDO_CLASS_SELECTOR = /:(?!:)[\w-]+(?:\([^)]*\))?/g;
+const WHERE_PSEUDO_SELECTOR = /:where\([^)]*\)/g;
+const ELEMENT_SELECTOR = /(^|[\s>+~,(])([a-zA-Z][\w-]*)/g;
 
 export function collectStyleArtifacts(
   rootPath: string,
@@ -42,6 +47,8 @@ export function collectStyleArtifacts(
   const root = relativePath.endsWith('.scss')
     ? postcssScss.parse(content, { from: filePath })
     : postcss.parse(content, { from: filePath });
+  let sourceOrder = 0;
+  const declarations: IndexedStyleDeclaration[] = [];
 
   root.walkAtRules(atRule => {
     if (!['import', 'use', 'forward'].includes(atRule.name))
@@ -81,7 +88,12 @@ export function collectStyleArtifacts(
       return;
 
     const lineNumber = rule.source?.start?.line ?? 1;
+    sourceOrder++;
+    const selectorOrder = sourceOrder;
+    const specificity = computeSelectorSpecificity(selectorText);
     const selectorId = selectorNodeId(projectName, relativePath, selectorText, lineNumber);
+    const classTargets = extractAll(selectorText, CLASS_SELECTOR);
+    const idTargets = extractAll(selectorText, ID_SELECTOR);
     addNode(nodes, knownIds, {
       id: selectorId,
       name: selectorText,
@@ -93,6 +105,15 @@ export function collectStyleArtifacts(
       properties: {
         externalKind: 'CssSelector',
         selectorText,
+        specificity: specificity.display,
+        specificityA: String(specificity.ids),
+        specificityB: String(specificity.classes),
+        specificityC: String(specificity.elements),
+        specificityScore: String(specificity.score),
+        specificityInference: 'bounded-static',
+        sourceOrder: String(selectorOrder),
+        targetClassConceptsCsv: classTargets.join(','),
+        targetIdConceptsCsv: idTargets.join(','),
       },
     }, resolveFileRole);
 
@@ -103,7 +124,7 @@ export function collectStyleArtifacts(
       callSite: `${relativePath}:${lineNumber}`,
     });
 
-    for (const className of extractAll(selectorText, CLASS_SELECTOR)) {
+    for (const className of classTargets) {
       const classId = frontendConceptId(projectName, 'CssClass', className);
       addNode(nodes, knownIds, {
         id: classId,
@@ -123,7 +144,7 @@ export function collectStyleArtifacts(
       });
     }
 
-    for (const idValue of extractAll(selectorText, ID_SELECTOR)) {
+    for (const idValue of idTargets) {
       const idNodeId = frontendConceptId(projectName, 'CssId', idValue);
       addNode(nodes, knownIds, {
         id: idNodeId,
@@ -180,8 +201,27 @@ export function collectStyleArtifacts(
           selectorText,
           propertyName: decl.prop,
           rawValue: decl.value,
+          specificity: specificity.display,
+          specificityA: String(specificity.ids),
+          specificityB: String(specificity.classes),
+          specificityC: String(specificity.elements),
+          specificityScore: String(specificity.score),
+          specificityInference: 'bounded-static',
+          sourceOrder: String(selectorOrder),
+          targetClassConceptsCsv: classTargets.join(','),
+          targetIdConceptsCsv: idTargets.join(','),
         },
       }, resolveFileRole);
+      declarations.push({
+        id: declarationId,
+        selectorText,
+        propertyName: decl.prop,
+        lineNumber: declarationLine,
+        sourceOrder: selectorOrder,
+        specificity,
+        classTargets,
+        idTargets,
+      });
 
       edges.push({
         sourceId: selectorId,
@@ -214,6 +254,27 @@ export function collectStyleArtifacts(
       }
     });
   });
+
+  appendLikelyOverrideEdges(edges, declarations, relativePath);
+}
+
+interface SelectorSpecificity {
+  ids: number;
+  classes: number;
+  elements: number;
+  score: number;
+  display: string;
+}
+
+interface IndexedStyleDeclaration {
+  id: string;
+  selectorText: string;
+  propertyName: string;
+  lineNumber: number;
+  sourceOrder: number;
+  specificity: SelectorSpecificity;
+  classTargets: string[];
+  idTargets: string[];
 }
 
 function extractAll(value: string, pattern: RegExp): string[] {
@@ -243,4 +304,151 @@ function resolveImportedStylePath(baseDirectory: string, target: string): string
   }
 
   return undefined;
+}
+
+function appendLikelyOverrideEdges(
+  edges: CodeEdgeDto[],
+  declarations: IndexedStyleDeclaration[],
+  relativePath: string,
+): void {
+  const emitted = new Set<string>();
+  const groups = new Map<string, Array<{ targetKind: 'CssClass' | 'CssId'; targetName: string; declaration: IndexedStyleDeclaration }>>();
+
+  for (const declaration of declarations) {
+    for (const className of declaration.classTargets) {
+      const key = `${relativePath}|${declaration.propertyName}|CssClass|${className}`;
+      const entry = { targetKind: 'CssClass' as const, targetName: className, declaration };
+      const existing = groups.get(key);
+      if (existing) {
+        existing.push(entry);
+      } else {
+        groups.set(key, [entry]);
+      }
+    }
+
+    for (const idValue of declaration.idTargets) {
+      const key = `${relativePath}|${declaration.propertyName}|CssId|${idValue}`;
+      const entry = { targetKind: 'CssId' as const, targetName: idValue, declaration };
+      const existing = groups.get(key);
+      if (existing) {
+        existing.push(entry);
+      } else {
+        groups.set(key, [entry]);
+      }
+    }
+  }
+
+  for (const group of groups.values()) {
+    const ordered = group
+      .map(item => item.declaration)
+      .filter((value, index, array) => array.findIndex(candidate => candidate.id === value.id) === index)
+      .sort((left, right) => left.sourceOrder - right.sourceOrder || left.lineNumber - right.lineNumber);
+
+    const targetKind = group[0]?.targetKind;
+    const targetName = group[0]?.targetName;
+    if (!targetKind || !targetName)
+      continue;
+
+    for (let leftIndex = 0; leftIndex < ordered.length; leftIndex++) {
+      for (let rightIndex = leftIndex + 1; rightIndex < ordered.length; rightIndex++) {
+        const left = ordered[leftIndex];
+        const right = ordered[rightIndex];
+        const priority = compareCascadePriority(right, left);
+        if (priority === 0)
+          continue;
+
+        const winner = priority > 0 ? right : left;
+        const loser = priority > 0 ? left : right;
+        const edgeKey = `${winner.id}|${loser.id}|${targetKind}|${targetName}|${winner.propertyName}`;
+        if (emitted.has(edgeKey))
+          continue;
+
+        emitted.add(edgeKey);
+        edges.push({
+          sourceId: winner.id,
+          targetId: loser.id,
+          type: 'Overrides',
+          callSite: `${relativePath}:${winner.lineNumber}`,
+          properties: {
+            relationshipKind: 'LikelyCssCascadeOverride',
+            inferenceConfidence: 'inferred',
+            propertyName: winner.propertyName,
+            sharedTargetKind: targetKind,
+            sharedTargetName: targetName,
+            reason: buildOverrideReason(winner, loser),
+            winnerSpecificity: winner.specificity.display,
+            loserSpecificity: loser.specificity.display,
+            winnerSourceOrder: String(winner.sourceOrder),
+            loserSourceOrder: String(loser.sourceOrder),
+          },
+        });
+      }
+    }
+  }
+}
+
+function compareCascadePriority(left: IndexedStyleDeclaration, right: IndexedStyleDeclaration): number {
+  const specificityComparison = compareSpecificity(left.specificity, right.specificity);
+  if (specificityComparison !== 0)
+    return specificityComparison;
+
+  if (left.sourceOrder !== right.sourceOrder)
+    return left.sourceOrder - right.sourceOrder;
+
+  return left.lineNumber - right.lineNumber;
+}
+
+function compareSpecificity(left: SelectorSpecificity, right: SelectorSpecificity): number {
+  if (left.ids !== right.ids)
+    return left.ids - right.ids;
+
+  if (left.classes !== right.classes)
+    return left.classes - right.classes;
+
+  return left.elements - right.elements;
+}
+
+function buildOverrideReason(winner: IndexedStyleDeclaration, loser: IndexedStyleDeclaration): string {
+  const specificityComparison = compareSpecificity(winner.specificity, loser.specificity);
+  if (specificityComparison !== 0) {
+    return `higher specificity ${winner.specificity.display} over ${loser.specificity.display}`;
+  }
+
+  return `same specificity ${winner.specificity.display}; later source order ${winner.sourceOrder} over ${loser.sourceOrder}`;
+}
+
+function computeSelectorSpecificity(selectorText: string): SelectorSpecificity {
+  const withoutWhere = selectorText.replace(WHERE_PSEUDO_SELECTOR, '');
+  const ids = countMatches(withoutWhere, ID_SELECTOR);
+  const classes = countMatches(withoutWhere, CLASS_SELECTOR)
+    + countMatches(withoutWhere, ATTRIBUTE_SELECTOR)
+    + countMatches(withoutWhere, PSEUDO_CLASS_SELECTOR);
+  const withoutNonElementTokens = withoutWhere
+    .replace(ID_SELECTOR, ' ')
+    .replace(CLASS_SELECTOR, ' ')
+    .replace(ATTRIBUTE_SELECTOR, ' ')
+    .replace(PSEUDO_CLASS_SELECTOR, ' ')
+    .replace(/&/g, ' ');
+  const elements = countMatches(withoutNonElementTokens, PSEUDO_ELEMENT_SELECTOR)
+    + countMatches(withoutNonElementTokens, ELEMENT_SELECTOR, 2);
+
+  return {
+    ids,
+    classes,
+    elements,
+    score: (ids * 100) + (classes * 10) + elements,
+    display: `${ids},${classes},${elements}`,
+  };
+}
+
+function countMatches(value: string, pattern: RegExp, groupIndex = 0): number {
+  pattern.lastIndex = 0;
+  let count = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(value)) !== null) {
+    if (groupIndex === 0 || match[groupIndex])
+      count++;
+  }
+
+  return count;
 }

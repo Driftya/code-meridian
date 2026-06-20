@@ -22,6 +22,20 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindHotspotsAsync(projectContext, cancellationToken);
 
+    [McpServerTool(Name = "find_frontend_cascade_conflicts")]
+    [Description(
+        "Report likely CSS/SCSS override conflicts from indexed frontend declarations. " +
+        "Uses bounded selector specificity plus same-stylesheet source order, and marks the result as inferred instead of full browser-proof cascade resolution.")]
+    public Task<string> FindFrontendCascadeConflictsAsync(
+        [Description("Optional project name to scope the analysis.")]
+        string? projectContext = null,
+        [Description("Optional selector/property/file/value filter.")]
+        string? filter = null,
+        [Description("Exclude test files/namespaces by default.")]
+        bool excludeTests = true,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindFrontendCascadeConflictsAsync(projectContext, filter, excludeTests, cancellationToken);
+
     [McpServerTool(Name = "find_connection")]
     [Description(
         "Find the shortest path between two code elements in the graph. " +

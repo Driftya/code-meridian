@@ -334,6 +334,16 @@ Finds duplicate-review candidates through a shared generic surface. Method/class
 Find duplicate candidates in MyApi excluding tests.
 ```
 
+### `find_frontend_cascade_conflicts`
+
+Reports likely CSS/SCSS override conflicts from indexed frontend declarations.
+
+It uses bounded selector specificity plus same-stylesheet source order and keeps the result explicit about confidence: findings are inferred from shared class/ID targets and indexed metadata, not claimed as full browser-proof cascade resolution.
+
+```text
+Show likely frontend cascade conflicts for Shop.Web.
+```
+
 ### `find_diagnostics`
 
 Finds indexed compiler, analyzer, TypeScript, and lint diagnostics for a project. Diagnostics are indexed by default unless `--skip-diagnostics` is used.

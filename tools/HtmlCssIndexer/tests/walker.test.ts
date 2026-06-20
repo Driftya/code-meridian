@@ -27,7 +27,7 @@ describe('walkFrontend', () => {
     );
     fs.writeFileSync(
       cssPath,
-      '.hero { color: red; }\n#main-panel { padding: 1rem; }\n.card { color: var(--brand); }\n:root { --brand: #fff; }',
+      '.hero { color: red; }\n.hero { color: blue; }\n.layout .hero { color: navy; }\n#main-panel { padding: 1rem; }\n.card { color: var(--brand); }\n:root { --brand: #fff; }',
     );
 
     const result = walkFrontend(rootPath, 'CodeMeridian', [htmlPath, cssPath]);
@@ -36,7 +36,15 @@ describe('walkFrontend', () => {
     expect(classNodes).toEqual(expect.arrayContaining(['hero', 'card']));
 
     const selectorNodes = result.nodes.filter(node => node.properties?.externalKind === 'CssSelector').map(node => node.name);
-    expect(selectorNodes).toEqual(expect.arrayContaining(['.hero', '#main-panel', '.card', ':root']));
+    expect(selectorNodes).toEqual(expect.arrayContaining(['.hero', '.layout .hero', '#main-panel', '.card', ':root']));
+
+    const selectorNode = result.nodes.find(node => node.name === '.layout .hero');
+    expect(selectorNode?.properties).toEqual(expect.objectContaining({
+      specificity: '0,2,0',
+      specificityScore: '20',
+      sourceOrder: '3',
+      targetClassConceptsCsv: 'layout,hero',
+    }));
 
     const declarationNodes = result.nodes.filter(node => node.properties?.externalKind === 'CssDeclaration');
     expect(declarationNodes).toEqual(expect.arrayContaining([
@@ -56,6 +64,15 @@ describe('walkFrontend', () => {
           selectorText: '#main-panel',
         }),
       }),
+      expect.objectContaining({
+        name: 'color: navy',
+        properties: expect.objectContaining({
+          selectorText: '.layout .hero',
+          specificity: '0,2,0',
+          sourceOrder: '3',
+          targetClassConceptsCsv: 'layout,hero',
+        }),
+      }),
     ]));
 
     expect(result.edges).toEqual(
@@ -67,6 +84,14 @@ describe('walkFrontend', () => {
         expect.objectContaining({ type: 'UsesId' }),
         expect.objectContaining({ type: 'DefinesCssVariable' }),
         expect.objectContaining({ type: 'UsesCssVariable' }),
+        expect.objectContaining({
+          type: 'Overrides',
+          properties: expect.objectContaining({
+            relationshipKind: 'LikelyCssCascadeOverride',
+            sharedTargetKind: 'CssClass',
+            sharedTargetName: 'hero',
+          }),
+        }),
       ]),
     );
   });

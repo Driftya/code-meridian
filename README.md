@@ -208,6 +208,7 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `find_similar_nodes` | Find duplicate code patterns (requires embeddings enabled) |
 | `hybrid_search` | Find semantically similar code near a node or subsystem boundary |
 | `find_duplicate_candidates` | Review likely duplicate methods/classes with refactor-risk signals |
+| `find_frontend_cascade_conflicts` | Report likely CSS/SCSS override conflicts from indexed specificity and source-order metadata |
 | `find_config_definitions` | Find where a canonical config key is defined or overridden |
 | `find_config_usage` | Find which code reads or binds a canonical config key |
 | `search_documentation` | Search indexed README/ADR/documentation content |

@@ -1,6 +1,6 @@
 # Add Frontend Cascade And Specificity Analysis
 
-- Status: pending
+- Status: done
 - Priority: P3
 - Note: Relationship indexing is implemented, but override reasoning is still intentionally out of scope.
 
@@ -41,3 +41,22 @@
 - Indexed selectors carry enough metadata for bounded specificity reasoning.
 - CodeMeridian can surface likely override/conflict relationships with clear explanations.
 - Results clearly distinguish proven structural relationships from inferred cascade behavior.
+
+## Implemented
+
+- Enriched HTML/CSS/SCSS indexing with bounded selector metadata:
+  - selector specificity tuple and score
+  - same-stylesheet source-order metadata
+  - targeted class/ID concept CSV metadata on selector and declaration nodes
+- Added inferred `Overrides` edges between indexed declaration nodes when declarations in the same stylesheet target the same class/ID concept and likely win by higher specificity or later equal-specificity source order.
+- Added a dedicated `find_frontend_cascade_conflicts` MCP tool that reports:
+  - likely stronger-selector overrides
+  - later equal-specificity overrides within one stylesheet
+  - suspiciously specific selectors when a simpler nearby selector already exists for the same target/property
+- Kept the output explicit about confidence and limits: findings are inferred from indexed metadata and do not claim full DOM overlap or cross-file import-order certainty.
+- Added regression coverage in both the frontend indexer tests and the application query-service tests.
+
+## Current Limits
+
+- The first version only compares declarations within the same stylesheet because cross-file import order is not reliably knowable from static indexing alone.
+- Specificity is intentionally bounded and explainable; it does not attempt a full browser-accurate model for every pseudo-class, scoping rule, or runtime-only selector shape.

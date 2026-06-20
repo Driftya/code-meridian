@@ -33,6 +33,7 @@ This file is the quick reference for what the HTML / CSS / SCSS indexer currentl
 - CSS custom property definitions such as `--brand: ...`
 - CSS custom property usage such as `var(--brand)`
 - CSS declarations with selector, property, and raw value metadata
+- CSS selector specificity metadata, same-stylesheet source-order metadata, and inferred override edges for shared class/ID targets
 - TSX / JSX static `className="..."`
 - TSX / JSX simple template-literal `className` values when the literal pieces are statically visible
 - TSX / JSX static `id="..."`
@@ -42,4 +43,4 @@ This file is the quick reference for what the HTML / CSS / SCSS indexer currentl
 
 - The first version is intentionally static and relationship-focused.
 - Dynamic class expressions are indexed only when the string pieces are statically visible.
-- Full CSS cascade resolution and specificity analysis are not part of the current implementation.
+- Cascade analysis is intentionally bounded: specificity and source-order reasoning is inferred within a stylesheet, not full browser-accurate cascade emulation.

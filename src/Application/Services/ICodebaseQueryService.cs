@@ -43,6 +43,7 @@ public interface ICodebaseQueryService
     Task<string> SuggestResponsibilitySlicesAsync(string target, string? projectContext = null, int maxSlices = 6, bool includeNamespacePlan = true, bool includeTestPlan = true, bool includeMigrationSteps = true, bool includeSourceSnippets = false, CancellationToken cancellationToken = default);
     Task<string> FindSimilarToNodeAsync(string nodeId, string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindDuplicateCandidatesAsync(string? projectContext = null, string? namespaceFilter = null, string? nodeType = null, int minLineCount = 5, double minSimilarity = 0.88, bool excludeTests = true, CancellationToken cancellationToken = default);
+    Task<string> FindFrontendCascadeConflictsAsync(string? projectContext = null, string? filter = null, bool excludeTests = true, CancellationToken cancellationToken = default);
     Task<string> FindDiagnosticsAsync(string? projectContext = null, string? severity = null, CancellationToken cancellationToken = default);
     Task<string> FindDiagnosticsForNodeAsync(string nodeId, CancellationToken cancellationToken = default);
     Task<string> FindConfigDefinitionsAsync(string canonicalKey, string? projectContext = null, CancellationToken cancellationToken = default);
