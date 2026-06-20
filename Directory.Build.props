@@ -5,6 +5,7 @@
     <Authors>Driftya</Authors>
     <RepositoryUrl>https://github.com/Driftya/code-meridian</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**\*;obj\**\*</DefaultItemExcludes>
 
     <VersionPrefix Condition="'$(VersionPrefix)' == ''">1.0.0</VersionPrefix>
     <VersionSuffix Condition="'$(VersionSuffix)' == ''"></VersionSuffix>

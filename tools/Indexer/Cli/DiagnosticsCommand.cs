@@ -37,7 +37,7 @@ internal sealed class DiagnosticsCommand(IProjectDiscoveryService projectDiscove
 
         if (allowRepoScripts && projectDiscoveryService.ContainsFile(rootPath, ".cs"))
         {
-            var build = await RunCaptureAsync("dotnet", ["build", "--no-restore", "--nologo"], rootPath);
+            var build = await RunCaptureAsync("dotnet", BuildDotnetBuildArguments(rootPath), rootPath);
             var dotnetFindings = ParseDotnetDiagnostics(build.Output, rootPath, project);
             findings.AddRange(dotnetFindings);
             Console.WriteLine($"  dotnet build exit code {build.ExitCode}; parsed {dotnetFindings.Count} diagnostics.");
@@ -135,6 +135,26 @@ internal sealed class DiagnosticsCommand(IProjectDiscoveryService projectDiscove
         var stderr = await process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
         return (process.ExitCode, stdout + Environment.NewLine + stderr);
+    }
+
+    internal static string[] BuildDotnetBuildArguments(DirectoryInfo rootPath)
+    {
+        var scratchRoot = Path.Combine(
+            Path.GetTempPath(),
+            "codemeridian-diagnostics",
+            Hash(rootPath.FullName));
+
+        var outputRoot = Path.Combine(scratchRoot, "bin") + Path.DirectorySeparatorChar;
+
+        Directory.CreateDirectory(outputRoot);
+
+        return
+        [
+            "build",
+            "--no-restore",
+            "--nologo",
+            "-p:BaseOutputPath=" + outputRoot
+        ];
     }
 
     private static IReadOnlyList<DiagnosticFinding> ParseDotnetDiagnostics(
