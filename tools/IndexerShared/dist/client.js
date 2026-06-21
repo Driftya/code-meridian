@@ -1,3 +1,5 @@
+const DEFAULT_INGEST_CONCURRENCY = 8;
+const DEFAULT_INGEST_BATCH_SIZE = 100;
 export class CodeMeridianClient {
     baseUrl;
     apiKey;
@@ -10,6 +12,12 @@ export class CodeMeridianClient {
     }
     async ingestEdge(edge) {
         await this.post('/api/v1/knowledge/nodes/edges', edge);
+    }
+    async ingestNodes(nodes, options = {}) {
+        return await this.ingestMany(nodes, '/api/v1/knowledge/nodes/bulk', options);
+    }
+    async ingestEdges(edges, options = {}) {
+        return await this.ingestMany(edges, '/api/v1/knowledge/nodes/edges/bulk', options);
     }
     async ingestDocument(doc) {
         await this.post('/api/v1/knowledge/documents', doc);
@@ -62,9 +70,77 @@ export class CodeMeridianClient {
             throw new Error(`POST ${path} failed (${res.status}): ${await res.text()}`);
         }
     }
+    async ingestMany(items, path, options) {
+        if (items.length === 0) {
+            return {
+                successCount: 0,
+                errorCount: 0,
+            };
+        }
+        const concurrency = this.normalizeConcurrency(options.concurrency);
+        const batchSize = this.normalizeBatchSize(options.batchSize);
+        const batches = this.chunk(items, batchSize);
+        let nextIndex = 0;
+        let successCount = 0;
+        let errorCount = 0;
+        const worker = async () => {
+            while (true) {
+                const currentIndex = nextIndex;
+                nextIndex++;
+                if (currentIndex >= batches.length) {
+                    return;
+                }
+                const batch = batches[currentIndex];
+                try {
+                    await this.post(path, batch);
+                    for (const item of batch) {
+                        successCount++;
+                        options.onSuccess?.(item, successCount, items.length);
+                    }
+                }
+                catch (error) {
+                    for (const item of batch) {
+                        errorCount++;
+                        options.onError?.(item, error, errorCount, items.length);
+                    }
+                }
+            }
+        };
+        const workerCount = Math.min(concurrency, batches.length);
+        await Promise.all(Array.from({ length: workerCount }, async () => await worker()));
+        return {
+            successCount,
+            errorCount,
+        };
+    }
     headers(base = {}) {
         if (!this.apiKey)
             return base;
         return { ...base, Authorization: `Bearer ${this.apiKey}` };
+    }
+    normalizeConcurrency(requested) {
+        if (requested === undefined) {
+            return DEFAULT_INGEST_CONCURRENCY;
+        }
+        if (!Number.isFinite(requested)) {
+            return DEFAULT_INGEST_CONCURRENCY;
+        }
+        return Math.max(1, Math.floor(requested));
+    }
+    normalizeBatchSize(requested) {
+        if (requested === undefined) {
+            return DEFAULT_INGEST_BATCH_SIZE;
+        }
+        if (!Number.isFinite(requested)) {
+            return DEFAULT_INGEST_BATCH_SIZE;
+        }
+        return Math.max(1, Math.floor(requested));
+    }
+    chunk(items, batchSize) {
+        const result = [];
+        for (let index = 0; index < items.length; index += batchSize) {
+            result.push(items.slice(index, index + batchSize));
+        }
+        return result;
     }
 }

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { Command } from 'commander';
-import { loadEnvironmentForInvocation } from '#indexer-shared';
-import type { IndexCommandOptions, ResolvedIndexCommandOptions } from '#indexer-shared';
+import { loadEnvironmentForInvocation } from '../../../IndexerShared/dist/index.js';
+import type { IndexCommandOptions, ResolvedIndexCommandOptions } from '../../../IndexerShared/dist/index.js';
 
 export async function parseCommandLine(argv: string[]): Promise<ResolvedIndexCommandOptions> {
   const program = new Command()

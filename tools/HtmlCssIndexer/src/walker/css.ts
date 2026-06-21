@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import postcss from 'postcss';
 import postcssScss from 'postcss-scss';
-import type { CodeEdgeDto, CodeNodeDto } from '#indexer-shared';
+import type { CodeEdgeDto, CodeNodeDto } from '../../../IndexerShared/dist/types.js';
 import { addNode, fileNodeId, frontendConceptId, hashText, lineCountFromContent, normalizeImportTarget, selectorNodeId, styleDeclarationNodeId, toRelativePath } from './common.js';
 
 const CLASS_SELECTOR = /\.([_a-zA-Z][\w-]*)/g;

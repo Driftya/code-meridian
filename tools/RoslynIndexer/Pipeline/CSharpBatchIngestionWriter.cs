@@ -20,22 +20,24 @@ internal static class CSharpBatchIngestionWriter
             logger.LogInformation(
                 "  Ingesting nodes batch {Current}/{Total}...", i + 1, batches.Length);
 
-            foreach (var n in batches[i])
-            {
-                await client.IngestCodeNodeAsync(
-                    n.Id, n.Name, n.Type,
-                    namespacePath: n.Namespace,
-                    filePath: n.FilePath,
-                    lineNumber: n.LineNumber,
-                    lineCount: n.LineCount,
-                    summary: n.Summary,
-                    sourceSnippet: n.SourceSnippet,
-                    sourceHash: n.SourceHash,
-                    fileRole: n.Properties is not null && n.Properties.TryGetValue("fileRole", out var fileRole) ? fileRole : null,
-                    projectContext: projectContext,
-                    properties: n.Properties,
-                    cancellationToken: cancellationToken);
-            }
+            var requests = batches[i]
+                .Select(n => new CodeNodeIngestRequest(
+                    n.Id,
+                    n.Name,
+                    n.Type,
+                    Namespace: n.Namespace,
+                    FilePath: n.FilePath,
+                    LineNumber: n.LineNumber,
+                    LineCount: n.LineCount,
+                    Summary: n.Summary,
+                    SourceSnippet: n.SourceSnippet,
+                    SourceHash: n.SourceHash,
+                    FileRole: n.Properties is not null && n.Properties.TryGetValue("fileRole", out var fileRole) ? fileRole : null,
+                    ProjectContext: projectContext,
+                    Properties: n.Properties))
+                .ToArray();
+
+            await client.IngestCodeNodesAsync(requests, cancellationToken);
         }
     }
 
@@ -53,16 +55,19 @@ internal static class CSharpBatchIngestionWriter
             logger.LogInformation(
                 "  Ingesting edges batch {Current}/{Total}...", i + 1, batches.Length);
 
-            var tasks = batches[i].Select(e => client.IngestRelationshipAsync(
-                e.SourceId, e.TargetId, e.RelationshipType,
-                isAsync: e.IsAsync,
-                callSite: e.CallSite,
-                paramCount: e.ParamCount,
-                confidence: e.Confidence,
-                properties: e.Properties,
-                cancellationToken: cancellationToken));
+            var requests = batches[i]
+                .Select(e => new CodeEdgeIngestRequest(
+                    e.SourceId,
+                    e.TargetId,
+                    e.RelationshipType,
+                    IsAsync: e.IsAsync,
+                    CallSite: e.CallSite,
+                    ParamCount: e.ParamCount,
+                    Confidence: e.Confidence,
+                    Properties: e.Properties))
+                .ToArray();
 
-            await Task.WhenAll(tasks);
+            await client.IngestRelationshipsAsync(requests, cancellationToken);
         }
     }
 }

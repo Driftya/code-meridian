@@ -34,23 +34,24 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
                 logger.LogInformation("  {File} -> {Chunks} chunk(s)", relPath, chunks.Count);
+                var requests = new List<KnowledgeDocumentIngestRequest>(chunks.Count);
 
                 for (var i = 0; i < chunks.Count; i++)
                 {
                     var id = DocumentChunkReferenceBuilder.BuildChunkDocumentId(projectContext, relPath, chunks.Count, i);
                     var relatedChunkIds = DocumentChunkReferenceBuilder.BuildAdjacentChunkIds(projectContext, relPath, chunks.Count, i);
 
-                    await client.IngestDocumentAsync(
-                        content: chunks[i],
-                        source: relPath,
-                        projectContext: projectContext,
-                        id: id,
-                        relatedNodeIdsCsv: relatedNodes.Count > 0 ? string.Join(",", relatedNodes) : null,
-                        relatedDocumentIdsCsv: DocumentChunkReferenceBuilder.BuildRelatedDocumentIdsCsv(relatedDocuments, relatedChunkIds),
-                        cancellationToken: cancellationToken);
-
-                    count++;
+                    requests.Add(new KnowledgeDocumentIngestRequest(
+                        Content: chunks[i],
+                        Id: id,
+                        Source: relPath,
+                        ProjectContext: projectContext,
+                        RelatedNodeIdsCsv: relatedNodes.Count > 0 ? string.Join(",", relatedNodes) : null,
+                        RelatedDocumentIdsCsv: DocumentChunkReferenceBuilder.BuildRelatedDocumentIdsCsv(relatedDocuments, relatedChunkIds)));
                 }
+
+                await client.IngestDocumentsAsync(requests, cancellationToken);
+                count += requests.Count;
             }
             catch (Exception ex)
             {

@@ -104,6 +104,129 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task IngestCodeNodesAsync_SendsBulkNodePayload()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.IngestCodeNodesAsync(
+        [
+            new CodeNodeIngestRequest("node-1", "Node1", "File", FilePath: "src/Node1.cs", ProjectContext: "Shop"),
+            new CodeNodeIngestRequest("node-2", "Node2", "File", FilePath: "src/Node2.cs", ProjectContext: "Shop")
+        ]);
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/nodes/bulk");
+        var body = await handler.ReadBodyAsync();
+        body.ValueKind.Should().Be(JsonValueKind.Array);
+        body.GetArrayLength().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task IngestRelationshipsAsync_SendsBulkEdgePayload()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.IngestRelationshipsAsync(
+        [
+            new CodeEdgeIngestRequest("frontend", "endpoint", "Calls"),
+            new CodeEdgeIngestRequest("endpoint", "handler", "Uses")
+        ]);
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/nodes/edges/bulk");
+        var body = await handler.ReadBodyAsync();
+        body.ValueKind.Should().Be(JsonValueKind.Array);
+        body.GetArrayLength().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task IngestDocumentsAsync_SendsBulkDocumentPayload()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.IngestDocumentsAsync(
+        [
+            new KnowledgeDocumentIngestRequest("one", "doc-1", "docs/one.md", "Shop"),
+            new KnowledgeDocumentIngestRequest("two", "doc-2", "docs/two.md", "Shop")
+        ]);
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/documents/bulk");
+        var body = await handler.ReadBodyAsync();
+        body.ValueKind.Should().Be(JsonValueKind.Array);
+        body.GetArrayLength().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task IngestCodeNodesAsync_ThrowsOnBulkFailure()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.InternalServerError);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var act = async () => await sut.IngestCodeNodesAsync(
+        [
+            new CodeNodeIngestRequest("node-1", "Node1", "File", FilePath: "src/Node1.cs", ProjectContext: "Shop")
+        ]);
+
+        await act.Should().ThrowAsync<HttpRequestException>();
+    }
+
+    [Fact]
+    public async Task IngestRelationshipsAsync_ThrowsOnBulkFailure()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.InternalServerError);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var act = async () => await sut.IngestRelationshipsAsync(
+        [
+            new CodeEdgeIngestRequest("frontend", "endpoint", "Calls")
+        ]);
+
+        await act.Should().ThrowAsync<HttpRequestException>();
+    }
+
+    [Fact]
+    public async Task IngestDocumentsAsync_ThrowsOnBulkFailure()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.InternalServerError);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var act = async () => await sut.IngestDocumentsAsync(
+        [
+            new KnowledgeDocumentIngestRequest("one", "doc-1", "docs/one.md", "Shop")
+        ]);
+
+        await act.Should().ThrowAsync<HttpRequestException>();
+    }
+
+    [Fact]
     public async Task GetDoctorStatusAsync_SendsProjectContextQuery()
     {
         var handler = new CapturingHandler();
@@ -203,7 +326,7 @@ public sealed class CodeMeridianClientTests
         status!.JobId.Should().Be(jobId);
     }
 
-        private sealed class CapturingHandler : HttpMessageHandler
+        private sealed class CapturingHandler(HttpStatusCode statusCode = HttpStatusCode.Created) : HttpMessageHandler
         {
             public HttpRequestMessage? Request { get; private set; }
             private string? _body;
@@ -215,6 +338,7 @@ public sealed class CodeMeridianClientTests
 
                 return new HttpResponseMessage(HttpStatusCode.Created)
                 {
+                    StatusCode = statusCode,
                     Content = request.RequestUri!.AbsolutePath == "/api/v1/status/version"
                         ? JsonContent.Create(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2))
                         : request.RequestUri!.AbsolutePath == "/api/v1/status/report"
@@ -257,7 +381,7 @@ public sealed class CodeMeridianClientTests
                         "Ollama",
                         768,
                         null))
-            };
+                };
         }
 
         public async Task<JsonElement> ReadBodyAsync()

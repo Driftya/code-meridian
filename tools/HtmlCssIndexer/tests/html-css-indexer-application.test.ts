@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HtmlCssIndexerApplication } from '../src/application/html-css-indexer-application.js';
-import type { ResolvedIndexCommandOptions } from '#indexer-shared';
+import type { ResolvedIndexCommandOptions } from '../../IndexerShared/dist/index.js';
 
 describe('HtmlCssIndexerApplication', () => {
   const createdRoots: string[] = [];
@@ -75,12 +75,10 @@ describe('HtmlCssIndexerApplication', () => {
     expect(logs.some(message => message.includes('Processed 3/3 frontend files'))).toBe(true);
     expect(logs.some(message => message.includes('Uploading nodes...'))).toBe(true);
     expect(logs.some(message => message.includes('Uploaded'))).toBe(true);
-    expect(requests.some(request => request.path === '/api/v1/knowledge/nodes')).toBe(true);
-    expect(requests.some(request => request.path === '/api/v1/knowledge/nodes/edges')).toBe(true);
+    expect(requests.some(request => request.path === '/api/v1/knowledge/nodes/bulk')).toBe(true);
+    expect(requests.some(request => request.path === '/api/v1/knowledge/nodes/edges/bulk')).toBe(true);
 
-    const edgeBodies = requests
-      .filter(request => request.path === '/api/v1/knowledge/nodes/edges' && request.body)
-      .map(request => JSON.parse(request.body!));
+    const edgeBodies = readBodies(requests, '/api/v1/knowledge/nodes/edges/bulk');
 
     expect(edgeBodies).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: 'UsesClass' }),
@@ -89,4 +87,64 @@ describe('HtmlCssIndexerApplication', () => {
       expect.objectContaining({ type: 'Uses', properties: expect.objectContaining({ relationshipKind: 'DefinesStyleDeclaration' }) }),
     ]));
   });
+
+  it('continues when a bulk edge ingest request fails and reports edge errors', async () => {
+    const rootPath = fs.mkdtempSync(path.join(os.tmpdir(), 'codemeridian-html-css-app-'));
+    createdRoots.push(rootPath);
+    fs.mkdirSync(path.join(rootPath, 'src'), { recursive: true });
+    fs.writeFileSync(
+      path.join(rootPath, 'src', 'app.html'),
+      '<link rel="stylesheet" href="./app.scss"><div class="hero"></div>',
+    );
+    fs.writeFileSync(
+      path.join(rootPath, 'src', 'app.scss'),
+      '.hero { color: red; }',
+    );
+
+    const batchFilePath = path.join(rootPath, 'batch.json');
+    fs.writeFileSync(batchFilePath, JSON.stringify([
+      { Path: 'src/app.html', FileRole: 'Unknown' },
+      { Path: 'src/app.scss', FileRole: 'Unknown' },
+    ]));
+
+    const warnings: string[] = [];
+    vi.spyOn(console, 'warn').mockImplementation(message => {
+      warnings.push(String(message));
+    });
+
+    globalThis.fetch = vi.fn(async (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      const requestPath = new URL(url).pathname;
+      if (requestPath === '/api/v1/knowledge/nodes/edges/bulk') {
+        return new Response('boom', { status: 500 });
+      }
+
+      return new Response('{}', {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch;
+
+    const app = new HtmlCssIndexerApplication();
+    const options: ResolvedIndexCommandOptions = {
+      rootPath,
+      projectName: 'CodeMeridian',
+      serverUrl: 'http://127.0.0.1:5100',
+      batchFilePath,
+    };
+
+    const exitCode = await app.run(options);
+
+    expect(exitCode).toBe(0);
+    expect(warnings.some(message => message.includes('warn: edge'))).toBe(true);
+  });
 });
+
+function readBodies(requests: Array<{ path: string; body?: string }>, expectedPath: string): any[] {
+  return requests
+    .filter(request => request.path === expectedPath && request.body)
+    .flatMap(request => {
+      const parsed = JSON.parse(request.body!);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    });
+}

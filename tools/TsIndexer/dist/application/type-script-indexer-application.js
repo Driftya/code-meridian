@@ -1,7 +1,8 @@
-import { CodeMeridianClient, readIndexerBatchFile } from '#indexer-shared';
+import { CodeMeridianClient, readIndexerBatchFile } from '../../../IndexerShared/dist/index.js';
 import { walkTypeScript } from '../walker.js';
 import { indexTypeScriptDiagnostics } from '../diagnostics/type-script-diagnostics.js';
 import { analyzeTypeScriptBoundaries } from '../analysis/type-script-boundaries.js';
+const INGEST_CONCURRENCY = 8;
 export class TypeScriptIndexerApplication {
     async run(options) {
         const client = new CodeMeridianClient(options.serverUrl, options.apiKey);
@@ -18,34 +19,22 @@ export class TypeScriptIndexerApplication {
         console.log(`  Batch size: ${batch.files.length} file(s)`);
         const { nodes, edges } = walkTypeScript(options.rootPath, options.projectName, batch.files, relativePath => batch.fileRoles.get(relativePath));
         console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
-        let nodeCount = 0;
-        let nodeErrors = 0;
-        for (const node of nodes) {
-            try {
-                await client.ingestNode(node);
-                nodeCount++;
-            }
-            catch (error) {
-                nodeErrors++;
-                if (nodeErrors <= 5)
+        const nodeResult = await client.ingestNodes(nodes, {
+            concurrency: INGEST_CONCURRENCY,
+            onError: (node, error, errorCount) => {
+                if (errorCount <= 5)
                     console.warn(`  warn: node ${node.id}: ${error}`);
-            }
-        }
-        console.log(`  Ingested ${nodeCount} nodes${nodeErrors > 0 ? ` (${nodeErrors} errors)` : ''}`);
-        let edgeCount = 0;
-        let edgeErrors = 0;
-        for (const edge of edges) {
-            try {
-                await client.ingestEdge(edge);
-                edgeCount++;
-            }
-            catch (error) {
-                edgeErrors++;
-                if (edgeErrors <= 5)
+            },
+        });
+        console.log(`  Ingested ${nodeResult.successCount} nodes${nodeResult.errorCount > 0 ? ` (${nodeResult.errorCount} errors)` : ''}`);
+        const edgeResult = await client.ingestEdges(edges, {
+            concurrency: INGEST_CONCURRENCY,
+            onError: (edge, error, errorCount) => {
+                if (errorCount <= 5)
                     console.warn(`  warn: edge ${edge.sourceId} -> ${edge.targetId}: ${error}`);
-            }
-        }
-        console.log(`  Ingested ${edgeCount} edges${edgeErrors > 0 ? ` (${edgeErrors} errors)` : ''}`);
+            },
+        });
+        console.log(`  Ingested ${edgeResult.successCount} edges${edgeResult.errorCount > 0 ? ` (${edgeResult.errorCount} errors)` : ''}`);
         const diagnosticsCount = await indexTypeScriptDiagnostics(client, options.rootPath, options.projectName);
         console.log(`  Indexed ${diagnosticsCount} TypeScript diagnostic(s)`);
         console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);

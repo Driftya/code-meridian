@@ -96,6 +96,21 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task IngestDocumentsAsync(
+        IReadOnlyCollection<KnowledgeDocumentIngestRequest> requests,
+        CancellationToken cancellationToken = default)
+    {
+        if (requests.Count == 0)
+            return;
+
+        var response = await httpClient.PostAsJsonAsync(
+            "/api/v1/knowledge/documents/bulk",
+            requests,
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task IngestCodeNodeAsync(
         string id,
         string name,
@@ -137,6 +152,21 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task IngestCodeNodesAsync(
+        IReadOnlyCollection<CodeNodeIngestRequest> requests,
+        CancellationToken cancellationToken = default)
+    {
+        if (requests.Count == 0)
+            return;
+
+        var response = await httpClient.PostAsJsonAsync(
+            "/api/v1/knowledge/nodes/bulk",
+            requests,
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task IngestRelationshipAsync(
         string sourceId,
         string targetId,
@@ -161,6 +191,21 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
                 Confidence = confidence,
                 Properties = properties
             },
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task IngestRelationshipsAsync(
+        IReadOnlyCollection<CodeEdgeIngestRequest> requests,
+        CancellationToken cancellationToken = default)
+    {
+        if (requests.Count == 0)
+            return;
+
+        var response = await httpClient.PostAsJsonAsync(
+            "/api/v1/knowledge/nodes/edges/bulk",
+            requests,
             cancellationToken);
 
         response.EnsureSuccessStatusCode();

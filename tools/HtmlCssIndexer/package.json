@@ -4,9 +4,6 @@
   "description": "Internal HTML/CSS/SCSS worker for CodeMeridian.Indexer.",
   "private": true,
   "type": "module",
-  "imports": {
-    "#indexer-shared": "../IndexerShared/dist/index.js"
-  },
   "scripts": {
     "index": "tsx src/index.ts",
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc --outDir dist",

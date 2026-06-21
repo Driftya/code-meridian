@@ -4,4 +4,4 @@ export type {
   CodeNodeDto,
   CodeNodeType,
   DocumentDto,
-} from '#indexer-shared';
+} from '../../IndexerShared/dist/types.js';

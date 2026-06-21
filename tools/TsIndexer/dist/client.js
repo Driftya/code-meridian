@@ -1,1 +1,1 @@
-export { CodeMeridianClient } from '#indexer-shared';
+export { CodeMeridianClient } from '../../IndexerShared/dist/index.js';

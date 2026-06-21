@@ -1,1 +1,1 @@
-export type { IndexCommandOptions, ResolvedIndexCommandOptions } from '#indexer-shared';
+export type { IndexCommandOptions, ResolvedIndexCommandOptions } from '../../../IndexerShared/dist/index.js';

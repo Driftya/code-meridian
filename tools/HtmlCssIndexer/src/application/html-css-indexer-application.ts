@@ -1,10 +1,11 @@
-import { CodeMeridianClient, readIndexerBatchFile } from '#indexer-shared';
-import type { ResolvedIndexCommandOptions } from '#indexer-shared';
+import { CodeMeridianClient, readIndexerBatchFile } from '../../../IndexerShared/dist/index.js';
+import type { ResolvedIndexCommandOptions } from '../../../IndexerShared/dist/index.js';
 import { walkFrontend } from '../walker.js';
 import type { FrontendWalkProgress } from '../types.js';
 
 const FILE_PROGRESS_INTERVAL = 10;
 const INGEST_PROGRESS_INTERVAL = 500;
+const INGEST_CONCURRENCY = 8;
 
 export class HtmlCssIndexerApplication {
   async run(options: ResolvedIndexCommandOptions): Promise<number> {
@@ -38,38 +39,36 @@ export class HtmlCssIndexerApplication {
       console.log('  Uploading nodes...');
     }
 
-    let nodeCount = 0;
-    let nodeErrors = 0;
-    for (const node of nodes) {
-      try {
-        await client.ingestNode(node);
-        nodeCount++;
-        this.logIngestProgress('nodes', nodeCount, nodes.length);
-      } catch (error) {
-        nodeErrors++;
-        if (nodeErrors <= 5)
+    const nodeResult = await client.ingestNodes(nodes, {
+      concurrency: INGEST_CONCURRENCY,
+      onSuccess: (_node: unknown, processed: number, total: number) => {
+        this.logIngestProgress('nodes', processed, total);
+      },
+      onError: (node: { id: string }, error: unknown, errorCount: number) => {
+        if (errorCount <= 5)
           console.warn(`  warn: node ${node.id}: ${error}`);
-      }
-    }
-    console.log(`  Ingested ${nodeCount} nodes${nodeErrors > 0 ? ` (${nodeErrors} errors)` : ''}`);
+      },
+    });
+    console.log(
+      `  Ingested ${nodeResult.successCount} nodes${nodeResult.errorCount > 0 ? ` (${nodeResult.errorCount} errors)` : ''}`,
+    );
 
     if (edges.length > 0) {
       console.log('  Uploading edges...');
     }
-    let edgeCount = 0;
-    let edgeErrors = 0;
-    for (const edge of edges) {
-      try {
-        await client.ingestEdge(edge);
-        edgeCount++;
-        this.logIngestProgress('edges', edgeCount, edges.length);
-      } catch (error) {
-        edgeErrors++;
-        if (edgeErrors <= 5)
+    const edgeResult = await client.ingestEdges(edges, {
+      concurrency: INGEST_CONCURRENCY,
+      onSuccess: (_edge: unknown, processed: number, total: number) => {
+        this.logIngestProgress('edges', processed, total);
+      },
+      onError: (edge: { sourceId: string; targetId: string }, error: unknown, errorCount: number) => {
+        if (errorCount <= 5)
           console.warn(`  warn: edge ${edge.sourceId} -> ${edge.targetId}: ${error}`);
-      }
-    }
-    console.log(`  Ingested ${edgeCount} edges${edgeErrors > 0 ? ` (${edgeErrors} errors)` : ''}`);
+      },
+    });
+    console.log(
+      `  Ingested ${edgeResult.successCount} edges${edgeResult.errorCount > 0 ? ` (${edgeResult.errorCount} errors)` : ''}`,
+    );
 
     console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
   }

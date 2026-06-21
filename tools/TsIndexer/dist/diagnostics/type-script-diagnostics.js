@@ -28,23 +28,23 @@ export async function indexTypeScriptDiagnostics(client, rootPath, projectName) 
     const distinct = findings
         .filter(finding => finding.filePath.length > 0)
         .filter((finding, index, items) => items.findIndex(other => other.id === finding.id) === index);
-    for (const finding of distinct) {
-        await client.ingestNode({
-            id: finding.id,
-            name: `${finding.severity} ${finding.code}`,
-            type: 'Diagnostic',
-            namespace: finding.source,
-            filePath: finding.filePath,
-            lineNumber: finding.line,
-            summary: finding.message,
-            projectContext: projectName,
-        });
-        await client.ingestEdge({
-            sourceId: fileId(projectName, finding.filePath),
-            targetId: finding.id,
-            type: 'Contains',
-        });
-    }
+    const nodes = distinct.map(finding => ({
+        id: finding.id,
+        name: `${finding.severity} ${finding.code}`,
+        type: 'Diagnostic',
+        namespace: finding.source,
+        filePath: finding.filePath,
+        lineNumber: finding.line,
+        summary: finding.message,
+        projectContext: projectName,
+    }));
+    const edges = distinct.map(finding => ({
+        sourceId: fileId(projectName, finding.filePath),
+        targetId: finding.id,
+        type: 'Contains',
+    }));
+    await client.ingestNodes(nodes);
+    await client.ingestEdges(edges);
     return distinct.length;
 }
 export function parseTypeScriptDiagnostics(output, rootPath, workingDirectory, project) {

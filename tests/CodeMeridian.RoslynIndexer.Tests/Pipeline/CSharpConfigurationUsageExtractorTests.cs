@@ -297,13 +297,25 @@ public sealed class CSharpConfigurationUsageExtractorTests : IDisposable
         {
             var body = request.Content is null ? "{}" : await request.Content.ReadAsStringAsync(cancellationToken);
             using var doc = JsonDocument.Parse(body);
-            Requests.Add((request.Method.Method, request.RequestUri!.AbsolutePath, doc.RootElement.Clone()));
+            var path = NormalizePath(request.RequestUri!.AbsolutePath);
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in doc.RootElement.EnumerateArray())
+                    Requests.Add((request.Method.Method, path, item.Clone()));
+            }
+            else
+            {
+                Requests.Add((request.Method.Method, path, doc.RootElement.Clone()));
+            }
 
             return new HttpResponseMessage(HttpStatusCode.Created)
             {
                 Content = JsonContent.Create(new { })
             };
         }
+
+        private static string NormalizePath(string path) =>
+            path.EndsWith("/bulk", StringComparison.Ordinal) ? path[..^"/bulk".Length] : path;
     }
 
     private static bool HasEdgeProperty(JsonElement body, string name, string expectedValue)

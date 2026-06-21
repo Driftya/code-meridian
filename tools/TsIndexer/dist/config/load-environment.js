@@ -1,1 +1,1 @@
-export { loadEnvironmentForInvocation } from '#indexer-shared';
+export { loadEnvironmentForInvocation } from '../../../IndexerShared/dist/index.js';

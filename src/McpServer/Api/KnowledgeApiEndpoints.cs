@@ -18,8 +18,11 @@ public static class KnowledgeApiEndpoints
         var group = app.MapGroup("/api/v1/knowledge").WithTags("Knowledge");
 
         group.MapPost("/nodes", IngestNode);
+        group.MapPost("/nodes/bulk", IngestNodesBulk);
         group.MapPost("/nodes/edges", IngestEdge);
+        group.MapPost("/nodes/edges/bulk", IngestEdgesBulk);
         group.MapPost("/documents", IngestDocument);
+        group.MapPost("/documents/bulk", IngestDocumentsBulk);
         group.MapPost("/keywords/rebuild", RebuildKeywordGraph);
         group.MapPost("/keywords/classify", ClassifyKeywords);
         group.MapGet("/keywords/jobs/{jobId:guid}", GetKeywordJobStatus);
@@ -40,8 +43,94 @@ public static class KnowledgeApiEndpoints
         ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
+        var outcome = await PersistNodeAsync(req, repo, embeddingProvider, keywordRefreshQueue, loggerFactory, ct);
+        return outcome.Error ?? Results.Created($"/api/v1/knowledge/nodes/{Uri.EscapeDataString(outcome.Id)}", outcome.Id);
+    }
+
+    private static async Task<IResult> IngestNodesBulk(
+        IReadOnlyCollection<IngestNodeRequest> requests,
+        ICodeGraphRepository repo,
+        IEmbeddingProvider embeddingProvider,
+        IKeywordRefreshQueue keywordRefreshQueue,
+        ILoggerFactory loggerFactory,
+        CancellationToken ct)
+    {
+        var acceptedCount = 0;
+        foreach (var request in requests)
+        {
+            var outcome = await PersistNodeAsync(request, repo, embeddingProvider, keywordRefreshQueue, loggerFactory, ct);
+            if (outcome.Error is not null)
+                return outcome.Error;
+
+            acceptedCount++;
+        }
+
+        return Results.Ok(new BulkIngestResponse(acceptedCount));
+    }
+
+    private static async Task<IResult> IngestEdge(
+        IngestEdgeRequest req,
+        ICodeGraphRepository repo,
+        CancellationToken ct)
+    {
+        var error = await PersistEdgeAsync(req, repo, ct);
+        return error ?? Results.Created("/api/v1/knowledge/nodes/edges", null);
+    }
+
+    private static async Task<IResult> IngestEdgesBulk(
+        IReadOnlyCollection<IngestEdgeRequest> requests,
+        ICodeGraphRepository repo,
+        CancellationToken ct)
+    {
+        var acceptedCount = 0;
+        foreach (var request in requests)
+        {
+            var error = await PersistEdgeAsync(request, repo, ct);
+            if (error is not null)
+                return error;
+
+            acceptedCount++;
+        }
+
+        return Results.Ok(new BulkIngestResponse(acceptedCount));
+    }
+
+    private static async Task<IResult> IngestDocument(
+        IngestDocumentRequest req,
+        IVectorRepository vectorRepo,
+        IKeywordRefreshQueue keywordRefreshQueue,
+        CancellationToken ct)
+    {
+        var outcome = await PersistDocumentAsync(req, vectorRepo, keywordRefreshQueue, ct);
+        return Results.Created($"/api/v1/knowledge/documents/{Uri.EscapeDataString(outcome.Id)}", null);
+    }
+
+    private static async Task<IResult> IngestDocumentsBulk(
+        IReadOnlyCollection<IngestDocumentRequest> requests,
+        IVectorRepository vectorRepo,
+        IKeywordRefreshQueue keywordRefreshQueue,
+        CancellationToken ct)
+    {
+        var acceptedCount = 0;
+        foreach (var request in requests)
+        {
+            await PersistDocumentAsync(request, vectorRepo, keywordRefreshQueue, ct);
+            acceptedCount++;
+        }
+
+        return Results.Ok(new BulkIngestResponse(acceptedCount));
+    }
+
+    private static async Task<NodeIngestOutcome> PersistNodeAsync(
+        IngestNodeRequest req,
+        ICodeGraphRepository repo,
+        IEmbeddingProvider embeddingProvider,
+        IKeywordRefreshQueue keywordRefreshQueue,
+        ILoggerFactory loggerFactory,
+        CancellationToken ct)
+    {
         if (!Enum.TryParse<CodeNodeType>(req.Type, ignoreCase: true, out var nodeType))
-            return Results.BadRequest($"Unknown type '{req.Type}'");
+            return new NodeIngestOutcome(req.Id, Results.BadRequest($"Unknown type '{req.Type}'"));
 
         float[]? embedding;
         try
@@ -50,7 +139,7 @@ public static class KnowledgeApiEndpoints
         }
         catch (FormatException)
         {
-            return Results.BadRequest("Invalid embeddingCsv format. Expected comma-separated floats.");
+            return new NodeIngestOutcome(req.Id, Results.BadRequest("Invalid embeddingCsv format. Expected comma-separated floats."));
         }
 
         if (embedding is null && IsEmbeddableType(nodeType) && await embeddingProvider.IsAvailableAsync(ct))
@@ -88,11 +177,10 @@ public static class KnowledgeApiEndpoints
         }
 
         await keywordRefreshQueue.QueueAsync(new KeywordRefreshWorkItem(req.Id, req.ProjectContext), ct);
-
-        return Results.Created($"/api/v1/knowledge/nodes/{Uri.EscapeDataString(req.Id)}", req.Id);
+        return new NodeIngestOutcome(req.Id, null);
     }
 
-    private static async Task<IResult> IngestEdge(
+    private static async Task<IResult?> PersistEdgeAsync(
         IngestEdgeRequest req,
         ICodeGraphRepository repo,
         CancellationToken ct)
@@ -112,10 +200,10 @@ public static class KnowledgeApiEndpoints
             Properties = req.Properties ?? []
         }, ct);
 
-        return Results.Created("/api/v1/knowledge/nodes/edges", null);
+        return null;
     }
 
-    private static async Task<IResult> IngestDocument(
+    private static async Task<DocumentIngestOutcome> PersistDocumentAsync(
         IngestDocumentRequest req,
         IVectorRepository vectorRepo,
         IKeywordRefreshQueue keywordRefreshQueue,
@@ -132,8 +220,7 @@ public static class KnowledgeApiEndpoints
         }, ct);
 
         await keywordRefreshQueue.QueueAsync(new KeywordRefreshWorkItem(documentId, req.ProjectContext), ct);
-
-        return Results.Created("/api/v1/knowledge/documents", null);
+        return new DocumentIngestOutcome(documentId);
     }
 
     private static async Task<IResult> RebuildKeywordGraph(
@@ -376,3 +463,7 @@ internal sealed record EmbeddingResponse(
 internal sealed record EmbeddingAvailabilityResponse(
     string ProviderName,
     int Dimensions);
+
+internal sealed record BulkIngestResponse(int AcceptedCount);
+internal sealed record NodeIngestOutcome(string Id, IResult? Error);
+internal sealed record DocumentIngestOutcome(string Id);

@@ -6,8 +6,8 @@ export type FrontendConceptKind =
   | 'CssDeclaration';
 
 export interface FrontendWalkResult {
-  nodes: import('#indexer-shared').CodeNodeDto[];
-  edges: import('#indexer-shared').CodeEdgeDto[];
+  nodes: import('../../IndexerShared/dist/types.js').CodeNodeDto[];
+  edges: import('../../IndexerShared/dist/types.js').CodeEdgeDto[];
 }
 
 export interface FrontendWalkProgress {

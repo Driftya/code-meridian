@@ -1,13 +1,9 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "ignoreDeprecations": "6.0",
     "target": "es2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "paths": {
-      "#indexer-shared": ["../IndexerShared/dist/index.d.ts"]
-    },
     "types": ["node"],
     "forceConsistentCasingInFileNames": true,
     "strict": true,

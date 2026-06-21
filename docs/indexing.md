@@ -210,6 +210,12 @@ The indexer ingests README and documentation files unless disabled with `--no-do
 
 Documentation becomes searchable through `search_documentation`.
 
+The REST ingestion API used by the packaged indexers supports both single-item and bulk POSTs. Current bulk endpoints are:
+
+- `POST /api/v1/knowledge/nodes/bulk`
+- `POST /api/v1/knowledge/nodes/edges/bulk`
+- `POST /api/v1/knowledge/documents/bulk`
+
 ## Keyword Refresh
 
 When keyword enrichment is enabled, the MCP server queues an incremental keyword refresh after code nodes and documents are ingested. The queue batches and debounces changed source nodes, refreshes derived keyword relationships for those nodes, recalculates project keyword statistics, and then runs classification for the affected project.

@@ -324,6 +324,103 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task KnowledgeApiEndpoints_IngestNodesBulk_QueuesKeywordRefreshForEachNode()
+    {
+        var repo = Substitute.For<ICodeGraphRepository>();
+        var embeddings = Substitute.For<IEmbeddingProvider>();
+        embeddings.IsAvailableAsync(Arg.Any<CancellationToken>()).Returns(false);
+        var queue = Substitute.For<IKeywordRefreshQueue>();
+        var routeHandler = typeof(KnowledgeApiEndpoints)
+            .GetMethod("IngestNodesBulk", BindingFlags.NonPublic | BindingFlags.Static);
+
+        routeHandler.Should().NotBeNull();
+
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.IngestNodeRequest");
+        requestType.Should().NotBeNull();
+
+        var requests = Array.CreateInstance(requestType!, 2);
+        requests.SetValue(Activator.CreateInstance(
+            requestType!,
+            "node-1",
+            "NodeOne",
+            "Class",
+            null,
+            "src/NodeOne.cs",
+            1,
+            10,
+            null,
+            null,
+            null,
+            null,
+            "CodeMeridian",
+            null,
+            null), 0);
+        requests.SetValue(Activator.CreateInstance(
+            requestType!,
+            "node-2",
+            "NodeTwo",
+            "Class",
+            null,
+            "src/NodeTwo.cs",
+            1,
+            12,
+            null,
+            null,
+            null,
+            null,
+            "CodeMeridian",
+            null,
+            null), 1);
+
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [requests, repo, embeddings, queue, Substitute.For<ILoggerFactory>(), CancellationToken.None])!;
+        await task;
+
+        await queue.Received(1).QueueAsync(Arg.Is<KeywordRefreshWorkItem>(item => item.SourceNodeId == "node-1"), Arg.Any<CancellationToken>());
+        await queue.Received(1).QueueAsync(Arg.Is<KeywordRefreshWorkItem>(item => item.SourceNodeId == "node-2"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task KnowledgeApiEndpoints_IngestNodesBulk_ReturnsBadRequestForUnknownType()
+    {
+        var repo = Substitute.For<ICodeGraphRepository>();
+        var embeddings = Substitute.For<IEmbeddingProvider>();
+        embeddings.IsAvailableAsync(Arg.Any<CancellationToken>()).Returns(false);
+        var queue = Substitute.For<IKeywordRefreshQueue>();
+        var routeHandler = typeof(KnowledgeApiEndpoints)
+            .GetMethod("IngestNodesBulk", BindingFlags.NonPublic | BindingFlags.Static);
+
+        routeHandler.Should().NotBeNull();
+
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.IngestNodeRequest");
+        requestType.Should().NotBeNull();
+
+        var requests = Array.CreateInstance(requestType!, 1);
+        requests.SetValue(Activator.CreateInstance(
+            requestType!,
+            "node-bad",
+            "Broken",
+            "NotARealType",
+            null,
+            "src/Broken.cs",
+            1,
+            1,
+            null,
+            null,
+            null,
+            null,
+            "CodeMeridian",
+            null,
+            null), 0);
+
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [requests, repo, embeddings, queue, Substitute.For<ILoggerFactory>(), CancellationToken.None])!;
+        var result = await task;
+
+        result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.BadRequest<string>>();
+        await repo.DidNotReceive().UpsertNodeAsync(Arg.Any<CodeNode>(), Arg.Any<CancellationToken>());
+        await queue.DidNotReceive().QueueAsync(Arg.Any<KeywordRefreshWorkItem>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task KnowledgeApiEndpoints_IngestNode_AcceptsStructNodeType()
     {
         var repo = Substitute.For<ICodeGraphRepository>();
@@ -406,6 +503,99 @@ public sealed class KnowledgeIngestionTests
         queued.Should().NotBeNull();
         queued!.SourceNodeId.Should().Be(captured!.Id);
         queued.ProjectContext.Should().Be("CodeMeridian");
+    }
+
+    [Fact]
+    public async Task KnowledgeApiEndpoints_IngestEdgesBulk_UpsertsEachEdge()
+    {
+        var repo = Substitute.For<ICodeGraphRepository>();
+        var routeHandler = typeof(KnowledgeApiEndpoints)
+            .GetMethod("IngestEdgesBulk", BindingFlags.NonPublic | BindingFlags.Static);
+
+        routeHandler.Should().NotBeNull();
+
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.IngestEdgeRequest");
+        requestType.Should().NotBeNull();
+
+        var requests = Array.CreateInstance(requestType!, 2);
+        requests.SetValue(Activator.CreateInstance(requestType!, "a", "b", "Calls", null, null, null, null, null), 0);
+        requests.SetValue(Activator.CreateInstance(requestType!, "b", "c", "Uses", null, null, null, null, null), 1);
+
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [requests, repo, CancellationToken.None])!;
+        await task;
+
+        await repo.Received(1).UpsertEdgeAsync(Arg.Is<CodeEdge>(edge => edge.SourceId == "a" && edge.TargetId == "b"), Arg.Any<CancellationToken>());
+        await repo.Received(1).UpsertEdgeAsync(Arg.Is<CodeEdge>(edge => edge.SourceId == "b" && edge.TargetId == "c"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task KnowledgeApiEndpoints_IngestEdgesBulk_ReturnsBadRequestForUnknownRelationshipType()
+    {
+        var repo = Substitute.For<ICodeGraphRepository>();
+        var routeHandler = typeof(KnowledgeApiEndpoints)
+            .GetMethod("IngestEdgesBulk", BindingFlags.NonPublic | BindingFlags.Static);
+
+        routeHandler.Should().NotBeNull();
+
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.IngestEdgeRequest");
+        requestType.Should().NotBeNull();
+
+        var requests = Array.CreateInstance(requestType!, 1);
+        requests.SetValue(Activator.CreateInstance(requestType!, "a", "b", "NotARelationship", null, null, null, null, null), 0);
+
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [requests, repo, CancellationToken.None])!;
+        var result = await task;
+
+        result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.BadRequest<string>>();
+        await repo.DidNotReceive().UpsertEdgeAsync(Arg.Any<CodeEdge>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task KnowledgeApiEndpoints_IngestDocumentsBulk_QueuesKeywordRefreshForEachDocument()
+    {
+        var vector = Substitute.For<IVectorRepository>();
+        var queue = Substitute.For<IKeywordRefreshQueue>();
+        var routeHandler = typeof(KnowledgeApiEndpoints)
+            .GetMethod("IngestDocumentsBulk", BindingFlags.NonPublic | BindingFlags.Static);
+
+        routeHandler.Should().NotBeNull();
+
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.IngestDocumentRequest");
+        requestType.Should().NotBeNull();
+
+        var requests = Array.CreateInstance(requestType!, 2);
+        requests.SetValue(Activator.CreateInstance(requestType!, "Doc one", "doc-1", "docs/one.md", "CodeMeridian", null, null), 0);
+        requests.SetValue(Activator.CreateInstance(requestType!, "Doc two", "doc-2", "docs/two.md", "CodeMeridian", null, null), 1);
+
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [requests, vector, queue, CancellationToken.None])!;
+        await task;
+
+        await queue.Received(1).QueueAsync(Arg.Is<KeywordRefreshWorkItem>(item => item.SourceNodeId == "doc-1"), Arg.Any<CancellationToken>());
+        await queue.Received(1).QueueAsync(Arg.Is<KeywordRefreshWorkItem>(item => item.SourceNodeId == "doc-2"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task KnowledgeApiEndpoints_IngestDocumentsBulk_AcceptsEmptyBatch()
+    {
+        var vector = Substitute.For<IVectorRepository>();
+        var queue = Substitute.For<IKeywordRefreshQueue>();
+        var routeHandler = typeof(KnowledgeApiEndpoints)
+            .GetMethod("IngestDocumentsBulk", BindingFlags.NonPublic | BindingFlags.Static);
+
+        routeHandler.Should().NotBeNull();
+
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.IngestDocumentRequest");
+        requestType.Should().NotBeNull();
+
+        var requests = Array.CreateInstance(requestType!, 0);
+
+        var task = (Task<IResult>)routeHandler!.Invoke(null, [requests, vector, queue, CancellationToken.None])!;
+        var result = await task;
+
+        result.Should().NotBeNull();
+        result.GetType().Name.Should().StartWith("Ok");
+        await vector.DidNotReceive().UpsertAsync(Arg.Any<KnowledgeDocument>(), Arg.Any<CancellationToken>());
+        await queue.DidNotReceive().QueueAsync(Arg.Any<KeywordRefreshWorkItem>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
