@@ -9,6 +9,10 @@ namespace CodeMeridian.Indexer.Cli.Configuration;
 
 internal sealed class ConfigurationIndexer
 {
+    private const int FileProgressInterval = 25;
+    private const int NodeBatchSize = 100;
+    private const int EdgeBatchSize = 200;
+
     public async Task<int> RunAsync(
         DirectoryInfo rootPath,
         string project,
@@ -20,13 +24,14 @@ internal sealed class ConfigurationIndexer
         bool clearExistingConfiguration,
         IReadOnlyCollection<string>? changedFiles = null,
         IReadOnlyCollection<string>? deletedFiles = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        HttpMessageHandler? messageHandler = null)
     {
-        using var httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(codeMeridianUrl),
-            Timeout = TimeSpan.FromMinutes(10)
-        };
+        using var httpClient = messageHandler is null
+            ? new HttpClient()
+            : new HttpClient(messageHandler, disposeHandler: false);
+        httpClient.BaseAddress = new Uri(codeMeridianUrl);
+        httpClient.Timeout = TimeSpan.FromMinutes(10);
         httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
         if (!string.IsNullOrWhiteSpace(apiKey))
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
@@ -53,79 +58,90 @@ internal sealed class ConfigurationIndexer
             .ThenBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+        Console.WriteLine($"Indexing configuration batch in {rootPath.FullName}...");
+        Console.WriteLine($"  Batch size: {files.Length} file(s)");
+
         var seenCanonicalKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var nodeRequests = new List<CodeNodeIngestRequest>();
+        var edgeRequests = new List<CodeEdgeIngestRequest>();
+        var processedFiles = 0;
         foreach (var file in files)
         {
+            var relativePath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
             if (!ConfigurationFileParser.TryParse(file, rootPath.FullName, out var entries, out var error))
             {
-                var relativePath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
                 Console.WriteLine($"  warn: skipped config file '{relativePath}' because it is not valid {file.Extension.TrimStart('.')} content: {error}");
                 continue;
             }
 
-            await IngestFileAsync(client, project, file, rootPath, entries, seenCanonicalKeys, fileRoleClassifier, cancellationToken);
+            BuildFileRequests(nodeRequests, edgeRequests, project, file, rootPath, entries, seenCanonicalKeys, fileRoleClassifier);
+            processedFiles++;
+            LogFileProgress(processedFiles, files.Length, relativePath);
         }
+
+        Console.WriteLine($"  Found {nodeRequests.Count} nodes, {edgeRequests.Count} edges");
+        await BatchIngestNodesAsync(client, nodeRequests, cancellationToken);
+        await BatchIngestEdgesAsync(client, edgeRequests, cancellationToken);
 
         return 0;
     }
 
-    private static async Task IngestFileAsync(
-        CodeMeridianClient client,
+    private static void BuildFileRequests(
+        List<CodeNodeIngestRequest> nodeRequests,
+        List<CodeEdgeIngestRequest> edgeRequests,
         string project,
         FileInfo file,
         DirectoryInfo rootPath,
         IReadOnlyList<ConfigurationEntryRecord> entries,
         HashSet<string> seenCanonicalKeys,
-        IIndexedFileRoleClassifier fileRoleClassifier,
-        CancellationToken cancellationToken)
+        IIndexedFileRoleClassifier fileRoleClassifier)
     {
         var relativePath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
         var fileId = $"{project}::ConfigurationFile::{relativePath}";
+        var fileRole = fileRoleClassifier.Classify(relativePath).ToString();
 
-        await client.IngestCodeNodeAsync(
+        nodeRequests.Add(new CodeNodeIngestRequest(
             fileId,
             file.Name,
             "ConfigurationFile",
-            filePath: relativePath,
-            fileRole: fileRoleClassifier.Classify(relativePath).ToString(),
-            projectContext: project,
-            sourceHash: Hash(File.ReadAllText(file.FullName)),
-            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            FilePath: relativePath,
+            SourceHash: Hash(File.ReadAllText(file.FullName)),
+            FileRole: fileRole,
+            ProjectContext: project,
+            Properties: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["fileRole"] = fileRoleClassifier.Classify(relativePath).ToString(),
+                ["fileRole"] = fileRole,
                 ["format"] = file.Extension.TrimStart('.').ToLowerInvariant(),
                 ["sourceKind"] = "configuration-file"
-            },
-            cancellationToken: cancellationToken);
+            }));
 
         foreach (var entry in entries)
         {
             var canonicalKeyId = $"{project}::ConfigurationKey::{entry.CanonicalKey}";
             var entryId = $"{project}::ConfigurationEntry::{relativePath}::{Hash($"{entry.RawKey}|{entry.SourceKind}|{entry.CanonicalKey}")}";
 
-            await client.IngestCodeNodeAsync(
+            nodeRequests.Add(new CodeNodeIngestRequest(
                 canonicalKeyId,
                 entry.CanonicalKey,
                 "ConfigurationKey",
-                projectContext: project,
-                properties: new Dictionary<string, string>(StringComparer.Ordinal)
+                ProjectContext: project,
+                Properties: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["canonicalKey"] = entry.CanonicalKey,
                     ["normalizedKey"] = entry.CanonicalKey.ToLowerInvariant(),
                     ["isSecretLike"] = entry.IsSecretLike ? "true" : "false"
-                },
-                cancellationToken: cancellationToken);
+                }));
 
-            await client.IngestCodeNodeAsync(
+            nodeRequests.Add(new CodeNodeIngestRequest(
                 entryId,
                 entry.RawKey,
                 "ConfigurationEntry",
-                filePath: relativePath,
-                fileRole: fileRoleClassifier.Classify(relativePath).ToString(),
-                projectContext: project,
-                properties: new Dictionary<string, string>(StringComparer.Ordinal)
+                FilePath: relativePath,
+                FileRole: fileRole,
+                ProjectContext: project,
+                Properties: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    ["fileRole"] = fileRoleClassifier.Classify(relativePath).ToString(),
+                    ["fileRole"] = fileRole,
                     ["canonicalKey"] = entry.CanonicalKey,
                     ["rawKey"] = entry.RawKey,
                     ["rawValuePreview"] = entry.ValuePreview,
@@ -133,35 +149,66 @@ internal sealed class ConfigurationIndexer
                     ["sourceKind"] = entry.SourceKind,
                     ["valueType"] = entry.ValueType,
                     ["isSecretLike"] = entry.IsSecretLike ? "true" : "false"
-                },
-                cancellationToken: cancellationToken);
+                }));
 
-            await client.IngestRelationshipAsync(
+            edgeRequests.Add(new CodeEdgeIngestRequest(
                 fileId,
                 entryId,
                 "DefinesConfig",
-                properties: new Dictionary<string, string>(StringComparer.Ordinal)
+                Properties: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["rawKey"] = entry.RawKey,
                     ["sourceKind"] = entry.SourceKind
-                },
-                cancellationToken: cancellationToken);
+                }));
 
             var relationshipType = seenCanonicalKeys.Add(entry.CanonicalKey)
                 ? "DefinesConfig"
                 : "OverridesConfig";
 
-            await client.IngestRelationshipAsync(
+            edgeRequests.Add(new CodeEdgeIngestRequest(
                 entryId,
                 canonicalKeyId,
                 relationshipType,
-                properties: new Dictionary<string, string>(StringComparer.Ordinal)
+                Properties: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["rawKey"] = entry.RawKey,
                     ["sourceKind"] = entry.SourceKind,
                     ["valuePreview"] = entry.ValuePreview
-                },
-                cancellationToken: cancellationToken);
+                }));
+        }
+    }
+
+    private static void LogFileProgress(int processedFiles, int totalFiles, string relativePath)
+    {
+        if (processedFiles == totalFiles || processedFiles % FileProgressInterval == 0)
+            Console.WriteLine($"  Processed {processedFiles}/{totalFiles} configuration files ({relativePath})");
+    }
+
+    private static async Task BatchIngestNodesAsync(
+        CodeMeridianClient client,
+        IReadOnlyList<CodeNodeIngestRequest> nodeRequests,
+        CancellationToken cancellationToken)
+    {
+        var batches = nodeRequests.Chunk(NodeBatchSize).ToArray();
+        for (var i = 0; i < batches.Length; i++)
+        {
+            Console.WriteLine($"  Ingesting configuration nodes batch {i + 1}/{batches.Length}...");
+            await client.IngestCodeNodesAsync(batches[i], cancellationToken);
+            Console.WriteLine($"  Uploaded {Math.Min((i + 1) * NodeBatchSize, nodeRequests.Count)}/{nodeRequests.Count} configuration nodes");
+        }
+    }
+
+    private static async Task BatchIngestEdgesAsync(
+        CodeMeridianClient client,
+        IReadOnlyList<CodeEdgeIngestRequest> edgeRequests,
+        CancellationToken cancellationToken)
+    {
+        var batches = edgeRequests.Chunk(EdgeBatchSize).ToArray();
+        for (var i = 0; i < batches.Length; i++)
+        {
+            Console.WriteLine($"  Ingesting configuration edges batch {i + 1}/{batches.Length}...");
+            await client.IngestRelationshipsAsync(batches[i], cancellationToken);
+            Console.WriteLine($"  Uploaded {Math.Min((i + 1) * EdgeBatchSize, edgeRequests.Count)}/{edgeRequests.Count} configuration edges");
         }
     }
 
