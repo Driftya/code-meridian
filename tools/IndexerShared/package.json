@@ -16,10 +16,7 @@
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc --outDir dist",
     "test": "vitest run"
   },
-  "dependencies": {
-    "dotenv": "^17.4.2",
-    "find-up": "^7.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^26.0.0",
     "typescript": "^6.0.3",

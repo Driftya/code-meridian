@@ -1,1 +1,1 @@
-export { loadEnvironmentForInvocation } from '@codemeridian/indexer-shared';
+export { loadEnvironmentForInvocation } from '#indexer-shared';

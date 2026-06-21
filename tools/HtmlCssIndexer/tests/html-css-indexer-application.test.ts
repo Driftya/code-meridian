@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HtmlCssIndexerApplication } from '../src/application/html-css-indexer-application.js';
-import type { ResolvedIndexCommandOptions } from '@codemeridian/indexer-shared';
+import type { ResolvedIndexCommandOptions } from '#indexer-shared';
 
 describe('HtmlCssIndexerApplication', () => {
   const createdRoots: string[] = [];

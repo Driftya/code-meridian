@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Node, Project, SyntaxKind, type JsxAttribute } from 'ts-morph';
-import type { CodeEdgeDto, CodeNodeDto } from '@codemeridian/indexer-shared';
+import type { CodeEdgeDto, CodeNodeDto } from '#indexer-shared';
 import { addNode, fileNodeId, frontendConceptId, hashText, lineCountFromContent, lineNumberAt, splitClassNames, toRelativePath } from './common.js';
 
 const HTML_CLASS_ATTR = /\bclass\s*=\s*"([^"]+)"/gi;

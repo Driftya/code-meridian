@@ -1,1 +1,1 @@
-export type { IndexCommandOptions, ResolvedIndexCommandOptions } from '@codemeridian/indexer-shared';
+export type { IndexCommandOptions, ResolvedIndexCommandOptions } from '#indexer-shared';

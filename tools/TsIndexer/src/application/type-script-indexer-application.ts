@@ -1,4 +1,4 @@
-import { CodeMeridianClient, readIndexerBatchFile } from '@codemeridian/indexer-shared';
+import { CodeMeridianClient, readIndexerBatchFile } from '#indexer-shared';
 import { walkTypeScript } from '../walker.js';
 import type { ResolvedIndexCommandOptions } from '../cli/options.js';
 import { indexTypeScriptDiagnostics } from '../diagnostics/type-script-diagnostics.js';

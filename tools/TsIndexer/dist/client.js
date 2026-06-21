@@ -1,1 +1,1 @@
-export { CodeMeridianClient } from '@codemeridian/indexer-shared';
+export { CodeMeridianClient } from '#indexer-shared';

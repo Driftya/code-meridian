@@ -4,4 +4,4 @@ export type {
   CodeNodeDto,
   CodeNodeType,
   DocumentDto,
-} from '@codemeridian/indexer-shared';
+} from '#indexer-shared';

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { Command } from 'commander';
-import { loadEnvironmentForInvocation } from '@codemeridian/indexer-shared';
-import type { IndexCommandOptions, ResolvedIndexCommandOptions } from '@codemeridian/indexer-shared';
+import { loadEnvironmentForInvocation } from '#indexer-shared';
+import type { IndexCommandOptions, ResolvedIndexCommandOptions } from '#indexer-shared';
 
 export async function parseCommandLine(argv: string[]): Promise<ResolvedIndexCommandOptions> {
   const program = new Command()

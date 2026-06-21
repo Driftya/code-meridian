@@ -1,4 +1,4 @@
-import { CodeMeridianClient, readIndexerBatchFile } from '@codemeridian/indexer-shared';
+import { CodeMeridianClient, readIndexerBatchFile } from '#indexer-shared';
 import { walkTypeScript } from '../walker.js';
 import { indexTypeScriptDiagnostics } from '../diagnostics/type-script-diagnostics.js';
 import { analyzeTypeScriptBoundaries } from '../analysis/type-script-boundaries.js';

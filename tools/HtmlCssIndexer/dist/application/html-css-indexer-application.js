@@ -1,4 +1,4 @@
-import { CodeMeridianClient, readIndexerBatchFile } from '@codemeridian/indexer-shared';
+import { CodeMeridianClient, readIndexerBatchFile } from '#indexer-shared';
 import { walkFrontend } from '../walker.js';
 export class HtmlCssIndexerApplication {
     async run(options) {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import type { CodeNodeDto } from '@codemeridian/indexer-shared';
+import type { CodeNodeDto } from '#indexer-shared';
 import type { FrontendConceptKind } from '../types.js';
 
 export function sanitize(value: string): string {

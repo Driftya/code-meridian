@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { CodeEdgeDto, CodeNodeDto } from '@codemeridian/indexer-shared';
+import type { CodeEdgeDto, CodeNodeDto } from '#indexer-shared';
 import { collectHtmlArtifacts, collectTsxArtifacts } from './walker/markup.js';
 import { collectStyleArtifacts } from './walker/css.js';
 import type { FrontendWalkResult } from './types.js';
