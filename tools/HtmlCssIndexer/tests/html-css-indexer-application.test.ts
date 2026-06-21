@@ -71,6 +71,10 @@ describe('HtmlCssIndexerApplication', () => {
 
     expect(exitCode).toBe(0);
     expect(logs.some(message => message.includes('Batch size: 3 file(s)'))).toBe(true);
+    expect(logs.some(message => message.includes('Building frontend graph...'))).toBe(true);
+    expect(logs.some(message => message.includes('Processed 3/3 frontend files'))).toBe(true);
+    expect(logs.some(message => message.includes('Uploading nodes...'))).toBe(true);
+    expect(logs.some(message => message.includes('Uploaded'))).toBe(true);
     expect(requests.some(request => request.path === '/api/v1/knowledge/nodes')).toBe(true);
     expect(requests.some(request => request.path === '/api/v1/knowledge/nodes/edges')).toBe(true);
 
