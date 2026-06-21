@@ -64,7 +64,7 @@ jobs:
           fail-on-error: true
 
       - name: Upload .NET test results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: success() || failure()
         with:
           name: dotnet-test-results
