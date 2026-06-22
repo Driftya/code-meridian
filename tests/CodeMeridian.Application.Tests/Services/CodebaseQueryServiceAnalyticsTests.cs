@@ -204,6 +204,57 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindImpactAsync_WithConfidenceSummary_ReturnsConfidenceCounts()
+    {
+        var (sut, graph) = Build();
+        var target = Node("target", "ChargeAsync", CodeNodeType.Method, "src/Payments/PaymentGateway.cs", 42, "Shop", updatedAt: DateTimeOffset.UtcNow);
+        var provenCaller = Node("caller-1", "CheckoutService.PlaceOrder", CodeNodeType.Method, "src/Checkout/CheckoutService.cs", 18, "Shop", updatedAt: DateTimeOffset.UtcNow);
+        var heuristicCaller = Node("route-1", "POST /api/payments", CodeNodeType.ApiEndpoint, "src/Api/PaymentsEndpoint.cs", 9, "Shop.Api", updatedAt: DateTimeOffset.UtcNow);
+
+        graph.FindImpactPathsAsync("Method:Payments.PaymentGateway.ChargeAsync", 3, Arg.Any<CancellationToken>())
+             .Returns([
+                 new ImpactPath(
+                     provenCaller,
+                     1,
+                     [
+                         new GraphPathStep(provenCaller, "Calls", null),
+                         new GraphPathStep(target, null, null)
+                     ]),
+                 new ImpactPath(
+                     heuristicCaller,
+                     2,
+                     [
+                         new GraphPathStep(heuristicCaller, "Calls", null),
+                         new GraphPathStep(target, null, null)
+                     ])
+             ]);
+
+        var result = await sut.FindImpactAsync(
+            "Method:Payments.PaymentGateway.ChargeAsync",
+            depth: 3,
+            detailLevel: ContextDetailLevel.Summary,
+            includeConfidence: true);
+
+        result.Should().Be(
+            "Impact summary for `Method:Payments.PaymentGateway.ChargeAsync`: 2 affected code elements within 3 hops. " +
+            "Confidence: Medium. 1 proven, 1 heuristic, 0 unknown risk.");
+    }
+
+    [Fact]
+    public async Task FindImpactAsync_WithConfidence_WhenNoCallers_ReturnsGuidanceMessage()
+    {
+        var (sut, graph) = Build();
+        graph.FindImpactPathsAsync("Method:Foo.Bar()", 5, Arg.Any<CancellationToken>())
+             .Returns([]);
+
+        var result = await sut.FindImpactAsync("Method:Foo.Bar()", includeConfidence: true);
+
+        result.Should().Be(
+            "No callers found for `Method:Foo.Bar()` within 5 hops. " +
+            "The node may not exist in the graph or has no inbound dependencies.");
+    }
+
+    [Fact]
     public async Task FindHotspotsAsync_WhenEmpty_ReturnsNoHotspotsMessage()
     {
         var (sut, graph) = Build();
