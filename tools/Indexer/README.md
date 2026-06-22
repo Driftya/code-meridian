@@ -37,6 +37,7 @@ codemeridian init .
 codemeridian serve --no-start
 codemeridian doctor --project CodeMeridian
 codemeridian report --project CodeMeridian
+codemeridian report pr-context --project CodeMeridian --base origin/main --head HEAD --format markdown --output artifacts/pr-context.md
 codemeridian check-drift --project CodeMeridian --fail-on high
 codemeridian evaluate-session . --project MyApp --session .meridian/sessions/session.jsonl
 ```
@@ -58,6 +59,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Repo-controlled build and lint diagnostics are opt-in via `--allow-repo-scripts`.
 - Can query the backend for a `doctor` status report without talking to Neo4j directly from the client.
 - Can print an architecture weather report with graph counts, risks, bridge nodes, coverage gaps, and freshness.
+- Can generate CI-friendly PR context reports as Markdown or JSON without requiring an interactive assistant.
 - Can verify graph drift with `codemeridian check-drift` or `codemeridian index --verify`.
 - Can evaluate whether CodeMeridian helped an implementation session by comparing provider-neutral session evidence with git changes, then write `.meridian/precision-feedback.json` for future ranking feedback.
 - Can create local MCP client config and start the backend stack with `codemeridian serve`.
@@ -81,6 +83,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Use `CodeMeridian_Project` in `.env` when you want the same project context applied automatically.
 - Use `codemeridian doctor --project <name>` to ask the backend for graph health, drift, and counts.
 - Use `codemeridian report --project <name>` for a compact architecture weather report.
+- Use `codemeridian report pr-context --base <git-ref> --head <git-ref>` when you want a deterministic PR review summary with changed graph nodes, impact hints, missing-test warnings, hotspot/churn warnings, and related docs. Add `--format json` for automation and `--output <path>` for CI artifacts.
 - Use `codemeridian check-drift --project <name> --fail-on high` for a drift gate that exits non-zero in CI when the graph is too stale.
 - Use `codemeridian evaluate-session --project <name>` to read the newest `.meridian/sessions/*.jsonl` evidence file, report whether CodeMeridian suggestions matched changed files and tests, and refresh `.meridian/precision-feedback.json`. Pass `--session <file-or-directory>` to choose evidence explicitly and `--base <git-ref>` to change the diff base. See [Evaluating Session Usefulness](../../docs/evaluate.md) for the step-by-step workflow.
 - Use `codemeridian index --verify --project <name>` when you want the same drift gate as part of an indexer workflow.

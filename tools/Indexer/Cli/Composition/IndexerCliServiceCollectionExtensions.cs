@@ -21,10 +21,12 @@ internal static class IndexerCliServiceCollectionExtensions
         services.AddTransient<ClearCommand>();
         services.AddTransient<ServeCommand>();
         services.AddTransient<StatusCommand>();
+        services.AddTransient<PrContextReportCommand>();
         services.AddTransient<SessionEvaluationCommand>();
         services.AddTransient<SessionUsefulnessEvaluator>();
         services.AddTransient<SessionEvidenceReader>();
         services.AddTransient<ISessionChangeSource, GitSessionChangeSource>();
+        services.AddTransient<IPrContextGitDiffProvider, PrContextGitDiffProvider>();
         services.AddTransient<ServeWriter>();
         services.AddTransient<IInitPromptService, ConsoleInitPromptService>();
 

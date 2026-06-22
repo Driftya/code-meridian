@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddSingleton(TimeProvider.System);
         services.AddTransient<ICodebaseQueryService, CodebaseQueryService>();
         services.AddTransient<ICodebaseStatusService, CodebaseStatusService>();
+        services.AddTransient<IPrContextReportService, PrContextReportService>();
         services.AddSingleton<IKeywordExtractionService, DefaultKeywordExtractionService>();
         services.AddTransient<IKeywordGraphService, KeywordGraphService>();
         services.AddSingleton<IKeywordGraphJobService, KeywordGraphJobService>();

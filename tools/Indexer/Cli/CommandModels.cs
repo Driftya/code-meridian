@@ -57,6 +57,16 @@ internal sealed record ConfigurationCommandOptions(
     string? Project,
     string? CodeMeridianUrl);
 
+internal sealed record PrContextReportCommandOptions(
+    string? Path,
+    string? Project,
+    string? CodeMeridianUrl,
+    string BaseRef,
+    string HeadRef,
+    bool IncludeDocs,
+    string Format,
+    string? OutputPath);
+
 internal enum KeywordCommandAction
 {
     Rebuild = 0,

@@ -25,7 +25,7 @@ This is the roadmap index. Each item links to a dedicated note under `docs/featu
 - [x] [P2 - Add Frontend Style Near-Duplicate Clustering](docs/features/47-add-frontend-style-near-duplicate-clustering.md) - Frontend cleanup needs explainable grouping for almost-the-same spacing and style values, not only exact selector links.
 - [x] [P3 - Add Frontend Cascade And Specificity Analysis](docs/features/48-add-frontend-cascade-and-specificity-analysis.md) - Frontend relationship data is more useful when CodeMeridian can explain likely overrides without pretending to be a full browser engine.
 - [x] [P2 - Add Frontend Relationship Awareness To Existing Tools](docs/features/49-add-frontend-relationship-awareness-to-existing-tools.md) - Prefer making existing generic tools understand frontend edges before adding too many HTML/CSS-only tools.
-- [ ] [P2 - Add CI-Friendly Context Reports](docs/features/21-add-ci-friendly-context-reports.md) - CodeMeridian can produce PR context summaries without relying on an interactive assistant.
+- [x] [P2 - Add CI-Friendly Context Reports](docs/features/21-add-ci-friendly-context-reports.md) - CodeMeridian can produce PR context summaries without relying on an interactive assistant.
 - [x] [P2 - Add Duplicate-Code Workflow](docs/features/22-add-duplicate-code-workflow.md) - Once embeddings work, CodeMeridian can turn `find_similar_nodes` into a practical duplicate-code review flow.
 - [ ] [P3 - Add More External Concept Indexers](docs/features/23-add-more-external-concept-indexers.md) - `link_external_concept` is powerful, but manual linking limits adoption.
 
@@ -43,7 +43,7 @@ This is the roadmap index. Each item links to a dedicated note under `docs/featu
 - [x] [P2 - Add Knowledge Decay Graph](docs/features/35-add-knowledge-decay-graph.md) - Turn stale-knowledge detection into a graph-native view.
 - [ ] [P2 - Add Feature To Code Map](docs/features/36-add-feature-to-code-map.md) - Make features first-class graph nodes linked to code.
 - [ ] [P2 - Add Endpoint To Database Tracing](docs/features/37-add-endpoint-to-database-tracing.md) - Trace a web request through the full vertical slice.
-- [ ] [P3 - Add Architecture Weather Report](docs/features/38-add-architecture-weather-report.md) - Summarize graph health in a quick status report.
+- [x] [P3 - Add Architecture Weather Report](docs/features/38-add-architecture-weather-report.md) - Summarize graph health in a quick status report.
 - [x] [P1 - Add Precision Feedback Loop](docs/features/39-add-precision-feedback-loop.md) - Use session evaluation results to improve future target ranking.
 - [ ] [P1 - Add Implementation Surface Pruning](docs/features/40-add-implementation-surface-pruning.md) - Return fewer, better files by collapsing broad graph matches into edit-ready targets.
 - [ ] [P2 - Add Test Target Precision](docs/features/41-add-test-target-precision.md) - Suggest the tests most likely to change or run, not every loosely related shield.

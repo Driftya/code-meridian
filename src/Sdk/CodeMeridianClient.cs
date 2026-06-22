@@ -40,6 +40,21 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
 
+    public async Task<PrContextReportResponse?> BuildPrContextReportAsync(
+        PrContextReportRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.PostAsJsonAsync(
+            "/api/v1/status/report/pr-context",
+            request,
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        return await response.Content.ReadFromJsonAsync<PrContextReportResponse>(cancellationToken: cancellationToken);
+    }
+
     public async Task<CodeMeridianComponentVersion?> GetVersionAsync(CancellationToken cancellationToken = default)
     {
         var response = await httpClient.GetAsync("/api/v1/status/version", cancellationToken);

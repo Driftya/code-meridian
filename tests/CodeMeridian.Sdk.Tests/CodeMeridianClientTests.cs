@@ -266,6 +266,34 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task BuildPrContextReportAsync_SendsRequestBody()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var report = await sut.BuildPrContextReportAsync(new PrContextReportRequest(
+            ["src/Subscriptions/SubscriptionService.cs"],
+            "My Project",
+            "origin/main",
+            "HEAD",
+            IncludeDocs: true));
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Post);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/status/report/pr-context");
+        var body = await handler.ReadBodyAsync();
+        body.GetProperty("projectContext").GetString().Should().Be("My Project");
+        body.GetProperty("baseRef").GetString().Should().Be("origin/main");
+        body.GetProperty("changedFiles")[0].GetString().Should().Be("src/Subscriptions/SubscriptionService.cs");
+        report.Should().NotBeNull();
+        report!.RelatedDocuments.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task GetVersionAsync_SendsVersionRequest()
     {
         var handler = new CapturingHandler();
@@ -343,6 +371,21 @@ public sealed class CodeMeridianClientTests
                         ? JsonContent.Create(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2))
                         : request.RequestUri!.AbsolutePath == "/api/v1/status/report"
                             ? new StringContent("# Architecture Weather Report")
+                        : request.RequestUri!.AbsolutePath == "/api/v1/status/report/pr-context"
+                            ? JsonContent.Create(new PrContextReportResponse(
+                                "My Project",
+                                "origin/main",
+                                "HEAD",
+                                ["src/Subscriptions/SubscriptionService.cs"],
+                                [new PrContextNodeSummaryResponse("node-1", "SubscriptionService.SyncAsync", "Method", "src/Subscriptions/SubscriptionService.cs", "My Project", 12, 20)],
+                                [new PrContextImpactSummaryResponse(
+                                    new PrContextNodeSummaryResponse("node-2", "SubscriptionController", "Class", "src/Api/SubscriptionController.cs", "My Project", 4, 40),
+                                    1,
+                                    1)],
+                                [],
+                                [],
+                                [new PrContextRelatedDocumentResponse("doc-1", "docs/features/subscriptions.md", "High", 9.5d, ["subscription", "badge"])],
+                                ["Review the subscription flow and related docs."]))
                         : request.RequestUri!.AbsolutePath.StartsWith("/api/v1/knowledge/keywords/jobs/", StringComparison.Ordinal)
                             ? JsonContent.Create(new KeywordGraphJobStatusResponse(
                                 Guid.Parse("11111111-2222-3333-4444-555555555555"),

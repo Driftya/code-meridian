@@ -19,6 +19,7 @@ internal sealed class RootCommandFactory(
     ClearCommand clearCommand,
     ServeCommand serveCommand,
     StatusCommand statusCommand,
+    PrContextReportCommand prContextReportCommand,
     SessionEvaluationCommand sessionEvaluationCommand)
 {
     public RootCommand Create()
@@ -340,15 +341,55 @@ internal sealed class RootCommandFactory(
 
     private Command CreateReportCommand()
     {
-        var command = new Command("report", "Show an architecture weather report for a project.");
+        var command = new Command("report", "Generate deterministic CodeMeridian reports for CI and local review.");
         var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults." };
         var projectOption = new Option<string?>("--project") { Description = "Project context name." };
         var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
         urlOption.Aliases.Add("--CodeMeridian");
+        var prContextCommand = new Command("pr-context", "Generate a CI-friendly pull request context report without requiring an interactive assistant.");
+        var prPathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults." };
+        var prProjectOption = new Option<string?>("--project") { Description = "Project context name." };
+        var prUrlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
+        prUrlOption.Aliases.Add("--CodeMeridian");
+        var baseOption = new Option<string>("--base") { DefaultValueFactory = _ => "origin/main", Description = "Git base ref used to detect PR changes." };
+        var headOption = new Option<string>("--head") { DefaultValueFactory = _ => "HEAD", Description = "Git head ref used to detect PR changes." };
+        var includeDocsOption = new Option<bool>("--include-docs") { DefaultValueFactory = _ => true, Description = "Include keyword-matched Markdown documents in the report." };
+        var formatOption = new Option<string>("--format") { DefaultValueFactory = _ => "markdown", Description = "Output format: markdown or json." };
+        var outputOption = new Option<string?>("--output") { Description = "Optional file path to write the rendered report." };
 
         command.Add(pathArgument);
         command.Add(projectOption);
         command.Add(urlOption);
+        prContextCommand.Add(prPathArgument);
+        prContextCommand.Add(prProjectOption);
+        prContextCommand.Add(prUrlOption);
+        prContextCommand.Add(baseOption);
+        prContextCommand.Add(headOption);
+        prContextCommand.Add(includeDocsOption);
+        prContextCommand.Add(formatOption);
+        prContextCommand.Add(outputOption);
+
+        prContextCommand.SetAction(async parseResult =>
+        {
+            var format = parseResult.GetRequiredValue(formatOption);
+            if (!format.Equals("markdown", StringComparison.OrdinalIgnoreCase)
+                && !format.Equals("json", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine("error: Invalid --format value. Use markdown or json.");
+                return 1;
+            }
+
+            return await prContextReportCommand.RunAsync(new PrContextReportCommandOptions(
+                parseResult.GetValue(prPathArgument),
+                parseResult.GetValue(prProjectOption),
+                parseResult.GetValue(prUrlOption),
+                parseResult.GetRequiredValue(baseOption),
+                parseResult.GetRequiredValue(headOption),
+                parseResult.GetValue(includeDocsOption),
+                format,
+                parseResult.GetValue(outputOption)));
+        });
+        command.Add(prContextCommand);
 
         command.SetAction(async parseResult =>
         {
