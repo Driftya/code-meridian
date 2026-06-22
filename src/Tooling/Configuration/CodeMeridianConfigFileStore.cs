@@ -13,6 +13,8 @@ public sealed class CodeMeridianConfigFileStore
     public const string DefaultAgentCapabilitiesDirectory = "meridian-agent-capabilities";
     public const string DefaultKeywordClassificationPath = ".meridian/keyword-classification.json";
     public const string DefaultKeywordClassificationSamplePath = "keyword-classification.sample.json";
+    public const string DefaultDatabaseTracingPath = ".meridian/database-tracing.json";
+    public const string DefaultDatabaseTracingSamplePath = "database-tracing.sample.json";
 
     private const string MeridianSampleFileName = "meridian.sample.json";
     private const string ConfigFileName = "meridian.json";
@@ -109,6 +111,7 @@ public sealed class CodeMeridianConfigFileStore
         WriteSchemaFile(rootDirectory, overwrite);
         WriteArchitectureTemplates(rootDirectory, overwrite);
         WriteKeywordClassificationFiles(rootDirectory, overwrite);
+        WriteDatabaseTracingFiles(rootDirectory, overwrite);
         return result;
     }
 
@@ -165,6 +168,7 @@ public sealed class CodeMeridianConfigFileStore
         WriteSchemaFile(rootDirectory, overwrite);
         WriteArchitectureTemplates(rootDirectory, overwrite);
         WriteKeywordClassificationFiles(rootDirectory, overwrite);
+        WriteDatabaseTracingFiles(rootDirectory, overwrite);
         return result;
     }
 
@@ -251,6 +255,16 @@ public sealed class CodeMeridianConfigFileStore
         WriteTemplateFile(
             new FileInfo(Path.Combine(meridianDirectory.FullName, "keyword-classification.json")),
             ReadRequiredTemplate(DefaultKeywordClassificationSamplePath),
+            overwrite);
+    }
+
+    private static void WriteDatabaseTracingFiles(DirectoryInfo rootDirectory, bool overwrite)
+    {
+        var meridianDirectory = Directory.CreateDirectory(Path.Combine(rootDirectory.FullName, ".meridian"));
+
+        WriteTemplateFile(
+            new FileInfo(Path.Combine(meridianDirectory.FullName, "database-tracing.json")),
+            ReadRequiredTemplate(DefaultDatabaseTracingSamplePath),
             overwrite);
     }
 

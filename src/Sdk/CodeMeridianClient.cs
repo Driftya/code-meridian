@@ -40,6 +40,23 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
 
+    public async Task<string?> GetEndpointTraceAsync(
+        string route,
+        string? projectContext = null,
+        string detailLevel = "Compact",
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/status/trace-endpoint?route={Uri.EscapeDataString(route)}&detailLevel={Uri.EscapeDataString(detailLevel)}";
+        if (!string.IsNullOrWhiteSpace(projectContext))
+            path += $"&projectContext={Uri.EscapeDataString(projectContext)}";
+
+        var response = await httpClient.GetAsync(path, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
     public async Task<PrContextReportResponse?> BuildPrContextReportAsync(
         PrContextReportRequest request,
         CancellationToken cancellationToken = default)

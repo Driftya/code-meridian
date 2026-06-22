@@ -51,6 +51,20 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindConnectionAsync(fromId, toId, detailLevel, cancellationToken);
 
+    [McpServerTool(Name = "trace_endpoint")]
+    [Description(
+        "Trace one indexed API route through graph-backed implementation, database, and messaging paths. " +
+        "Use this when the user asks what a route touches downstream and you want route-to-table or route-to-topic evidence without reading files.")]
+    public Task<string> TraceEndpointAsync(
+        [Description("Indexed route name such as 'POST /api/orders'.")]
+        string route,
+        [Description("Optional project name to disambiguate the route.")]
+        string? projectContext = null,
+        [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
+        CancellationToken cancellationToken = default) =>
+        queryService.TraceEndpointAsync(route, projectContext, detailLevel, cancellationToken);
+
     [McpServerTool(Name = "find_unreferenced")]
     [Description(
         "Find methods and classes with no incoming references — dead code candidates. " +

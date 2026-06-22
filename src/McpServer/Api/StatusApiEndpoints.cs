@@ -14,6 +14,7 @@ public static class StatusApiEndpoints
 
         group.MapGet("/doctor", GetDoctorStatus);
         group.MapGet("/report", GetArchitectureReport);
+        group.MapGet("/trace-endpoint", TraceEndpoint);
         group.MapPost("/report/pr-context", BuildPrContextReport);
         group.MapGet("/version", GetVersion);
 
@@ -35,6 +36,20 @@ public static class StatusApiEndpoints
         CancellationToken ct)
     {
         var report = await queryService.GetArchitectureWeatherReportAsync(projectContext, ct);
+        return Results.Text(report, "text/markdown");
+    }
+
+    private static async Task<IResult> TraceEndpoint(
+        string route,
+        string? projectContext,
+        string? detailLevel,
+        ICodebaseQueryService queryService,
+        CancellationToken ct)
+    {
+        var parsedDetailLevel = Enum.TryParse<ContextDetailLevel>(detailLevel, ignoreCase: true, out var value)
+            ? value
+            : ContextDetailLevel.Compact;
+        var report = await queryService.TraceEndpointAsync(route, projectContext, parsedDetailLevel, ct);
         return Results.Text(report, "text/markdown");
     }
 

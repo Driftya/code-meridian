@@ -98,6 +98,26 @@ codemeridian index . --skip-config
 codemeridian config rebuild --project CodeMeridian
 ```
 
+### Database tracing recognition
+
+The C# Roslyn indexer can emit graph-backed database concepts as part of normal indexing:
+
+- `DatabaseOperation` external concepts for recognized read/write call sites
+- `DatabaseTable` nodes for inferred tables
+- `Reads` and `Writes` edges linking code -> operation -> table
+
+Recognition is repo-configurable through `.meridian/database-tracing.json`. The initial shipped presets cover:
+
+- EF Core entity-set and SQL-based access
+- Dapper SQL calls
+- Raw SQL command execution
+
+CLI equivalent:
+
+```powershell
+codemeridian trace-endpoint "POST /api/orders" --project CodeMeridian
+```
+
 ### File Roles And Analysis Profiles
 
 CodeMeridian classifies indexed files as `Source`, `Test`, `Migration`, `Snapshot`, `Generated`, `BuildArtifact`, `Documentation`, `Configuration`, or `Unknown`.
@@ -166,6 +186,16 @@ This now includes route-linked full-stack paths when the project has been re-ind
 
 ```text
 How is CustomerController connected to IEmailService?
+```
+
+### `trace_endpoint`
+
+Trace an indexed API route through graph-backed implementation, database, and messaging paths.
+
+This consumes the graph only. Route traces rely on indexed `ApiEndpoint` nodes plus downstream `DatabaseOperation`, `DatabaseTable`, `MessageTopic`, and structural edges.
+
+```text
+Trace POST /api/orders to its tables and events.
 ```
 
 ### `find_unreferenced`

@@ -10,7 +10,7 @@ namespace CodeMeridian.Infrastructure.Graph;
 /// </summary>
 public sealed partial class Neo4jCodeGraphRepository
 {
-    private const string StructuralDependencyRelationships = "Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable";
+    private const string StructuralDependencyRelationships = "Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable|Reads|Writes|PublishesTo|SubscribesTo";
     private const string StructuralTraversalRelationships = StructuralDependencyRelationships + "|Implements|Inherits";
     private const string ConnectionRelationships = StructuralTraversalRelationships + "|Contains";
 

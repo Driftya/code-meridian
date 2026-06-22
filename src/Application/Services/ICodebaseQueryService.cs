@@ -9,6 +9,7 @@ public interface ICodebaseQueryService
     Task<string> FindImpactAsync(string nodeId, int depth = 5, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, bool includeConfidence = false, CancellationToken cancellationToken = default);
     Task<string> FindHotspotsAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindConnectionAsync(string fromId, string toId, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
+    Task<string> TraceEndpointAsync(string route, string? projectContext = null, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
     Task<string> FindUnreferencedAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindCrossProjectDependenciesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindCoverageGapsAsync(string? projectContext = null, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);

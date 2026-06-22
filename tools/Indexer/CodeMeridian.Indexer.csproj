@@ -58,6 +58,11 @@
           Pack="true"
           PackagePath=""
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\database-tracing.sample.json"
+          Link="database-tracing.sample.json"
+          Pack="true"
+          PackagePath=""
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\architectures\architecture.clean.template.json"
           Link="architectures\architecture.clean.template.json"
           Pack="true"

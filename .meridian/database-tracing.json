@@ -1,0 +1,103 @@
+{
+  "DatabaseTracing": {
+    "Enabled": true,
+    "ConfigurationVersion": 1,
+    "MaxTablesPerOperation": 6,
+    "Presets": [
+      {
+        "Id": "ef-core",
+        "Strategy": "EfCore",
+        "Provider": "EFCore",
+        "Enabled": true,
+        "ReadMethods": [
+          "ToList",
+          "ToListAsync",
+          "First",
+          "FirstAsync",
+          "FirstOrDefault",
+          "FirstOrDefaultAsync",
+          "Single",
+          "SingleAsync",
+          "SingleOrDefault",
+          "SingleOrDefaultAsync",
+          "Any",
+          "AnyAsync",
+          "Count",
+          "CountAsync",
+          "LongCount",
+          "LongCountAsync",
+          "Find",
+          "FindAsync",
+          "FromSql",
+          "FromSqlRaw",
+          "FromSqlInterpolated"
+        ],
+        "WriteMethods": [
+          "Add",
+          "AddAsync",
+          "AddRange",
+          "AddRangeAsync",
+          "Update",
+          "UpdateRange",
+          "Remove",
+          "RemoveRange",
+          "ExecuteUpdate",
+          "ExecuteUpdateAsync",
+          "ExecuteDelete",
+          "ExecuteDeleteAsync",
+          "ExecuteSql",
+          "ExecuteSqlRaw",
+          "ExecuteSqlRawAsync",
+          "ExecuteSqlInterpolated",
+          "ExecuteSqlInterpolatedAsync"
+        ],
+        "SqlArgumentIndexes": [ 0 ],
+        "ReceiverTextHints": [ "context", "db", "database" ],
+        "CommandCreationTypeHints": [],
+        "CommandTextProperties": [ "CommandText" ],
+        "TableSources": [ "GenericTypeArgument", "ReceiverMemberName", "SqlText" ]
+      },
+      {
+        "Id": "dapper",
+        "Strategy": "Dapper",
+        "Provider": "Dapper",
+        "Enabled": true,
+        "ReadMethods": [
+          "Query",
+          "QueryAsync",
+          "QueryFirst",
+          "QueryFirstAsync",
+          "QueryFirstOrDefault",
+          "QueryFirstOrDefaultAsync",
+          "QuerySingle",
+          "QuerySingleAsync",
+          "QuerySingleOrDefault",
+          "QuerySingleOrDefaultAsync",
+          "QueryMultiple",
+          "QueryMultipleAsync",
+          "ExecuteScalar",
+          "ExecuteScalarAsync"
+        ],
+        "WriteMethods": [ "Execute", "ExecuteAsync" ],
+        "SqlArgumentIndexes": [ 0 ],
+        "ReceiverTextHints": [ "connection", "dbConnection", "sqlConnection", "npgsqlConnection" ],
+        "CommandCreationTypeHints": [],
+        "CommandTextProperties": [ "CommandText" ],
+        "TableSources": [ "SqlText" ]
+      },
+      {
+        "Id": "raw-sql",
+        "Strategy": "RawSql",
+        "Provider": "RawSql",
+        "Enabled": true,
+        "ReadMethods": [ "ExecuteReader", "ExecuteReaderAsync", "ExecuteScalar", "ExecuteScalarAsync" ],
+        "WriteMethods": [ "ExecuteNonQuery", "ExecuteNonQueryAsync" ],
+        "SqlArgumentIndexes": [ 0 ],
+        "ReceiverTextHints": [ "command", "dbCommand", "sqlCommand" ],
+        "CommandCreationTypeHints": [ "DbCommand", "SqlCommand", "NpgsqlCommand", "MySqlCommand", "SqliteCommand", "OracleCommand" ],
+        "CommandTextProperties": [ "CommandText" ],
+        "TableSources": [ "SqlText" ]
+      }
+    ]
+  }
+}

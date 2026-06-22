@@ -1082,6 +1082,178 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FindConnectionAsync_WithDatabaseFixture_ReturnsDatabaseOperationAndTablePath()
+    {
+        var projectContext = $"Integration.Connection.Database.{Guid.NewGuid():N}";
+        var endpoint = CreateNode(
+            id: $"{projectContext}.Endpoint",
+            name: "POST /api/orders",
+            type: CodeNodeType.ApiEndpoint,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrdersEndpoint.cs");
+        var handler = CreateNode(
+            id: $"{projectContext}.Handler",
+            name: "CreateOrder",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrdersEndpoint.cs",
+            namespaceName: $"{projectContext}.Api");
+        var operation = CreateNode(
+            id: $"{projectContext}.DbOperation",
+            name: "EFCore Writes Orders",
+            type: CodeNodeType.ExternalConcept,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrdersRepository.cs",
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "DatabaseOperation",
+                ["provider"] = "EFCore"
+            });
+        var table = CreateNode(
+            id: $"{projectContext}.OrdersTable",
+            name: "Orders",
+            type: CodeNodeType.DatabaseTable,
+            projectContext: projectContext,
+            filePath: string.Empty,
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "DatabaseTable"
+            });
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(endpoint);
+            await _repository.UpsertNodeAsync(handler);
+            await _repository.UpsertNodeAsync(operation);
+            await _repository.UpsertNodeAsync(table);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = handler.Id,
+                TargetId = endpoint.Id,
+                Type = CodeEdgeType.Uses
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = handler.Id,
+                TargetId = operation.Id,
+                Type = CodeEdgeType.Writes
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = operation.Id,
+                TargetId = table.Id,
+                Type = CodeEdgeType.Writes
+            });
+
+            var connection = await _repository.FindConnectionAsync(endpoint.Id, table.Id);
+
+            connection.Should().HaveCount(4);
+            connection[0].Node.Id.Should().Be(endpoint.Id);
+            connection[0].ViaRelationship.Should().Be("Uses");
+            connection[1].Node.Id.Should().Be(handler.Id);
+            connection[1].ViaRelationship.Should().Be("Writes");
+            connection[2].Node.Id.Should().Be(operation.Id);
+            connection[2].ViaRelationship.Should().Be("Writes");
+            connection[3].Node.Id.Should().Be(table.Id);
+            connection[3].ViaRelationship.Should().BeNull();
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
+    public async Task FindEndpointTracesAsync_WithDatabaseAndMessageFixture_ReturnsTerminalPaths()
+    {
+        var projectContext = $"Integration.TraceEndpoint.{Guid.NewGuid():N}";
+        var endpoint = CreateNode(
+            id: $"{projectContext}.Endpoint",
+            name: "POST /api/orders",
+            type: CodeNodeType.ApiEndpoint,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrdersEndpoint.cs");
+        var handler = CreateNode(
+            id: $"{projectContext}.Handler",
+            name: "CreateOrder",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrdersEndpoint.cs",
+            namespaceName: $"{projectContext}.Api");
+        var operation = CreateNode(
+            id: $"{projectContext}.DbOperation",
+            name: "EFCore Writes Orders",
+            type: CodeNodeType.ExternalConcept,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrdersRepository.cs",
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "DatabaseOperation",
+                ["provider"] = "EFCore"
+            });
+        var table = CreateNode(
+            id: $"{projectContext}.OrdersTable",
+            name: "Orders",
+            type: CodeNodeType.DatabaseTable,
+            projectContext: projectContext,
+            filePath: string.Empty,
+            properties: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "DatabaseTable"
+            });
+        var topic = CreateNode(
+            id: $"{projectContext}.OrderCreated",
+            name: "order-created",
+            type: CodeNodeType.MessageTopic,
+            projectContext: projectContext,
+            filePath: string.Empty);
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(endpoint);
+            await _repository.UpsertNodeAsync(handler);
+            await _repository.UpsertNodeAsync(operation);
+            await _repository.UpsertNodeAsync(table);
+            await _repository.UpsertNodeAsync(topic);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = handler.Id,
+                TargetId = endpoint.Id,
+                Type = CodeEdgeType.Uses
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = handler.Id,
+                TargetId = operation.Id,
+                Type = CodeEdgeType.Writes
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = operation.Id,
+                TargetId = table.Id,
+                Type = CodeEdgeType.Writes
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = handler.Id,
+                TargetId = topic.Id,
+                Type = CodeEdgeType.PublishesTo
+            });
+
+            var traces = await _repository.FindEndpointTracesAsync("POST /api/orders", projectContext);
+
+            traces.Select(path => path.Steps.Last().Node.Id).Should().Contain(table.Id);
+            traces.Select(path => path.Steps.Last().Node.Id).Should().Contain(topic.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
     public async Task FindImpactAsync_WithFrontendConceptFixture_ReturnsMarkupAndStylesheetDependents()
     {
         var projectContext = $"Integration.Impact.Frontend.{Guid.NewGuid():N}";

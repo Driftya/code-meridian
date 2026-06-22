@@ -34,6 +34,7 @@ internal sealed class RootCommandFactory(
         root.Add(CreateServeCommand());
         root.Add(CreateDoctorCommand());
         root.Add(CreateReportCommand());
+        root.Add(CreateTraceEndpointCommand());
         root.Add(CreateVersionCommand());
         root.Add(CreateCheckDriftCommand());
         root.Add(CreateEvaluateSessionCommand());
@@ -417,6 +418,40 @@ internal sealed class RootCommandFactory(
             var context = configurationService.CreateContext(parseResult.GetValue(pathArgument));
             var codeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, parseResult.GetValue(urlOption));
             return await statusCommand.RunVersionAsync(codeMeridianUrl, context.ApiKey);
+        });
+
+        return command;
+    }
+
+    private Command CreateTraceEndpointCommand()
+    {
+        var command = new Command("trace-endpoint", "Trace an indexed API route through graph-backed database and messaging paths.");
+        command.Aliases.Add("trace_endpoint");
+
+        var routeArgument = new Argument<string>("route") { Description = "Indexed route name such as 'POST /api/orders'." };
+        var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults." };
+        var projectOption = new Option<string?>("--project") { Description = "Project context name." };
+        var urlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
+        urlOption.Aliases.Add("--CodeMeridian");
+        var detailLevelOption = new Option<string>("--detail-level") { DefaultValueFactory = _ => "Compact", Description = "Summary, Compact, or Full." };
+
+        command.Add(routeArgument);
+        command.Add(pathArgument);
+        command.Add(projectOption);
+        command.Add(urlOption);
+        command.Add(detailLevelOption);
+
+        command.SetAction(async parseResult =>
+        {
+            var context = configurationService.CreateContext(parseResult.GetValue(pathArgument));
+            var project = configurationService.ResolveProject(context, parseResult.GetValue(projectOption));
+            var codeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, parseResult.GetValue(urlOption));
+            return await statusCommand.RunTraceEndpointAsync(
+                parseResult.GetRequiredValue(routeArgument),
+                project,
+                codeMeridianUrl,
+                context.ApiKey,
+                parseResult.GetRequiredValue(detailLevelOption));
         });
 
         return command;

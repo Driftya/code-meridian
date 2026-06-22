@@ -5,6 +5,7 @@ using CodeMeridian.Tooling.Composition;
 using CodeMeridian.Tooling.Configuration;
 using CodeMeridian.Tooling.Watching;
 using CodeMeridian.Application.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -91,7 +92,15 @@ internal sealed class RoslynIndexCommandHandler(IOptions<RoslynIndexerSettings> 
             .AddConsole()
             .SetMinimumLevel(LogLevel.Information));
 
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(_settings.RootPath.FullName)
+            .AddJsonFile("meridian.json", optional: true, reloadOnChange: false)
+            .AddJsonFile(".meridian/database-tracing.json", optional: true, reloadOnChange: false)
+            .Build();
+
         services.AddCodeMeridianClient(_settings.CodeMeridianUrl, _settings.ApiKey);
+        services.Configure<DatabaseTracingOptions>(configuration.GetSection(DatabaseTracingOptions.SectionName));
+        services.Configure<DatabaseTracingOptions>(configuration.GetSection($"CodeMeridian:{DatabaseTracingOptions.SectionName}"));
         services.AddSingleton<IIndexedFileRoleClassifier>(IndexedFileRoleClassifierFactory.Create(_settings.FileRoles));
         services.AddTransient<CSharpIndexer>();
         services.AddTransient<IndexerPipeline>();

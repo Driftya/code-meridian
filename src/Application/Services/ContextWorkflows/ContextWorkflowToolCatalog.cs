@@ -18,6 +18,7 @@ public static class ContextWorkflowToolCatalog
         Tool("find_impact", "GraphAnalytics", "Backward blast-radius analysis.", requiresExactTarget: true),
         Tool("find_hotspots", "GraphAnalytics", "Rank high fan-in nodes."),
         Tool("find_connection", "GraphAnalytics", "Find a graph path between two nodes.", requiresExactTarget: true),
+        Tool("trace_endpoint", "GraphAnalytics", "Trace an API endpoint to indexed database and messaging paths.", worksFromVagueGoal: true),
         Tool("find_unreferenced", "GraphAnalytics", "Find dead-code candidates."),
         Tool("find_cross_project_dependencies", "GraphAnalytics", "Find dependencies crossing project boundaries."),
         Tool("find_coverage_gaps", "GraphAnalytics", "Find production nodes not called by tests."),

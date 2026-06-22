@@ -266,6 +266,27 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task GetEndpointTraceAsync_SendsRouteAndDetailLevelQuery()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var report = await sut.GetEndpointTraceAsync("POST /api/orders", "My Project", "Full");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Get);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/status/trace-endpoint");
+        handler.Request.RequestUri.Query.Should().Contain("route=POST%20%2Fapi%2Forders");
+        handler.Request.RequestUri.Query.Should().Contain("projectContext=My%20Project");
+        handler.Request.RequestUri.Query.Should().Contain("detailLevel=Full");
+        report.Should().Contain("## Endpoint Trace");
+    }
+
+    [Fact]
     public async Task BuildPrContextReportAsync_SendsRequestBody()
     {
         var handler = new CapturingHandler();
@@ -371,6 +392,8 @@ public sealed class CodeMeridianClientTests
                         ? JsonContent.Create(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2))
                         : request.RequestUri!.AbsolutePath == "/api/v1/status/report"
                             ? new StringContent("# Architecture Weather Report")
+                        : request.RequestUri!.AbsolutePath == "/api/v1/status/trace-endpoint"
+                            ? new StringContent("## Endpoint Trace")
                         : request.RequestUri!.AbsolutePath == "/api/v1/status/report/pr-context"
                             ? JsonContent.Create(new PrContextReportResponse(
                                 "My Project",

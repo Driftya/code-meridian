@@ -68,6 +68,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Can refresh an existing `meridian.json` in place by rerunning `codemeridian init .`, merging missing defaults without overwriting local settings.
 - Can seed `.meridian/architecture.json` and copy bundled templates from the package `architectures/` folder into `.meridian/architectures/` so architecture checks are project-owned and editable.
 - Can seed `.meridian/keyword-classification.json` from the packaged root `keyword-classification.sample.json` so keyword classification rules live in the repo instead of being hardcoded in the backend.
+- Can seed `.meridian/database-tracing.json` from the packaged root `database-tracing.sample.json` so database-recognition presets stay repo-owned instead of being buried in backend code.
 - Can copy bundled agent guidance into `meridian-agent-capabilities/` so repo-local agent instructions travel with the setup without writing into a user-owned `docs/` tree, including Codex-specific helper scripts under `codex-scripts/`.
 - Can also read `CodeMeridian_Project` from `.env` when you want a fixed project name without `--project`.
 
@@ -83,6 +84,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Use `CodeMeridian_Project` in `.env` when you want the same project context applied automatically.
 - Use `codemeridian doctor --project <name>` to ask the backend for graph health, drift, and counts.
 - Use `codemeridian report --project <name>` for a compact architecture weather report.
+- Use `codemeridian trace-endpoint "POST /api/orders" --project <name>` when you want a graph-only route trace through indexed database and messaging paths. `trace_endpoint` is an alias if you prefer the MCP-style name.
 - Use `codemeridian report pr-context --base <git-ref> --head <git-ref>` when you want a deterministic PR review summary with changed graph nodes, impact hints, missing-test warnings, hotspot/churn warnings, and related docs. Add `--format json` for automation and `--output <path>` for CI artifacts.
 - Use `codemeridian check-drift --project <name> --fail-on high` for a drift gate that exits non-zero in CI when the graph is too stale.
 - Use `codemeridian evaluate-session --project <name>` to read the newest `.meridian/sessions/*.jsonl` evidence file, report whether CodeMeridian suggestions matched changed files and tests, and refresh `.meridian/precision-feedback.json`. Pass `--session <file-or-directory>` to choose evidence explicitly and `--base <git-ref>` to change the diff base. See [Evaluating Session Usefulness](../../docs/evaluate.md) for the step-by-step workflow.
@@ -91,6 +93,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Use `--skip-config` when you want to skip configuration-file parsing and config-usage graph edges for a run.
 - Use `--skip-keywords` when you do not want the index run to finish by rebuilding and classifying derived keywords.
 - Use `codemeridian config rebuild --project <name>` when you want a clean rebuild of configuration-file nodes, canonical config keys, and C# config usage links.
+- Use `.meridian/database-tracing.json` to tune how C# indexing recognizes EF Core, Dapper, and raw SQL database access. The default presets emit `DatabaseOperation` and `DatabaseTable` graph concepts without hardcoding one data-access style into the backend.
 - Use `codemeridian keywords --project <name>` as the short form when you want a rebuild plus classification. It submits a background job and returns a job id immediately.
 - Use `codemeridian keywords rebuild --project <name>` when you want an explicit maintenance command name. It also submits a background job and runs classification after rebuild.
 - Use `codemeridian keywords index --project <name>` if you prefer `index` terminology; it is an alias of `rebuild`.
@@ -100,7 +103,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Use `--allow-repo-scripts` only on trusted repos when you want `dotnet build` and repo lint commands to run.
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
 - Use `codemeridian init .` to create or refresh `meridian.json` for a project and then step through prompts for `.vscode`, `.continue`, `.codex`, and `meridian-agent-capabilities`. When `meridian.json` already exists, `init` merges missing defaults, bumps the config `version`, and writes `meridian.json.bak` before replacing the file. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.
-- Use `codemeridian init --global --url http://localhost:5100` to create a user-level fallback config when you want the CLI to work across many repos without project-local config. Global init also seeds `.meridian/architecture.json`, `.meridian/keyword-classification.json`, `.meridian/architectures/`, and `meridian-agent-capabilities/` under the global config root.
+- Use `codemeridian init --global --url http://localhost:5100` to create a user-level fallback config when you want the CLI to work across many repos without project-local config. Global init also seeds `.meridian/architecture.json`, `.meridian/keyword-classification.json`, `.meridian/database-tracing.json`, `.meridian/architectures/`, and `meridian-agent-capabilities/` under the global config root.
 - Use `codemeridian serve` to create `.env`, `.vscode/mcp.json`, `.codex/config.toml`, and `docker-compose.codemeridian.yml`, then start the backend stack.
 - Use `codemeridian serve --no-start` when you only want to write or merge those files.
 - The global tool does not include Neo4j. It starts Neo4j and the MCP server through Docker using the published MCP server image.
