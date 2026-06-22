@@ -8,6 +8,15 @@ namespace CodeMeridian.Application.Tests.Services;
 
 public sealed class CodebaseQueryServiceToolDependencyImpactTests
 {
+    public static TheoryData<string, string, string, bool> CatalogEdges =>
+        ToolDependencyCatalog.Edges.Aggregate(
+            new TheoryData<string, string, string, bool>(),
+            (data, edge) =>
+            {
+                data.Add(edge.ProducerId, edge.ConsumerId, edge.ContractType, edge.ImpactLevel.Equals("awareness", StringComparison.OrdinalIgnoreCase));
+                return data;
+            });
+
     [Fact]
     public async Task FindToolDependencyImpactAsync_WithoutSubject_ReturnsMatrixSummary()
     {
@@ -103,6 +112,69 @@ public sealed class CodebaseQueryServiceToolDependencyImpactTests
         result.Should().Contain("No tracked tool dependency subject matched `not_a_real_tool`.");
         result.Should().Contain("`find_test_shield`");
         result.Should().Contain("`evaluate_session`");
+    }
+
+    [Theory]
+    [MemberData(nameof(CatalogEdges))]
+    public async Task FindToolDependencyImpactAsync_ForEachCatalogEdge_ListsConsumerFromProducerView(
+        string producerId,
+        string consumerId,
+        string contractType,
+        bool awarenessOnly)
+    {
+        var sut = BuildService();
+
+        var result = await sut.FindToolDependencyImpactAsync(producerId, includeAwarenessOnly: true);
+
+        result.Should().Contain($"## Tool Dependency Impact - `{producerId}`");
+        result.Should().Contain("### Downstream Consumers");
+        result.Should().Contain($"`{consumerId}`");
+        result.Should().Contain($"Contract: {contractType}");
+        result.Should().Contain(awarenessOnly ? "Awareness" : "Hard");
+    }
+
+    [Theory]
+    [MemberData(nameof(CatalogEdges))]
+    public async Task FindToolDependencyImpactAsync_ForEachCatalogEdge_ListsProducerFromConsumerView(
+        string producerId,
+        string consumerId,
+        string contractType,
+        bool awarenessOnly)
+    {
+        var sut = BuildService();
+
+        var result = await sut.FindToolDependencyImpactAsync(consumerId, includeAwarenessOnly: true);
+
+        result.Should().Contain($"## Tool Dependency Impact - `{consumerId}`");
+        result.Should().Contain("### Upstream Dependencies");
+        result.Should().Contain($"`{producerId}`");
+        result.Should().Contain($"Contract: {contractType}");
+        result.Should().Contain(awarenessOnly ? "Awareness" : "Hard");
+    }
+
+    [Theory]
+    [MemberData(nameof(CatalogEdges))]
+    public async Task FindToolDependencyImpactAsync_AwarenessFiltering_MatchesCatalogEdgeImpact(
+        string producerId,
+        string consumerId,
+        string _,
+        bool awarenessOnly)
+    {
+        var sut = BuildService();
+
+        var withoutAwareness = await sut.FindToolDependencyImpactAsync(producerId, includeAwarenessOnly: false);
+        var withAwareness = await sut.FindToolDependencyImpactAsync(producerId, includeAwarenessOnly: true);
+
+        if (awarenessOnly)
+        {
+            withoutAwareness.Should().NotContain($"`{consumerId}`");
+            withAwareness.Should().Contain($"`{consumerId}`");
+        }
+        else
+        {
+            withoutAwareness.Should().Contain($"`{consumerId}`");
+            withAwareness.Should().Contain($"`{consumerId}`");
+        }
     }
 
     private static CodebaseQueryService BuildService() =>

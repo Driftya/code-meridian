@@ -288,4 +288,54 @@ public sealed class PrContextReportServiceTests
         report.RelatedDocuments.Should().ContainSingle();
         report.RelatedDocuments[0].Source.Should().Be("docs/features/subscriptions.md");
     }
+
+    [Fact]
+    public async Task BuildAsync_WhenChangedNodeIsUnshielded_MatchesFindTestShieldMissingTestRisk()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var extraction = new DefaultKeywordExtractionService(Options.Create(new KeywordEnrichmentOptions()));
+        var changedNode = new CodeNode
+        {
+            Id = "CodeMeridian::Method::Shop.Orders.OrderService.PlaceOrderAsync()",
+            Name = "OrderService.PlaceOrderAsync",
+            Type = CodeNodeType.Method,
+            FilePath = "src/Orders/OrderService.cs",
+            ProjectContext = "Shop",
+            FileRole = IndexedFileRole.Source,
+            LineNumber = 42
+        };
+
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.FilePathFilter == "src/Orders/OrderService.cs" && query.ProjectContext == "Shop"),
+                Arg.Any<CancellationToken>())
+            .Returns([changedNode]);
+        graph.GetContextForEditingAsync(changedNode.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(changedNode, [], [], []));
+        graph.FindImpactAsync(changedNode.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindRelatedTestsAsync(changedNode.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindHotspotsAsync("Shop", 40, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindHighChurnAsync("Shop", 3, Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var reportService = new PrContextReportService(graph, vector, extraction);
+        var queryService = new CodebaseQueryService(graph, vector);
+
+        var shield = await queryService.FindTestShieldAsync(changedNode.Id, projectContext: "Shop", depth: 2);
+        var report = await reportService.BuildAsync(new PrContextReportRequest(
+            "Shop",
+            ["src/Orders/OrderService.cs"],
+            IncludeDocs: false));
+
+        shield.Should().Contain("**Shield summary:** 0 direct, 0 primary, 0 secondary, 1 unshielded path nodes");
+        shield.Should().Contain("### Unshielded path nodes (1)");
+        shield.Should().Contain("`OrderService.PlaceOrderAsync`");
+        report.MissingTestNodes.Should().ContainSingle(node => node.Id == changedNode.Id);
+        report.ReviewFocus.Should().Contain(item =>
+            item.Contains("Add or update focused regression coverage", StringComparison.OrdinalIgnoreCase)
+            && item.Contains("1", StringComparison.Ordinal));
+    }
 }

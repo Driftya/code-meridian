@@ -1778,6 +1778,44 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task BuildMinimalContextAsync_PreservesFindTestShieldVerificationStoryForMethodTargets()
+    {
+        var (sut, graph) = Build();
+        var target = Node("m1", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24);
+        var directTest = Node("t1", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 20, "Shop");
+        var heuristicTest = Node("t2", "PlaceOrderTests", CodeNodeType.Class, "tests/Orders/PlaceOrderTests.cs", 8, "Shop");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([(directTest, "direct"), (heuristicTest, "heuristic")]);
+
+        var shield = await sut.FindTestShieldAsync(target.Id, depth: 2);
+        var context = await sut.BuildMinimalContextAsync(target.Id);
+
+        shield.Should().Contain("### Focused verification plan (2)");
+        shield.Should().Contain("Direct regression tests");
+        shield.Should().Contain("Heuristic shield tests");
+        context.Should().Contain("### Relevant tests (2)");
+        context.Should().Contain("Direct regression tests:");
+        context.Should().Contain("Heuristic shield tests:");
+        shield.Should().Contain("OrderServiceTests");
+        shield.Should().Contain("PlaceOrderTests");
+        context.Should().Contain("OrderServiceTests");
+        context.Should().Contain("PlaceOrderTests");
+        shield.Should().Contain("heuristic");
+        context.Should().Contain("heuristic match near `PlaceOrder`");
+        shield.Should().Contain("`dotnet test --filter FullyQualifiedName~OrderServiceTests`");
+        context.Should().Contain("`dotnet test --filter FullyQualifiedName~OrderServiceTests`");
+    }
+
+    [Fact]
     public async Task BuildMinimalContextAsync_WhenTestsDisabled_OmitsTestSections()
     {
         var (sut, graph) = Build();
