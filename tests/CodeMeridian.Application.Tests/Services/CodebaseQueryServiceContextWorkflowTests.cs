@@ -245,6 +245,73 @@ public sealed class CodebaseQueryServiceContextWorkflowTests
     }
 
     [Fact]
+    public async Task ExecuteContextWorkflowAsync_BeforeEditWithTarget_RunsPlannedReadOnlySequenceInOrder()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var target = new CodeNode
+        {
+            Id = "Method:Shop.Orders.OrderService.PlaceOrder",
+            Name = "PlaceOrder",
+            Type = CodeNodeType.Method,
+            FilePath = "src/Orders/OrderService.cs",
+            LineNumber = 12,
+            LineCount = 24,
+            ProjectContext = "Shop",
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        var directTest = new CodeNode
+        {
+            Id = "t1",
+            Name = "OrderServiceTests",
+            Type = CodeNodeType.Class,
+            FilePath = "tests/Orders/OrderServiceTests.cs",
+            LineNumber = 5,
+            ProjectContext = "Shop"
+        };
+
+        graph.QueryNodesAsync(
+                Arg.Any<CodeGraphQuery>(),
+                Arg.Any<CancellationToken>())
+            .Returns([target]);
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 5, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([(directTest, "direct")]);
+
+        var sut = new CodebaseQueryService(graph, vector);
+
+        using var doc = JsonDocument.Parse(await sut.ExecuteContextWorkflowAsync(
+            "Before editing OrderService.PlaceOrderAsync",
+            target: target.Id,
+            projectContext: "Shop",
+            workflowType: "before_edit",
+            includeOptionalSteps: false));
+
+        doc.RootElement.GetProperty("status").GetString().Should().Be("completed");
+        var steps = doc.RootElement.GetProperty("steps").EnumerateArray().ToArray();
+        steps.Select(step => step.GetProperty("tool").GetString()).Should().Equal(
+            "resolve_exact_symbol",
+            "check_graph_freshness",
+            "get_context_for_editing",
+            "find_impact",
+            "find_test_shield",
+            "build_minimal_context");
+        steps.Should().OnlyContain(step => step.GetProperty("status").GetString() == "completed");
+        steps[0].GetProperty("output").GetString().Should().Contain("## Exact Symbol Resolution");
+        steps[4].GetProperty("output").GetString().Should().Contain("## Test Shield Map");
+        steps[5].GetProperty("output").GetString().Should().Contain("## Minimal Context Pack");
+    }
+
+    [Fact]
     public async Task ExecuteContextWorkflowAsync_DocumentationIngestionWithoutApproval_RefusesMutation()
     {
         var sut = BuildService();

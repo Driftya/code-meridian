@@ -1744,6 +1744,40 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task BuildMinimalContextAsync_UsesSameFocusedVerificationTestSetAsFindTestShield()
+    {
+        var (sut, graph) = Build();
+        var target = Node("e1", "POST /api/orders", CodeNodeType.ApiEndpoint, "src/Api/OrdersEndpoint.cs", 12, "Shop", lineCount: 24);
+        var directTest = Node("t1", "OrdersEndpointTests", CodeNodeType.Class, "tests/Api/OrdersEndpointTests.cs", 5, "Shop");
+        var heuristicTest = Node("t2", "OrdersEndpointWorkflowTests", CodeNodeType.Class, "tests/Api/OrdersEndpointWorkflowTests.cs", 11, "Shop");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([(directTest, "direct"), (heuristicTest, "heuristic")]);
+
+        var shield = await sut.FindTestShieldAsync(target.Id, depth: 2);
+        var context = await sut.BuildMinimalContextAsync(target.Id);
+
+        shield.Should().Contain("Direct regression tests:");
+        shield.Should().Contain("Heuristic shield tests:");
+        context.Should().Contain("Contract/API forwarding tests:");
+        context.Should().Contain("Heuristic shield tests:");
+        shield.Should().Contain("OrdersEndpointTests");
+        shield.Should().Contain("OrdersEndpointWorkflowTests");
+        context.Should().Contain("OrdersEndpointTests");
+        context.Should().Contain("OrdersEndpointWorkflowTests");
+        shield.Should().Contain("`dotnet test --filter FullyQualifiedName~OrdersEndpointTests`");
+        context.Should().Contain("`dotnet test --filter FullyQualifiedName~OrdersEndpointTests`");
+    }
+
+    [Fact]
     public async Task BuildMinimalContextAsync_WhenTestsDisabled_OmitsTestSections()
     {
         var (sut, graph) = Build();
