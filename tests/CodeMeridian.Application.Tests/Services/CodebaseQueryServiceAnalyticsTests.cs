@@ -2394,6 +2394,46 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindImplementationSurfaceAsync_PrimaryTargetCanDrivePlanEditRouteAnchor()
+    {
+        var (sut, graph) = Build();
+        var service = Node("s1", "PaymentService", CodeNodeType.Class, "src/Application/Payments/PaymentService.cs", 12, "Shop", updatedAt: DateTimeOffset.UtcNow, sourceHash: "svc");
+        var implementation = Node("r1", "SqlPaymentRepository", CodeNodeType.Class, "src/Infrastructure/Payments/SqlPaymentRepository.cs", 9, "Shop");
+        var endpoint = Node("e1", "PaymentEndpoint", CodeNodeType.Method, "src/McpServer/Api/PaymentEndpoint.cs", 20, "Shop");
+        var test = Node("t1", "PaymentServiceTests", CodeNodeType.Class, "tests/Shop.Tests/PaymentServiceTests.cs", 8, "Shop");
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([service]);
+        graph
+            .GetContextForEditingAsync(service.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(service, [endpoint], [implementation], []));
+        graph
+            .FindImpactAsync(service.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(endpoint, 1)]);
+        graph
+            .FindDownstreamAsync(service.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(implementation, 1)]);
+        graph
+            .FindRelatedTestsAsync(service.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([(test, "direct")]);
+
+        var surface = await sut.FindImplementationSurfaceAsync(
+            "replace repository pattern in payments",
+            "repository,payments",
+            "Shop");
+        var route = await sut.PlanEditRouteAsync(
+            "replace repository pattern in payments",
+            "repository,payments",
+            "Shop");
+
+        surface.Should().Contain("`src/Application/Payments/PaymentService.cs`");
+        route.Should().Contain("**Anchor:** `PaymentService` (Class) - `src/Application/Payments/PaymentService.cs`");
+        route.Should().Contain("Route confidence:** High");
+        route.Should().Contain("Run `build_minimal_context` on exact route targets before changing code.");
+    }
+
+    [Fact]
     public async Task FindImplementationSurfaceAsync_PrunesTestsGeneratedAndBroadFileOnlyTargetsIntoContextOnly()
     {
         var (sut, graph) = Build();
@@ -2857,6 +2897,58 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("name/id match");
         result.Should().Contain("file match");
         result.Should().Contain("near line hint");
+    }
+
+    [Fact]
+    public async Task FindImplementationSurfaceAsync_FileOnlyTarget_PairsWithResolveExactSymbolGuidance()
+    {
+        var (sut, graph) = Build();
+        var fileOnly = Node(
+            "File:CodeMeridian.Application.Services.CodebaseQueryService.Surface.cs",
+            "CodebaseQueryService.Surface.cs",
+            CodeNodeType.File,
+            "src/Application/Services/CodebaseQueryService.Surface.cs",
+            1,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            sourceHash: "surface-file");
+        var exact = Node(
+            "Method:CodeMeridian.Application.Services.CodebaseQueryService.FindImplementationSurfaceAsync",
+            "FindImplementationSurfaceAsync",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.Surface.cs",
+            8,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 40);
+
+        graph
+            .QueryNodesAsync(
+                Arg.Any<CodeGraphQuery>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var query = ci.Arg<CodeGraphQuery>();
+                if (query.NameFilter == "FindImplementationSurfaceAsync")
+                    return [exact];
+
+                return [fileOnly];
+            });
+
+        var surface = await sut.FindImplementationSurfaceAsync(
+            "find implementation surface ranking",
+            projectContext: "CodeMeridian");
+        var resolved = await sut.ResolveExactSymbolAsync(
+            "FindImplementationSurfaceAsync",
+            "src/Application/Services/CodebaseQueryService.Surface.cs",
+            line: 10,
+            projectContext: "CodeMeridian");
+
+        surface.Should().Contain("Target confidence");
+        surface.Should().Contain("file-only");
+        surface.Should().Contain("Use `resolve_exact_symbol` when target confidence is not exact.");
+        resolved.Should().Contain("**Confidence summary:** 1 exact");
+        resolved.Should().Contain("FindImplementationSurfaceAsync");
     }
 
     [Fact]
