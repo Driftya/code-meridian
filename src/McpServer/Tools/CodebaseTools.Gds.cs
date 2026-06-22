@@ -137,6 +137,23 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindHybridSearchAsync(query, nearNodeId, maxHops, projectContext, excludeTests, limit, cancellationToken);
 
+    [McpServerTool(Name = "find_implementation_patterns")]
+    [Description(
+        "Find structurally similar implementation slices for a requested feature or flow. " +
+        "This blends lexical or embedding seeds with graph evidence such as entry points, application/domain behavior, contracts, repositories, external boundaries, and tests. " +
+        "Use it when you want reusable implementation examples instead of only text similarity.")]
+    public Task<string> FindImplementationPatternsAsync(
+        [Description("Feature or flow query, e.g. 'invite acceptance flow'.")]
+        string query,
+        [Description("Optional project name to narrow the search.")]
+        string? projectContext = null,
+        [Description("Exclude test files and test-only anchors by default.")]
+        bool excludeTests = true,
+        [Description("Maximum number of ranked patterns to return. Default 5.")]
+        int limit = 5,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindImplementationPatternsAsync(query, projectContext, excludeTests, limit, cancellationToken);
+
     [McpServerTool(Name = "find_duplicate_candidates")]
     [Description(
         "Find duplicate-review candidates through the existing generic duplicate-analysis surface. " +

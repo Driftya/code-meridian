@@ -37,6 +37,7 @@ public static class ContextWorkflowToolCatalog
 
         Tool("find_similar_nodes", "SemanticAndHybridSearch", "Find semantically similar nodes.", requiresEmbeddings: true, requiresExactTarget: true),
         Tool("hybrid_search", "SemanticAndHybridSearch", "Semantic search constrained by graph neighborhood.", requiresEmbeddings: true, worksFromVagueGoal: true),
+        Tool("find_implementation_patterns", "SemanticAndHybridSearch", "Find existing implementation shapes for a requested feature or flow.", worksFromVagueGoal: true),
         Tool("find_duplicate_candidates", "SemanticAndHybridSearch", "Find semantically similar duplicate-code candidates.", requiresEmbeddings: true),
 
         Tool("find_diagnostics", "Diagnostics", "Find indexed compiler, analyzer, TypeScript, and lint diagnostics."),

@@ -166,6 +166,7 @@ public sealed partial class CodebaseQueryService
                 "find_high_churn" => await FindHighChurnAsync(projectContext, cancellationToken: cancellationToken),
                 "find_similar_nodes" => await WithTargetAsync(step, target, nodeId => FindSimilarToNodeAsync(nodeId, projectContext, cancellationToken)),
                 "hybrid_search" => await FindHybridSearchAsync(goal, target, projectContext: projectContext, cancellationToken: cancellationToken),
+                "find_implementation_patterns" => await FindImplementationPatternsAsync(goal, projectContext, cancellationToken: cancellationToken),
                 "find_duplicate_candidates" => await FindDuplicateCandidatesAsync(projectContext, cancellationToken: cancellationToken),
                 "find_diagnostics" => await FindDiagnosticsAsync(projectContext, cancellationToken: cancellationToken),
                 "find_diagnostics_for_node" => await WithTargetAsync(step, target, nodeId => FindDiagnosticsForNodeAsync(nodeId, cancellationToken)),

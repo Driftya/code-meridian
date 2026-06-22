@@ -111,6 +111,20 @@ public sealed class CodebaseQueryServiceContextWorkflowTests
     }
 
     [Fact]
+    public async Task PlanContextWorkflowAsync_SemanticDiscovery_IncludesImplementationPatternsStep()
+    {
+        var sut = BuildService();
+
+        using var doc = JsonDocument.Parse(await sut.PlanContextWorkflowAsync(
+            "Find similar implementation patterns for invite flow",
+            projectContext: "CodeMeridian",
+            workflowType: "semantic_discovery"));
+
+        doc.RootElement.GetProperty("workflowType").GetString().Should().Be("semantic_discovery");
+        Tools(doc).Should().ContainInOrder("hybrid_search", "find_implementation_patterns", "find_duplicate_candidates");
+    }
+
+    [Fact]
     public async Task PlanContextWorkflowAsync_InvalidWorkflowType_ReturnsSupportedTypes()
     {
         var sut = BuildService();

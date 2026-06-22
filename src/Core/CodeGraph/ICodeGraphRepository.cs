@@ -100,6 +100,14 @@ public interface ICodeGraphRepository
         int topK = 10,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Return likely implementation-pattern seed nodes ranked by query embedding similarity.</summary>
+    Task<IReadOnlyList<(CodeNode Node, double Score)>> FindImplementationPatternCandidatesAsync(
+        float[] queryEmbedding,
+        string? projectContext = null,
+        bool excludeTests = true,
+        int topK = 20,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Find semantically similar method/class pairs that are candidates for duplicate-code review.</summary>
     Task<IReadOnlyList<DuplicateCandidate>> FindDuplicateCandidatesAsync(
         string? projectContext = null,

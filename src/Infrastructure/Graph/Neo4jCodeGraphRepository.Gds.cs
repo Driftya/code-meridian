@@ -218,6 +218,70 @@ public sealed partial class Neo4jCodeGraphRepository
 
     // ── Private helper ────────────────────────────────────────────────────────
 
+    public async Task<IReadOnlyList<(CodeNode Node, double Score)>> FindImplementationPatternCandidatesAsync(
+        float[] queryEmbedding,
+        string? projectContext = null,
+        bool excludeTests = true,
+        int topK = 20,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        var roleFilter = excludeTests ? "AND coalesce(node.fileRole, 'Unknown') <> 'Test'" : string.Empty;
+        var cypher = $"""
+            MATCH (node:CodeNode)
+            WHERE node.embedding IS NOT NULL
+              AND node.type IN $nodeTypes
+              AND ($projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
+              AND coalesce(node.fileRole, 'Unknown') IN ['Source', 'Test', 'Unknown']
+              AND coalesce(node.fileRole, 'Unknown') <> 'Migration'
+              AND coalesce(node.fileRole, 'Unknown') <> 'Snapshot'
+              AND coalesce(node.fileRole, 'Unknown') <> 'Generated'
+              AND coalesce(node.fileRole, 'Unknown') <> 'BuildArtifact'
+              AND coalesce(node.fileRole, 'Unknown') <> 'Configuration'
+              {roleFilter}
+            WITH node, vector.similarity.cosine(node.embedding, $embedding) AS score
+            WHERE score >= $minScore
+            RETURN node, score
+            ORDER BY score DESC, coalesce(node.lineCount, 0) DESC, node.name
+            LIMIT $topK
+            """;
+
+        try
+        {
+            var cursor = await session.RunAsync(
+                cypher,
+                new
+                {
+                    embedding = queryEmbedding,
+                    projectContextNormalized = (object?)Normalize(projectContext),
+                    nodeTypes = new[]
+                    {
+                        CodeNodeType.ApiEndpoint.ToString(),
+                        CodeNodeType.Method.ToString(),
+                        CodeNodeType.Class.ToString(),
+                        CodeNodeType.Interface.ToString(),
+                        CodeNodeType.File.ToString(),
+                        CodeNodeType.ExternalConcept.ToString()
+                    },
+                    minScore = 0.45,
+                    topK = Math.Clamp(topK, 1, 50)
+                });
+
+            var results = new List<(CodeNode, double)>();
+            await foreach (var record in cursor.WithCancellation(cancellationToken))
+                results.Add((MapToCodeNode(record["node"].As<INode>()), record["score"].As<double>()));
+
+            return results;
+        }
+        catch (Exception ex) when (ex.Message.Contains("vector", StringComparison.OrdinalIgnoreCase)
+                                   || ex.Message.Contains("embedding", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(ex, "Vector similarity unavailable for implementation-pattern discovery.");
+            return [];
+        }
+    }
+
     /// <summary>
     /// Encapsulates the GDS project → stream → drop lifecycle.
     /// Projects a named in-memory graph, streams algorithm results, then drops the projection.

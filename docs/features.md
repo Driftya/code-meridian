@@ -377,6 +377,16 @@ Finds semantically similar code nodes and then filters them to a graph neighborh
 Find retry policy code near OrderService.
 ```
 
+### `find_implementation_patterns`
+
+Finds reusable implementation slices for a requested feature or flow by combining lexical or embedding seeds with graph reranking. Results explain shared structure such as entry points, application or domain behavior, contracts, repositories or stores, external boundaries, and tests.
+
+It is language-neutral by design: the scoring works over shared graph concepts so Roslyn and TsIndexer data can participate in the same ranked pattern search.
+
+```text
+Find implementation patterns for an invite acceptance flow.
+```
+
 ### `find_duplicate_candidates`
 
 Finds duplicate-review candidates through a shared generic surface. Method/class mode compares embedded code nodes semantically. `ExternalConcept` mode clusters indexed frontend style declarations by normalized value shape so near-duplicate spacing, color, and other CSS values surface with selectors, files, normalized values, and tolerance notes.

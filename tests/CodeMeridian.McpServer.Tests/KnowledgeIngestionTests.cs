@@ -85,6 +85,20 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task CodebaseTools_FindImplementationPatternsAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.FindImplementationPatternsAsync("invite acceptance flow", "CodeMeridian", false, 4, Arg.Any<CancellationToken>())
+            .Returns("patterns");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.FindImplementationPatternsAsync("invite acceptance flow", "CodeMeridian", excludeTests: false, limit: 4);
+
+        result.Should().Be("patterns");
+        await queryService.Received(1).FindImplementationPatternsAsync("invite acceptance flow", "CodeMeridian", false, 4, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task CodebaseTools_ReplaceSurfaceAsync_ForwardsArguments()
     {
         var queryService = Substitute.For<ICodebaseQueryService>();

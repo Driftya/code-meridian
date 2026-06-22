@@ -62,7 +62,7 @@ This is the roadmap index. Each item links to a dedicated note under `docs/featu
 These are language-neutral roadmap slices. Items that link to existing feature notes are intentional follow-up upgrades, not duplicate feature entries.
 
 - [ ] [P2 - Expand Bridge Node Detection Into Risky Core Analysis](docs/features/25-add-bridge-node-detection.md) - Add centrality, articulation-point, and bridge-edge scoring across Roslyn and TsIndexer graphs.
-- [ ] [P2 - Add Structural Implementation Pattern Search](docs/features/54-add-structural-implementation-pattern-search.md) - Find existing endpoint/service/repository/test shapes that match a new requested feature.
+- [x] [P2 - Add Structural Implementation Pattern Search](docs/features/54-add-structural-implementation-pattern-search.md) - Find existing endpoint/service/repository/test shapes that match a new requested feature.
 - [ ] [P2 - Expand Endpoint To Database Tracing Into Weighted Runtime Path Explanations](docs/features/37-add-endpoint-to-database-tracing.md) - Return best-known frontend-to-storage or tool-to-storage paths with per-hop confidence.
 - [ ] [P2 - Expand Dependency Smell Paths With Forbidden-Dependency Presets](docs/features/33-add-dependency-smell-paths.md) - Add named architecture checks backed by variable-length path search.
 - [ ] [P2 - Expand Semantic Graph Hybrid Search With Graph Re-Ranking](docs/features/32-add-semantic-graph-hybrid-search.md) - Combine full-text, vector search, graph expansion, and graph-evidence reranking.

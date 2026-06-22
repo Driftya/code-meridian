@@ -114,6 +114,7 @@ public sealed class ContextWorkflowPlanner
             case "find_implementation_surface":
             case "plan_edit_route":
             case "hybrid_search":
+            case "find_implementation_patterns":
                 Add(hints, "query", request.Goal);
                 break;
             case "analyze_feature_implementation_path":
@@ -448,6 +449,7 @@ public sealed class ContextWorkflowPlanner
             [
                 Step("find_similar_nodes", false, "Find broad semantic similarity around a known node.", "Similar nodes.", "Treat empty results as embedding-dependent."),
                 Step("hybrid_search", true, "Search semantically while staying near a subsystem or node.", "Hybrid semantic and graph matches.", "Treat empty results as embedding-dependent."),
+                Step("find_implementation_patterns", false, "Find reusable endpoint/service/repository/test shapes for the requested feature or flow.", "Structural implementation pattern matches."),
                 Step("find_duplicate_candidates", false, "Find likely duplicate methods or classes for refactor review.", "Duplicate candidates."),
                 Step("find_related_knowledge", false, "Find lexical matches when embeddings are unavailable or weak.", "Related knowledge."),
                 Step("find_test_shield", false, "Check tests before acting on duplicate or similar-code findings.", "Test shield map."),

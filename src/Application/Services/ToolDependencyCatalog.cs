@@ -93,6 +93,22 @@ internal static class ToolDependencyCatalog
                 "docs/features/51-prune-related-knowledge-result-noise.md"
             ]),
         Edge(
+            "find_implementation_patterns",
+            "plan_context_workflow",
+            "semantic-discovery workflow guidance",
+            "awareness",
+            "Semantic-discovery workflows now use structural pattern search as a reusable-example step, so planner guidance should stay aligned with structural evidence and confidence semantics.",
+            [
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceContextWorkflowTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+            ],
+            [
+                "docs/context-workflows.md",
+                "docs/features.md",
+                "docs/features/43-add-context-workflow-planning.md",
+                "docs/features/54-add-structural-implementation-pattern-search.md"
+            ]),
+        Edge(
             "find_implementation_surface",
             "plan_edit_route",
             "goal-to-target ranking heuristics",
@@ -211,6 +227,7 @@ internal static class ToolDependencyCatalog
             Subject("find_test_shield", "Tool", "Find Test Shield", "Graph test-shield tool for direct, indirect, and unshielded verification paths.", ["mcp__codemeridian.find_test_shield"]),
             Subject("build_minimal_context", "Tool", "Build Minimal Context", "Bounded context-pack tool for editing and review.", ["mcp__codemeridian.build_minimal_context"]),
             Subject("find_related_knowledge", "Tool", "Find Related Knowledge", "Keyword-driven related-doc and related-code discovery tool.", ["mcp__codemeridian.find_related_knowledge"]),
+            Subject("find_implementation_patterns", "Tool", "Find Implementation Patterns", "Structural implementation-pattern search that blends semantic seeds with graph reranking.", ["mcp__codemeridian.find_implementation_patterns"]),
             Subject("pr_context_report", "CLI report", "PR Context Report", "codemeridian report pr-context CI summary.", ["codemeridian report pr-context", "report pr-context"]),
             Subject("session_evidence_format", "Contract", "Session Evidence Format", "Provider-neutral .meridian/sessions/*.jsonl schema used by session evaluation.", ["session evidence", "session evidence jsonl", "session-evidence-format"]),
             Subject("evaluate_session", "CLI evaluator", "Evaluate Session", "codemeridian evaluate-session evidence evaluator and precision-feedback writer.", ["codemeridian evaluate-session", "evaluate-session"]),

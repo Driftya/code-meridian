@@ -1,6 +1,6 @@
 # Add Structural Implementation Pattern Search
 
-- Status: pending
+- Status: done
 - Priority: P2
 - Note: Find existing implementation shapes that match a requested feature without relying only on text similarity.
 
@@ -50,3 +50,10 @@ Each result should explain the neighborhood it matched, for example:
 - Reuse existing graph signals from `find_implementation_surface`, `find_duplicate_candidates`, and `trace_endpoint` where possible.
 - Prefer deterministic scoring over opaque embeddings-only ranking.
 - Allow mixed-language matches when the graph shape is otherwise similar.
+
+## Delivered
+
+- Added the `find_implementation_patterns` tool and application service flow.
+- The result combines lexical seeds with optional embedding seeds, then reranks by graph structure instead of relying on similarity alone.
+- Structural evidence now highlights entry points, application or domain behavior, contracts, repositories or stores, external boundaries, and related tests.
+- Added unit coverage for ranking and fallback behavior, MCP forwarding coverage, workflow-planning coverage, and Neo4j integration coverage for the repository query.
