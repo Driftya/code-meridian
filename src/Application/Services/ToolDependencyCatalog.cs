@@ -93,6 +93,49 @@ internal static class ToolDependencyCatalog
                 "docs/features/51-prune-related-knowledge-result-noise.md"
             ]),
         Edge(
+            "find_implementation_surface",
+            "plan_edit_route",
+            "goal-to-target ranking heuristics",
+            "awareness",
+            "Change-route planning starts from the same vague-goal targeting problem, so confidence labels, pruning, and candidate ranking changes should stay aligned with route anchor selection.",
+            [
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+            ],
+            [
+                "docs/features/11-find-implementation-surface.md",
+                "docs/features/24-add-change-route-planning.md",
+                "docs/features/40-add-implementation-surface-pruning.md"
+            ]),
+        Edge(
+            "find_implementation_surface",
+            "resolve_exact_symbol",
+            "candidate-to-symbol handoff guidance",
+            "awareness",
+            "Implementation-surface results advertise canonical IDs and target confidence, and workflow guidance expects resolve_exact_symbol to follow when the selected surface is not exact.",
+            [
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceContextWorkflowTests.cs"
+            ],
+            [
+                "docs/features/11-find-implementation-surface.md",
+                "docs/features/14-improve-exact-symbol-resolution.md",
+                "docs/features/43-add-context-workflow-planning.md"
+            ]),
+        Edge(
+            "build_minimal_context",
+            "plan_edit_route",
+            "route follow-up context guidance",
+            "awareness",
+            "Change-route output explicitly tells callers to run build_minimal_context on exact route targets, so route guidance should stay aligned with the bounded context step that follows planning.",
+            [
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+            ],
+            [
+                "docs/features/01-add-build-minimal-context.md",
+                "docs/features/24-add-change-route-planning.md",
+                "docs/context-workflows.md"
+            ]),
+        Edge(
             "build_minimal_context",
             "evaluate_session",
             "contextPackStatus result contract",
@@ -172,7 +215,9 @@ internal static class ToolDependencyCatalog
             Subject("session_evidence_format", "Contract", "Session Evidence Format", "Provider-neutral .meridian/sessions/*.jsonl schema used by session evaluation.", ["session evidence", "session evidence jsonl", "session-evidence-format"]),
             Subject("evaluate_session", "CLI evaluator", "Evaluate Session", "codemeridian evaluate-session evidence evaluator and precision-feedback writer.", ["codemeridian evaluate-session", "evaluate-session"]),
             Subject("find_implementation_surface", "Tool", "Find Implementation Surface", "Feature/fix targeting tool that ranks likely files and symbols.", ["mcp__codemeridian.find_implementation_surface"]),
-            Subject("analyze_feature_implementation_path", "Tool", "Analyze Feature Implementation Path", "Feature-doc and goal mapper that summarizes implementation status, surfaces, and tests.", ["mcp__codemeridian.analyze_feature_implementation_path"])
+            Subject("analyze_feature_implementation_path", "Tool", "Analyze Feature Implementation Path", "Feature-doc and goal mapper that summarizes implementation status, surfaces, and tests.", ["mcp__codemeridian.analyze_feature_implementation_path"]),
+            Subject("plan_edit_route", "Tool", "Plan Edit Route", "Ordered change-route planner across contracts, behavior, infrastructure, composition, and tests.", ["mcp__codemeridian.plan_edit_route", "plan-edit"]),
+            Subject("resolve_exact_symbol", "Tool", "Resolve Exact Symbol", "Canonical node resolver for symbol, file, and line hints before exact graph traversal.", ["mcp__codemeridian.resolve_exact_symbol"])
         }.ToDictionary(subject => subject.Id, StringComparer.OrdinalIgnoreCase);
 
     private static ToolDependencySubject Subject(

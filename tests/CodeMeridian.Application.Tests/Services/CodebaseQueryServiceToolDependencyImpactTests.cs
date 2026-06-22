@@ -66,6 +66,34 @@ public sealed class CodebaseQueryServiceToolDependencyImpactTests
     }
 
     [Fact]
+    public async Task FindToolDependencyImpactAsync_WithPlanEditRouteSubject_ShowsTargetingAndContextDependencies()
+    {
+        var sut = BuildService();
+
+        var result = await sut.FindToolDependencyImpactAsync("plan_edit_route", includeAwarenessOnly: true);
+
+        result.Should().Contain("## Tool Dependency Impact - `plan_edit_route`");
+        result.Should().Contain("### Upstream Dependencies");
+        result.Should().Contain("`find_implementation_surface`");
+        result.Should().Contain("`build_minimal_context`");
+        result.Should().Contain("### Review Artifacts");
+        result.Should().Contain("`docs/features/24-add-change-route-planning.md`");
+    }
+
+    [Fact]
+    public async Task FindToolDependencyImpactAsync_WithResolveExactSymbolSubject_ShowsImplementationSurfaceHandoff()
+    {
+        var sut = BuildService();
+
+        var result = await sut.FindToolDependencyImpactAsync("resolve_exact_symbol", includeAwarenessOnly: true);
+
+        result.Should().Contain("## Tool Dependency Impact - `resolve_exact_symbol`");
+        result.Should().Contain("### Upstream Dependencies");
+        result.Should().Contain("`find_implementation_surface`");
+        result.Should().Contain("docs/features/14-improve-exact-symbol-resolution.md");
+    }
+
+    [Fact]
     public async Task FindToolDependencyImpactAsync_WithUnknownSubject_ReturnsGuidance()
     {
         var sut = BuildService();
