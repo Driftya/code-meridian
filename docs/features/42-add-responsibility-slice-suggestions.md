@@ -504,3 +504,20 @@ Add tool contract tests for:
 * Application contracts do not expose Neo4j-specific types.
 * Tests cover unit, integration, and MCP contract behavior.
 * Documentation is updated in `docs/features.md`.
+
+## Follow-Up Update: Community-Assisted Slice Clustering
+
+Keep responsibility-cluster follow-up work in this note rather than creating a second overlapping feature for large-service clustering.
+
+### Language-Neutral Requirements
+
+* Work from graph neighborhoods that Roslyn and TsIndexer can both produce.
+* Keep shared callers, dependencies, tests, docs, and workflows as the primary cross-language evidence.
+* Avoid any scoring rule that depends on one language's AST shape.
+
+### Follow-Up Scope
+
+* Optionally use community-detection output as an advisory signal for slice boundaries.
+* Preserve deterministic, explainable scoring in the final result even when GDS-style clustering is available.
+* Surface when a cluster mostly reflects callers, repositories, tests, or workflow entry points so agents can judge whether it is a real responsibility seam.
+* Keep the tool language-neutral and focused on existing `suggest_responsibility_slices` output contracts instead of creating a parallel tool.
