@@ -31,6 +31,20 @@ Why did we choose Redis over Memcached?
 What is the retry strategy for external HTTP calls?
 ```
 
+### `find_tool_dependency_impact`
+
+Shows which CodeMeridian tools, reports, evaluators, docs, and regression suites depend on a tool or shared contract.
+
+This first slice is backed by an explicit application-side dependency catalog rather than persisted Neo4j nodes. It is intended to answer "if I change this tool, what else should I inspect or test?" before a feature or refactor lands.
+
+By default it shows hard dependency edges only. Set `includeAwarenessOnly=true` to also include softer alignment risks such as report semantics or related-doc scoring that should be reviewed even when there is no direct method-call dependency.
+
+```text
+Show tool dependency impact for find_test_shield.
+What depends on codemeridian evaluate-session?
+List the tracked tool dependency matrix.
+```
+
 ### `rebuild_keyword_graph`
 
 Rebuilds a derived lexical layer over existing `CodeNode` and `KnowledgeDocument` data. The job creates shared `Keyword` nodes and `HAS_KEYWORD` relationships without changing the Roslyn or TypeScript indexers.

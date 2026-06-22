@@ -49,6 +49,19 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.SearchDocumentationAsync(query, projectContext, cancellationToken);
 
+    [McpServerTool(Name = "find_tool_dependency_impact")]
+    [Description(
+        "Show which CodeMeridian tools, reports, evaluators, docs, and regression suites depend on a tool or shared contract. " +
+        "Use this before changing a CodeMeridian tool so you know which adjacent surfaces need review or tests. " +
+        "Omit subject to list the tracked matrix.")]
+    public Task<string> FindToolDependencyImpactAsync(
+        [Description("Optional tool, report, evaluator, or contract name such as 'find_test_shield', 'plan_context_workflow', 'codemeridian evaluate-session', or 'session_evidence_format'.")]
+        string? subject = null,
+        [Description("Include softer awareness-only edges in addition to hard dependency edges. Default false.")]
+        bool includeAwarenessOnly = false,
+        CancellationToken cancellationToken = default) =>
+        queryService.FindToolDependencyImpactAsync(subject, includeAwarenessOnly, cancellationToken);
+
     [McpServerTool(Name = "find_impact")]
     [Description(
         "Traverse the call graph backwards to find everything that would be affected by changing a method or class. " +

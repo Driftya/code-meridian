@@ -71,6 +71,20 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task CodebaseTools_FindToolDependencyImpactAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.FindToolDependencyImpactAsync("find_test_shield", true, Arg.Any<CancellationToken>())
+            .Returns("impact");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.FindToolDependencyImpactAsync("find_test_shield", includeAwarenessOnly: true);
+
+        result.Should().Be("impact");
+        await queryService.Received(1).FindToolDependencyImpactAsync("find_test_shield", true, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task CodebaseTools_ReplaceSurfaceAsync_ForwardsArguments()
     {
         var queryService = Substitute.For<ICodebaseQueryService>();

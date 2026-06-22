@@ -216,6 +216,7 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `find_config_definitions` | Find where a canonical config key is defined or overridden |
 | `find_config_usage` | Find which code reads or binds a canonical config key |
 | `search_documentation` | Search indexed README/ADR/documentation content |
+| `find_tool_dependency_impact` | Show which CodeMeridian tools, reports, evaluators, docs, and regression suites depend on a tool or shared contract |
 | `rebuild_keyword_graph` | Rebuild derived `Keyword` nodes and `HAS_KEYWORD` edges from indexed graph text |
 | `classify_keywords` | Classify derived keywords as domain/technical/tooling/common/noise and persist usefulness scores |
 | `find_related_knowledge` | Find lexically related code and docs through shared keywords |

@@ -5,6 +5,7 @@ public interface ICodebaseQueryService
     Task<string> QueryStructureAsync(string query, string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> GetOverviewAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> SearchDocumentationAsync(string query, string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<string> FindToolDependencyImpactAsync(string? subject = null, bool includeAwarenessOnly = false, CancellationToken cancellationToken = default);
     Task<string> FindImpactAsync(string nodeId, int depth = 5, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, bool includeConfidence = false, CancellationToken cancellationToken = default);
     Task<string> FindHotspotsAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindConnectionAsync(string fromId, string toId, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
