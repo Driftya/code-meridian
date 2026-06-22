@@ -11,6 +11,16 @@ public sealed class PrContextReportService(
     IKeywordExtractionService keywordExtractionService) : IPrContextReportService
 {
     private const int MaxDocsToScore = 250;
+    private static readonly FrozenSet<CodeNodeType> ImpactSeedNodeTypes = new[]
+    {
+        CodeNodeType.Class,
+        CodeNodeType.Struct,
+        CodeNodeType.Interface,
+        CodeNodeType.Method,
+        CodeNodeType.Property,
+        CodeNodeType.ApiEndpoint,
+        CodeNodeType.ConfigurationKey
+    }.ToFrozenSet();
     private static readonly FrozenSet<CodeNodeType> TestRelevantNodeTypes = new[]
     {
         CodeNodeType.Class,
@@ -45,17 +55,24 @@ public sealed class PrContextReportService(
                 [],
                 [],
                 [],
-                BuildReviewFocus([], [], [], [], []));
+                BuildReviewFocus([], [], [], [], [], structuralSignalsSuppressed: false));
         }
 
         var changedNodes = await LoadChangedNodesAsync(normalizedFiles, request.ProjectContext, cancellationToken);
-        var impactedNodes = await LoadImpactAsync(changedNodes, request, cancellationToken);
-        var missingTests = await LoadMissingTestsAsync(changedNodes, request.ProjectContext, request.Limit, cancellationToken);
-        var hotspotWarnings = await LoadHotspotWarningsAsync(changedNodes, request.ProjectContext, cancellationToken);
+        var productionChangedNodes = changedNodes.Where(IsProductionRelevantChangedNode).ToArray();
+        var impactedNodes = await LoadImpactAsync(productionChangedNodes, request, cancellationToken);
+        var missingTests = await LoadMissingTestsAsync(productionChangedNodes, request.ProjectContext, request.Limit, cancellationToken);
+        var hotspotWarnings = await LoadHotspotWarningsAsync(productionChangedNodes, request.ProjectContext, cancellationToken);
         var relatedDocuments = request.IncludeDocs
             ? await LoadRelatedDocumentsAsync(normalizedFiles, changedNodes, request.ProjectContext, request.Limit, cancellationToken)
             : [];
-        var reviewFocus = BuildReviewFocus(normalizedFiles, changedNodes, impactedNodes, missingTests, hotspotWarnings);
+        var reviewFocus = BuildReviewFocus(
+            normalizedFiles,
+            changedNodes,
+            impactedNodes,
+            missingTests,
+            hotspotWarnings,
+            productionChangedNodes.Length == 0);
 
         return new PrContextReport(
             request.ProjectContext,
@@ -91,13 +108,13 @@ public sealed class PrContextReportService(
             results.AddRange(matches);
         }
 
-        return results
+        return SelectRepresentativeChangedNodes(results
             .Where(node => !SessionPathLooksGenerated(node.FilePath))
             .DistinctBy(node => node.Id)
             .OrderBy(node => node.FilePath, StringComparer.OrdinalIgnoreCase)
             .ThenBy(node => node.LineNumber ?? int.MaxValue)
             .ThenBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            .ToArray());
     }
 
     private async Task<IReadOnlyList<PrContextImpactSummary>> LoadImpactAsync(
@@ -105,13 +122,18 @@ public sealed class PrContextReportService(
         PrContextReportRequest request,
         CancellationToken cancellationToken)
     {
-        if (changedNodes.Count == 0)
+        var seedNodes = changedNodes
+            .Where(IsImpactSeedNode)
+            .Take(Math.Max(request.Limit, 12))
+            .ToArray();
+
+        if (seedNodes.Length == 0)
             return [];
 
         var changedNodeIds = changedNodes.Select(node => node.Id).ToHashSet(StringComparer.Ordinal);
         var impacts = new Dictionary<string, (CodeNode Node, int Distance, int Matches)>(StringComparer.Ordinal);
 
-        foreach (var node in changedNodes.Take(Math.Max(request.Limit, 12)))
+        foreach (var node in seedNodes)
         {
             var related = await codeGraph.FindImpactAsync(node.Id, Math.Max(1, request.ImpactDepth), cancellationToken);
             foreach (var (candidate, distance) in related)
@@ -276,6 +298,12 @@ public sealed class PrContextReportService(
         }
 
         return scored
+            .GroupBy(item => NormalizePath(item.Source), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderByDescending(item => ConfidenceRank(item.Confidence))
+                .ThenByDescending(item => item.Score)
+                .ThenBy(item => item.Source, StringComparer.OrdinalIgnoreCase)
+                .First())
             .OrderByDescending(item => ConfidenceRank(item.Confidence))
             .ThenByDescending(item => item.Score)
             .ThenBy(item => item.Source, StringComparer.OrdinalIgnoreCase)
@@ -357,7 +385,8 @@ public sealed class PrContextReportService(
         IReadOnlyList<CodeNode> changedNodes,
         IReadOnlyList<PrContextImpactSummary> impactedNodes,
         IReadOnlyList<PrContextNodeSummary> missingTests,
-        IReadOnlyList<PrContextHotspotWarning> hotspotWarnings)
+        IReadOnlyList<PrContextHotspotWarning> hotspotWarnings,
+        bool structuralSignalsSuppressed)
     {
         var focus = new List<string>();
 
@@ -369,10 +398,53 @@ public sealed class PrContextReportService(
             focus.Add($"Add or update focused regression coverage for `{missingTests.Count}` changed node(s) with no related tests.");
         if (hotspotWarnings.Count > 0)
             focus.Add($"Inspect dependency-heavy or high-churn nodes first; `{hotspotWarnings.Count}` warning(s) were triggered.");
+        if (structuralSignalsSuppressed)
+            focus.Add("This looks like a docs-only or test-only change; structural impact and hotspot warnings were suppressed to reduce noise.");
         if (focus.Count == 0)
             focus.Add("No strong review risks were detected from the indexed graph; verify the diff and refresh the graph if results look incomplete.");
 
         return focus;
+    }
+
+    private static IReadOnlyList<CodeNode> SelectRepresentativeChangedNodes(IReadOnlyList<CodeNode> nodes)
+    {
+        var selected = new List<CodeNode>();
+
+        foreach (var group in nodes.GroupBy(node => NormalizePath(node.FilePath), StringComparer.OrdinalIgnoreCase))
+        {
+            var fileNodes = group.Where(node => node.Type == CodeNodeType.File);
+            var containerNodes = group.Where(IsContainerNode)
+                .OrderBy(node => ContainerPriority(node.Type))
+                .ThenBy(node => node.LineNumber ?? int.MaxValue)
+                .ThenBy(node => node.Name, StringComparer.OrdinalIgnoreCase);
+            var memberNodes = group.Where(IsMemberNode)
+                .OrderByDescending(node => node.LineNumber ?? int.MinValue)
+                .ThenBy(node => node.Name, StringComparer.OrdinalIgnoreCase);
+            var otherNodes = group.Where(node => node.Type != CodeNodeType.File && !IsContainerNode(node) && !IsMemberNode(node))
+                .OrderBy(node => node.LineNumber ?? int.MaxValue)
+                .ThenBy(node => node.Name, StringComparer.OrdinalIgnoreCase);
+
+            var isNonProductionFile = group.All(node => !IsProductionRelevantChangedNode(node));
+            var perFileBudget = isNonProductionFile ? 5 : 7;
+            var memberBudget = isNonProductionFile ? 2 : 4;
+
+            var perFileSelection = fileNodes.Take(1)
+                .Concat(containerNodes.Take(2))
+                .Concat(memberNodes.Take(memberBudget))
+                .Concat(otherNodes.Take(1))
+                .DistinctBy(node => node.Id)
+                .Take(perFileBudget);
+
+            selected.AddRange(perFileSelection);
+        }
+
+        return selected
+            .DistinctBy(node => node.Id)
+            .OrderBy(node => node.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(node => node.LineNumber ?? int.MaxValue)
+            .ThenBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(24)
+            .ToArray();
     }
 
     private static PrContextNodeSummary ToSummary(CodeNode node) =>
@@ -439,6 +511,58 @@ public sealed class PrContextReportService(
         && !string.IsNullOrWhiteSpace(node.FilePath)
         && !node.FilePath.Contains("/tests/", StringComparison.OrdinalIgnoreCase)
         && !node.FilePath.Contains("\\tests\\", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsProductionRelevantChangedNode(CodeNode node) =>
+        node.FileRole is IndexedFileRole.Source or IndexedFileRole.Configuration or IndexedFileRole.Unknown
+        && !IsClearlyTestPath(node.FilePath);
+
+    private static bool IsImpactSeedNode(CodeNode node) =>
+        IsProductionRelevantChangedNode(node) && ImpactSeedNodeTypes.Contains(node.Type);
+
+    private static bool IsContainerNode(CodeNode node) =>
+        node.Type is CodeNodeType.Namespace
+            or CodeNodeType.Class
+            or CodeNodeType.Struct
+            or CodeNodeType.Interface
+            or CodeNodeType.Enum
+            or CodeNodeType.Module
+            or CodeNodeType.ConfigurationFile;
+
+    private static bool IsMemberNode(CodeNode node) =>
+        node.Type is CodeNodeType.Method
+            or CodeNodeType.Property
+            or CodeNodeType.Field
+            or CodeNodeType.Event
+            or CodeNodeType.Indexer
+            or CodeNodeType.Operator
+            or CodeNodeType.Delegate
+            or CodeNodeType.ApiEndpoint
+            or CodeNodeType.ConfigurationKey;
+
+    private static int ContainerPriority(CodeNodeType type) =>
+        type switch
+        {
+            CodeNodeType.Class => 0,
+            CodeNodeType.Struct => 1,
+            CodeNodeType.Interface => 2,
+            CodeNodeType.Module => 3,
+            CodeNodeType.Enum => 4,
+            CodeNodeType.ConfigurationFile => 5,
+            CodeNodeType.Namespace => 6,
+            _ => 7
+        };
+
+    private static bool IsClearlyTestPath(string? filePath)
+    {
+        var normalized = NormalizePath(filePath);
+        return normalized.Contains("/tests/", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith("tests.cs", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith(".tests.cs", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith(".spec.ts", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith(".test.ts", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith(".spec.tsx", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith(".test.tsx", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string? ClassifyDocumentConfidence(double score) =>
         score switch
