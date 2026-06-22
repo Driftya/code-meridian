@@ -49,16 +49,20 @@ public partial class CodebaseQueryService
         if (ranked.Length == 0)
             return $"CodeMeridian found related nodes for `{goal}`, but none had file paths. Re-index with an up-to-date indexer before using this for implementation targeting.";
 
+        var pruned = PruneSurfaceCandidates(ranked, limit);
+
         var sb = new StringBuilder();
         sb.AppendLine($"## Implementation Surface - `{goal}`");
         if (concepts.Length > 0)
             sb.AppendLine($"**Concepts:** {string.Join(", ", concepts.Select(c => $"`{c}`"))}");
+        sb.AppendLine($"**Pruned result:** {pruned.PrimaryTargets.Count} primary edit target(s), {pruned.ContextOnlyTargets.Count} context-only target(s)");
         sb.AppendLine();
+        sb.AppendLine("### Primary Edit Targets");
         sb.AppendLine("| Rank | Target confidence | File | Canonical IDs | Likely methods/classes | Why | Freshness |");
         sb.AppendLine("|---:|---|---|---|---|---|---|");
 
         var rank = 1;
-        foreach (var candidate in ranked)
+        foreach (var candidate in pruned.PrimaryTargets)
         {
             var nodes = string.Join(", ", candidate.Nodes.Take(4).Select(n => $"`{n.Name}`"));
             var ids = FormatCanonicalIds(candidate.Nodes);
@@ -66,8 +70,23 @@ public partial class CodebaseQueryService
             sb.AppendLine($"| {rank++} | {candidate.TargetConfidence} | `{candidate.FilePath}` | {ids} | {nodes} | {candidate.Reason} | {freshness} |");
         }
 
+        if (pruned.ContextOnlyTargets.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("### Context-Only Targets");
+            sb.AppendLine("| File | Why excluded from primary | Target confidence | Likely methods/classes | Freshness |");
+            sb.AppendLine("|---|---|---|---|---|");
+
+            foreach (var item in pruned.ContextOnlyTargets)
+            {
+                var nodes = string.Join(", ", item.Candidate.Nodes.Take(4).Select(n => $"`{n.Name}`"));
+                var freshness = DescribeFreshness(item.Candidate.Freshness);
+                sb.AppendLine($"| `{item.Candidate.FilePath}` | {item.ExclusionReason} | {item.Candidate.TargetConfidence} | {nodes} | {freshness} |");
+            }
+        }
+
         sb.AppendLine();
-        sb.AppendLine("CodeMeridian result: implementation targets are ranked from graph/document matches and indexed metadata freshness checks. Use `resolve_exact_symbol` when target confidence is not exact.");
+        sb.AppendLine("CodeMeridian result: primary edit targets are pruned from broader graph matches using file-role heuristics, exact-symbol signals, and indexed metadata freshness. Use `resolve_exact_symbol` when target confidence is not exact.");
 
         return sb.ToString();
     }
@@ -253,6 +272,38 @@ public partial class CodebaseQueryService
         return new SurfaceCandidate(filePath, nodeArray, score, confidence, targetConfidence, reason, freshness);
     }
 
+    private PrunedSurfaceResult PruneSurfaceCandidates(
+        IReadOnlyList<SurfaceCandidate> ranked,
+        int limit)
+    {
+        var primary = new List<SurfaceCandidate>();
+        var context = new List<ContextOnlySurfaceCandidate>();
+
+        foreach (var candidate in ranked)
+        {
+            var exclusionReason = GetPrimaryExclusionReason(candidate, primary.Count > 0);
+            if (exclusionReason is null)
+            {
+                primary.Add(candidate);
+                continue;
+            }
+
+            context.Add(new ContextOnlySurfaceCandidate(candidate, exclusionReason));
+        }
+
+        var primaryLimit = Math.Clamp(limit, 1, 5);
+        if (primary.Count == 0 && ranked.Count > 0)
+        {
+            var promoted = ranked[0];
+            primary.Add(promoted);
+            context.RemoveAll(item => string.Equals(item.Candidate.FilePath, promoted.FilePath, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return new PrunedSurfaceResult(
+            primary.Take(primaryLimit).ToArray(),
+            context.Take(Math.Clamp(limit, 1, 12)).ToArray());
+    }
+
     private static int ScoreSurfaceNode(CodeNode node, string goal, IReadOnlyCollection<string> concepts)
     {
         var score = node.Type switch
@@ -334,6 +385,77 @@ public partial class CodebaseQueryService
 
         return "heuristic";
     }
+
+    private string? GetPrimaryExclusionReason(SurfaceCandidate candidate, bool exactOrHeuristicPrimaryExists)
+    {
+        var role = ResolveCandidateRole(candidate);
+
+        if (candidate.Freshness.Confidence == "Low")
+            return "stale metadata lowers trust";
+
+        if (LooksLikeDocumentationPath(candidate.FilePath))
+            return "documentation file is context, not the edit surface";
+
+        if (role == IndexedFileRole.Test)
+            return "test target is verification context, not the primary implementation";
+
+        if (role is IndexedFileRole.Generated or IndexedFileRole.BuildArtifact or IndexedFileRole.Snapshot or IndexedFileRole.Migration)
+            return $"{role.ToString().ToLowerInvariant()} file should not be the primary edit surface";
+
+        if (role == IndexedFileRole.Configuration)
+            return "configuration file is supporting context unless the goal is explicitly config-only";
+
+        if (candidate.Nodes.All(IsContractNode))
+            return "contract or port shapes the change but is not the concrete implementation";
+
+        if (candidate.TargetConfidence == "file-only" && !HasEditReadySymbol(candidate))
+            return "broad file match without an edit-ready symbol anchor";
+
+        if (candidate.TargetConfidence == "file-only" && exactOrHeuristicPrimaryExists)
+            return "broader file-only match was pruned behind stronger symbol-level targets";
+
+        return null;
+    }
+
+    private IndexedFileRole ResolveCandidateRole(SurfaceCandidate candidate)
+    {
+        var rankedRole = candidate.Nodes
+            .Select(ResolveFileRole)
+            .GroupBy(role => role)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => CandidateRoleRank(group.Key))
+            .Select(group => group.Key)
+            .FirstOrDefault();
+
+        return rankedRole;
+    }
+
+    private static int CandidateRoleRank(IndexedFileRole role) =>
+        role switch
+        {
+            IndexedFileRole.Source => 0,
+            IndexedFileRole.Unknown => 1,
+            IndexedFileRole.Configuration => 2,
+            IndexedFileRole.Test => 3,
+            IndexedFileRole.Generated => 4,
+            IndexedFileRole.Migration => 5,
+            IndexedFileRole.Snapshot => 6,
+            IndexedFileRole.BuildArtifact => 7,
+            _ => 8
+        };
+
+    private static bool HasEditReadySymbol(SurfaceCandidate candidate) =>
+        candidate.Nodes.Any(node => node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Struct or CodeNodeType.ApiEndpoint or CodeNodeType.ConfigurationKey)
+        && candidate.Nodes.Any(node => node.Type is not CodeNodeType.File);
+
+    private static bool LooksLikeDocumentationPath(string path) =>
+        path.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+        || path.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase)
+        || path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
+        || path.Contains("/docs/", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("docs/", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(path, "README.md", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(path, "TODO.md", StringComparison.OrdinalIgnoreCase);
 
     private static string FormatCanonicalIds(IReadOnlyCollection<CodeNode> nodes)
     {
@@ -553,7 +675,8 @@ public partial class CodebaseQueryService
             TextMatches(node.Name, name) || TextMatches(node.FilePath, name));
 
     private static bool IsApiNode(CodeNode node) =>
-        TextMatches(node.FilePath, "/Api/")
+        node.Type == CodeNodeType.ApiEndpoint
+        || TextMatches(node.FilePath, "/Api/")
         || TextMatches(node.FilePath, "\\Api\\")
         || TextMatches(node.FilePath, "/Controllers/")
         || TextMatches(node.FilePath, "\\Controllers\\")
@@ -587,6 +710,14 @@ public partial class CodebaseQueryService
         string TargetConfidence,
         string Reason,
         FreshnessCheck Freshness);
+
+    private sealed record PrunedSurfaceResult(
+        IReadOnlyList<SurfaceCandidate> PrimaryTargets,
+        IReadOnlyList<ContextOnlySurfaceCandidate> ContextOnlyTargets);
+
+    private sealed record ContextOnlySurfaceCandidate(
+        SurfaceCandidate Candidate,
+        string ExclusionReason);
 
     private sealed record SymbolResolution(
         CodeNode Node,

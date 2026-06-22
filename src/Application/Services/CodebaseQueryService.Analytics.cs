@@ -315,6 +315,9 @@ public partial class CodebaseQueryService
             .ThenBy(entry => entry.TestNode.Name, StringComparer.OrdinalIgnoreCase)
             .Take(Math.Clamp(limit, 1, 50))
             .ToArray();
+        var focusedRecommendations = BuildFocusedTestRecommendations(ctx.Node, directShield, rankedPrimaryShield, rankedSecondaryShield)
+            .Take(Math.Clamp(limit, 1, 12))
+            .ToArray();
         var suggestedCommand = BuildSuggestedTestCommand(directShield, rankedPrimaryShield);
 
         var sb = new StringBuilder();
@@ -351,6 +354,8 @@ public partial class CodebaseQueryService
         }
         sb.AppendLine();
 
+        AppendFocusedVerificationPlan(sb, focusedRecommendations);
+
         sb.AppendLine($"### Secondary shield awareness ({rankedSecondaryShield.Length})");
         if (rankedSecondaryShield.Length == 0)
         {
@@ -379,7 +384,7 @@ public partial class CodebaseQueryService
         sb.AppendLine(suggestedCommand is null ? "- none" : $"- `{suggestedCommand}`");
         sb.AppendLine();
 
-        sb.AppendLine("> Direct shield means a test directly calls the target. Primary verification tests protect the exact caller path or adjacent slice dependencies first. Secondary shield awareness keeps broader or heuristic tests visible without mixing them into the first-run verification set. Unshielded path nodes are the best seams for new characterization tests before changing behavior.");
+        sb.AppendLine("> Direct shield means a test directly calls the target. The focused verification plan separates direct regression tests, contract/API forwarding checks, integration-level verification, and heuristic shield tests so the first run stays small. Secondary shield awareness keeps broader matches visible without mixing them into the first-run verification set. Unshielded path nodes are the best seams for new characterization tests before changing behavior.");
 
         return sb.ToString();
     }
@@ -653,6 +658,12 @@ public partial class CodebaseQueryService
         int SharedDependencyCount,
         bool SharesLocation);
 
+    private sealed record TestRecommendation(
+        CodeNode TestNode,
+        string Category,
+        string Reason,
+        int Score);
+
     private sealed record CallerFinding(CodeNode Node, string Reason);
 
     private sealed record CallerGroups(
@@ -727,6 +738,111 @@ public partial class CodebaseQueryService
         return score;
     }
 
+    private IReadOnlyList<TestRecommendation> BuildFocusedTestRecommendations(
+        CodeNode targetNode,
+        IEnumerable<CodeNode> directShield,
+        IEnumerable<ShieldEntry> primaryShield,
+        IEnumerable<ShieldEntry> secondaryShield)
+    {
+        var recommendations = new Dictionary<string, TestRecommendation>(StringComparer.Ordinal);
+
+        foreach (var test in directShield)
+        {
+            recommendations[test.Id] = new TestRecommendation(
+                test,
+                "Direct regression tests",
+                $"directly calls `{targetNode.Name}`",
+                300);
+        }
+
+        foreach (var entry in primaryShield)
+        {
+            var recommendation = new TestRecommendation(
+                entry.TestNode,
+                ClassifyTestRecommendationCategory(entry),
+                entry.Reason,
+                ScoreShieldEntry(entry));
+
+            if (!recommendations.TryGetValue(entry.TestNode.Id, out var existing) || recommendation.Score > existing.Score)
+                recommendations[entry.TestNode.Id] = recommendation;
+        }
+
+        foreach (var entry in secondaryShield)
+        {
+            var recommendation = new TestRecommendation(
+                entry.TestNode,
+                "Heuristic shield tests",
+                entry.Reason,
+                ScoreShieldEntry(entry));
+
+            if (!recommendations.TryGetValue(entry.TestNode.Id, out var existing) || recommendation.Score > existing.Score)
+                recommendations[entry.TestNode.Id] = recommendation;
+        }
+
+        return recommendations.Values
+            .OrderByDescending(item => item.Score)
+            .ThenBy(CategoryRank)
+            .ThenBy(item => item.TestNode.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private void AppendFocusedVerificationPlan(StringBuilder sb, IReadOnlyList<TestRecommendation> recommendations)
+    {
+        sb.AppendLine($"### Focused verification plan ({recommendations.Count})");
+        if (recommendations.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        foreach (var category in new[]
+                 {
+                     "Direct regression tests",
+                     "Contract/API forwarding tests",
+                     "Integration-level verification",
+                     "Heuristic shield tests"
+                 })
+        {
+            var bucket = recommendations
+                .Where(item => string.Equals(item.Category, category, StringComparison.Ordinal))
+                .Take(3)
+                .ToArray();
+            if (bucket.Length == 0)
+                continue;
+
+            sb.AppendLine($"{category}:");
+            foreach (var item in bucket)
+                sb.AppendLine($"- **{item.TestNode.Type}** `{item.TestNode.Name}`{FormatLocation(item.TestNode)} — {item.Reason}");
+        }
+
+        sb.AppendLine();
+    }
+
+    private string ClassifyTestRecommendationCategory(ShieldEntry entry)
+    {
+        if (!entry.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
+            return "Heuristic shield tests";
+
+        if (IsApiNode(entry.ProtectedNode) || IsContractNode(entry.ProtectedNode) || TextMatches(entry.ProtectedNode.FilePath, "McpServer"))
+            return "Contract/API forwarding tests";
+
+        if (IsInfrastructureNode(entry.ProtectedNode))
+            return "Integration-level verification";
+
+        return "Direct regression tests";
+    }
+
+    private static int CategoryRank(TestRecommendation recommendation) =>
+        recommendation.Category switch
+        {
+            "Direct regression tests" => 0,
+            "Contract/API forwarding tests" => 1,
+            "Integration-level verification" => 2,
+            "Heuristic shield tests" => 3,
+            _ => 4
+        };
+
     private static string? BuildSuggestedTestCommand(IEnumerable<CodeNode> directShield, IEnumerable<ShieldEntry> primaryShield)
     {
         var candidates = directShield
@@ -734,13 +850,22 @@ public partial class CodebaseQueryService
             .DistinctBy(node => node.Id)
             .ToArray();
 
-        if (candidates.Length == 0)
+        return BuildSuggestedTestCommand(candidates);
+    }
+
+    private static string? BuildSuggestedTestCommand(IEnumerable<CodeNode> candidates)
+    {
+        var candidateArray = candidates
+            .DistinctBy(node => node.Id)
+            .ToArray();
+
+        if (candidateArray.Length == 0)
             return null;
 
-        if (candidates.Length == 1)
-            return $"dotnet test --filter FullyQualifiedName~{SanitizeFilterValue(candidates[0].Name)}";
+        if (candidateArray.Length == 1)
+            return $"dotnet test --filter FullyQualifiedName~{SanitizeFilterValue(candidateArray[0].Name)}";
 
-        var directory = candidates
+        var directory = candidateArray
             .Select(node => Path.GetDirectoryName(node.FilePath ?? string.Empty))
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)

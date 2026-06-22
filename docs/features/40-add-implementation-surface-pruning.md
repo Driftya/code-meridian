@@ -1,6 +1,6 @@
 # Add Implementation Surface Pruning
 
-- Status: pending
+- Status: implemented
 - Priority: P1
 - Note: Return fewer, better files by collapsing broad graph matches into edit-ready targets.
 
@@ -20,3 +20,5 @@
 - Narrow feature sessions have fewer file-only suggestions.
 - Exact targets are preferred over broad file matches.
 - Manual fallback searches after graph lookup decrease without hiding necessary uncertainty.
+
+**Implemented:** `find_implementation_surface` now runs a pruning pass after ranking. It separates a short primary edit set from context-only targets, demotes documentation, tests, generated/build artifacts, configuration-adjacent files, stale matches, contract-only files, and broad file-only matches, and explains each exclusion inline. When every candidate is contextual, the best available target is still promoted so the tool never returns an empty primary edit set.

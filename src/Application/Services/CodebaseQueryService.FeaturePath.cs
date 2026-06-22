@@ -51,9 +51,13 @@ public partial class CodebaseQueryService
             .Take(boundedLimit)
             .ToArray();
 
-        var relatedTests = includeTests
+        var testRecommendations = includeTests
             ? await FindRelatedFeatureTestsAsync(ranked, projectContext, cancellationToken)
             : [];
+        var relatedTests = testRecommendations
+            .Select(item => item.TestNode)
+            .DistinctBy(node => node.Id)
+            .ToArray();
         var confidence = DetermineFeaturePathConfidence(feature, documents, ranked, relatedTests);
         var status = DetermineFeatureStatus(documents, ranked, relatedTests);
         var riskLevel = includeRisk ? DetermineFeatureRiskLevel(ranked, relatedTests) : "not_requested";
@@ -71,7 +75,7 @@ public partial class CodebaseQueryService
         AppendFeatureSurfaces(sb, ranked);
         AppendLikelyTouchedAreas(sb, ranked);
         if (includeTests)
-            AppendFeatureTestPlan(sb, ranked, relatedTests);
+            AppendFeatureTestPlan(sb, ranked, testRecommendations);
         if (includeDocs)
             AppendFeatureDocsPlan(sb, feature, documents, ranked);
         AppendMissingGraphEvidence(sb, feature, documents, ranked, relatedTests);
@@ -84,27 +88,47 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    private async Task<IReadOnlyList<CodeNode>> FindRelatedFeatureTestsAsync(
+    private async Task<IReadOnlyList<TestRecommendation>> FindRelatedFeatureTestsAsync(
         IReadOnlyCollection<CodeNode> ranked,
         string? projectContext,
         CancellationToken cancellationToken)
     {
-        var tests = new List<CodeNode>();
-        foreach (var node in ranked.Take(5))
+        var recommendations = new Dictionary<string, TestRecommendation>(StringComparer.Ordinal);
+        var rankedNodes = ranked.Take(5).ToArray();
+
+        for (var index = 0; index < rankedNodes.Length; index++)
         {
+            var node = rankedNodes[index];
             var related = await codeGraph.FindRelatedTestsAsync(
                 node.Id,
                 node.ProjectContext ?? projectContext,
                 cancellationToken);
-            tests.AddRange(related.Select(item => item.Node));
+
+            foreach (var match in related)
+            {
+                var recommendation = BuildFeatureTestRecommendation(match.Node, node, match.MatchType, index);
+                if (!recommendations.TryGetValue(match.Node.Id, out var existing) || recommendation.Score > existing.Score)
+                    recommendations[match.Node.Id] = recommendation;
+            }
         }
 
-        tests.AddRange(ranked.Where(IsConfiguredTestNode));
-        return tests
-            .Where(node => !string.IsNullOrWhiteSpace(node.FilePath))
-            .DistinctBy(node => node.Id)
-            .OrderBy(node => node.FilePath, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
+        foreach (var testNode in ranked.Where(IsConfiguredTestNode))
+        {
+            var recommendation = new TestRecommendation(
+                testNode,
+                "Heuristic shield tests",
+                "test seam surfaced directly by the implementation-path ranking",
+                20);
+            if (!recommendations.TryGetValue(testNode.Id, out var existing) || recommendation.Score > existing.Score)
+                recommendations[testNode.Id] = recommendation;
+        }
+
+        return recommendations.Values
+            .Where(item => !string.IsNullOrWhiteSpace(item.TestNode.FilePath))
+            .OrderByDescending(item => item.Score)
+            .ThenBy(CategoryRank)
+            .ThenBy(item => item.TestNode.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.TestNode.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
@@ -283,18 +307,40 @@ public partial class CodebaseQueryService
         sb.AppendLine();
     }
 
-    private void AppendFeatureTestPlan(StringBuilder sb, IReadOnlyCollection<CodeNode> ranked, IReadOnlyCollection<CodeNode> relatedTests)
+    private void AppendFeatureTestPlan(StringBuilder sb, IReadOnlyCollection<CodeNode> ranked, IReadOnlyCollection<TestRecommendation> relatedTests)
     {
         sb.AppendLine("### Tests to add or change");
         if (relatedTests.Count > 0)
         {
-            sb.AppendLine("Existing seams:");
-            foreach (var test in relatedTests.Take(8))
-                sb.AppendLine($"- `{test.Name}` - `{test.FilePath}`");
+            sb.AppendLine("Focused verification plan:");
+            foreach (var category in new[]
+                     {
+                         "Direct regression tests",
+                         "Contract/API forwarding tests",
+                         "Integration-level verification",
+                         "Heuristic shield tests"
+                     })
+            {
+                var bucket = relatedTests
+                    .Where(item => string.Equals(item.Category, category, StringComparison.Ordinal))
+                    .Take(3)
+                    .ToArray();
+                if (bucket.Length == 0)
+                    continue;
+
+                sb.AppendLine($"{category}:");
+                foreach (var item in bucket)
+                    sb.AppendLine($"- `{item.TestNode.Name}` - `{item.TestNode.FilePath}` - {item.Reason}");
+            }
+
+            var suggestedCommand = BuildSuggestedTestCommand(relatedTests
+                .Where(item => !string.Equals(item.Category, "Heuristic shield tests", StringComparison.Ordinal))
+                .Select(item => item.TestNode));
+            sb.AppendLine($"Suggested command: {(suggestedCommand is null ? "none" : $"`{suggestedCommand}`")}");
         }
         else
         {
-            sb.AppendLine("Existing seams: none found.");
+            sb.AppendLine("Focused verification plan: none found.");
         }
 
         var surfaces = ranked.Where(node => !IsConfiguredTestNode(node)).Take(4).ToArray();
@@ -307,6 +353,41 @@ public partial class CodebaseQueryService
         sb.AppendLine("- Add a contract-level test for the MCP/tool response shape if this feature changes public tool behavior.");
         sb.AppendLine("- Verify CancellationToken flow for any new async graph or document query.");
         sb.AppendLine();
+    }
+
+    private TestRecommendation BuildFeatureTestRecommendation(CodeNode testNode, CodeNode protectedNode, string matchType, int protectedNodeRank)
+    {
+        var category = matchType.Equals("heuristic", StringComparison.OrdinalIgnoreCase)
+            ? "Heuristic shield tests"
+            : IsApiNode(protectedNode) || IsContractNode(protectedNode) || TextMatches(protectedNode.FilePath, "McpServer")
+                ? "Contract/API forwarding tests"
+                : IsInfrastructureNode(protectedNode)
+                    ? "Integration-level verification"
+                    : "Direct regression tests";
+
+        var reason = matchType.Equals("heuristic", StringComparison.OrdinalIgnoreCase)
+            ? $"heuristic match near `{protectedNode.Name}`"
+            : $"protects `{protectedNode.Name}`";
+        if (IsApplicationNode(protectedNode) || IsDomainNode(protectedNode))
+            reason += "; same application/domain slice";
+        else if (IsApiNode(protectedNode) || TextMatches(protectedNode.FilePath, "McpServer"))
+            reason += "; same public entry surface";
+        else if (IsInfrastructureNode(protectedNode))
+            reason += "; same infrastructure seam";
+
+        var score = category switch
+        {
+            "Direct regression tests" => 120,
+            "Contract/API forwarding tests" => 100,
+            "Integration-level verification" => 80,
+            _ => 40
+        };
+
+        score -= protectedNodeRank * 5;
+        if (SameNamespace(testNode, protectedNode) || FileNameLooksRelated(testNode, protectedNode))
+            score += 10;
+
+        return new TestRecommendation(testNode, category, reason, score);
     }
 
     private static void AppendFeatureDocsPlan(

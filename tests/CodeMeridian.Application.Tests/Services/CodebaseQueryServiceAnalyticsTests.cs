@@ -492,6 +492,11 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("### Primary verification tests (1)");
         result.Should().Contain("OrdersEndpointTests");
         result.Should().Contain("directly protects `POST /api/orders`; exact caller-path seam; shares 1 dependency/contract signal with the target slice");
+        result.Should().Contain("### Focused verification plan (2)");
+        result.Should().Contain("Direct regression tests:");
+        result.Should().Contain("OrderServiceTests");
+        result.Should().Contain("Contract/API forwarding tests:");
+        result.Should().Contain("OrdersEndpointTests");
         result.Should().Contain("### Secondary shield awareness (0)");
         result.Should().Contain("### Unshielded path nodes (1)");
         result.Should().Contain("submitOrder");
@@ -552,6 +557,11 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var result = await sut.FindTestShieldAsync(target.Id, depth: 2);
 
         result.Should().Contain("### Primary verification tests (0)");
+        result.Should().Contain("### Focused verification plan (2)");
+        result.Should().Contain("Direct regression tests:");
+        result.Should().Contain("PaymentGatewayTests");
+        result.Should().Contain("Heuristic shield tests:");
+        result.Should().Contain("ChargeWorkflowTests");
         result.Should().Contain("### Secondary shield awareness (1)");
         result.Should().Contain("ChargeWorkflowTests");
         result.Should().Contain("heuristic match for `ChargeAsync`");
@@ -2200,8 +2210,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         graph
             .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
             .Returns([
-                Node("m1", "FindStaleKnowledgeAsync", CodeNodeType.Method, "TODO.md", 1, "CodeMeridian"),
-                Node("c1", "CodebaseQueryService", CodeNodeType.Class, "src/Application/Services/CodebaseQueryService.Analytics.cs", 1, "CodeMeridian")
+                Node("m1", "FindStaleKnowledgeAsync", CodeNodeType.Method, "TODO.md", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, sourceHash: "todo"),
+                Node("c1", "CodebaseQueryService", CodeNodeType.Class, "src/Application/Services/CodebaseQueryService.Analytics.cs", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, sourceHash: "code")
             ]);
 
         var result = await sut.FindImplementationSurfaceAsync(
@@ -2210,12 +2220,17 @@ public sealed class CodebaseQueryServiceAnalyticsTests
             "CodeMeridian");
 
         result.Should().Contain("## Implementation Surface");
+        result.Should().Contain("### Primary Edit Targets");
+        result.Should().Contain("### Context-Only Targets");
         result.Should().Contain("TODO.md");
         result.Should().Contain("FindStaleKnowledgeAsync");
         result.Should().Contain("Target confidence");
-        result.Should().Contain("exact");
-        result.Should().Contain("`m1`");
+        result.Should().Contain("file-only");
+        result.Should().Contain("documentation file is context, not the edit surface");
         result.Should().Contain("Freshness");
+        result.IndexOf("src/Application/Services/CodebaseQueryService.Analytics.cs", StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(result.IndexOf("TODO.md", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2325,6 +2340,56 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindImplementationSurfaceAsync_PrunesTestsGeneratedAndBroadFileOnlyTargetsIntoContextOnly()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                Node("impl", "ChargeAsync", CodeNodeType.Method, "src/Payments/PaymentGateway.cs", 42, "Shop", updatedAt: DateTimeOffset.UtcNow, sourceHash: "abc", fileRole: IndexedFileRole.Source),
+                Node("test", "PaymentGatewayTests", CodeNodeType.Class, "tests/Payments/PaymentGatewayTests.cs", 5, "Shop", updatedAt: DateTimeOffset.UtcNow, sourceHash: "def", fileRole: IndexedFileRole.Test),
+                Node("gen", "PaymentGateway.Generated", CodeNodeType.Class, "src/Generated/PaymentGateway.g.cs", 1, "Shop", updatedAt: DateTimeOffset.UtcNow, sourceHash: "ghi", fileRole: IndexedFileRole.Generated),
+                Node("fileOnly", "PaymentGateway.cs", CodeNodeType.File, "src/Payments/PaymentGateway.csproj.user", 1, "Shop", updatedAt: DateTimeOffset.UtcNow, sourceHash: "jkl")
+            ]);
+
+        var result = await sut.FindImplementationSurfaceAsync(
+            "update payment gateway charge flow",
+            "payment,gateway,charge",
+            "Shop");
+
+        result.Should().Contain("### Primary Edit Targets");
+        result.Should().Contain("`src/Payments/PaymentGateway.cs`");
+        result.Should().Contain("### Context-Only Targets");
+        result.Should().Contain("tests/Payments/PaymentGatewayTests.cs");
+        result.Should().Contain("test target is verification context");
+        result.Should().Contain("src/Generated/PaymentGateway.g.cs");
+        result.Should().Contain("generated file should not be the primary edit surface");
+        result.Should().Contain("src/Payments/PaymentGateway.csproj.user");
+        result.Should().Contain("broad file match without an edit-ready symbol anchor");
+    }
+
+    [Fact]
+    public async Task FindImplementationSurfaceAsync_WhenOnlyContextCandidatesExist_PromotesBestAvailableTarget()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                Node("doc", "Architecture Note", CodeNodeType.File, "docs/architecture.md", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow),
+                Node("todo", "TODO", CodeNodeType.File, "TODO.md", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow)
+            ]);
+
+        var result = await sut.FindImplementationSurfaceAsync(
+            "architecture note update",
+            projectContext: "CodeMeridian");
+
+        result.Should().Contain("### Primary Edit Targets");
+        result.Should().Contain("docs/architecture.md");
+        result.Should().Contain("### Context-Only Targets");
+        result.Should().Contain("TODO.md");
+    }
+
+    [Fact]
     public async Task AnalyzeFeatureImplementationPathAsync_WithDocsCodeAndTests_ReturnsEvidenceAndRisk()
     {
         var graph = Substitute.For<ICodeGraphRepository>();
@@ -2398,9 +2463,81 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("Confidence:** high");
         result.Should().Contain("FeatureImplementationAnalysisService");
         result.Should().Contain("Presentation/MCP");
+        result.Should().Contain("Focused verification plan:");
+        result.Should().Contain("Direct regression tests:");
         result.Should().Contain("FeatureImplementationAnalysisServiceTests");
         result.Should().Contain("docs/features/39-add-feature-implementation-path.md");
         result.Should().Contain("Risk level");
+    }
+
+    [Fact]
+    public async Task AnalyzeFeatureImplementationPathAsync_CategorizesFeatureTestsAndSuggestsCommand()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(graph, vector);
+        var service = Node(
+            "s1",
+            "KeywordGraphJobService",
+            CodeNodeType.Class,
+            "src/Application/Services/KeywordGraphJobService.cs",
+            12,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 60,
+            sourceHash: "abc",
+            summary: "Runs keyword graph rebuild jobs.");
+        var tool = Node(
+            "m1",
+            "KeywordsStatusEndpoint",
+            CodeNodeType.ApiEndpoint,
+            "src/McpServer/Api/KeywordApiEndpoints.cs",
+            40,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 20,
+            sourceHash: "def",
+            summary: "Returns keyword status details.");
+        var directTest = Node(
+            "t1",
+            "KeywordGraphJobServiceTests",
+            CodeNodeType.Class,
+            "tests/Application/KeywordGraphJobServiceTests.cs",
+            5,
+            "CodeMeridian",
+            fileRole: IndexedFileRole.Test);
+        var apiTest = Node(
+            "t2",
+            "KeywordApiEndpointTests",
+            CodeNodeType.Class,
+            "tests/Api/KeywordApiEndpointTests.cs",
+            8,
+            "CodeMeridian",
+            fileRole: IndexedFileRole.Test);
+
+        vector
+            .SearchByTextAsync("keyword graph jobs", "CodeMeridian", 6, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([service, tool]);
+        graph
+            .FindRelatedTestsAsync(service.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(directTest, "direct")]);
+        graph
+            .FindRelatedTestsAsync(tool.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(apiTest, "direct")]);
+
+        var result = await sut.AnalyzeFeatureImplementationPathAsync(
+            "keyword graph jobs",
+            "CodeMeridian");
+
+        result.Should().Contain("Focused verification plan:");
+        result.Should().Contain("Direct regression tests:");
+        result.Should().Contain("KeywordGraphJobServiceTests");
+        result.Should().Contain("Contract/API forwarding tests:");
+        result.Should().Contain("KeywordApiEndpointTests");
+        result.Should().Contain("Suggested command:");
     }
 
     [Fact]
