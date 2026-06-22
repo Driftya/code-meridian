@@ -27,12 +27,14 @@ public sealed class DatabaseTracingOptionsTests
                     "Strategy": "RawSql",
                     "Provider": "CustomSql",
                     "Enabled": true,
+                    "Languages": [ "CSharp", "TypeScript" ],
                     "ReadMethods": [ "RunReader" ],
                     "WriteMethods": [ "RunWriter" ],
-                    "SqlArgumentIndexes": [ 1 ],
+                    "StatementArgumentIndexes": [ 1 ],
                     "ReceiverTextHints": [ "customCommand" ],
+                    "ImportModuleHints": [ "custom-sql-driver" ],
                     "CommandCreationTypeHints": [ "CustomCommand" ],
-                    "CommandTextProperties": [ "Sql" ],
+                    "StatementTextProperties": [ "Sql" ],
                     "TableSources": [ "SqlText" ]
                   }
                 ]
@@ -55,8 +57,10 @@ public sealed class DatabaseTracingOptionsTests
         options.MaxTablesPerOperation.Should().Be(2);
         options.Presets.Should().Contain(preset => preset.Id == "custom-sql" && preset.Provider == "CustomSql");
         var customPreset = options.Presets.Single(preset => preset.Id == "custom-sql");
-        customPreset.SqlArgumentIndexes.Should().Contain(1);
-        customPreset.CommandTextProperties.Should().Contain("Sql");
+        customPreset.Languages.Should().Contain(["CSharp", "TypeScript"]);
+        customPreset.GetEffectiveStatementArgumentIndexes().Should().Contain(1);
+        customPreset.ImportModuleHints.Should().Contain("custom-sql-driver");
+        customPreset.GetEffectiveStatementTextProperties().Should().Contain("Sql");
     }
 
     private sealed class TestWorkspace : IDisposable

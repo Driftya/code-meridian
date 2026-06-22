@@ -9,6 +9,7 @@
         "Strategy": "EfCore",
         "Provider": "EFCore",
         "Enabled": true,
+        "Languages": [ "CSharp" ],
         "ReadMethods": [
           "ToList",
           "ToListAsync",
@@ -51,10 +52,11 @@
           "ExecuteSqlInterpolated",
           "ExecuteSqlInterpolatedAsync"
         ],
-        "SqlArgumentIndexes": [ 0 ],
+        "StatementArgumentIndexes": [ 0 ],
         "ReceiverTextHints": [ "context", "db", "database" ],
+        "ImportModuleHints": [],
+        "StatementTextProperties": [ "CommandText" ],
         "CommandCreationTypeHints": [],
-        "CommandTextProperties": [ "CommandText" ],
         "TableSources": [ "GenericTypeArgument", "ReceiverMemberName", "SqlText" ]
       },
       {
@@ -62,6 +64,7 @@
         "Strategy": "Dapper",
         "Provider": "Dapper",
         "Enabled": true,
+        "Languages": [ "CSharp" ],
         "ReadMethods": [
           "Query",
           "QueryAsync",
@@ -79,10 +82,11 @@
           "ExecuteScalarAsync"
         ],
         "WriteMethods": [ "Execute", "ExecuteAsync" ],
-        "SqlArgumentIndexes": [ 0 ],
+        "StatementArgumentIndexes": [ 0 ],
         "ReceiverTextHints": [ "connection", "dbConnection", "sqlConnection", "npgsqlConnection" ],
+        "ImportModuleHints": [],
+        "StatementTextProperties": [ "CommandText" ],
         "CommandCreationTypeHints": [],
-        "CommandTextProperties": [ "CommandText" ],
         "TableSources": [ "SqlText" ]
       },
       {
@@ -90,13 +94,60 @@
         "Strategy": "RawSql",
         "Provider": "RawSql",
         "Enabled": true,
+        "Languages": [ "CSharp" ],
         "ReadMethods": [ "ExecuteReader", "ExecuteReaderAsync", "ExecuteScalar", "ExecuteScalarAsync" ],
         "WriteMethods": [ "ExecuteNonQuery", "ExecuteNonQueryAsync" ],
-        "SqlArgumentIndexes": [ 0 ],
+        "StatementArgumentIndexes": [ 0 ],
         "ReceiverTextHints": [ "command", "dbCommand", "sqlCommand" ],
+        "ImportModuleHints": [],
+        "StatementTextProperties": [ "CommandText" ],
         "CommandCreationTypeHints": [ "DbCommand", "SqlCommand", "NpgsqlCommand", "MySqlCommand", "SqliteCommand", "OracleCommand" ],
-        "CommandTextProperties": [ "CommandText" ],
         "TableSources": [ "SqlText" ]
+      },
+      {
+        "Id": "prisma",
+        "Strategy": "Prisma",
+        "Provider": "Prisma",
+        "Enabled": true,
+        "Languages": [ "TypeScript" ],
+        "ReadMethods": [ "findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "aggregate", "count", "groupBy" ],
+        "WriteMethods": [ "create", "createMany", "update", "updateMany", "upsert", "delete", "deleteMany" ],
+        "StatementArgumentIndexes": [ 0 ],
+        "ReceiverTextHints": [ "prisma", "tx" ],
+        "ImportModuleHints": [ "@prisma/client" ],
+        "StatementTextProperties": [ "CommandText" ],
+        "CommandCreationTypeHints": [],
+        "TableSources": [ "ReceiverMemberName" ]
+      },
+      {
+        "Id": "knex",
+        "Strategy": "Knex",
+        "Provider": "Knex",
+        "Enabled": true,
+        "Languages": [ "TypeScript" ],
+        "ReadMethods": [ "select", "first", "pluck" ],
+        "WriteMethods": [ "insert", "update", "del", "delete", "truncate" ],
+        "StatementArgumentIndexes": [ 0 ],
+        "ReceiverTextHints": [ "knex", "db" ],
+        "ImportModuleHints": [ "knex" ],
+        "StatementTextProperties": [ "CommandText" ],
+        "CommandCreationTypeHints": [],
+        "TableSources": [ "FirstArgumentString", "FromMethodArgument", "IntoMethodArgument" ]
+      },
+      {
+        "Id": "neo4j-cypher",
+        "Strategy": "Cypher",
+        "Provider": "Neo4j",
+        "Enabled": true,
+        "Languages": [ "CSharp", "TypeScript" ],
+        "ReadMethods": [ "Run", "RunAsync", "ExecuteRead", "ExecuteReadAsync", "ExecuteWrite", "ExecuteWriteAsync", "ExecuteQuery" ],
+        "WriteMethods": [ "Run", "RunAsync", "ExecuteRead", "ExecuteReadAsync", "ExecuteWrite", "ExecuteWriteAsync", "ExecuteQuery" ],
+        "StatementArgumentIndexes": [ 0 ],
+        "ReceiverTextHints": [ "session", "tx", "driver" ],
+        "ImportModuleHints": [ "neo4j-driver" ],
+        "StatementTextProperties": [ "CommandText" ],
+        "CommandCreationTypeHints": [],
+        "TableSources": [ "CypherText" ]
       }
     ]
   }

@@ -100,17 +100,20 @@ codemeridian config rebuild --project CodeMeridian
 
 ### Database tracing recognition
 
-The C# Roslyn indexer can emit graph-backed database concepts as part of normal indexing:
+The C# Roslyn indexer and the TypeScript indexer can emit graph-backed database concepts as part of normal indexing:
 
 - `DatabaseOperation` external concepts for recognized read/write call sites
 - `DatabaseTable` nodes for inferred tables
 - `Reads` and `Writes` edges linking code -> operation -> table
 
-Recognition is repo-configurable through `.meridian/database-tracing.json`. The initial shipped presets cover:
+Recognition is repo-configurable through `.meridian/database-tracing.json`. The shipped starter presets cover:
 
 - EF Core entity-set and SQL-based access
 - Dapper SQL calls
 - Raw SQL command execution
+- Prisma model operations
+- Knex table operations
+- Neo4j Cypher queries
 
 CLI equivalent:
 

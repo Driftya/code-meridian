@@ -9,6 +9,7 @@ internal static class DatabaseTracingPresetDefaults
             Id = "ef-core",
             Strategy = "EfCore",
             Provider = "EFCore",
+            Languages = ["CSharp"],
             ReadMethods =
             [
                 "ToList",
@@ -61,6 +62,7 @@ internal static class DatabaseTracingPresetDefaults
             Id = "dapper",
             Strategy = "Dapper",
             Provider = "Dapper",
+            Languages = ["CSharp"],
             ReadMethods =
             [
                 "Query",
@@ -87,6 +89,7 @@ internal static class DatabaseTracingPresetDefaults
             Id = "raw-sql",
             Strategy = "RawSql",
             Provider = "RawSql",
+            Languages = ["CSharp"],
             ReadMethods =
             [
                 "ExecuteReader",
@@ -105,7 +108,82 @@ internal static class DatabaseTracingPresetDefaults
                 "SqliteCommand",
                 "OracleCommand"
             ],
+            StatementTextProperties = ["CommandText"],
             TableSources = ["SqlText"]
+        },
+        new()
+        {
+            Id = "prisma",
+            Strategy = "Prisma",
+            Provider = "Prisma",
+            Languages = ["TypeScript"],
+            ReadMethods =
+            [
+                "findUnique",
+                "findUniqueOrThrow",
+                "findFirst",
+                "findFirstOrThrow",
+                "findMany",
+                "aggregate",
+                "count",
+                "groupBy"
+            ],
+            WriteMethods =
+            [
+                "create",
+                "createMany",
+                "update",
+                "updateMany",
+                "upsert",
+                "delete",
+                "deleteMany"
+            ],
+            ReceiverTextHints = ["prisma", "tx"],
+            ImportModuleHints = ["@prisma/client"],
+            TableSources = ["ReceiverMemberName"]
+        },
+        new()
+        {
+            Id = "knex",
+            Strategy = "Knex",
+            Provider = "Knex",
+            Languages = ["TypeScript"],
+            ReadMethods = ["select", "first", "pluck"],
+            WriteMethods = ["insert", "update", "del", "delete", "truncate"],
+            ReceiverTextHints = ["knex", "db"],
+            ImportModuleHints = ["knex"],
+            TableSources = ["FirstArgumentString", "FromMethodArgument", "IntoMethodArgument"]
+        },
+        new()
+        {
+            Id = "neo4j-cypher",
+            Strategy = "Cypher",
+            Provider = "Neo4j",
+            Languages = ["CSharp", "TypeScript"],
+            ReadMethods =
+            [
+                "Run",
+                "RunAsync",
+                "ExecuteRead",
+                "ExecuteReadAsync",
+                "ExecuteWrite",
+                "ExecuteWriteAsync",
+                "ExecuteQuery"
+            ],
+            WriteMethods =
+            [
+                "Run",
+                "RunAsync",
+                "ExecuteRead",
+                "ExecuteReadAsync",
+                "ExecuteWrite",
+                "ExecuteWriteAsync",
+                "ExecuteQuery"
+            ],
+            StatementArgumentIndexes = [0],
+            ReceiverTextHints = ["session", "tx", "driver"],
+            ImportModuleHints = ["neo4j-driver"],
+            TableSources = ["CypherText"]
         }
     ];
 }

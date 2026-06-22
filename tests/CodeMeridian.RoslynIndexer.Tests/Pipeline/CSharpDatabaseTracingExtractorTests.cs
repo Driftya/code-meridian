@@ -122,6 +122,45 @@ public sealed class CSharpDatabaseTracingExtractorTests : IDisposable
             && request.Body.GetProperty("type").GetString() == "Writes");
     }
 
+    [Fact]
+    public async Task IndexAsync_ExtractsNeo4jCypherLabelsAndRelationshipTypes()
+    {
+        var file = WriteFile(
+            "src/OrdersGraphReader.cs",
+            """
+            namespace Demo;
+
+            public sealed class OrdersGraphReader
+            {
+                public async Task LoadAsync(IAsyncQueryRunner session)
+                {
+                    const string Query = "MATCH (o:Order)-[:PLACED]->(c:Customer) RETURN o";
+                    await session.RunAsync(Query);
+                }
+            }
+            """);
+
+        var requests = await IndexAsync([file]);
+
+        requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && HasNodeProperty(request.Body, "provider", "Neo4j"));
+
+        requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("type").GetString() == "DatabaseTable"
+            && request.Body.GetProperty("name").GetString() == "Order");
+
+        requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("type").GetString() == "DatabaseTable"
+            && request.Body.GetProperty("name").GetString() == "PLACED");
+
+        requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "Reads");
+    }
+
     private async Task<List<(string Method, string Path, JsonElement Body)>> IndexAsync(FileInfo[] files)
     {
         var handler = new RecordingHandler();

@@ -3,6 +3,8 @@ import path from 'node:path';
 import { Project } from 'ts-morph';
 import type { CodeEdgeDto, CodeNodeDto } from './types.js';
 import { collectConfigurationEdges, collectConfigurationNodes } from './walker/configuration.js';
+import { collectDatabaseTracingEdges, collectDatabaseTracingNodes } from './walker/database-tracing.js';
+import { loadDatabaseTracingOptions, type DatabaseTracingOptions } from './walker/database-tracing-options.js';
 import { collectEdges, collectNodes } from './walker/graph.js';
 import { collectRouteEdges, collectRouteNodes } from './walker/routes.js';
 
@@ -16,11 +18,13 @@ export function walkTypeScript(
   projectName: string,
   files: string[],
   resolveFileRole?: (relativePath: string) => string | undefined,
+  databaseTracingOptions?: DatabaseTracingOptions,
 ): WalkResult {
   const nodes: CodeNodeDto[] = [];
   const edges: CodeEdgeDto[] = [];
   const knownIds = new Set<string>();
   const methodIndex = new Map<string, string[]>();
+  const tracingOptions = databaseTracingOptions ?? loadDatabaseTracingOptions(rootPath);
 
   const tsConfigPath = path.join(rootPath, 'tsconfig.json');
   const tsProject = new Project({
@@ -44,12 +48,16 @@ export function walkTypeScript(
   for (const sourceFile of sourceFiles) {
     collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, knownIds, resolveFileRole);
   }
+  for (const sourceFile of sourceFiles) {
+    collectDatabaseTracingNodes(sourceFile, rootPath, projectName, nodes, knownIds, tracingOptions, resolveFileRole);
+  }
   indexMethods(nodes, methodIndex);
 
   for (const sourceFile of sourceFiles) {
     collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds, methodIndex);
     collectRouteEdges(sourceFile, rootPath, projectName, edges, knownIds);
     collectConfigurationEdges(sourceFile, rootPath, projectName, edges);
+    collectDatabaseTracingEdges(sourceFile, rootPath, projectName, edges, tracingOptions);
   }
 
   return { nodes, edges };

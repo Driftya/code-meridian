@@ -135,6 +135,98 @@ describe('TypeScriptIndexerApplication', () => {
     expect(serviceFileNode.fileRole).toBeUndefined();
   });
 
+  it('loads database tracing config and uploads Prisma database concepts', async () => {
+    project.writeFile('tsconfig.json', '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}');
+    project.writeFile(
+      '.meridian/database-tracing.json',
+      JSON.stringify({
+        DatabaseTracing: {
+          Enabled: true,
+          Presets: [
+            {
+              Id: 'prisma',
+              Strategy: 'Prisma',
+              Provider: 'Prisma',
+              Enabled: true,
+              Languages: ['TypeScript'],
+              ReadMethods: ['findMany'],
+              WriteMethods: ['create'],
+              ReceiverTextHints: ['prisma', 'tx'],
+              ImportModuleHints: ['@prisma/client'],
+              TableSources: ['ReceiverMemberName'],
+            },
+          ],
+        },
+      }, null, 2),
+    );
+    project.writeFile(
+      'src/orders.ts',
+      [
+        "import { PrismaClient } from '@prisma/client';",
+        '',
+        'const prisma = new PrismaClient();',
+        '',
+        'export async function listOrders() {',
+        '  return prisma.order.findMany();',
+        '}',
+      ].join('\n'),
+    );
+
+    const rootPath = project.getRootPath();
+    const batchFilePath = path.join(rootPath, 'batch.json');
+    fs.writeFileSync(batchFilePath, JSON.stringify([{ path: 'src/orders.ts' }]));
+
+    const requests: Array<{ path: string; body?: string }> = [];
+    globalThis.fetch = vi.fn(async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      requests.push({
+        path: new URL(url).pathname,
+        body: init?.body?.toString(),
+      });
+
+      return new Response('{}', {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch;
+
+    const app = new TypeScriptIndexerApplication();
+    const options: ResolvedIndexCommandOptions = {
+      rootPath,
+      projectName: 'CodeMeridian',
+      serverUrl: 'http://127.0.0.1:5100',
+      batchFilePath,
+    };
+
+    const exitCode = await app.run(options);
+
+    expect(exitCode).toBe(0);
+
+    const nodeBodies = readBodies(requests, '/api/v1/knowledge/nodes/bulk');
+    const edgeBodies = readBodies(requests, '/api/v1/knowledge/nodes/edges/bulk');
+
+    expect(nodeBodies).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'ExternalConcept',
+        properties: expect.objectContaining({
+          externalKind: 'DatabaseOperation',
+          provider: 'Prisma',
+          operationType: 'Reads',
+        }),
+      }),
+      expect.objectContaining({
+        type: 'DatabaseTable',
+        name: 'order',
+      }),
+    ]));
+    expect(edgeBodies).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceId: 'CodeMeridian:Method:src_orders.ts:listOrders',
+        type: 'Reads',
+      }),
+    ]));
+  });
+
   it('normalizes Windows-style batch paths when mapping file roles', async () => {
     project.writeFile('tsconfig.json', '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}');
     project.writeFile('src/config/AppConfig.ts', 'export const value = process.env.API_KEY ?? "";\n');

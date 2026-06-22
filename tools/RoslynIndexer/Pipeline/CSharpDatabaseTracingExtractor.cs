@@ -16,6 +16,22 @@ internal static class CSharpDatabaseTracingExtractor
         @"^\s*(SELECT|WITH|INSERT|UPDATE|DELETE|MERGE|TRUNCATE|CREATE|ALTER|DROP)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex CypherLabelRegex = new(
+        @"\([^\)]*:(?<name>[A-Za-z_][A-Za-z0-9_]*)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex CypherRelationshipTypeRegex = new(
+        @"\[[^\]]*:(?<name>[A-Za-z_][A-Za-z0-9_]*)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex CypherReadStatementRegex = new(
+        @"^\s*(MATCH|OPTIONAL\s+MATCH|CALL|RETURN|UNWIND|WITH|LOAD\s+CSV|SHOW|PROFILE|EXPLAIN)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex CypherWriteStatementRegex = new(
+        @"^\s*(CREATE|MERGE|DELETE|DETACH\s+DELETE|SET|REMOVE)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static readonly HashSet<string> QueryOperatorMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "Where",
@@ -50,7 +66,8 @@ internal static class CSharpDatabaseTracingExtractor
         var presets = options.Presets
             .Where(preset => preset.Enabled
                              && !string.IsNullOrWhiteSpace(preset.Id)
-                             && !string.IsNullOrWhiteSpace(preset.Provider))
+                             && !string.IsNullOrWhiteSpace(preset.Provider)
+                             && SupportsLanguage(preset, "CSharp"))
             .ToArray();
         if (presets.Length == 0)
             return;
@@ -85,15 +102,18 @@ internal static class CSharpDatabaseTracingExtractor
         if (memberName is null)
             return null;
 
-        var operationType = GetOperationType(memberName, preset);
-        if (operationType is null)
-            return null;
-
         return preset.Strategy.Trim() switch
         {
-            "EfCore" => TryRecognizeEfCore(invocation, preset, memberName, operationType.Value, constants, maxTablesPerOperation),
-            "Dapper" => TryRecognizeSqlInvocation(invocation, preset, memberName, operationType.Value, constants, maxTablesPerOperation),
-            "RawSql" => TryRecognizeRawSqlInvocation(invocation, preset, memberName, operationType.Value, constants, commandTextRegistry, maxTablesPerOperation),
+            "EfCore" => GetOperationType(memberName, preset) is { } efCoreOperation
+                ? TryRecognizeEfCore(invocation, preset, memberName, efCoreOperation, constants, maxTablesPerOperation)
+                : null,
+            "Dapper" => GetOperationType(memberName, preset) is { } sqlOperation
+                ? TryRecognizeSqlInvocation(invocation, preset, memberName, sqlOperation, constants, maxTablesPerOperation)
+                : null,
+            "RawSql" => GetOperationType(memberName, preset) is { } rawSqlOperation
+                ? TryRecognizeRawSqlInvocation(invocation, preset, memberName, rawSqlOperation, constants, commandTextRegistry, maxTablesPerOperation)
+                : null,
+            "Cypher" => TryRecognizeCypherInvocation(invocation, preset, memberName, constants, maxTablesPerOperation),
             _ => null
         };
     }
@@ -191,6 +211,31 @@ internal static class CSharpDatabaseTracingExtractor
         return new DatabaseUsageRecognition(preset.Id, preset.Provider, memberName, operationType, tables);
     }
 
+    private static DatabaseUsageRecognition? TryRecognizeCypherInvocation(
+        InvocationExpressionSyntax invocation,
+        DatabaseTracingPresetOptions preset,
+        string memberName,
+        CSharpConfigurationConstantRegistry constants,
+        int maxTablesPerOperation)
+    {
+        if (!SupportsCypherMethod(memberName, preset))
+            return null;
+
+        var statementText = ResolveSqlText(invocation, preset, constants);
+        if (!LooksLikeCypher(statementText))
+            return null;
+
+        var operationType = InferCypherOperationType(statementText!);
+        if (operationType is null)
+            return null;
+
+        var tables = ExtractTablesFromCypher(statementText!, maxTablesPerOperation);
+        if (tables.Count == 0)
+            return null;
+
+        return new DatabaseUsageRecognition(preset.Id, preset.Provider, memberName, operationType.Value, tables);
+    }
+
     private static void EmitUsage(
         List<IngestNodeRequest> nodes,
         List<IngestEdgeRequest> edges,
@@ -278,7 +323,7 @@ internal static class CSharpDatabaseTracingExtractor
     {
         var registry = new Dictionary<string, string>(StringComparer.Ordinal);
         var commandPropertyNames = presets
-            .SelectMany(preset => preset.CommandTextProperties)
+            .SelectMany(preset => preset.GetEffectiveStatementTextProperties())
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var commandTypeHints = presets
@@ -293,7 +338,7 @@ internal static class CSharpDatabaseTracingExtractor
                 continue;
 
             var sqlText = CSharpIndexerSyntaxUtilities.ResolveStringExpression(assignment.Right, constants);
-            if (!LooksLikeSql(sqlText))
+            if (!LooksLikeStatement(sqlText))
                 continue;
 
             registry[NormalizeReceiverKey(memberAccess.Expression)] = sqlText!;
@@ -307,7 +352,7 @@ internal static class CSharpDatabaseTracingExtractor
                 continue;
 
             var sqlText = CSharpIndexerSyntaxUtilities.ResolveStringExpression(firstArgument, constants);
-            if (!LooksLikeSql(sqlText))
+            if (!LooksLikeStatement(sqlText))
                 continue;
 
             registry[declarator.Identifier.ValueText] = sqlText!;
@@ -347,7 +392,7 @@ internal static class CSharpDatabaseTracingExtractor
         if (invocation.ArgumentList.Arguments.Count == 0)
             return null;
 
-        foreach (var argumentIndex in preset.SqlArgumentIndexes.DefaultIfEmpty(0))
+        foreach (var argumentIndex in preset.GetEffectiveStatementArgumentIndexes().DefaultIfEmpty(0))
         {
             if (argumentIndex < 0 || argumentIndex >= invocation.ArgumentList.Arguments.Count)
                 continue;
@@ -355,14 +400,14 @@ internal static class CSharpDatabaseTracingExtractor
             var sqlText = CSharpIndexerSyntaxUtilities.ResolveStringExpression(
                 invocation.ArgumentList.Arguments[argumentIndex].Expression,
                 constants);
-            if (LooksLikeSql(sqlText))
+            if (LooksLikeStatement(sqlText))
                 return sqlText;
         }
 
         foreach (var argument in invocation.ArgumentList.Arguments)
         {
             var sqlText = CSharpIndexerSyntaxUtilities.ResolveStringExpression(argument.Expression, constants);
-            if (LooksLikeSql(sqlText))
+            if (LooksLikeStatement(sqlText))
                 return sqlText;
         }
 
@@ -372,9 +417,26 @@ internal static class CSharpDatabaseTracingExtractor
     private static bool LooksLikeSql(string? sqlText) =>
         !string.IsNullOrWhiteSpace(sqlText) && SqlStatementRegex.IsMatch(sqlText);
 
+    private static bool LooksLikeStatement(string? statementText) =>
+        LooksLikeSql(statementText) || LooksLikeCypher(statementText);
+
+    private static bool LooksLikeCypher(string? statementText) =>
+        !string.IsNullOrWhiteSpace(statementText)
+        && (CypherReadStatementRegex.IsMatch(statementText) || CypherWriteStatementRegex.IsMatch(statementText));
+
     private static List<string> ExtractTablesFromSql(string sqlText, int maxTablesPerOperation) =>
         SqlTableRegex.Matches(sqlText)
             .Select(match => NormalizeTableName(match.Groups[1].Value))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Max(1, maxTablesPerOperation))
+            .ToList();
+
+    private static List<string> ExtractTablesFromCypher(string statementText, int maxTablesPerOperation) =>
+        CypherLabelRegex.Matches(statementText)
+            .Cast<Match>()
+            .Concat(CypherRelationshipTypeRegex.Matches(statementText).Cast<Match>())
+            .Select(match => NormalizeTableName(match.Groups["name"].Value))
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(Math.Max(1, maxTablesPerOperation))
@@ -479,6 +541,25 @@ internal static class CSharpDatabaseTracingExtractor
 
     private static string NormalizeReceiverKey(ExpressionSyntax expression) =>
         expression.ToString().Trim();
+
+    private static bool SupportsLanguage(DatabaseTracingPresetOptions preset, string language) =>
+        preset.Languages.Count == 0
+        || preset.Languages.Any(candidate => string.Equals(candidate, language, StringComparison.OrdinalIgnoreCase));
+
+    private static bool SupportsCypherMethod(string methodName, DatabaseTracingPresetOptions preset) =>
+        preset.ReadMethods.Concat(preset.WriteMethods)
+            .Any(candidate => string.Equals(candidate, methodName, StringComparison.OrdinalIgnoreCase));
+
+    private static DatabaseOperationType? InferCypherOperationType(string statementText)
+    {
+        if (CypherWriteStatementRegex.IsMatch(statementText))
+            return DatabaseOperationType.Write;
+
+        if (CypherReadStatementRegex.IsMatch(statementText))
+            return DatabaseOperationType.Read;
+
+        return null;
+    }
 
     private readonly record struct DatabaseUsageRecognition(
         string RecognizerId,
