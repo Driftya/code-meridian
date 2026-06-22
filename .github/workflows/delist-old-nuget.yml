@@ -1,0 +1,176 @@
+name: Delist Old NuGet Versions
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_id:
+        description: "NuGet package id"
+        required: true
+        default: "CodeMeridian.Indexer"
+      keep:
+        description: "How many newest versions to keep listed"
+        required: true
+        default: "5"
+      include_prerelease:
+        description: "Include prerelease versions in cleanup"
+        required: true
+        type: boolean
+        default: false
+      dry_run:
+        description: "Only print what would be delisted"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  NUGET_SOURCE: https://api.nuget.org/v3/index.json
+
+jobs:
+  delist:
+    name: Delist old NuGet versions
+    runs-on: windows-latest
+    environment: nuget
+
+    steps:
+      - name: Validate inputs
+        shell: pwsh
+        run: |
+          $packageId = "${{ inputs.package_id }}"
+          $keep = [int]"${{ inputs.keep }}"
+
+          if ([string]::IsNullOrWhiteSpace($packageId)) {
+            throw "package_id is required."
+          }
+
+          if ($packageId -notmatch '^[A-Za-z0-9_.-]+$') {
+            throw "Invalid package id '$packageId'."
+          }
+
+          if ($keep -lt 1) {
+            throw "keep must be at least 1."
+          }
+
+      - name: Validate NuGet API key
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace("${{ secrets.NUGET_API_KEY }}")) {
+            throw "NUGET_API_KEY is missing. If this is an environment secret, set jobs.delist.environment to the matching GitHub Environment name."
+          }
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Resolve old package versions
+        id: versions
+        shell: pwsh
+        run: |
+          $packageId = "${{ inputs.package_id }}"
+          $keep = [int]"${{ inputs.keep }}"
+          $includePrerelease = [System.Convert]::ToBoolean("${{ inputs.include_prerelease }}")
+
+          $normalizedPackageId = $packageId.ToLowerInvariant()
+          $indexUrl = "https://api.nuget.org/v3-flatcontainer/$normalizedPackageId/index.json"
+
+          Write-Host "Loading versions from $indexUrl"
+
+          try {
+            $response = Invoke-RestMethod -Uri $indexUrl -Method Get
+          }
+          catch {
+            throw "Failed to load NuGet versions for package '$packageId'. $($_.Exception.Message)"
+          }
+
+          $versions = @($response.versions)
+
+          if (-not $includePrerelease) {
+            $versions = @($versions | Where-Object { $_ -notmatch '-' })
+          }
+
+          if ($versions.Count -eq 0) {
+            Write-Host "Package '$packageId' has no matching versions."
+            "versions=" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          if ($versions.Count -le $keep) {
+            Write-Host "Package '$packageId' has $($versions.Count) matching version(s). Nothing to delist."
+            "versions=" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          $sortableVersions = foreach ($version in $versions) {
+            if ($version -notmatch '^(\d+)\.(\d+)\.(\d+)(?:[-.]?(.*))?$') {
+              Write-Warning "Skipping invalid SemVer version '$version'."
+              continue
+            }
+
+            [PSCustomObject]@{
+              Original = $version
+              Major = [int]$matches[1]
+              Minor = [int]$matches[2]
+              Patch = [int]$matches[3]
+              IsPrerelease = $version.Contains("-")
+            }
+          }
+
+          $sortedVersions = @(
+            $sortableVersions |
+              Sort-Object `
+                @{ Expression = "Major"; Descending = $true },
+                @{ Expression = "Minor"; Descending = $true },
+                @{ Expression = "Patch"; Descending = $true },
+                @{ Expression = "IsPrerelease"; Descending = $false } |
+              Select-Object -ExpandProperty Original
+          )
+
+          if ($sortedVersions.Count -le $keep) {
+            Write-Host "Package '$packageId' has $($sortedVersions.Count) sortable version(s). Nothing to delist."
+            "versions=" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          $versionsToKeep = @($sortedVersions | Select-Object -First $keep)
+          $versionsToDelist = @($sortedVersions | Select-Object -Skip $keep)
+
+          Write-Host "Keeping newest $keep version(s):"
+          foreach ($version in $versionsToKeep) {
+            Write-Host "  KEEP   $version"
+          }
+
+          Write-Host "Versions selected for delisting:"
+          foreach ($version in $versionsToDelist) {
+            Write-Host "  DELIST $version"
+          }
+
+          $output = $versionsToDelist -join ','
+          "versions=$output" >> $env:GITHUB_OUTPUT
+
+      - name: Delist selected versions
+        if: steps.versions.outputs.versions != ''
+        shell: pwsh
+        run: |
+          $packageId = "${{ inputs.package_id }}"
+          $apiKey = "${{ secrets.NUGET_API_KEY }}"
+          $dryRun = [System.Convert]::ToBoolean("${{ inputs.dry_run }}")
+          $versions = "${{ steps.versions.outputs.versions }}".Split(',', [System.StringSplitOptions]::RemoveEmptyEntries)
+
+          foreach ($version in $versions) {
+            if ($dryRun) {
+              Write-Host "[DRY RUN] Would delist $packageId $version"
+              continue
+            }
+
+            Write-Host "Delisting $packageId $version"
+
+            dotnet nuget delete $packageId $version `
+              --api-key $apiKey `
+              --source $env:NUGET_SOURCE `
+              --non-interactive
+          }
