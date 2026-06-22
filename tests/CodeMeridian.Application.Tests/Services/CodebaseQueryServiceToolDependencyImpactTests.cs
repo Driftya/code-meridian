@@ -46,7 +46,23 @@ public sealed class CodebaseQueryServiceToolDependencyImpactTests
         var result = await sut.FindToolDependencyImpactAsync("find_test_shield", includeAwarenessOnly: true);
 
         result.Should().Contain("`pr_context_report`");
+        result.Should().Contain("`plan_context_workflow`");
         result.Should().Contain("Awareness");
+    }
+
+    [Fact]
+    public async Task FindToolDependencyImpactAsync_WithPlanningSubject_ShowsLexicalAndShieldAwarenessDependencies()
+    {
+        var sut = BuildService();
+
+        var result = await sut.FindToolDependencyImpactAsync("plan_context_workflow", includeAwarenessOnly: true);
+
+        result.Should().Contain("## Tool Dependency Impact - `plan_context_workflow`");
+        result.Should().Contain("### Upstream Dependencies");
+        result.Should().Contain("`find_test_shield`");
+        result.Should().Contain("`find_related_knowledge`");
+        result.Should().Contain("### Downstream Consumers");
+        result.Should().Contain("`execute_context_workflow`");
     }
 
     [Fact]

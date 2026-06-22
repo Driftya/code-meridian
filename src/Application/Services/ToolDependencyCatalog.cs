@@ -19,7 +19,8 @@ internal static class ToolDependencyCatalog
             [
                 "docs/context-workflows.md",
                 "docs/features.md",
-                "docs/features/43-add-context-workflow-planning.md"
+                "docs/features/43-add-context-workflow-planning.md",
+                "docs/features/52-prune-optional-context-workflow-steps.md"
             ]),
         Edge(
             "find_test_shield",
@@ -48,6 +49,21 @@ internal static class ToolDependencyCatalog
                 "docs/features/21-add-ci-friendly-context-reports.md"
             ]),
         Edge(
+            "find_test_shield",
+            "plan_context_workflow",
+            "focused verification workflow guidance",
+            "awareness",
+            "Workflow recipes use find_test_shield as the verification-planning step, so ranking and section changes should stay aligned with before-edit and refactor guidance.",
+            [
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceContextWorkflowTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+            ],
+            [
+                "docs/features/43-add-context-workflow-planning.md",
+                "docs/features/46-add-slice-aware-test-shield-ranking.md",
+                "docs/features/52-prune-optional-context-workflow-steps.md"
+            ]),
+        Edge(
             "find_related_knowledge",
             "pr_context_report",
             "related-document scoring and lexical confidence thresholds",
@@ -59,6 +75,21 @@ internal static class ToolDependencyCatalog
             ],
             [
                 "docs/features/21-add-ci-friendly-context-reports.md",
+                "docs/features/51-prune-related-knowledge-result-noise.md"
+            ]),
+        Edge(
+            "find_related_knowledge",
+            "plan_context_workflow",
+            "workflow recipe guidance for lexical discovery",
+            "awareness",
+            "Multiple workflow recipes recommend find_related_knowledge when structural graph links are weak, so planner guidance should stay aligned with lexical-confidence and awareness-only result semantics.",
+            [
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceContextWorkflowTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/KeywordGraphServiceTests.cs"
+            ],
+            [
+                "docs/context-workflows.md",
+                "docs/features/43-add-context-workflow-planning.md",
                 "docs/features/51-prune-related-knowledge-result-noise.md"
             ]),
         Edge(
