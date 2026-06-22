@@ -28,6 +28,8 @@ Use the context skill before:
 * planning tests
 * reviewing impact or architecture risk
 
+When a feature likely follows an existing slice, pair the context skill with `find_implementation_patterns` so the agent sees reusable entry/service/repository/test shapes before editing.
+
 Use the context agent when your provider supports specialist agents or subagents and you want a dedicated helper to gather CodeMeridian context before the main agent edits files.
 
 ## When To Add More
@@ -45,6 +47,7 @@ Good reasons to add a capability:
 Prefer updating existing capabilities for:
 
 * new graph tools that fit existing trigger rules
+* reusable pattern-finding tools such as `find_implementation_patterns` that strengthen feature planning without changing the workflow boundary
 * better ordering between current tools
 * clearer freshness, impact, test, or documentation checks
 * provider-specific placement notes

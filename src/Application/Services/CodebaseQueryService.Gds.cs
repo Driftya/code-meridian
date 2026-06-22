@@ -91,7 +91,7 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindBridgesAsync(
+    private async Task<string> FindBridgesLegacyAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {

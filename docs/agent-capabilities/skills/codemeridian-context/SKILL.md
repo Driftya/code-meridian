@@ -82,6 +82,7 @@ Prefer:
 
 * `build_minimal_context` for broad implementation tasks
 * `find_implementation_surface` for exact feature/fix targets after the feature path is mapped
+* `find_implementation_patterns` when the feature should mirror an existing entry/service/repository/test shape
 * `resolve_exact_symbol` before editing a named class, method, interface, endpoint, or file
 * `get_context_for_editing` when preparing a focused edit
 

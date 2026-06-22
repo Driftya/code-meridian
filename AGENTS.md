@@ -32,6 +32,7 @@ Use CodeMeridian proactively. Prefer graph tools over terminal scans when the gr
 | Before starting a feature | `analyze_feature_implementation_path`, then `find_implementation_surface` for exact targets |
 | Before trusting exact file targets | `check_graph_freshness` or `find_graph_drift` |
 | "How do X and Y relate?" | `find_connection` |
+| Looking for an existing implementation shape to mirror | `find_implementation_patterns` |
 | Looking for duplicate/refactor risk | `find_duplicate_candidates` or `find_similar_nodes` |
 | Looking for missing tests | `find_coverage_gaps` |
 | Searching docs/decisions | `search_documentation` |
@@ -66,7 +67,7 @@ Keep files small and context-friendly.
 Typical flow:
 
 1. For feature work, map the feature first with `analyze_feature_implementation_path`.
-2. Resolve the target with `query_codebase`, `find_implementation_surface`, or `resolve_exact_symbol`.
+2. Resolve the target with `query_codebase`, `find_implementation_surface`, `find_implementation_patterns`, or `resolve_exact_symbol`.
 3. Inspect local context with `get_context_for_editing`.
 4. Check blast radius with `find_impact`.
 5. Use file reads only after the graph has narrowed the surface.

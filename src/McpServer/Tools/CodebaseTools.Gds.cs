@@ -37,9 +37,8 @@ public sealed partial class CodebaseTools
 
     [McpServerTool(Name = "find_bridges")]
     [Description(
-        "Find structurally important bridge nodes by combining GDS betweenness centrality with direct call-graph context. " +
-        "Reports likely connected layers, a bridge-risk note, and metadata confidence so you can spot small nodes " +
-        "that connect otherwise separate parts of the system. Requires Neo4j Graph Data Science plugin.")]
+        "Find risky core nodes by combining GDS betweenness centrality, PageRank, articulation-point detection, bridge-edge detection, and direct graph context. " +
+        "Reports why a node is structurally risky, which layers it connects, and the next CodeMeridian tool to use before refactoring it. Requires Neo4j Graph Data Science plugin.")]
     public Task<string> FindBridgesAsync(
         [Description("Project name to scope the results. Omit to analyse all projects.")]
         string? projectContext = null,

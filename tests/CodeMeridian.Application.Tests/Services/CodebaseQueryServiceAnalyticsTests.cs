@@ -1426,15 +1426,21 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var (sut, graph) = Build();
         graph.GetBetweennessAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
              .ThrowsAsync(new InvalidOperationException("No such procedure: gds.betweenness.stream"));
+        graph.GetPageRankAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.GetArticulationPointsAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.GetBridgeEdgesAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+             .Returns([]);
 
         var result = await sut.FindBridgesAsync();
 
-        result.Should().Contain("Bridge detection failed");
+        result.Should().Contain("Risky core analysis failed");
         result.Should().Contain("Graph Data Science");
     }
 
     [Fact]
-    public async Task FindBridgesAsync_WithResults_ReturnsLayersRiskAndConfidence()
+    public async Task FindBridgesAsync_WithResults_ReturnsRiskyCoreSignalsAndBridgeEdges()
     {
         var (sut, graph) = Build();
         var bridge = Node(
@@ -1452,16 +1458,27 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         graph.GetBetweennessAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
              .Returns([(bridge, 980.0)]);
+        graph.GetPageRankAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+             .Returns([(bridge, 0.88)]);
+        graph.GetArticulationPointsAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+             .Returns([(bridge, 3)]);
+        graph.GetBridgeEdgesAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+             .Returns([
+                 (apiCaller, bridge, (IReadOnlyList<long>)new long[] { 5, 4 }),
+                 (bridge, infraCallee, (IReadOnlyList<long>)new long[] { 6, 3 })
+             ]);
         graph.GetContextForEditingAsync("b1", Arg.Any<CancellationToken>())
              .Returns(new EditingContext(bridge, [apiCaller], [infraCallee], []));
 
         var result = await sut.FindBridgesAsync();
 
-        result.Should().Contain("## Bridge Nodes");
+        result.Should().Contain("## Risky Core Nodes");
         result.Should().Contain("PaymentFacade");
-        result.Should().Contain("API, Application, Infrastructure");
-        result.Should().Contain("high bridge risk across multiple layers");
-        result.Should().Contain("| High |");
+        result.Should().Contain("API -> Application -> Infrastructure");
+        result.Should().Contain("splits graph into 3 component(s)");
+        result.Should().Contain("touches 2 bridge edge(s)");
+        result.Should().Contain("find_impact");
+        result.Should().Contain("### Bridge edges");
     }
 
     [Fact]

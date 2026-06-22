@@ -11,6 +11,25 @@ namespace CodeMeridian.Infrastructure.Graph;
 /// </summary>
 public sealed partial class Neo4jCodeGraphRepository
 {
+    private static readonly string[] RiskCoreRelationshipTypes =
+    [
+        "Calls",
+        "Uses",
+        "DependsOn",
+        "Implements",
+        "Inherits",
+        "Reads",
+        "Writes",
+        "PublishesTo",
+        "SubscribesTo",
+        "UsesClass",
+        "UsesId",
+        "DefinesSelector",
+        "ImportsStyle",
+        "UsesCssVariable",
+        "DefinesCssVariable"
+    ];
+
     public async Task<IReadOnlyList<(CodeNode Node, double Score)>> GetPageRankAsync(
         string? projectContext = null,
         int limit = 20,
@@ -18,11 +37,12 @@ public sealed partial class Neo4jCodeGraphRepository
     {
         await using var session = _driver.AsyncSession();
         var graphName = $"cm_pr_{Guid.NewGuid():N}";
+        var relationshipProjection = await BuildRelationshipProjectionAsync(session, RiskCoreRelationshipTypes, undirected: false, cancellationToken);
+        if (relationshipProjection is null)
+            return [];
 
-        // GDS fails if the projection lists relationship types that do not exist in the current graph.
-        // Project the dependency types that are guaranteed to exist after indexing.
-        const string projectCypher = """
-            CALL gds.graph.project($graphName, 'CodeNode', 'Calls')
+        var projectCypher = $"""
+            CALL gds.graph.project($graphName, 'CodeNode', {relationshipProjection})
             YIELD graphName, nodeCount, relationshipCount
             """;
 
@@ -49,9 +69,12 @@ public sealed partial class Neo4jCodeGraphRepository
     {
         await using var session = _driver.AsyncSession();
         var graphName = $"cm_bc_{Guid.NewGuid():N}";
+        var relationshipProjection = await BuildRelationshipProjectionAsync(session, RiskCoreRelationshipTypes, undirected: true, cancellationToken);
+        if (relationshipProjection is null)
+            return [];
 
-        const string projectCypher = """
-            CALL gds.graph.project($graphName, 'CodeNode', 'Calls')
+        var projectCypher = $"""
+            CALL gds.graph.project($graphName, 'CodeNode', {relationshipProjection})
             YIELD graphName, nodeCount, relationshipCount
             """;
 
@@ -68,6 +91,75 @@ public sealed partial class Neo4jCodeGraphRepository
         return await RunGdsStreamAsync(session, graphName, projectCypher, streamCypher,
             new { graphName, projectContextNormalized = (object?)Normalize(projectContext), limit },
             r => (MapToCodeNode(r["n"].As<INode>()), r["score"].As<double>()),
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<(CodeNode Node, int ResultingComponentCount)>> GetArticulationPointsAsync(
+        string? projectContext = null,
+        int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+        var graphName = $"cm_ap_{Guid.NewGuid():N}";
+        var relationshipProjection = await BuildRelationshipProjectionAsync(session, RiskCoreRelationshipTypes, undirected: true, cancellationToken);
+        if (relationshipProjection is null)
+            return [];
+
+        var projectCypher = $"""
+            CALL gds.graph.project($graphName, 'CodeNode', {relationshipProjection})
+            YIELD graphName, nodeCount, relationshipCount
+            """;
+
+        const string streamCypher = """
+            CALL gds.articulationPoints.stream($graphName)
+            YIELD nodeId, resultingComponents
+            MATCH (n:CodeNode) WHERE id(n) = nodeId
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
+            RETURN n, coalesce(resultingComponents['count'], 0) AS componentCount
+            ORDER BY componentCount DESC, n.name
+            LIMIT $limit
+            """;
+
+        return await RunGdsStreamAsync(session, graphName, projectCypher, streamCypher,
+            new { graphName, projectContextNormalized = (object?)Normalize(projectContext), limit },
+            r => (MapToCodeNode(r["n"].As<INode>()), r["componentCount"].As<int>()),
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<(CodeNode Source, CodeNode Target, IReadOnlyList<long> RemainingSizes)>> GetBridgeEdgesAsync(
+        string? projectContext = null,
+        int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+        var graphName = $"cm_be_{Guid.NewGuid():N}";
+        var relationshipProjection = await BuildRelationshipProjectionAsync(session, RiskCoreRelationshipTypes, undirected: true, cancellationToken);
+        if (relationshipProjection is null)
+            return [];
+
+        var projectCypher = $"""
+            CALL gds.graph.project($graphName, 'CodeNode', {relationshipProjection})
+            YIELD graphName, nodeCount, relationshipCount
+            """;
+
+        const string streamCypher = """
+            CALL gds.bridges.stream($graphName)
+            YIELD from, to, remainingSizes
+            MATCH (source:CodeNode) WHERE id(source) = from
+              AND ($projectContextNormalized IS NULL OR source.projectContextNormalized = $projectContextNormalized)
+            MATCH (target:CodeNode) WHERE id(target) = to
+              AND ($projectContextNormalized IS NULL OR target.projectContextNormalized = $projectContextNormalized)
+            RETURN source, target, remainingSizes
+            ORDER BY size(remainingSizes) DESC, source.name, target.name
+            LIMIT $limit
+            """;
+
+        return await RunGdsStreamAsync(session, graphName, projectCypher, streamCypher,
+            new { graphName, projectContextNormalized = (object?)Normalize(projectContext), limit },
+            r => (
+                MapToCodeNode(r["source"].As<INode>()),
+                MapToCodeNode(r["target"].As<INode>()),
+                (IReadOnlyList<long>)r["remainingSizes"].As<List<long>>()),
             cancellationToken);
     }
 
@@ -444,5 +536,37 @@ public sealed partial class Neo4jCodeGraphRepository
                 "CALL gds.graph.drop($graphName, false) YIELD graphName",
                 new { graphName })).ConsumeAsync();
         }
+    }
+
+    private static async Task<string?> BuildRelationshipProjectionAsync(
+        IAsyncSession session,
+        IReadOnlyCollection<string> preferredTypes,
+        bool undirected,
+        CancellationToken cancellationToken)
+    {
+        var cursor = await session.RunAsync(
+            """
+            CALL db.relationshipTypes() YIELD relationshipType
+            RETURN collect(relationshipType) AS relationshipTypes
+            """);
+
+        List<string>? available = null;
+        await foreach (var record in cursor.WithCancellation(cancellationToken))
+            available = record["relationshipTypes"].As<List<string>>();
+
+        if (available is null || available.Count == 0)
+            return null;
+
+        var availableLookup = available.ToHashSet(StringComparer.Ordinal);
+        var relationshipTypes = preferredTypes
+            .Where(availableLookup.Contains)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (relationshipTypes.Length == 0)
+            return null;
+
+        var orientation = undirected ? "UNDIRECTED" : "NATURAL";
+        return "{ " + string.Join(", ", relationshipTypes.Select(type => $"{type}: {{orientation: '{orientation}'}}")) + " }";
     }
 }

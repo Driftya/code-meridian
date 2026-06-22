@@ -84,6 +84,12 @@ public interface ICodeGraphRepository
     /// <summary>GDS Betweenness Centrality — bridge nodes that sit between subsystems (highest connective tissue risk).</summary>
     Task<IReadOnlyList<(CodeNode Node, double Score)>> GetBetweennessAsync(string? projectContext = null, int limit = 20, CancellationToken cancellationToken = default);
 
+    /// <summary>GDS Articulation Points — nodes whose removal would split the structural graph into additional components.</summary>
+    Task<IReadOnlyList<(CodeNode Node, int ResultingComponentCount)>> GetArticulationPointsAsync(string? projectContext = null, int limit = 20, CancellationToken cancellationToken = default);
+
+    /// <summary>GDS Bridges — structural edges whose removal would disconnect parts of the graph.</summary>
+    Task<IReadOnlyList<(CodeNode Source, CodeNode Target, IReadOnlyList<long> RemainingSizes)>> GetBridgeEdgesAsync(string? projectContext = null, int limit = 20, CancellationToken cancellationToken = default);
+
     /// <summary>GDS Louvain community detection — natural module boundaries the code has organically evolved into.</summary>
     Task<IReadOnlyList<(CodeNode Node, long Community)>> FindNaturalModulesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
 
