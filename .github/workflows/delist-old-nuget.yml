@@ -58,7 +58,7 @@ jobs:
       - name: Validate NuGet API key
         shell: pwsh
         run: |
-          if ([string]::IsNullOrWhiteSpace("${{ secrets.NUGET_API_KEY }}")) {
+          if ([string]::IsNullOrWhiteSpace("${{ secrets.NUGET_API_KEY_UNLIST }}")) {
             throw "NUGET_API_KEY is missing. If this is an environment secret, set jobs.delist.environment to the matching GitHub Environment name."
           }
 
@@ -157,7 +157,7 @@ jobs:
         shell: pwsh
         run: |
           $packageId = "${{ inputs.package_id }}"
-          $apiKey = "${{ secrets.NUGET_API_KEY }}"
+          $apiKey = "${{ secrets.NUGET_API_KEY_UNLIST }}"
           $dryRun = [System.Convert]::ToBoolean("${{ inputs.dry_run }}")
           $versions = "${{ steps.versions.outputs.versions }}".Split(',', [System.StringSplitOptions]::RemoveEmptyEntries)
 
