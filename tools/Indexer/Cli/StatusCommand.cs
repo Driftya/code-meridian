@@ -94,6 +94,35 @@ internal sealed class StatusCommand
         }
     }
 
+    public async Task<int> RunTraceEndpointAsync(
+        string route,
+        string? project,
+        string codeMeridianUrl,
+        string? apiKey,
+        string detailLevel)
+    {
+        using var httpClient = _httpClientFactory(codeMeridianUrl, apiKey);
+        var client = new CodeMeridianClient(httpClient);
+
+        try
+        {
+            var report = await client.GetEndpointTraceAsync(route, project, detailLevel);
+            if (string.IsNullOrWhiteSpace(report))
+            {
+                PrintUnreachable("CodeMeridian trace-endpoint", "backend returned an empty or non-success response.");
+                return 1;
+            }
+
+            Console.WriteLine(report.TrimEnd());
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            PrintUnreachable("CodeMeridian trace-endpoint", ex.Message);
+            return 1;
+        }
+    }
+
     public async Task<int> RunVersionAsync(string codeMeridianUrl, string? apiKey)
     {
         var toolVersion = CodeMeridianVersionReader.ReadFrom(typeof(StatusCommand).Assembly, "CodeMeridian.Indexer");

@@ -25,6 +25,8 @@ public static class DependencyInjection
             services.Configure<KeywordEnrichmentOptions>(configuration.GetSection($"CodeMeridian:{KeywordEnrichmentOptions.SectionName}"));
             services.Configure<KeywordClassificationOptions>(configuration.GetSection(KeywordClassificationOptions.SectionName));
             services.Configure<KeywordClassificationOptions>(configuration.GetSection($"CodeMeridian:{KeywordClassificationOptions.SectionName}"));
+            services.Configure<DatabaseTracingOptions>(configuration.GetSection(DatabaseTracingOptions.SectionName));
+            services.Configure<DatabaseTracingOptions>(configuration.GetSection($"CodeMeridian:{DatabaseTracingOptions.SectionName}"));
         }
         else
         {
@@ -32,6 +34,7 @@ public static class DependencyInjection
             services.AddOptions<CodebaseIndexingOptions>();
             services.AddOptions<KeywordEnrichmentOptions>();
             services.AddOptions<KeywordClassificationOptions>();
+            services.AddOptions<DatabaseTracingOptions>();
         }
 
         services.AddSingleton<IExtensionRegistry, ExtensionRegistry>();

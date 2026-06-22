@@ -25,7 +25,7 @@ This file is the quick reference for what the TypeScript indexer currently parse
 - `Uses` edges for resolvable type references, imports, and exported type dependencies
 - `DependsOn` edges for relative file imports
 - `Implements` and `Inherits` edges for local class/interface heritage
-- API endpoint, configuration, and synthetic test-case nodes from the dedicated TS walker passes
+- API endpoint, configuration, database-tracing, and synthetic test-case nodes from the dedicated TS walker passes
 
 ## Supported Language Features
 
@@ -35,6 +35,7 @@ This file is the quick reference for what the TypeScript indexer currently parse
 - Type-only imports for resolvable local types
 - Class inheritance and interface implementation
 - Source snippets and source hashes for indexed code nodes
+- Repo-configured database tracing for Prisma, Knex, and Neo4j Cypher through `.meridian/database-tracing.json`
 
 ## Notes
 

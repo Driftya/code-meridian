@@ -29,6 +29,13 @@ public interface ICodeGraphRepository
     /// <summary>Returns the shortest path between two nodes, or empty if no path exists.</summary>
     Task<IReadOnlyList<(CodeNode Node, string? ViaRelationship)>> FindConnectionAsync(string fromId, string toId, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns graph-only paths from one API endpoint to downstream database tables or messaging destinations.</summary>
+    Task<IReadOnlyList<EndpointTracePath>> FindEndpointTracesAsync(
+        string endpointRoute,
+        string? projectContext = null,
+        int maxDepth = 10,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Returns methods and classes with no incoming Calls/Uses/Contains edges (potential dead code).</summary>
     Task<IReadOnlyList<CodeNode>> FindUnreferencedAsync(string? projectContext, CancellationToken cancellationToken = default);
 

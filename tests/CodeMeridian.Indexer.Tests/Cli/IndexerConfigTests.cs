@@ -143,6 +143,7 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"CompositionRoot\"");
         File.Exists(Path.Combine(_root, ".meridian", "architecture.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".meridian", "keyword-classification.json")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".meridian", "database-tracing.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.clean.template.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.onion.template.json")).Should().BeTrue();
         File.Exists(Path.Combine(_root, ".meridian", "architectures", "architecture.hexagonal.template.json")).Should().BeTrue();
@@ -165,6 +166,7 @@ public sealed class IndexerConfigTests : IDisposable
         File.Exists(Path.Combine(globalRoot.FullName, "meridian.schema.json")).Should().BeTrue();
         File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architecture.json")).Should().BeTrue();
         File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "keyword-classification.json")).Should().BeTrue();
+        File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "database-tracing.json")).Should().BeTrue();
         File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architectures", "architecture.clean.template.json")).Should().BeTrue();
         File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architectures", "architecture.onion.template.json")).Should().BeTrue();
         File.Exists(Path.Combine(globalRoot.FullName, ".meridian", "architectures", "architecture.hexagonal.template.json")).Should().BeTrue();

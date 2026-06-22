@@ -3,6 +3,7 @@ using CodeMeridian.Application.Services;
 using CodeMeridian.Core.CodeGraph;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.RoslynIndexer.Pipeline;
 
@@ -12,6 +13,7 @@ namespace CodeMeridian.RoslynIndexer.Pipeline;
 public sealed class CSharpIndexer(
     CodeMeridianClient client,
     IIndexedFileRoleClassifier fileRoleClassifier,
+    IOptions<DatabaseTracingOptions> databaseTracingOptions,
     ILogger<CSharpIndexer> logger)
 {
     public CSharpIndexer(
@@ -20,6 +22,7 @@ public sealed class CSharpIndexer(
         : this(
             client,
             new ConfiguredIndexedFileRoleClassifier(Microsoft.Extensions.Options.Options.Create(new CodebaseIndexingOptions())),
+            Options.Create(new DatabaseTracingOptions()),
             logger)
     {
     }
@@ -39,7 +42,7 @@ public sealed class CSharpIndexer(
         {
             try
             {
-                ExtractFromFile(file, rootPath, projectContext, nodes, edges, configurationConstants);
+                ExtractFromFile(file, rootPath, projectContext, nodes, edges, configurationConstants, databaseTracingOptions.Value);
             }
             catch (Exception ex)
             {
@@ -129,7 +132,8 @@ public sealed class CSharpIndexer(
         string projectContext,
         List<IngestNodeRequest> nodes,
         List<IngestEdgeRequest> edges,
-        CSharpConfigurationConstantRegistry configurationConstants)
+        CSharpConfigurationConstantRegistry configurationConstants,
+        DatabaseTracingOptions databaseTracingOptions)
     {
         var source = File.ReadAllText(file.FullName);
         var tree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source, path: file.FullName);
@@ -140,5 +144,6 @@ public sealed class CSharpIndexer(
         walker.Visit(root);
         CSharpRouteExtractor.Extract(root, relPath, projectContext, nodes, edges);
         CSharpConfigurationUsageExtractor.Extract(root, relPath, projectContext, nodes, edges, configurationConstants);
+        CSharpDatabaseTracingExtractor.Extract(root, relPath, projectContext, nodes, edges, configurationConstants, databaseTracingOptions);
     }
 }

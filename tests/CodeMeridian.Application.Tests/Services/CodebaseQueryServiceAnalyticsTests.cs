@@ -389,6 +389,98 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindConnectionAsync_WithDatabasePath_ListsDatabaseOperationAndTableHop()
+    {
+        var (sut, graph) = Build();
+        graph.FindConnectionAsync("endpoint", "table", Arg.Any<CancellationToken>())
+             .Returns([
+                 (Node("endpoint", "POST /api/orders", CodeNodeType.ApiEndpoint, project: "Shop.Api"), (string?)null),
+                 (Node("handler", "CreateOrder", CodeNodeType.Method, "src/Api/OrdersEndpoint.cs", 22, "Shop.Api"), "Uses"),
+                 (new CodeNode
+                 {
+                     Id = "db-op",
+                     Name = "EFCore Writes Orders",
+                     Type = CodeNodeType.ExternalConcept,
+                     ProjectContext = "Shop.Api",
+                     Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+                     {
+                         ["externalKind"] = "DatabaseOperation",
+                         ["provider"] = "EFCore"
+                     }
+                 }, "Writes"),
+                 (Node("table", "Orders", CodeNodeType.DatabaseTable, project: "Shop.Api"), "Writes")
+             ]);
+
+        var result = await sut.FindConnectionAsync("endpoint", "table");
+
+        result.Should().Contain("POST /api/orders");
+        result.Should().Contain("CreateOrder");
+        result.Should().Contain("EFCore Writes Orders");
+        result.Should().Contain("**DatabaseTable** `Orders`");
+        result.Should().Contain("—[Writes]→");
+    }
+
+    [Fact]
+    public async Task TraceEndpointAsync_WhenNoPaths_ReturnsReindexHint()
+    {
+        var (sut, graph) = Build();
+        graph.FindEndpointTracesAsync("POST /api/orders", "Shop.Api", 10, Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.TraceEndpointAsync("POST /api/orders", "Shop.Api");
+
+        result.Should().Contain("No database or event trace found");
+        result.Should().Contain(".meridian/database-tracing.json");
+    }
+
+    [Fact]
+    public async Task TraceEndpointAsync_WithDatabaseAndEventPaths_GroupsResults()
+    {
+        var (sut, graph) = Build();
+        var endpoint = Node("endpoint", "POST /api/orders", CodeNodeType.ApiEndpoint, project: "Shop.Api");
+        var handler = Node("handler", "CreateOrder", CodeNodeType.Method, "src/Api/OrdersEndpoint.cs", 22, "Shop.Api");
+        var operation = new CodeNode
+        {
+            Id = "db-op",
+            Name = "EFCore Writes Orders",
+            Type = CodeNodeType.ExternalConcept,
+            ProjectContext = "Shop.Api",
+            Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["externalKind"] = "DatabaseOperation",
+                ["provider"] = "EFCore"
+            }
+        };
+        var table = Node("table", "Orders", CodeNodeType.DatabaseTable, project: "Shop.Api");
+        var topic = Node("topic", "order-created", CodeNodeType.MessageTopic, project: "Shop.Api");
+
+        graph.FindEndpointTracesAsync("POST /api/orders", "Shop.Api", 10, Arg.Any<CancellationToken>())
+            .Returns([
+                new EndpointTracePath([
+                    new GraphPathStep(endpoint, "Uses", null),
+                    new GraphPathStep(handler, "Writes", null),
+                    new GraphPathStep(operation, "Writes", null),
+                    new GraphPathStep(table, null, null)
+                ]),
+                new EndpointTracePath([
+                    new GraphPathStep(endpoint, "Uses", null),
+                    new GraphPathStep(handler, "PublishesTo", null),
+                    new GraphPathStep(topic, null, null)
+                ])
+            ]);
+
+        var result = await sut.TraceEndpointAsync("POST /api/orders", "Shop.Api");
+
+        result.Should().Contain("## Endpoint Trace - `POST /api/orders` - Shop.Api");
+        result.Should().Contain("### Database paths (1)");
+        result.Should().Contain("### Event paths (1)");
+        result.Should().Contain("EFCore Writes Orders");
+        result.Should().Contain("**DatabaseTable** `Orders`");
+        result.Should().Contain("**MessageTopic** `order-created`");
+        result.Should().Contain("Graph-only trace");
+    }
+
+    [Fact]
     public async Task FindUnreferencedAsync_WithResults_GroupsByTypeAndIncludesDisclaimer()
     {
         var (sut, graph) = Build();
