@@ -114,6 +114,8 @@ Finds lexically related nodes by shared derived keywords. Results include score,
 
 When keyword classification has been run, `find_related_knowledge` ignores keywords marked as noise and weights matches by saved usefulness score.
 
+The formatter now deduplicates equivalent document/file targets, keeps stronger matches in a primary section, and collapses weaker lexical-only results into an awareness-only section instead of mixing everything into one ranked list.
+
 ```text
 Find docs and diagnostics related to this node through the keyword graph.
 ```
@@ -392,6 +394,8 @@ Plans the recommended CodeMeridian tool sequence for an agent task. The planner 
 
 Supported workflows include before-edit checks, feature implementation, refactor planning, responsibility slicing, architecture review, dependency replacement, knowledge health, diagnostic review, configuration review, cross-project tracing, semantic discovery, documentation ingestion, and extension-agent routing.
 
+If `includeOptionalSteps` is omitted, narrow workflows such as `before_edit`, `diagnostic_review`, `configuration_review`, and `dependency_replacement` prune optional awareness-only steps by default. Set it to `true` to request the broader recipe or `false` for required-only steps.
+
 ```text
 Plan how to use CodeMeridian before refactoring CodebaseQueryService.
 ```
@@ -401,6 +405,8 @@ See [Context workflows](context-workflows.md) for the full recipe list and exten
 ### `execute_context_workflow`
 
 Executes an approved context workflow and returns JSON step results. This first execution slice is conservative: it runs read-only query tools exposed through the application service, refuses graph-mutating workflows unless explicitly approved, stops on missing required inputs, and reports unsupported tools instead of silently skipping them.
+
+It uses the same workflow-aware optional-step default as `plan_context_workflow`.
 
 ```text
 Execute a diagnostic review workflow for CodeMeridian with only required steps.

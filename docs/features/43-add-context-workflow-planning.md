@@ -591,7 +591,6 @@ Rules:
   "project": "CodeMeridian",
   "workflowType": "feature_implementation",
   "maxSteps": 8,
-  "includeOptionalSteps": true,
   "includeStopConditions": true,
   "includeExecutionHints": true
 }

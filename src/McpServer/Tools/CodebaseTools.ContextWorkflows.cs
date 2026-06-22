@@ -22,8 +22,8 @@ public sealed partial class CodebaseTools
         string? workflowType = null,
         [Description("Maximum number of steps to return. Default 12.")]
         int maxSteps = 12,
-        [Description("Include optional recipe steps. Default true.")]
-        bool includeOptionalSteps = true,
+        [Description("Include optional recipe steps. Omit to use workflow-aware defaults, set true for the broader recipe, or false for required-only steps.")]
+        bool? includeOptionalSteps = null,
         [Description("Include stop conditions for required and risky steps. Default true.")]
         bool includeStopConditions = true,
         [Description("Include execution hints for callers that will run tools manually. Default true.")]
@@ -56,8 +56,8 @@ public sealed partial class CodebaseTools
         string? workflowType = null,
         [Description("Maximum number of planned steps to execute. Default 8.")]
         int maxSteps = 8,
-        [Description("Include optional recipe steps in execution. Default true.")]
-        bool includeOptionalSteps = true,
+        [Description("Include optional recipe steps in execution. Omit to use workflow-aware defaults, set true for the broader recipe, or false for required-only steps.")]
+        bool? includeOptionalSteps = null,
         [Description("Allow graph-mutating workflows. Default false.")]
         bool allowGraphMutation = false,
         [Description("Optional second node ID for connection/trace workflows.")]

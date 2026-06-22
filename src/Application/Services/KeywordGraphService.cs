@@ -201,7 +201,15 @@ public sealed class KeywordGraphService(
             },
             cancellationToken);
 
-        if (results.Count == 0)
+        var thresholdOverride = minimumSharedKeywords is not null || minimumScore is not null;
+        var processed = PostProcessRelatedKnowledgeResults(
+            results,
+            minimumSharedKeywords ?? keywordOptions.MinimumSharedKeywords,
+            minimumScore ?? keywordOptions.MinimumScore,
+            thresholdOverride,
+            limit);
+
+        if (processed.TotalCount == 0)
             return $"No related knowledge found for `{sourceNodeId}`. Rebuild the keyword graph first or loosen `minimumSharedKeywords` / `minimumScore`.";
 
         var sb = new StringBuilder();
@@ -210,33 +218,185 @@ public sealed class KeywordGraphService(
         sb.AppendLine($"Source: `{sourceNodeId}`");
         sb.AppendLine($"Confidence: `lexical`");
         sb.AppendLine();
-        sb.AppendLine($"Found **{results.Count.ToString(CultureInfo.InvariantCulture)}** related nodes:");
+        sb.AppendLine($"Found **{processed.TotalCount.ToString(CultureInfo.InvariantCulture)}** related nodes: " +
+                      $"{processed.PrimaryMatches.Count.ToString(CultureInfo.InvariantCulture)} primary, " +
+                      $"{processed.AwarenessMatches.Count.ToString(CultureInfo.InvariantCulture)} awareness-only.");
         sb.AppendLine();
         sb.AppendLine("| Rank | Kind | Target | Shared keywords | Score |");
         sb.AppendLine("|---:|---|---|---:|---:|");
 
-        for (var index = 0; index < results.Count; index++)
+        var rankedMatches = processed.PrimaryMatches
+            .Concat(processed.AwarenessMatches)
+            .ToArray();
+        for (var index = 0; index < rankedMatches.Length; index++)
         {
-            var item = results[index];
+            var item = rankedMatches[index];
             sb.AppendLine(
                 $"| {index + 1} | `{item.TargetKind}` | `{item.TargetNodeId}` | {item.SharedKeywordCount.ToString(CultureInfo.InvariantCulture)} | {item.Score.ToString("0.###", CultureInfo.InvariantCulture)} |");
         }
 
         sb.AppendLine();
 
-        for (var index = 0; index < results.Count; index++)
+        AppendRelatedKnowledgeSection(sb, "Primary matches", processed.PrimaryMatches);
+        AppendRelatedKnowledgeSection(sb, "Awareness-only matches", processed.AwarenessMatches);
+
+        if (processed.PrunedCount > 0)
         {
-            var item = results[index];
-            sb.AppendLine($"### [{index + 1}] `{item.TargetNodeId}`");
-            sb.AppendLine($"Kind: `{item.TargetKind}`");
-            sb.AppendLine($"Shared keywords: {item.SharedKeywordCount.ToString(CultureInfo.InvariantCulture)}");
-            sb.AppendLine($"Score: {item.Score.ToString("0.###", CultureInfo.InvariantCulture)}");
-            sb.AppendLine($"Matched keywords: {string.Join(", ", item.MatchedKeywords.Select(static keyword => $"`{keyword}`"))}");
+            sb.AppendLine($"Pruned **{processed.PrunedCount.ToString(CultureInfo.InvariantCulture)}** weak or duplicate lexical match(es). " +
+                          "Pass explicit `minimumSharedKeywords` or `minimumScore` to inspect looser results.");
             sb.AppendLine();
         }
 
         return sb.ToString();
     }
+
+    private static void AppendRelatedKnowledgeSection(
+        StringBuilder sb,
+        string title,
+        IReadOnlyList<RelatedKnowledgeMatch> matches)
+    {
+        sb.AppendLine($"### {title} ({matches.Count.ToString(CultureInfo.InvariantCulture)})");
+        if (matches.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        for (var index = 0; index < matches.Count; index++)
+        {
+            var item = matches[index];
+            sb.AppendLine($"#### [{index + 1}] `{item.TargetNodeId}`");
+            sb.AppendLine($"Kind: `{item.TargetKind}`");
+            sb.AppendLine($"Confidence: `{item.Confidence}`");
+            sb.AppendLine($"Shared keywords: {item.SharedKeywordCount.ToString(CultureInfo.InvariantCulture)}");
+            sb.AppendLine($"Score: {item.Score.ToString("0.###", CultureInfo.InvariantCulture)}");
+            sb.AppendLine($"Matched keywords: {string.Join(", ", item.MatchedKeywords.Select(static keyword => $"`{keyword}`"))}");
+            sb.AppendLine();
+        }
+    }
+
+    private static RelatedKnowledgeResultSet PostProcessRelatedKnowledgeResults(
+        IReadOnlyList<KeywordRelatedNode> results,
+        int minimumSharedKeywords,
+        double minimumScore,
+        bool thresholdOverride,
+        int limit)
+    {
+        var deduped = results
+            .GroupBy(item => NormalizeRelatedKnowledgeTarget(item), StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var best = group
+                    .OrderByDescending(item => item.Score)
+                    .ThenByDescending(item => item.SharedKeywordCount)
+                    .ThenBy(item => item.TargetNodeId, StringComparer.OrdinalIgnoreCase)
+                    .First();
+                var matchedKeywords = group
+                    .SelectMany(item => item.MatchedKeywords)
+                    .Where(keyword => !string.IsNullOrWhiteSpace(keyword))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(keyword => keyword, StringComparer.OrdinalIgnoreCase)
+                    .Take(8)
+                    .ToArray();
+
+                return new RelatedKnowledgeMatch(
+                    best.TargetNodeId,
+                    best.TargetKind,
+                    group.Max(item => item.SharedKeywordCount),
+                    group.Max(item => item.Score),
+                    matchedKeywords,
+                    ClassifyRelatedKnowledgeConfidence(
+                        group.Max(item => item.Score),
+                        group.Max(item => item.SharedKeywordCount),
+                        minimumSharedKeywords,
+                        minimumScore));
+            })
+            .OrderByDescending(item => ConfidenceRank(item.Confidence))
+            .ThenByDescending(item => item.Score)
+            .ThenByDescending(item => item.SharedKeywordCount)
+            .ThenBy(item => item.TargetNodeId, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        IReadOnlyList<RelatedKnowledgeMatch> primaryMatches;
+        IReadOnlyList<RelatedKnowledgeMatch> awarenessMatches;
+
+        if (thresholdOverride)
+        {
+            primaryMatches = deduped
+                .Where(item => item.Confidence is "high" or "medium")
+                .Take(Math.Clamp(limit, 1, 100))
+                .ToArray();
+            var remaining = Math.Max(0, Math.Clamp(limit, 1, 100) - primaryMatches.Count);
+            awarenessMatches = deduped
+                .Where(item => item.Confidence == "awareness")
+                .Take(remaining)
+                .ToArray();
+        }
+        else
+        {
+            primaryMatches = deduped
+                .Where(item => item.Confidence is "high" or "medium")
+                .Take(Math.Clamp(limit, 1, 100))
+                .ToArray();
+            var awarenessBudget = primaryMatches.Count == 0
+                ? Math.Min(3, Math.Clamp(limit, 1, 100))
+                : 0;
+            awarenessMatches = deduped
+                .Where(item => item.Confidence == "awareness")
+                .Take(Math.Max(0, awarenessBudget))
+                .ToArray();
+        }
+
+        var kept = primaryMatches.Count + awarenessMatches.Count;
+        return new RelatedKnowledgeResultSet(
+            primaryMatches,
+            awarenessMatches,
+            Math.Max(0, results.Count - kept));
+    }
+
+    private static string ClassifyRelatedKnowledgeConfidence(
+        double score,
+        int sharedKeywordCount,
+        int minimumSharedKeywords,
+        double minimumScore)
+    {
+        if (sharedKeywordCount >= minimumSharedKeywords + 2 || score >= Math.Max(minimumScore + 0.35d, 0.60d))
+            return "high";
+
+        if (sharedKeywordCount >= minimumSharedKeywords + 1 || score >= Math.Max(minimumScore + 0.15d, 0.40d))
+            return "medium";
+
+        return "awareness";
+    }
+
+    private static string NormalizeRelatedKnowledgeTarget(KeywordRelatedNode item)
+    {
+        var raw = item.TargetNodeId.Replace('\\', '/');
+        foreach (var marker in new[] { "::File::", ":File:", "::KnowledgeDocument::", ":KnowledgeDocument:" })
+        {
+            var markerIndex = raw.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (markerIndex >= 0)
+                return raw[(markerIndex + marker.Length)..].Trim().ToLowerInvariant();
+        }
+
+        foreach (var pathMarker in new[] { "docs/", "src/", "tests/" })
+        {
+            var pathIndex = raw.IndexOf(pathMarker, StringComparison.OrdinalIgnoreCase);
+            if (pathIndex >= 0)
+                return raw[pathIndex..].Trim().ToLowerInvariant();
+        }
+
+        return raw.Trim().ToLowerInvariant();
+    }
+
+    private static int ConfidenceRank(string confidence) =>
+        confidence switch
+        {
+            "high" => 2,
+            "medium" => 1,
+            _ => 0
+        };
 
     private static IReadOnlyList<string> NormalizeKinds(IReadOnlyList<string>? targetKinds)
     {
@@ -374,4 +534,20 @@ public sealed class KeywordGraphService(
         int UpdatedCount,
         int KeywordCount,
         int RelationshipCount);
+
+    private sealed record RelatedKnowledgeMatch(
+        string TargetNodeId,
+        string TargetKind,
+        int SharedKeywordCount,
+        double Score,
+        IReadOnlyList<string> MatchedKeywords,
+        string Confidence);
+
+    private sealed record RelatedKnowledgeResultSet(
+        IReadOnlyList<RelatedKnowledgeMatch> PrimaryMatches,
+        IReadOnlyList<RelatedKnowledgeMatch> AwarenessMatches,
+        int PrunedCount)
+    {
+        public int TotalCount => PrimaryMatches.Count + AwarenessMatches.Count;
+    }
 }

@@ -6,6 +6,13 @@ public sealed class ContextWorkflowPlanner
 {
     private static readonly IReadOnlyDictionary<string, ContextWorkflowRecipe> RecipeByType = BuildRecipes()
         .ToDictionary(recipe => recipe.WorkflowType, StringComparer.OrdinalIgnoreCase);
+    private static readonly IReadOnlySet<string> NarrowOptionalDefaultWorkflowTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "before_edit",
+        "diagnostic_review",
+        "configuration_review",
+        "dependency_replacement"
+    };
 
     public static IReadOnlyList<string> SupportedWorkflowTypes { get; } =
         RecipeByType.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -32,14 +39,14 @@ public sealed class ContextWorkflowPlanner
             return Invalid($"Unsupported workflow type '{workflowType}'. Supported workflow types: {string.Join(", ", SupportedWorkflowTypes)}.", request.ProjectContext, request.Target);
 
         var maxSteps = Math.Clamp(request.MaxSteps, 1, 25);
-        var steps = recipe.Steps
-            .Where(step => step.Required || request.IncludeOptionalSteps)
+        var selectedRecipeSteps = SelectRecipeSteps(recipe, request.IncludeOptionalSteps);
+        var steps = selectedRecipeSteps
             .Select((step, index) => BuildStep(index + 1, step, request))
             .Take(maxSteps)
             .Select((step, index) => step with { Order = index + 1 })
             .ToArray();
 
-        var warnings = BuildWarnings(recipe, request, steps);
+        var warnings = BuildWarnings(recipe, request, selectedRecipeSteps, steps);
         return new ContextWorkflowPlanResult(
             Status: "valid",
             WorkflowId: recipe.WorkflowType,
@@ -149,6 +156,7 @@ public sealed class ContextWorkflowPlanner
     private static IReadOnlyList<string> BuildWarnings(
         ContextWorkflowRecipe recipe,
         ContextWorkflowPlanRequest request,
+        IReadOnlyList<ContextWorkflowRecipeStep> selectedRecipeSteps,
         IReadOnlyList<ContextWorkflowStep> steps)
     {
         var warnings = new List<string>();
@@ -164,11 +172,32 @@ public sealed class ContextWorkflowPlanner
         if (steps.Any(step => step.Destructive))
             warnings.Add("This workflow includes destructive tools. Require explicit confirmation and a project scope before execution.");
 
-        if (steps.Count < recipe.Steps.Count(step => step.Required || request.IncludeOptionalSteps))
+        if (request.IncludeOptionalSteps is null
+            && UsesNarrowOptionalDefaults(recipe)
+            && recipe.Steps.Any(step => !step.Required))
+        {
+            warnings.Add("Optional awareness-only steps were pruned by default for this narrow workflow. Set includeOptionalSteps=true to include the broader recipe.");
+        }
+
+        if (steps.Count < selectedRecipeSteps.Count)
             warnings.Add($"The plan was truncated to {steps.Count} steps by maxSteps.");
 
         return warnings;
     }
+
+    private static IReadOnlyList<ContextWorkflowRecipeStep> SelectRecipeSteps(ContextWorkflowRecipe recipe, bool? includeOptionalSteps)
+    {
+        if (includeOptionalSteps is true)
+            return recipe.Steps;
+
+        if (includeOptionalSteps is false || UsesNarrowOptionalDefaults(recipe))
+            return recipe.Steps.Where(step => step.Required).ToArray();
+
+        return recipe.Steps;
+    }
+
+    private static bool UsesNarrowOptionalDefaults(ContextWorkflowRecipe recipe) =>
+        NarrowOptionalDefaultWorkflowTypes.Contains(recipe.WorkflowType);
 
     private static string InferWorkflowType(string goal, string? target)
     {

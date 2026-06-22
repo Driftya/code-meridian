@@ -172,6 +172,98 @@ public sealed class KeywordGraphServiceTests
         result.Should().Contain("Confidence: `lexical`");
         result.Should().Contain("`doc-1`");
         result.Should().Contain("`stale`");
+        result.Should().Contain("### Primary matches (1)");
+        result.Should().Contain("Confidence: `high`");
+    }
+
+    [Fact]
+    public async Task FindRelatedKnowledgeAsync_DeduplicatesEquivalentTargetsAndPrunesWeakDefaults()
+    {
+        var repository = Substitute.For<IKeywordGraphRepository>();
+        repository.FindRelatedByKeywordsAsync(Arg.Any<KeywordRelatedNodeQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new KeywordRelatedNode
+                {
+                    TargetNodeId = "CodeMeridian::File::docs/features/architecture.md",
+                    TargetKind = "KnowledgeDocument",
+                    SharedKeywordCount = 4,
+                    Score = 0.71d,
+                    MatchedKeywords = ["architecture", "drift", "timeline"]
+                },
+                new KeywordRelatedNode
+                {
+                    TargetNodeId = "CodeMeridian:File:docs/features/architecture.md",
+                    TargetKind = "KnowledgeDocument",
+                    SharedKeywordCount = 3,
+                    Score = 0.68d,
+                    MatchedKeywords = ["architecture", "weather"]
+                },
+                new KeywordRelatedNode
+                {
+                    TargetNodeId = "doc-weak",
+                    TargetKind = "KnowledgeDocument",
+                    SharedKeywordCount = 3,
+                    Score = 0.26d,
+                    MatchedKeywords = ["code", "feature", "docs"]
+                }
+            ]);
+        var sut = new KeywordGraphService(
+            repository,
+            Substitute.For<IKeywordExtractionService>(),
+            Options.Create(new KeywordEnrichmentOptions()),
+            Options.Create(new KeywordClassificationOptions()),
+            NullLogger<KeywordGraphService>.Instance);
+
+        var result = await sut.FindRelatedKnowledgeAsync("node-1", ["KnowledgeDocument"], limit: 5);
+
+        result.Should().Contain("Found **1** related nodes: 1 primary, 0 awareness-only.");
+        result.Should().Contain("docs/features/architecture.md");
+        result.Should().Contain("`architecture`");
+        result.Should().Contain("`weather`");
+        result.Should().Contain("Pruned **2** weak or duplicate lexical match(es).");
+        result.Should().NotContain("doc-weak");
+    }
+
+    [Fact]
+    public async Task FindRelatedKnowledgeAsync_WithExplicitThresholds_KeepsAwarenessMatches()
+    {
+        var repository = Substitute.For<IKeywordGraphRepository>();
+        repository.FindRelatedByKeywordsAsync(Arg.Any<KeywordRelatedNodeQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new KeywordRelatedNode
+                {
+                    TargetNodeId = "doc-strong",
+                    TargetKind = "KnowledgeDocument",
+                    SharedKeywordCount = 4,
+                    Score = 0.74d,
+                    MatchedKeywords = ["stale", "knowledge", "graph", "timeline"]
+                },
+                new KeywordRelatedNode
+                {
+                    TargetNodeId = "doc-awareness",
+                    TargetKind = "KnowledgeDocument",
+                    SharedKeywordCount = 3,
+                    Score = 0.26d,
+                    MatchedKeywords = ["code", "feature", "docs"]
+                }
+            ]);
+        var sut = new KeywordGraphService(
+            repository,
+            Substitute.For<IKeywordExtractionService>(),
+            Options.Create(new KeywordEnrichmentOptions()),
+            Options.Create(new KeywordClassificationOptions()),
+            NullLogger<KeywordGraphService>.Instance);
+
+        var result = await sut.FindRelatedKnowledgeAsync(
+            "node-1",
+            ["KnowledgeDocument"],
+            minimumSharedKeywords: 3,
+            minimumScore: 0.25d,
+            limit: 5);
+
+        result.Should().Contain("### Primary matches (1)");
+        result.Should().Contain("### Awareness-only matches (1)");
+        result.Should().Contain("doc-awareness");
     }
 
     [Fact]

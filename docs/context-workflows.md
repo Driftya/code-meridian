@@ -18,6 +18,8 @@ Returns a JSON workflow plan. The plan includes:
 - execution hints
 - warnings for mutation, stale graph risk, missing targets, and embedding-dependent tools
 
+If `includeOptionalSteps` is omitted, the planner now uses workflow-aware defaults: narrow workflows such as `before_edit`, `diagnostic_review`, `configuration_review`, and `dependency_replacement` return required steps only, while broader workflows still include their optional orientation steps. Set `includeOptionalSteps` to `true` for the broader recipe or `false` for required-only steps regardless of workflow type.
+
 Example:
 
 ```text
@@ -33,7 +35,6 @@ Example input:
   "projectContext": "CodeMeridian",
   "workflowType": "feature_implementation",
   "maxSteps": 8,
-  "includeOptionalSteps": true,
   "includeStopConditions": true,
   "includeExecutionHints": true
 }
@@ -58,8 +59,7 @@ Example:
   "goal": "Review diagnostics before editing.",
   "projectContext": "CodeMeridian",
   "workflowType": "diagnostic_review",
-  "maxSteps": 1,
-  "includeOptionalSteps": false
+  "maxSteps": 1
 }
 ```
 

@@ -6,7 +6,7 @@ public sealed record ContextWorkflowPlanRequest(
     string? ProjectContext = null,
     string? WorkflowType = null,
     int MaxSteps = 12,
-    bool IncludeOptionalSteps = true,
+    bool? IncludeOptionalSteps = null,
     bool IncludeStopConditions = true,
     bool IncludeExecutionHints = true);
 

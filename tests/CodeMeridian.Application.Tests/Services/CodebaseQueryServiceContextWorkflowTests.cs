@@ -54,6 +54,49 @@ public sealed class CodebaseQueryServiceContextWorkflowTests
     }
 
     [Fact]
+    public async Task PlanContextWorkflowAsync_BeforeEdit_DefaultPrunesOptionalSteps()
+    {
+        var sut = BuildService();
+
+        using var doc = JsonDocument.Parse(await sut.PlanContextWorkflowAsync(
+            "Before editing OrderService.PlaceOrderAsync",
+            "OrderService.PlaceOrderAsync",
+            workflowType: "before_edit"));
+
+        var tools = Tools(doc).ToArray();
+        tools.Should().Equal(
+            "resolve_exact_symbol",
+            "check_graph_freshness",
+            "get_context_for_editing",
+            "find_impact",
+            "find_test_shield",
+            "build_minimal_context");
+        tools.Should().NotContain("find_downstream");
+        tools.Should().NotContain("find_diagnostics_for_node");
+        doc.RootElement.GetProperty("warnings").EnumerateArray()
+            .Select(item => item.GetString())
+            .Should().Contain(warning => warning!.Contains("pruned by default", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task PlanContextWorkflowAsync_BeforeEdit_ExplicitOptionalStepsRestoresBroaderRecipe()
+    {
+        var sut = BuildService();
+
+        using var doc = JsonDocument.Parse(await sut.PlanContextWorkflowAsync(
+            "Before editing OrderService.PlaceOrderAsync",
+            "OrderService.PlaceOrderAsync",
+            workflowType: "before_edit",
+            includeOptionalSteps: true));
+
+        var tools = Tools(doc).ToArray();
+        tools.Should().ContainInOrder("find_impact", "find_downstream", "find_test_shield", "find_diagnostics_for_node", "build_minimal_context");
+        doc.RootElement.GetProperty("warnings").EnumerateArray()
+            .Select(item => item.GetString())
+            .Should().NotContain(warning => warning!.Contains("pruned by default", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task PlanContextWorkflowAsync_FeaturePath_StartsWithFeatureImplementationAnalysis()
     {
         var sut = BuildService();
@@ -64,6 +107,7 @@ public sealed class CodebaseQueryServiceContextWorkflowTests
 
         doc.RootElement.GetProperty("workflowType").GetString().Should().Be("feature_implementation");
         Tools(doc).First().Should().Be("analyze_feature_implementation_path");
+        Tools(doc).Should().Contain("search_documentation");
     }
 
     [Fact]
@@ -149,6 +193,39 @@ public sealed class CodebaseQueryServiceContextWorkflowTests
         step.GetProperty("status").GetString().Should().Be("completed");
         step.GetProperty("output").GetString().Should().Contain("Example warning");
         await graph.Received(1).FindDiagnosticsAsync("CodeMeridian", null, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteContextWorkflowAsync_DiagnosticWorkflow_DefaultPrunesOptionalSteps()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        graph.FindDiagnosticsAsync("CodeMeridian", null, Arg.Any<CancellationToken>())
+            .Returns([new CodeNode
+            {
+                Id = "diag-1",
+                Name = "warning CM0001",
+                Type = CodeNodeType.Diagnostic,
+                Namespace = "dotnet",
+                FilePath = "src/App.cs",
+                LineNumber = 12,
+                Summary = "Example warning"
+            }]);
+        var sut = new CodebaseQueryService(graph, vector);
+
+        using var doc = JsonDocument.Parse(await sut.ExecuteContextWorkflowAsync(
+            "Review diagnostics",
+            projectContext: "CodeMeridian",
+            workflowType: "diagnostic_review",
+            maxSteps: 4));
+
+        var steps = doc.RootElement.GetProperty("steps").EnumerateArray().ToArray();
+        doc.RootElement.GetProperty("status").GetString().Should().Be("stopped");
+        steps.Select(step => step.GetProperty("tool").GetString()).Should().Equal("find_diagnostics", "build_minimal_context");
+        steps[1].GetProperty("status").GetString().Should().Be("missing_input");
+        doc.RootElement.GetProperty("warnings").EnumerateArray()
+            .Select(item => item.GetString())
+            .Should().Contain(warning => warning!.Contains("pruned by default", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

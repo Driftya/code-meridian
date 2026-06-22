@@ -1,6 +1,6 @@
 # Prune Related-Knowledge Result Noise
 
-- Status: pending
+- Status: implemented
 - Priority: P2
 - Note: Keyword-driven related-doc and related-code results should collapse duplicates and suppress weak lexical soup.
 
@@ -13,3 +13,5 @@
 - Per-source dedupe for repeated document/file hits.
 - Stronger default thresholding for low-usefulness keyword overlap.
 - Clearer separation between high-confidence matches and weak awareness-only matches.
+
+**Implemented:** `find_related_knowledge` now deduplicates equivalent document/file targets by normalized target identity, merges matched keywords across duplicates, classifies results into primary and awareness-only matches, and suppresses weak default-score lexical soup unless the caller explicitly loosens `minimumSharedKeywords` or `minimumScore`.

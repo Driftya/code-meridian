@@ -17,7 +17,7 @@ public sealed partial class CodebaseQueryService
         string? projectContext = null,
         string? workflowType = null,
         int maxSteps = 12,
-        bool includeOptionalSteps = true,
+        bool? includeOptionalSteps = null,
         bool includeStopConditions = true,
         bool includeExecutionHints = true,
         CancellationToken cancellationToken = default)
@@ -42,7 +42,7 @@ public sealed partial class CodebaseQueryService
         string? projectContext = null,
         string? workflowType = null,
         int maxSteps = 8,
-        bool includeOptionalSteps = true,
+        bool? includeOptionalSteps = null,
         bool allowGraphMutation = false,
         string? secondaryTarget = null,
         string? toDependency = null,
