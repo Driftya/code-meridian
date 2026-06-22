@@ -1732,11 +1732,12 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var result = await sut.BuildMinimalContextAsync(target: "Method:Shop.Orders.OrderService.PlaceOrder");
 
         result.Should().Contain("### Relevant tests (2)");
-        result.Should().Contain("Direct test callers:");
+        result.Should().Contain("Direct regression tests:");
         result.Should().Contain("OrderServiceTests");
-        result.Should().Contain("Heuristic matches:");
+        result.Should().Contain("Heuristic shield tests:");
         result.Should().Contain("PlaceOrderTests");
-        result.Should().Contain("heuristic");
+        result.Should().Contain("heuristic match near `PlaceOrder`");
+        result.Should().Contain("Suggested command: `dotnet test --filter FullyQualifiedName~OrderServiceTests`");
         result.Should().Contain("**Estimated:**");
         result.Should().Contain("**Complexity:** Low");
         result.Should().Contain("Small or fast model likely sufficient");
@@ -2075,6 +2076,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("OrdersController.Post");
         result.Should().Contain("### Relevant tests (1)");
         result.Should().Contain("OrderServiceTests");
+        result.Should().Contain("Direct regression tests:");
+        result.Should().Contain("Suggested command: `dotnet test --filter FullyQualifiedName~OrderServiceTests`");
         result.Should().Contain("### Degraded mode");
         result.Should().Contain("`context_pack_status=degraded`");
         result.Should().Contain("failed_step: `impact_analysis`");

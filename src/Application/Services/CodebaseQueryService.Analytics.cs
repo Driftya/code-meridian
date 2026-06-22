@@ -786,6 +786,41 @@ public partial class CodebaseQueryService
             .ToArray();
     }
 
+    private IReadOnlyList<TestRecommendation> BuildContextTestRecommendations(
+        CodeNode targetNode,
+        IEnumerable<CodeNode> directTests,
+        IEnumerable<CodeNode> heuristicTests)
+    {
+        var recommendations = new Dictionary<string, TestRecommendation>(StringComparer.Ordinal);
+
+        foreach (var test in directTests)
+        {
+            recommendations[test.Id] = new TestRecommendation(
+                test,
+                ClassifyContextTestRecommendationCategory(targetNode),
+                $"directly calls `{targetNode.Name}`",
+                250);
+        }
+
+        foreach (var test in heuristicTests)
+        {
+            var recommendation = new TestRecommendation(
+                test,
+                "Heuristic shield tests",
+                $"heuristic match near `{targetNode.Name}`",
+                40 + ((SameNamespace(test, targetNode) || FileNameLooksRelated(test, targetNode)) ? 10 : 0));
+
+            if (!recommendations.TryGetValue(test.Id, out var existing) || recommendation.Score > existing.Score)
+                recommendations[test.Id] = recommendation;
+        }
+
+        return recommendations.Values
+            .OrderByDescending(item => item.Score)
+            .ThenBy(CategoryRank)
+            .ThenBy(item => item.TestNode.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     private void AppendFocusedVerificationPlan(StringBuilder sb, IReadOnlyList<TestRecommendation> recommendations)
     {
         sb.AppendLine($"### Focused verification plan ({recommendations.Count})");
@@ -828,6 +863,17 @@ public partial class CodebaseQueryService
             return "Contract/API forwarding tests";
 
         if (IsInfrastructureNode(entry.ProtectedNode))
+            return "Integration-level verification";
+
+        return "Direct regression tests";
+    }
+
+    private string ClassifyContextTestRecommendationCategory(CodeNode protectedNode)
+    {
+        if (IsApiNode(protectedNode) || IsContractNode(protectedNode) || TextMatches(protectedNode.FilePath, "McpServer"))
+            return "Contract/API forwarding tests";
+
+        if (IsInfrastructureNode(protectedNode))
             return "Integration-level verification";
 
         return "Direct regression tests";
@@ -942,6 +988,16 @@ public partial class CodebaseQueryService
             .Where(node => SameFile(node, ctx.Node) || SameNamespace(node, ctx.Node) || FileNameLooksRelated(node, ctx.Node) || NameLooksRelated(node.Name, ctx.Node.Name))
             .Take(10)
             .ToArray();
+        var focusedTestRecommendations = includeTests
+            ? BuildContextTestRecommendations(ctx.Node, directRelatedTests, heuristicRelatedTests)
+                .Take(10)
+                .ToArray()
+            : [];
+        var suggestedTestCommand = includeTests
+            ? BuildSuggestedTestCommand(focusedTestRecommendations
+                .Where(item => !string.Equals(item.Category, "Heuristic shield tests", StringComparison.Ordinal))
+                .Select(item => item.TestNode))
+            : null;
 
         var candidateFiles = new[] { ctx.Node }
             .Concat(ctx.Callers)
@@ -1033,7 +1089,7 @@ public partial class CodebaseQueryService
         if (includeTests)
         {
             AppendNodeList(sb, "Relevant coverage gaps", relatedCoverageGaps, detailLevel, "heuristic matches by same file/namespace/target");
-            AppendRelatedTestsList(sb, directRelatedTests, heuristicRelatedTests, detailLevel);
+            AppendRelatedTestsList(sb, focusedTestRecommendations, detailLevel, suggestedTestCommand);
         }
 
         if (candidateFiles.Length > 0)

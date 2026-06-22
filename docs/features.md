@@ -187,6 +187,7 @@ Shows which tests protect a target change path.
 The report separates:
 
 - Direct shield: tests with a direct `Calls` edge to the target.
+- Focused verification plan: direct regression tests, contract/API forwarding tests, integration-level verification, and heuristic shield tests.
 - Indirect shield: tests that protect callers/path nodes or only heuristic matches.
 - Unshielded path nodes: target-adjacent callers or route nodes with no obvious test protection.
 
@@ -236,9 +237,10 @@ Source snippets are disabled by default. When `includeSourceSnippets` is enabled
 
 When `includeTests` is enabled, test context includes:
 
-- Direct test callers when indexed `Calls` edges exist.
-- Heuristic test matches by namespace, file name, or node name similarity.
+- Focused verification categories derived from related tests:
+  direct regression tests, contract/API forwarding tests, integration-level verification, and heuristic shield tests.
 - Relevant coverage gaps near the target by same file, namespace, or exact target.
+- A minimal suggested `dotnet test` command when the non-heuristic recommendations collapse to one narrow seam.
 
 Heuristic matches are labeled explicitly so callers can distinguish them from proven call-graph relationships.
 

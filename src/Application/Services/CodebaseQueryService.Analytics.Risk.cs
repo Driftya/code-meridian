@@ -617,11 +617,11 @@ public partial class CodebaseQueryService
 
     private static void AppendRelatedTestsList(
         StringBuilder sb,
-        IReadOnlyCollection<CodeNode> directTests,
-        IReadOnlyCollection<CodeNode> heuristicTests,
-        ContextDetailLevel detailLevel)
+        IReadOnlyCollection<TestRecommendation> recommendations,
+        ContextDetailLevel detailLevel,
+        string? suggestedTestCommand)
     {
-        var total = directTests.Count + heuristicTests.Count;
+        var total = recommendations.Count;
         sb.AppendLine($"### Relevant tests ({total})");
 
         if (total == 0)
@@ -633,24 +633,39 @@ public partial class CodebaseQueryService
 
         if (detailLevel == ContextDetailLevel.Summary)
         {
-            sb.AppendLine($"- {directTests.Count} direct test callers, {heuristicTests.Count} heuristic matches");
+            var summary = string.Join(", ",
+                recommendations
+                    .GroupBy(item => item.Category, StringComparer.Ordinal)
+                    .OrderBy(group => group.Key, StringComparer.Ordinal)
+                    .Select(group => $"{group.Count()} {group.Key.ToLowerInvariant()}"));
+            sb.AppendLine($"- {summary}");
+            if (suggestedTestCommand is not null)
+                sb.AppendLine($"- Suggested command: `{suggestedTestCommand}`");
             sb.AppendLine();
             return;
         }
 
-        if (directTests.Count > 0)
+        foreach (var category in new[]
+                 {
+                     "Direct regression tests",
+                     "Contract/API forwarding tests",
+                     "Integration-level verification",
+                     "Heuristic shield tests"
+                 })
         {
-            sb.AppendLine("Direct test callers:");
-            foreach (var node in directTests)
-                sb.AppendLine($"- **{node.Type}** `{node.Name}`{FormatLocation(node)}");
+            var bucket = recommendations
+                .Where(item => string.Equals(item.Category, category, StringComparison.Ordinal))
+                .Take(3)
+                .ToArray();
+            if (bucket.Length == 0)
+                continue;
+
+            sb.AppendLine($"{category}:");
+            foreach (var item in bucket)
+                sb.AppendLine($"- **{item.TestNode.Type}** `{item.TestNode.Name}`{FormatLocation(item.TestNode)} — {item.Reason}");
         }
 
-        if (heuristicTests.Count > 0)
-        {
-            sb.AppendLine("Heuristic matches:");
-            foreach (var node in heuristicTests)
-                sb.AppendLine($"- **{node.Type}** `{node.Name}`{FormatLocation(node)} (heuristic)");
-        }
+        sb.AppendLine($"Suggested command: {(suggestedTestCommand is null ? "none" : $"`{suggestedTestCommand}`")}");
 
         sb.AppendLine();
     }
