@@ -118,6 +118,7 @@ public partial class CodebaseQueryService
 
         var rankedNodes = candidates
             .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
+            .Where(node => ShouldIncludeRouteCandidate(node, goal, concepts))
             .DistinctBy(n => n.Id)
             .OrderByDescending(node => ScoreRouteNode(node, goal, concepts))
             .ThenBy(node => node.FilePath, StringComparer.OrdinalIgnoreCase)
@@ -125,10 +126,20 @@ public partial class CodebaseQueryService
             .ToArray();
 
         if (rankedNodes.Length == 0)
+        {
+            rankedNodes = candidates
+                .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
+                .DistinctBy(n => n.Id)
+                .OrderByDescending(node => ScoreRouteNode(node, goal, concepts))
+                .ThenBy(node => node.FilePath, StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Clamp(limit, 1, 25))
+                .ToArray();
+        }
+
+        if (rankedNodes.Length == 0)
             return $"No edit route found for `{goal}`. Try `find_implementation_surface`, add more specific concepts, or re-index before relying on CodeMeridian for route planning.";
 
-        var anchor = rankedNodes.FirstOrDefault(n => n.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
-            ?? rankedNodes[0];
+        var anchor = SelectRouteAnchor(rankedNodes);
         var ctx = await codeGraph.GetContextForEditingAsync(anchor.Id, cancellationToken)
             ?? new EditingContext(null, [], [], []);
         var impact = await codeGraph.FindImpactAsync(anchor.Id, depth: 2, cancellationToken) ?? [];
@@ -336,6 +347,25 @@ public partial class CodebaseQueryService
         if (IsConfiguredTestNode(node)) score += 2;
         if (IsApiNode(node) || IsInfrastructureNode(node)) score += 1;
         return score;
+    }
+
+    private bool ShouldIncludeRouteCandidate(CodeNode node, string goal, IReadOnlyCollection<string> concepts)
+    {
+        if (LooksLikeDocumentationPath(node.FilePath ?? string.Empty))
+            return false;
+
+        var role = ResolveFileRole(node);
+        if (role is IndexedFileRole.Test
+            or IndexedFileRole.Generated
+            or IndexedFileRole.BuildArtifact
+            or IndexedFileRole.Snapshot
+            or IndexedFileRole.Migration)
+            return false;
+
+        if (role == IndexedFileRole.Configuration)
+            return TextMatches(goal, "config") || concepts.Any(concept => TextMatches(concept, "config"));
+
+        return true;
     }
 
     private static string BuildSurfaceReason(
@@ -701,6 +731,14 @@ public partial class CodebaseQueryService
             return "Medium - graph found an anchor and partial route coverage";
         return "Low - route is mostly heuristic; re-index or add concepts for better targeting";
     }
+
+    private CodeNode SelectRouteAnchor(IReadOnlyList<CodeNode> rankedNodes) =>
+        rankedNodes.FirstOrDefault(node =>
+            node.Type is CodeNodeType.Method or CodeNodeType.Class
+            && (IsApplicationNode(node) || IsDomainNode(node)))
+        ?? rankedNodes.FirstOrDefault(node => node.Type == CodeNodeType.Interface)
+        ?? rankedNodes.FirstOrDefault(node => node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
+        ?? rankedNodes[0];
 
     private sealed record SurfaceCandidate(
         string FilePath,

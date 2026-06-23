@@ -74,7 +74,8 @@ public sealed partial class CodebaseQueryService
 
     private static string CleanName(string value)
     {
-        var words = SplitIdentifier(RemoveSuffix(RemovePrefix(value, "I"), "Async"))
+        var identifier = ExtractRelevantIdentifier(value);
+        var words = SplitIdentifier(RemoveSuffix(RemoveInterfacePrefix(identifier), "Async"))
             .Where(word => !GenericMethodTerms.Contains(word, StringComparer.OrdinalIgnoreCase))
             .Take(3)
             .ToArray();
@@ -82,6 +83,16 @@ public sealed partial class CodebaseQueryService
         return words.Length == 0
             ? value
             : string.Concat(words.Select(word => char.ToUpperInvariant(word[0]) + word[1..]));
+    }
+
+    private static string ExtractRelevantIdentifier(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return value;
+
+        var withoutParameters = value.Split('(', 2, StringSplitOptions.TrimEntries)[0];
+        var lastSegment = withoutParameters.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).LastOrDefault();
+        return string.IsNullOrWhiteSpace(lastSegment) ? withoutParameters : lastSegment;
     }
 
     private static string CleanWorkflowName(CodeNode node)
@@ -138,6 +149,9 @@ public sealed partial class CodebaseQueryService
 
     private static string RemovePrefix(string value, string prefix) =>
         value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && value.Length > prefix.Length ? value[prefix.Length..] : value;
+
+    private static string RemoveInterfacePrefix(string value) =>
+        value.Length > 1 && value[0] == 'I' && char.IsUpper(value[1]) ? value[1..] : value;
 
     private static string NormalizePath(string? path) => path?.Replace('\\', '/') ?? string.Empty;
 

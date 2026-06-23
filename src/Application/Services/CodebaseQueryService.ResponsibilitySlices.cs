@@ -284,6 +284,10 @@ public sealed partial class CodebaseQueryService
         if (srcIndex >= 0 && parts.Length > srcIndex + 1)
             return string.Join('/', parts.Take(srcIndex + 2).Append(suffix));
 
+        var toolsIndex = Array.FindIndex(parts, part => string.Equals(part, "tools", StringComparison.OrdinalIgnoreCase));
+        if (toolsIndex >= 0 && parts.Length > toolsIndex + 1)
+            return string.Join('/', parts.Take(toolsIndex + 2).Append(suffix));
+
         return suffix;
     }
 

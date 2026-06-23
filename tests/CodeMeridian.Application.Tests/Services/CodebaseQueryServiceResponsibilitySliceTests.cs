@@ -181,6 +181,131 @@ public sealed class CodebaseQueryServiceResponsibilitySliceTests
         result.Should().Contain("no supporting community signal");
     }
 
+    [Fact]
+    public async Task SuggestResponsibilitySlicesAsync_ForToolTarget_KeepsLeadingIAndBuildsToolsFolderRoot()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(graph, vector);
+        var target = Node(
+            "class:IndexCommandHandler",
+            "IndexCommandHandler",
+            CodeNodeType.Class,
+            "tools/Indexer/Cli/IndexCommandHandler.cs",
+            18,
+            "CodeMeridian",
+            lineCount: 688,
+            sourceHash: "class-hash",
+            @namespace: "CodeMeridian.Indexer.Cli.Commands");
+        var run = Node("method:RunAsync", "RunAsync", CodeNodeType.Method, target.FilePath, 26, "CodeMeridian");
+        var typeScriptRunner = Node(
+            "class:TypeScriptIndexerProcessRunner",
+            "TypeScriptIndexerProcessRunner",
+            CodeNodeType.Class,
+            "tools/Indexer/Cli/TypeScriptIndexerProcessRunner.cs",
+            8,
+            "CodeMeridian");
+        var indexTests = Node(
+            "test:IndexCommandHandlerTests",
+            "IndexCommandHandlerTests",
+            CodeNodeType.Class,
+            "tests/CodeMeridian.Indexer.Tests/Cli/IndexCommandHandlerTests.cs",
+            12,
+            "CodeMeridian",
+            fileRole: IndexedFileRole.Test);
+
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Class && query.NameFilter == "IndexCommandHandler"),
+                Arg.Any<CancellationToken>())
+            .Returns([target]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Method),
+                Arg.Any<CancellationToken>())
+            .Returns([run]);
+        graph.QueryEdgesAsync(target.Id, 1, Arg.Any<CancellationToken>())
+            .Returns([Contains(target, run)]);
+        graph.GetContextForEditingAsync(run.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(run, [], [typeScriptRunner], []));
+        graph.FindRelatedTestsAsync(run.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(indexTests, "direct")]);
+        graph.FindNaturalModuleAssignmentsAsync(Arg.Any<IReadOnlyCollection<string>>(), "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([]);
+        vector.SearchByTextAsync("IndexCommandHandler", "CodeMeridian", 5, Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.SuggestResponsibilitySlicesAsync("IndexCommandHandler", "CodeMeridian", maxSlices: 3);
+
+        result.Should().Contain("Recommended namespace root:** `CodeMeridian.Indexer.IndexCommandHandlers`");
+        result.Should().Contain("Recommended folder root:** `tools/Indexer/IndexCommandHandlers`");
+        result.Should().NotContain("NdexCommandHandlers");
+    }
+
+    [Fact]
+    public async Task SuggestResponsibilitySlicesAsync_WithMethodSignatureDependency_UsesIdentifierNameInsteadOfParameterNoise()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(graph, vector);
+        var target = Node(
+            "class:TemplateService",
+            "TemplateService",
+            CodeNodeType.Class,
+            "src/Application/Services/TemplateService.cs",
+            8,
+            "CodeMeridian",
+            lineCount: 420,
+            sourceHash: "class-hash",
+            @namespace: "CodeMeridian.Application.Services");
+        var sync = Node("method:SyncTemplatesAsync", "SyncTemplatesAsync", CodeNodeType.Method, target.FilePath, 26, "CodeMeridian");
+        var syncFallback = Node("method:SyncFallbackTemplatesAsync", "SyncFallbackTemplatesAsync", CodeNodeType.Method, target.FilePath, 52, "CodeMeridian");
+        var copyDirectory = Node(
+            "method:CopyDirectory",
+            "CopyDirectory(DirectoryInfo,DirectoryInfo,bool)",
+            CodeNodeType.Method,
+            "src/Tooling/Configuration/TemplateFileCopy.cs",
+            14,
+            "CodeMeridian");
+        var templateTests = Node(
+            "test:ConfigTemplateStoreTests",
+            "ConfigTemplateStoreTests",
+            CodeNodeType.Class,
+            "tests/CodeMeridian.Indexer.Tests/Cli/IndexerConfigTests.cs",
+            6,
+            "CodeMeridian",
+            fileRole: IndexedFileRole.Test);
+
+        graph.QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var query = callInfo.Arg<CodeGraphQuery>();
+                return query.TypeFilter switch
+                {
+                    CodeNodeType.Class when query.NameFilter == "TemplateService" => [target],
+                    CodeNodeType.Method => [sync, syncFallback],
+                    _ => []
+                };
+            });
+        graph.QueryEdgesAsync(target.Id, 1, Arg.Any<CancellationToken>())
+            .Returns([Contains(target, sync), Contains(target, syncFallback)]);
+        graph.GetContextForEditingAsync(sync.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(sync, [], [copyDirectory], []));
+        graph.GetContextForEditingAsync(syncFallback.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(syncFallback, [], [copyDirectory], []));
+        graph.FindRelatedTestsAsync(sync.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(templateTests, "direct")]);
+        graph.FindRelatedTestsAsync(syncFallback.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(templateTests, "direct")]);
+        graph.FindNaturalModuleAssignmentsAsync(Arg.Any<IReadOnlyCollection<string>>(), "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([]);
+        vector.SearchByTextAsync("TemplateService", "CodeMeridian", 5, Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.SuggestResponsibilitySlicesAsync("TemplateService", "CodeMeridian", maxSlices: 3);
+
+        result.Should().Contain("`CopyDirectoryService`");
+        result.Should().NotContain("CopyDirectoryDirectoryService");
+    }
+
     private static CodeNode Node(
         string id,
         string name,

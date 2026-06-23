@@ -3248,6 +3248,45 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task PlanEditRouteAsync_PrefersProductionAnchorOverDocsAndTests()
+    {
+        var (sut, graph) = Build();
+        var doc = Node("d1", "Add Payments Feature", CodeNodeType.File, "docs/features/add-payments.md", 1, "Shop");
+        var test = Node("t1", "PaymentServiceTests", CodeNodeType.Class, "tests/Shop.Tests/PaymentServiceTests.cs", 8, "Shop", fileRole: IndexedFileRole.Test);
+        var port = Node("i1", "IPaymentRepository", CodeNodeType.Interface, "src/Application/Ports/IPaymentRepository.cs", 1, "Shop");
+        var service = Node("s1", "PaymentService", CodeNodeType.Class, "src/Application/Payments/PaymentService.cs", 12, "Shop", fileRole: IndexedFileRole.Source);
+        var implementation = Node("r1", "SqlPaymentRepository", CodeNodeType.Class, "src/Infrastructure/Payments/SqlPaymentRepository.cs", 9, "Shop", fileRole: IndexedFileRole.Source);
+        var endpoint = Node("e1", "PaymentEndpoint", CodeNodeType.Method, "src/McpServer/Api/PaymentEndpoint.cs", 20, "Shop", fileRole: IndexedFileRole.Source);
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([doc, test, service, port, implementation, endpoint]);
+        graph
+            .GetContextForEditingAsync(service.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(service, [endpoint], [implementation], [port]));
+        graph
+            .FindImpactAsync(service.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(endpoint, 1)]);
+        graph
+            .FindDownstreamAsync(service.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(implementation, 1)]);
+        graph
+            .FindRelatedTestsAsync(service.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([(test, "direct")]);
+
+        var result = await sut.PlanEditRouteAsync(
+            "replace repository pattern in payments",
+            "repository,payments",
+            "Shop");
+
+        result.Should().Contain("**Anchor:** `PaymentService` (Class) - `src/Application/Payments/PaymentService.cs`");
+        result.Should().Contain("Implementation candidates: 4");
+        result.Should().Contain("PaymentServiceTests");
+        result.Should().NotContain("Add Payments Feature");
+        result.Should().NotContain("docs/features/add-payments.md");
+    }
+
+    [Fact]
     public async Task PlanEditRouteAsync_WhenNoMatches_ReturnsGuidance()
     {
         var (sut, graph) = Build();

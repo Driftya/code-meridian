@@ -540,14 +540,14 @@ public sealed partial class Neo4jCodeGraphRepository
               AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND n.lineCount > $lineThreshold
               AND {fileRole} IN ['Source', 'Unknown']
-            OPTIONAL MATCH (n)-[:Contains*0..2]->(member:CodeNode)
-            WITH n, n.lineCount AS lineCount, collect(DISTINCT member) AS members
-            OPTIONAL MATCH (caller:CodeNode)-[:Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable|Implements|Inherits]->(n)
-            WITH n, lineCount, collect(DISTINCT caller) AS directCallers, members
-            OPTIONAL MATCH (memberCaller:CodeNode)-[:Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable]->(member)
+            OPTIONAL MATCH (directCaller:CodeNode)-[:Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable|Implements|Inherits]->(n)
+            WITH n, n.lineCount AS lineCount, collect(DISTINCT directCaller) AS directCallers
+            OPTIONAL MATCH (n)-[:Contains*1..2]->(member:CodeNode)<-[:Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable]-(memberCaller:CodeNode)
             WITH n, lineCount, directCallers, collect(DISTINCT memberCaller) AS memberCallers
-            WITH n, lineCount, directCallers + memberCallers AS callers
+            WITH n, lineCount, CASE WHEN size(directCallers + memberCallers) = 0 THEN [NULL] ELSE directCallers + memberCallers END AS callers
             UNWIND callers AS caller
+            WITH n, lineCount, caller
+            WHERE caller IS NULL OR caller <> n
             WITH n, lineCount, count(DISTINCT caller) AS fanIn
             WHERE fanIn > $fanInThreshold
             RETURN n, lineCount, fanIn
