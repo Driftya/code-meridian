@@ -43,6 +43,7 @@ public sealed class SessionUsefulnessEvaluatorTests : IDisposable
         result.GraphCalls.Should().Be(1);
         result.PrecisionFeedback.Tools.Should().ContainSingle();
         result.PrecisionFeedback.Tools[0].AcceptedFileCount.Should().Be(2);
+        result.PrecisionFeedback.Tools[0].DerivedAcceptedFileCount.Should().Be(0);
         result.PrecisionFeedback.Tools[0].IgnoredFileCount.Should().Be(0);
     }
 
@@ -70,6 +71,7 @@ public sealed class SessionUsefulnessEvaluatorTests : IDisposable
         result.ManualFallbackCommands.Should().Be(1);
         result.StaleWarnings.Should().Be(1);
         result.PrecisionFeedback.Tools[0].AcceptedFileCount.Should().Be(1);
+        result.PrecisionFeedback.Tools[0].DerivedAcceptedFileCount.Should().Be(0);
         result.PrecisionFeedback.Tools[0].IgnoredFileCount.Should().Be(1);
         result.PrecisionFeedback.Tools[0].FileOnlyTargets.Should().Be(1);
     }
@@ -141,6 +143,100 @@ public sealed class SessionUsefulnessEvaluatorTests : IDisposable
         result.ContextPackHardFailures.Should().Be(1);
     }
 
+    [Fact]
+    public async Task EvaluateAsync_WhenDerivedLineageTargetsNewCollaborator_CreditsSuggestedSourceSeparately()
+    {
+        var sessionFile = WriteSession(
+            """
+            {"project":"App","kind":"graph-call","toolName":"mcp__CodeMeridian.find_implementation_surface","files":["src/App/ChainLifecycleService.cs"],"targetConfidence":"exact"}
+            {"project":"App","kind":"suggestion","toolName":"mcp__CodeMeridian.find_implementation_surface","files":["src/App/Chains/ChainHandoffService.cs"],"derivedFromFiles":["src/App/ChainLifecycleService.cs"],"changeKind":"extract"}
+            """);
+
+        var sut = CreateEvaluator([
+            "src/App/Chains/ChainHandoffService.cs",
+            "src/App/OtherFile.cs"
+        ]);
+
+        var result = await sut.EvaluateAsync(new SessionEvaluationOptions(
+            new DirectoryInfo(_root),
+            "App",
+            sessionFile,
+            "HEAD"));
+
+        result.Rating.Should().Be("high");
+        result.SuggestedFilesEdited.Should().Be(0);
+        result.DerivedSuggestedFiles.Should().BeEquivalentTo(["src/App/ChainLifecycleService.cs"]);
+        result.DerivedChangedFiles.Should().BeEquivalentTo(["src/App/Chains/ChainHandoffService.cs"]);
+        result.UnrelatedChangedFiles.Should().BeEquivalentTo(["src/App/OtherFile.cs"]);
+        result.PrecisionFeedback.Tools[0].AcceptedFileCount.Should().Be(0);
+        result.PrecisionFeedback.Tools[0].DerivedAcceptedFileCount.Should().Be(1);
+        result.PrecisionFeedback.Tools[0].IgnoredFileCount.Should().Be(0);
+        var fileSignal = result.PrecisionFeedback.Tools[0].Files.Should().ContainSingle().Subject;
+        fileSignal.Path.Should().Be("src/App/ChainLifecycleService.cs");
+        fileSignal.DerivedAcceptedCount.Should().Be(1);
+        fileSignal.DerivedPaths.Should().BeEquivalentTo(["src/App/Chains/ChainHandoffService.cs"]);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_WhenPlannedNamespaceMatchesChangedFile_CreditsDerivedMatch()
+    {
+        var sessionFile = WriteSession(
+            """
+            {"project":"App","kind":"graph-call","toolName":"mcp__CodeMeridian.find_implementation_surface","files":["src/App/ChainLifecycleService.cs"],"targetConfidence":"exact"}
+            {"project":"App","kind":"suggestion","toolName":"mcp__CodeMeridian.find_implementation_surface","files":["src/App/ChainLifecycleService.cs"],"plannedNamespaces":["App.Chains.Collaboration"],"changeKind":"extract"}
+            """);
+
+        WriteWorkspaceFile(
+            "src/App/OtherFolder/ChainHandoffService.cs",
+            """
+            namespace App.Chains.Collaboration;
+
+            internal sealed class ChainHandoffService;
+            """);
+
+        var sut = CreateEvaluator([
+            "src/App/OtherFolder/ChainHandoffService.cs"
+        ]);
+
+        var result = await sut.EvaluateAsync(new SessionEvaluationOptions(
+            new DirectoryInfo(_root),
+            "App",
+            sessionFile,
+            "HEAD"));
+
+        result.DerivedSuggestedFiles.Should().BeEquivalentTo(["src/App/ChainLifecycleService.cs"]);
+        result.DerivedChangedFiles.Should().BeEquivalentTo(["src/App/OtherFolder/ChainHandoffService.cs"]);
+        result.UnrelatedChangedFiles.Should().BeEmpty();
+        result.PrecisionFeedback.Tools[0].DerivedAcceptedFileCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_WhenRenamePreservesSuggestedPathLineage_CreditsDerivedMatch()
+    {
+        var sessionFile = WriteSession(
+            """
+            {"project":"App","kind":"graph-call","toolName":"mcp__CodeMeridian.find_implementation_surface","files":["src/App/Legacy/OrderService.cs"],"targetConfidence":"exact"}
+            """);
+
+        var sut = CreateEvaluator(
+            ["src/App/Services/OrderService.cs"],
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["src/App/Services/OrderService.cs"] = "src/App/Legacy/OrderService.cs"
+            });
+
+        var result = await sut.EvaluateAsync(new SessionEvaluationOptions(
+            new DirectoryInfo(_root),
+            "App",
+            sessionFile,
+            "HEAD"));
+
+        result.DerivedSuggestedFiles.Should().BeEquivalentTo(["src/App/Legacy/OrderService.cs"]);
+        result.DerivedChangedFiles.Should().BeEquivalentTo(["src/App/Services/OrderService.cs"]);
+        result.UnrelatedChangedFiles.Should().BeEmpty();
+        result.PrecisionFeedback.Tools[0].DerivedAcceptedFileCount.Should().Be(1);
+    }
+
     private FileInfo WriteSession(string content)
     {
         var sessionDirectory = Directory.CreateDirectory(Path.Combine(_root, ".meridian", "sessions"));
@@ -149,8 +245,17 @@ public sealed class SessionUsefulnessEvaluatorTests : IDisposable
         return new FileInfo(sessionPath);
     }
 
-    private static SessionUsefulnessEvaluator CreateEvaluator(IEnumerable<string> changedFiles) =>
-        new(new SessionEvidenceReader(), new FakeChangeSource(changedFiles));
+    private void WriteWorkspaceFile(string relativePath, string content)
+    {
+        var fullPath = Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllText(fullPath, content);
+    }
+
+    private static SessionUsefulnessEvaluator CreateEvaluator(
+        IEnumerable<string> changedFiles,
+        IReadOnlyDictionary<string, string>? renamedFromByPath = null) =>
+        new(new SessionEvidenceReader(), new FakeChangeSource(changedFiles, renamedFromByPath));
 
     public void Dispose()
     {
@@ -158,11 +263,18 @@ public sealed class SessionUsefulnessEvaluatorTests : IDisposable
             Directory.Delete(_root, recursive: true);
     }
 
-    private sealed class FakeChangeSource(IEnumerable<string> changedFiles) : ISessionChangeSource
+    private sealed class FakeChangeSource(
+        IEnumerable<string> changedFiles,
+        IReadOnlyDictionary<string, string>? renamedFromByPath) : ISessionChangeSource
     {
         public Task<SessionChangeSet> GetChangesAsync(DirectoryInfo root, string gitBase, CancellationToken cancellationToken) =>
             Task.FromResult(new SessionChangeSet(changedFiles
                 .Select(SessionPathNormalizer.Normalize)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase)));
+                .ToHashSet(StringComparer.OrdinalIgnoreCase),
+                (renamedFromByPath ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+                .ToDictionary(
+                    entry => SessionPathNormalizer.Normalize(entry.Key),
+                    entry => SessionPathNormalizer.Normalize(entry.Value),
+                    StringComparer.OrdinalIgnoreCase)));
     }
 }

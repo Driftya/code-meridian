@@ -14,6 +14,7 @@ internal sealed class SessionUsefulnessEvaluator(
         var suggestedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var suggestedTests = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var runTests = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var derivedHints = new List<DerivedMatchHint>();
         var notes = new List<string>();
         var graphCalls = 0;
         var exactTargets = 0;
@@ -34,6 +35,13 @@ internal sealed class SessionUsefulnessEvaluator(
             var normalizedFiles = item.Files.Select(SessionPathNormalizer.Normalize).Where(path => path.Length > 0).ToArray();
             var normalizedTests = item.Tests.Select(SessionPathNormalizer.Normalize).Where(path => path.Length > 0).ToArray();
             var toolStat = GetToolStat(toolStats, toolName);
+            var hint = CreateDerivedMatchHint(item, normalizedFiles);
+
+            if (hint is not null)
+            {
+                derivedHints.Add(hint);
+                toolStat?.DerivedHints.Add(hint);
+            }
 
             if (IsGraphCall(kind, toolName))
             {
@@ -71,9 +79,13 @@ internal sealed class SessionUsefulnessEvaluator(
                 ref staleTargets,
                 toolStat);
 
-            foreach (var file in normalizedFiles)
+            if (IsSuggestionEvent(kind, toolName))
             {
-                if (IsSuggestionEvent(kind, toolName))
+                var directSuggestionFiles = hint is null || hint.TargetFiles.Count == 0
+                    ? normalizedFiles
+                    : [];
+
+                foreach (var file in directSuggestionFiles)
                 {
                     suggestedFiles.Add(file);
                     toolStat?.SuggestedFiles.Add(file);
@@ -102,6 +114,15 @@ internal sealed class SessionUsefulnessEvaluator(
         var changedTests = changes.ChangedFiles
             .Where(SessionPathNormalizer.IsLikelyTestPath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var changedNonTestFiles = changes.ChangedFiles
+            .Where(path => !SessionPathNormalizer.IsLikelyTestPath(path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var fileCredits = EvaluateFileCredits(
+            options.Root,
+            changedNonTestFiles,
+            suggestedFiles,
+            derivedHints,
+            changes.RenamedFromByPath);
 
         if (projectEvents.Count == 0)
             notes.Add("No session events matched the requested project.");
@@ -112,19 +133,27 @@ internal sealed class SessionUsefulnessEvaluator(
         if (changes.ChangedFiles.Count == 0)
             notes.Add("No changed files were detected from git diff.");
 
+        if (fileCredits.DerivedSuggestedFiles.Count > 0)
+        {
+            notes.Add(
+                $"Derived file credit applied for {fileCredits.DerivedSuggestedFiles.Count} suggested path(s) via extraction, move, rename, split, or planned slice lineage.");
+        }
+
         var rating = Rate(
             suggestedFiles.Count,
-            suggestedFiles.Count(changes.ChangedFiles.Contains),
+            suggestedFiles.Count(changedNonTestFiles.Contains) + fileCredits.DerivedSuggestedFiles.Count,
             suggestedTests.Count,
             suggestedTests.Count(test => changedTests.Contains(test) || runTests.Contains(test)),
             graphCalls,
             manualFallbackCommands,
             staleWarnings);
         var precisionFeedback = BuildPrecisionFeedback(
+            options.Root,
             options.Project,
             sessionFile,
             changedTests,
-            changes.ChangedFiles,
+            changedNonTestFiles,
+            changes.RenamedFromByPath,
             toolStats);
 
         return new SessionUsefulnessReport(
@@ -135,6 +164,9 @@ internal sealed class SessionUsefulnessEvaluator(
             changes.ChangedFiles,
             changedTests,
             runTests,
+            fileCredits.DerivedSuggestedFiles,
+            fileCredits.DerivedChangedFiles,
+            fileCredits.UnrelatedChangedFiles,
             graphCalls,
             exactTargets,
             fileOnlyTargets,
@@ -302,7 +334,7 @@ internal sealed class SessionUsefulnessEvaluator(
 
     private static string Rate(
         int suggestedFiles,
-        int suggestedFilesEdited,
+        int suggestedFilesCredited,
         int suggestedTests,
         int suggestedTestsChangedOrRun,
         int graphCalls,
@@ -312,7 +344,7 @@ internal sealed class SessionUsefulnessEvaluator(
         if (graphCalls == 0 || suggestedFiles == 0)
             return "unknown";
 
-        var fileRatio = suggestedFilesEdited / (double)suggestedFiles;
+        var fileRatio = suggestedFilesCredited / (double)suggestedFiles;
         var testRatio = suggestedTests == 0 ? 0.0 : suggestedTestsChangedOrRun / (double)suggestedTests;
         var fallbackPressure = manualFallbackCommands > graphCalls * 3;
 
@@ -346,16 +378,206 @@ internal sealed class SessionUsefulnessEvaluator(
         && (toolName.EndsWith("find_implementation_surface", StringComparison.OrdinalIgnoreCase)
             || toolName.EndsWith("analyze_feature_implementation_path", StringComparison.OrdinalIgnoreCase));
 
+    private static DerivedMatchHint? CreateDerivedMatchHint(
+        SessionEvidenceEvent item,
+        IReadOnlyList<string> normalizedFiles)
+    {
+        var derivedFromFiles = item.DerivedFromFiles
+            .Select(SessionPathNormalizer.Normalize)
+            .Where(path => path.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var plannedFolders = item.PlannedFolders
+            .Select(NormalizeFolder)
+            .Where(path => path.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var plannedNamespaces = item.PlannedNamespaces
+            .Select(NormalizeNamespace)
+            .Where(path => path.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (derivedFromFiles.Length == 0 && plannedFolders.Length == 0 && plannedNamespaces.Length == 0)
+            return null;
+
+        var sourceFiles = derivedFromFiles.Length > 0
+            ? derivedFromFiles
+            : normalizedFiles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var targetFiles = derivedFromFiles.Length > 0
+            ? normalizedFiles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            : [];
+
+        if (sourceFiles.Length == 0)
+            return null;
+
+        return new DerivedMatchHint(
+            sourceFiles,
+            targetFiles,
+            plannedFolders,
+            plannedNamespaces,
+            NormalizeChangeKind(item.ChangeKind));
+    }
+
+    private static FileCreditSummary EvaluateFileCredits(
+        DirectoryInfo root,
+        IReadOnlySet<string> changedFiles,
+        IReadOnlySet<string> suggestedFiles,
+        IReadOnlyList<DerivedMatchHint> derivedHints,
+        IReadOnlyDictionary<string, string> renamedFromByPath)
+    {
+        var derivedSuggestedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var derivedChangedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var derivedPathsBySuggestedFile = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var namespaceCache = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var changedFile in changedFiles)
+        {
+            if (suggestedFiles.Contains(changedFile))
+                continue;
+
+            if (renamedFromByPath.TryGetValue(changedFile, out var originalPath)
+                && suggestedFiles.Contains(originalPath))
+            {
+                RegisterDerivedMatch(originalPath, changedFile);
+                continue;
+            }
+
+            foreach (var hint in derivedHints)
+            {
+                if (!MatchesDerivedHint(root, changedFile, hint, namespaceCache))
+                    continue;
+
+                foreach (var sourceFile in hint.SourceFiles)
+                {
+                    if (suggestedFiles.Contains(sourceFile))
+                        RegisterDerivedMatch(sourceFile, changedFile);
+                }
+            }
+        }
+
+        var unrelatedChangedFiles = changedFiles
+            .Where(path => !suggestedFiles.Contains(path) && !derivedChangedFiles.Contains(path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return new FileCreditSummary(
+            derivedSuggestedFiles,
+            derivedChangedFiles,
+            unrelatedChangedFiles,
+            derivedPathsBySuggestedFile.ToDictionary(
+                entry => entry.Key,
+                entry => (IReadOnlySet<string>)entry.Value,
+                StringComparer.OrdinalIgnoreCase));
+
+        void RegisterDerivedMatch(string sourceFile, string changedFile)
+        {
+            if (!derivedPathsBySuggestedFile.TryGetValue(sourceFile, out var derivedPaths))
+            {
+                derivedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                derivedPathsBySuggestedFile[sourceFile] = derivedPaths;
+            }
+
+            derivedPaths.Add(changedFile);
+            derivedChangedFiles.Add(changedFile);
+
+            if (!changedFiles.Contains(sourceFile))
+                derivedSuggestedFiles.Add(sourceFile);
+        }
+    }
+
+    private static bool MatchesDerivedHint(
+        DirectoryInfo root,
+        string changedFile,
+        DerivedMatchHint hint,
+        IDictionary<string, string?> namespaceCache)
+    {
+        if (hint.TargetFiles.Contains(changedFile))
+            return true;
+
+        if (hint.PlannedFolders.Any(folder => IsUnderFolder(changedFile, folder)))
+            return true;
+
+        if (hint.PlannedNamespaces.Count == 0)
+            return false;
+
+        var declaredNamespace = GetDeclaredNamespace(root, changedFile, namespaceCache);
+        if (string.IsNullOrWhiteSpace(declaredNamespace))
+            return false;
+
+        return hint.PlannedNamespaces.Any(plannedNamespace =>
+            declaredNamespace.Equals(plannedNamespace, StringComparison.OrdinalIgnoreCase)
+            || declaredNamespace.StartsWith($"{plannedNamespace}.", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeFolder(string? folder)
+    {
+        var normalized = SessionPathNormalizer.Normalize(folder);
+        return normalized.TrimEnd('/');
+    }
+
+    private static string NormalizeNamespace(string? namespaceValue) =>
+        string.IsNullOrWhiteSpace(namespaceValue)
+            ? string.Empty
+            : namespaceValue.Trim();
+
+    private static string NormalizeChangeKind(string? changeKind) =>
+        string.IsNullOrWhiteSpace(changeKind)
+            ? string.Empty
+            : changeKind.Trim().ToLowerInvariant();
+
+    private static bool IsUnderFolder(string path, string folder) =>
+        path.Equals(folder, StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith($"{folder}/", StringComparison.OrdinalIgnoreCase);
+
+    private static string? GetDeclaredNamespace(
+        DirectoryInfo root,
+        string changedFile,
+        IDictionary<string, string?> namespaceCache)
+    {
+        if (namespaceCache.TryGetValue(changedFile, out var cached))
+            return cached;
+
+        var fullPath = Path.Combine(root.FullName, changedFile.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(fullPath))
+        {
+            namespaceCache[changedFile] = null;
+            return null;
+        }
+
+        foreach (var line in File.ReadLines(fullPath))
+        {
+            var trimmed = line.Trim();
+            if (!trimmed.StartsWith("namespace ", StringComparison.Ordinal))
+                continue;
+
+            var namespaceValue = trimmed["namespace ".Length..].Trim();
+            if (namespaceValue.EndsWith(";", StringComparison.Ordinal))
+                namespaceValue = namespaceValue[..^1].Trim();
+
+            var firstDelimiter = namespaceValue.IndexOfAny([' ', '{']);
+            if (firstDelimiter >= 0)
+                namespaceValue = namespaceValue[..firstDelimiter].Trim();
+
+            namespaceCache[changedFile] = namespaceValue.Length == 0 ? null : namespaceValue;
+            return namespaceCache[changedFile];
+        }
+
+        namespaceCache[changedFile] = null;
+        return null;
+    }
+
     private static SessionPrecisionFeedback BuildPrecisionFeedback(
+        DirectoryInfo root,
         string? project,
         FileInfo sessionFile,
         IReadOnlySet<string> changedTests,
         IReadOnlySet<string> changedFiles,
+        IReadOnlyDictionary<string, string> renamedFromByPath,
         IReadOnlyDictionary<string, ToolPrecisionBuilder> toolStats)
     {
         var tools = toolStats.Values
             .OrderBy(builder => builder.ToolName, StringComparer.OrdinalIgnoreCase)
-            .Select(builder => builder.Build(changedFiles, changedTests))
+            .Select(builder => builder.Build(root, changedFiles, changedTests, renamedFromByPath))
             .ToArray();
 
         return new SessionPrecisionFeedback(
@@ -371,6 +593,7 @@ internal sealed class SessionUsefulnessEvaluator(
         public HashSet<string> SuggestedFiles { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> SuggestedTests { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> RunTests { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<DerivedMatchHint> DerivedHints { get; } = [];
         public int GraphCalls { get; set; }
         public int ExactTargets { get; set; }
         public int FileOnlyTargets { get; set; }
@@ -379,15 +602,31 @@ internal sealed class SessionUsefulnessEvaluator(
         public int StaleWarnings { get; set; }
         public int ManualFallbackCommands { get; set; }
 
-        public ToolPrecisionFeedback Build(IReadOnlySet<string> changedFiles, IReadOnlySet<string> changedTests)
+        public ToolPrecisionFeedback Build(
+            DirectoryInfo root,
+            IReadOnlySet<string> changedFiles,
+            IReadOnlySet<string> changedTests,
+            IReadOnlyDictionary<string, string> renamedFromByPath)
         {
+            var fileCredits = EvaluateFileCredits(root, changedFiles, SuggestedFiles, DerivedHints, renamedFromByPath);
             var fileSignals = SuggestedFiles
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                .Select(path => new PathPrecisionFeedback(
-                    path,
-                    1,
-                    changedFiles.Contains(path) ? 1 : 0,
-                    changedFiles.Contains(path) ? 0 : 1))
+                .Select(path =>
+                {
+                    var directAccepted = changedFiles.Contains(path) ? 1 : 0;
+                    var derivedPaths = fileCredits.DerivedPathsBySuggestedFile.TryGetValue(path, out var paths)
+                        ? paths.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToArray()
+                        : [];
+                    var derivedAccepted = derivedPaths.Length > 0 ? 1 : 0;
+
+                    return new PathPrecisionFeedback(
+                        path,
+                        1,
+                        directAccepted,
+                        derivedAccepted,
+                        directAccepted == 0 && derivedAccepted == 0 ? 1 : 0,
+                        derivedPaths);
+                })
                 .ToArray();
             var testSignals = SuggestedTests
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -395,13 +634,16 @@ internal sealed class SessionUsefulnessEvaluator(
                     path,
                     1,
                     changedTests.Contains(path) || RunTests.Contains(path) ? 1 : 0,
-                    changedTests.Contains(path) || RunTests.Contains(path) ? 0 : 1))
+                    0,
+                    changedTests.Contains(path) || RunTests.Contains(path) ? 0 : 1,
+                    []))
                 .ToArray();
 
             return new ToolPrecisionFeedback(
                 ToolName,
                 fileSignals.Length,
                 fileSignals.Sum(signal => signal.AcceptedCount),
+                fileSignals.Sum(signal => signal.DerivedAcceptedCount),
                 fileSignals.Sum(signal => signal.IgnoredCount),
                 testSignals.Length,
                 testSignals.Sum(signal => signal.AcceptedCount),
@@ -416,4 +658,17 @@ internal sealed class SessionUsefulnessEvaluator(
                 testSignals);
         }
     }
+
+    private sealed record DerivedMatchHint(
+        IReadOnlyList<string> SourceFiles,
+        IReadOnlyList<string> TargetFiles,
+        IReadOnlyList<string> PlannedFolders,
+        IReadOnlyList<string> PlannedNamespaces,
+        string ChangeKind);
+
+    private sealed record FileCreditSummary(
+        IReadOnlySet<string> DerivedSuggestedFiles,
+        IReadOnlySet<string> DerivedChangedFiles,
+        IReadOnlySet<string> UnrelatedChangedFiles,
+        IReadOnlyDictionary<string, IReadOnlySet<string>> DerivedPathsBySuggestedFile);
 }

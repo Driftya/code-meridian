@@ -7,7 +7,8 @@ internal sealed record SessionEvaluationOptions(
     string GitBase);
 
 internal sealed record SessionChangeSet(
-    IReadOnlySet<string> ChangedFiles);
+    IReadOnlySet<string> ChangedFiles,
+    IReadOnlyDictionary<string, string> RenamedFromByPath);
 
 internal sealed record SessionUsefulnessReport(
     string Rating,
@@ -17,6 +18,9 @@ internal sealed record SessionUsefulnessReport(
     IReadOnlySet<string> ChangedFiles,
     IReadOnlySet<string> ChangedTests,
     IReadOnlySet<string> RunTests,
+    IReadOnlySet<string> DerivedSuggestedFiles,
+    IReadOnlySet<string> DerivedChangedFiles,
+    IReadOnlySet<string> UnrelatedChangedFiles,
     int GraphCalls,
     int ExactTargets,
     int FileOnlyTargets,
@@ -32,6 +36,8 @@ internal sealed record SessionUsefulnessReport(
 {
     public int SuggestedFilesEdited => SuggestedFiles.Count(ChangedFiles.Contains);
 
+    public int SuggestedFilesCredited => SuggestedFilesEdited + DerivedSuggestedFiles.Count;
+
     public int SuggestedTestsChangedOrRun => SuggestedTests.Count(test => ChangedTests.Contains(test) || RunTests.Contains(test));
 }
 
@@ -45,6 +51,7 @@ internal sealed record ToolPrecisionFeedback(
     string ToolName,
     int SuggestedFileCount,
     int AcceptedFileCount,
+    int DerivedAcceptedFileCount,
     int IgnoredFileCount,
     int SuggestedTestCount,
     int AcceptedTestCount,
@@ -62,4 +69,6 @@ internal sealed record PathPrecisionFeedback(
     string Path,
     int SuggestedCount,
     int AcceptedCount,
-    int IgnoredCount);
+    int DerivedAcceptedCount,
+    int IgnoredCount,
+    IReadOnlyList<string> DerivedPaths);

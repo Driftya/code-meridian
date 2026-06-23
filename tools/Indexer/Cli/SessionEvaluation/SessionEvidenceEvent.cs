@@ -23,6 +23,16 @@ internal sealed class SessionEvidenceEvent
 
     public string? ContextPackStatus { get; init; }
 
+    public string? ChangeKind { get; init; }
+
+    public IReadOnlyList<string> DerivedFromFiles { get; init; } = [];
+
+    public IReadOnlyList<string> DerivedFromSymbols { get; init; } = [];
+
+    public IReadOnlyList<string> PlannedNamespaces { get; init; } = [];
+
+    public IReadOnlyList<string> PlannedFolders { get; init; } = [];
+
     public IReadOnlyList<string> Files { get; init; } = [];
 
     public IReadOnlyList<string> Tests { get; init; } = [];

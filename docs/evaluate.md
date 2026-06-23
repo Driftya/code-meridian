@@ -41,6 +41,11 @@ Agents or transcript importers should append facts using this schema:
   "command": null,
   "targetConfidence": "exact",
   "staleWarning": false,
+  "changeKind": null,
+  "derivedFromFiles": [],
+  "derivedFromSymbols": [],
+  "plannedNamespaces": [],
+  "plannedFolders": [],
   "files": ["src/App/OrderService.cs"],
   "tests": ["tests/App.Tests/OrderServiceTests.cs"]
 }
@@ -56,9 +61,11 @@ Common event shapes:
 {"project":"MyApp","provider":"codex","kind":"test-run","command":"dotnet test tests/App.Tests","tests":["tests/App.Tests/OrderServiceTests.cs"]}
 {"project":"MyApp","provider":"codex","kind":"stale-warning"}
 {"project":"MyApp","provider":"codex","kind":"tool-result","toolName":"mcp__CodeMeridian.build_minimal_context","contextPackStatus":"degraded","files":["src/App/OrderService.cs"],"tests":["tests/App.Tests/OrderServiceTests.cs"]}
+{"project":"MyApp","provider":"codex","kind":"suggestion","toolName":"mcp__CodeMeridian.find_implementation_surface","files":["src/App/Orders/OrderRuleService.cs"],"derivedFromFiles":["src/App/OrderService.cs"],"changeKind":"extract"}
+{"project":"MyApp","provider":"codex","kind":"suggestion","toolName":"mcp__CodeMeridian.find_implementation_surface","files":["src/App/OrderService.cs"],"plannedFolders":["src/App/Orders"],"plannedNamespaces":["MyApp.Orders"],"changeKind":"split"}
 ```
 
-The evaluator does not require provider-specific transcript formats. Keep the evidence factual: tool called, files suggested, tests suggested or run, confidence labels, stale warnings, and fallback commands.
+The evaluator does not require provider-specific transcript formats. Keep the evidence factual: tool called, files suggested, tests suggested or run, confidence labels, stale warnings, fallback commands, and optional lineage hints when refactors extract or regroup work.
 
 ## 3. Run The Evaluation
 
@@ -89,8 +96,10 @@ Example output:
 ```text
 CodeMeridian usefulness: partial
 Session evidence: C:\Projects\MyApp\.meridian\sessions\session.jsonl
-Suggested files edited: 4/6
+Suggested files edited directly: 3/6
+Suggested files credited by derivation: 1/6
 Suggested tests changed/run: 2/3
+Unrelated changed files: 2
 Graph calls used: 5
 Exact targets used: 3
 File-only targets: 1
@@ -123,6 +132,11 @@ Useful JSONL fields:
 - `targetConfidence`: comma-separated confidence labels such as `exact`, `file-only`, `heuristic`, or `stale`.
 - `staleWarning`: `true` when a tool result warned that graph data may be stale.
 - `contextPackStatus`: for `build_minimal_context` result events, record `full`, `degraded`, or `failed` so the evaluator can count bounded success separately from hard failure.
+- `changeKind`: optional lineage hint such as `direct-edit`, `extract`, `move`, `rename`, or `split`.
+- `derivedFromFiles`: optional exact source file paths when a new or moved file is derived from a suggested target.
+- `derivedFromSymbols`: optional source symbol IDs or names for importers that can preserve symbol lineage.
+- `plannedFolders`: optional target folders to credit when refactor output stays inside a planned slice.
+- `plannedNamespaces`: optional target namespaces to credit when extracted files move into a planned responsibility slice.
 
 Unknown fields are allowed. Importers can preserve provider-specific metadata without breaking the evaluator.
 
@@ -132,6 +146,7 @@ The evaluator uses these rules:
 
 - A graph call is counted when `kind` is `graph-call` or `codemeridian-tool`, or when `toolName` starts with `mcp__CodeMeridian.` or `CodeMeridian.`.
 - Suggested files and tests are read from `files` and `tests` on graph call, suggestion, or tool-result events.
+- Derived file credit is awarded separately when rename/move pairs preserve path lineage, when `derivedFromFiles` maps a changed file back to a suggested file, or when a changed file lands inside a planned folder or namespace recorded for that suggested source.
 - Context-pack outcomes are counted from `contextPackStatus` on `build_minimal_context` result events.
 - Manual fallback commands are counted when `kind` is `manual-fallback`, or when `kind` is `command` and `command` starts with `rg`, `grep`, `find`, `Get-ChildItem`, or `Select-String`.
 - Test runs are counted when `kind` is `test-run`, or when `kind` is `command` and `command` contains common test runners such as `dotnet test`, `npm test`, `pnpm test`, `yarn test`, `vitest`, or `pytest`.
@@ -157,9 +172,9 @@ Use a prompt like this at the start of a session:
 Use CodeMeridian before implementation. Record session evidence as newline-delimited JSON under .meridian/sessions/session.jsonl.
 
 Use this event schema:
-{"timestamp":"<ISO-8601 UTC time>","provider":"<codex|copilot|claude|continue|other>","project":"MyApp","kind":"<graph-call|codemeridian-tool|suggestion|tool-result|command|manual-fallback|test-run|stale-warning>","toolName":"<CodeMeridian MCP tool name when applicable>","command":"<shell command when applicable>","targetConfidence":"<exact|file-only|heuristic|stale, comma-separated if needed>","staleWarning":<true|false>,"contextPackStatus":"<full|degraded|failed when recording build_minimal_context results>","files":["<repo-relative file path>"],"tests":["<repo-relative test file path>"]}
+{"timestamp":"<ISO-8601 UTC time>","provider":"<codex|copilot|claude|continue|other>","project":"MyApp","kind":"<graph-call|codemeridian-tool|suggestion|tool-result|command|manual-fallback|test-run|stale-warning>","toolName":"<CodeMeridian MCP tool name when applicable>","command":"<shell command when applicable>","targetConfidence":"<exact|file-only|heuristic|stale, comma-separated if needed>","staleWarning":<true|false>,"contextPackStatus":"<full|degraded|failed when recording build_minimal_context results>","changeKind":"<direct-edit|extract|move|rename|split when lineage applies>","derivedFromFiles":["<repo-relative suggested source file>"],"derivedFromSymbols":["<source symbol when known>"],"plannedFolders":["<repo-relative target folder>"],"plannedNamespaces":["<target namespace>"],"files":["<repo-relative file path>"],"tests":["<repo-relative test file path>"]}
 
-Write one compact JSON object per line. Omit fields that do not apply. For each CodeMeridian tool call, record kind=graph-call, toolName, files suggested by the tool, tests suggested by the tool, targetConfidence, and staleWarning when present. When recording a build_minimal_context result as a tool-result event, also record contextPackStatus as full, degraded, or failed. For manual search fallback commands such as rg, grep, find, Get-ChildItem, or Select-String, record kind=command and command. For test execution, record kind=test-run, command, and tests when known.
+Write one compact JSON object per line. Omit fields that do not apply. For each CodeMeridian tool call, record kind=graph-call, toolName, files suggested by the tool, tests suggested by the tool, targetConfidence, and staleWarning when present. When recording a build_minimal_context result as a tool-result event, also record contextPackStatus as full, degraded, or failed. When extracted or moved files are clearly derived from a suggested source, also record changeKind plus derivedFromFiles and optional plannedFolders/plannedNamespaces. For manual search fallback commands such as rg, grep, find, Get-ChildItem, or Select-String, record kind=command and command. For test execution, record kind=test-run, command, and tests when known.
 ```
 
 After the work is done, run:

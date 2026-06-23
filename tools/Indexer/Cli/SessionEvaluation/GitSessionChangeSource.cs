@@ -7,8 +7,8 @@ internal sealed class GitSessionChangeSource : ISessionChangeSource
     public async Task<SessionChangeSet> GetChangesAsync(DirectoryInfo root, string gitBase, CancellationToken cancellationToken)
     {
         var baseRef = string.IsNullOrWhiteSpace(gitBase) ? "HEAD" : gitBase.Trim();
-        var output = await RunGitAsync(root, ["diff", "--name-only", "--diff-filter=ACMRTUXB", baseRef, "--"], cancellationToken);
-        return new SessionChangeSet(ParsePaths(output));
+        var output = await RunGitAsync(root, ["diff", "--name-status", "--find-renames=90%", "--diff-filter=ACMRTUXB", baseRef, "--"], cancellationToken);
+        return ParseChangeSet(output);
     }
 
     private static async Task<string> RunGitAsync(DirectoryInfo root, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
@@ -39,9 +39,44 @@ internal sealed class GitSessionChangeSource : ISessionChangeSource
         return output;
     }
 
-    private static IReadOnlySet<string> ParsePaths(string output) =>
-        output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(SessionPathNormalizer.Normalize)
-            .Where(path => path.Length > 0)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    private static SessionChangeSet ParseChangeSet(string output)
+    {
+        var changedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var renamedFromByPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rawLine in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var parts = rawLine.Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length == 0)
+                continue;
+
+            var status = parts[0];
+            if (status.StartsWith("R", StringComparison.OrdinalIgnoreCase)
+                || status.StartsWith("C", StringComparison.OrdinalIgnoreCase))
+            {
+                if (parts.Length < 3)
+                    continue;
+
+                var originalPath = SessionPathNormalizer.Normalize(parts[1]);
+                var changedPath = SessionPathNormalizer.Normalize(parts[2]);
+                if (changedPath.Length == 0)
+                    continue;
+
+                changedFiles.Add(changedPath);
+                if (originalPath.Length > 0)
+                    renamedFromByPath[changedPath] = originalPath;
+
+                continue;
+            }
+
+            if (parts.Length < 2)
+                continue;
+
+            var changedFile = SessionPathNormalizer.Normalize(parts[1]);
+            if (changedFile.Length > 0)
+                changedFiles.Add(changedFile);
+        }
+
+        return new SessionChangeSet(changedFiles, renamedFromByPath);
+    }
 }

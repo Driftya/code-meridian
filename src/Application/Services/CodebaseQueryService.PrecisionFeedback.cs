@@ -33,6 +33,7 @@ public sealed partial class CodebaseQueryService
                         GetString(toolElement, "toolName") ?? string.Empty,
                         GetInt(toolElement, "suggestedFileCount"),
                         GetInt(toolElement, "acceptedFileCount"),
+                        GetInt(toolElement, "derivedAcceptedFileCount"),
                         GetInt(toolElement, "ignoredFileCount"),
                         GetInt(toolElement, "suggestedTestCount"),
                         GetInt(toolElement, "acceptedTestCount"),
@@ -87,6 +88,11 @@ public sealed partial class CodebaseQueryService
                 reasons.Add($"feedback accepted {file.AcceptedCount}/{file.SuggestedCount} prior sessions");
             }
 
+            if (file.DerivedAcceptedCount > 0)
+            {
+                reasons.Add($"feedback derived {file.DerivedAcceptedCount}/{file.SuggestedCount} prior sessions");
+            }
+
             if (file.IgnoredCount > 0)
             {
                 scoreAdjustment -= analysisOptions.PrecisionFeedback.IgnoredFilePenalty * file.IgnoredCount;
@@ -128,6 +134,7 @@ public sealed partial class CodebaseQueryService
                 GetString(pathElement, "path") ?? string.Empty,
                 GetInt(pathElement, "suggestedCount"),
                 GetInt(pathElement, "acceptedCount"),
+                GetInt(pathElement, "derivedAcceptedCount"),
                 GetInt(pathElement, "ignoredCount")));
         }
 
@@ -147,6 +154,7 @@ internal sealed record ToolPrecisionSnapshot(
     string ToolName,
     int SuggestedFileCount,
     int AcceptedFileCount,
+    int DerivedAcceptedFileCount,
     int IgnoredFileCount,
     int SuggestedTestCount,
     int AcceptedTestCount,
@@ -164,4 +172,5 @@ internal sealed record PathPrecisionSnapshot(
     string Path,
     int SuggestedCount,
     int AcceptedCount,
+    int DerivedAcceptedCount,
     int IgnoredCount);

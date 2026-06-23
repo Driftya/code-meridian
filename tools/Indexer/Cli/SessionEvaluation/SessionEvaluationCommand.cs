@@ -49,8 +49,10 @@ internal sealed class SessionEvaluationCommand(
     {
         Console.WriteLine($"CodeMeridian usefulness: {report.Rating}");
         Console.WriteLine($"Session evidence: {report.SessionFile.FullName}");
-        Console.WriteLine($"Suggested files edited: {report.SuggestedFilesEdited}/{report.SuggestedFiles.Count}");
+        Console.WriteLine($"Suggested files edited directly: {report.SuggestedFilesEdited}/{report.SuggestedFiles.Count}");
+        Console.WriteLine($"Suggested files credited by derivation: {report.DerivedSuggestedFiles.Count}/{report.SuggestedFiles.Count}");
         Console.WriteLine($"Suggested tests changed/run: {report.SuggestedTestsChangedOrRun}/{report.SuggestedTests.Count}");
+        Console.WriteLine($"Unrelated changed files: {report.UnrelatedChangedFiles.Count}");
         Console.WriteLine($"Graph calls used: {report.GraphCalls}");
         Console.WriteLine($"Exact targets used: {report.ExactTargets}");
         Console.WriteLine($"File-only targets: {report.FileOnlyTargets}");

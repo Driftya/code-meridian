@@ -170,41 +170,44 @@ internal static class ToolDependencyCatalog
             "evaluate_session",
             "session evidence JSONL schema",
             "hard",
-            "The evaluator depends on the provider-neutral evidence shape, including toolName, files, tests, stale warnings, and contextPackStatus fields.",
+            "The evaluator depends on the provider-neutral evidence shape, including toolName, files, tests, stale warnings, contextPackStatus, and optional derived-lineage fields.",
             [
                 "tests/CodeMeridian.Indexer.Tests/Cli/SessionUsefulnessEvaluatorTests.cs"
             ],
             [
                 "docs/evaluate.md",
-                "docs/agent-capabilities/skills/codemeridian-context/SKILL.md"
+                "docs/agent-capabilities/skills/codemeridian-context/SKILL.md",
+                "docs/features/56-add-derived-edit-surface-credit-for-extraction-refactors.md"
             ]),
         Edge(
             "evaluate_session",
             "find_implementation_surface",
             "precision-feedback output shape",
             "hard",
-            "Implementation-surface ranking reads .meridian/precision-feedback.json written by evaluate-session to explain accepted and ignored targets.",
+            "Implementation-surface ranking reads .meridian/precision-feedback.json written by evaluate-session to explain direct, derived, and ignored target history.",
             [
                 "tests/CodeMeridian.Indexer.Tests/Cli/SessionUsefulnessEvaluatorTests.cs",
                 "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
             ],
             [
                 "docs/evaluate.md",
-                "docs/features/39-add-precision-feedback-loop.md"
+                "docs/features/39-add-precision-feedback-loop.md",
+                "docs/features/56-add-derived-edit-surface-credit-for-extraction-refactors.md"
             ]),
         Edge(
             "evaluate_session",
             "analyze_feature_implementation_path",
             "precision-feedback output shape",
             "hard",
-            "Feature-path analysis also reads evaluate-session precision feedback to explain why certain surfaces were accepted or ignored before.",
+            "Feature-path analysis also reads evaluate-session precision feedback to explain why certain surfaces were accepted directly, accepted by derivation, or ignored before.",
             [
                 "tests/CodeMeridian.Indexer.Tests/Cli/SessionUsefulnessEvaluatorTests.cs",
                 "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
             ],
             [
                 "docs/evaluate.md",
-                "docs/features/39-add-precision-feedback-loop.md"
+                "docs/features/39-add-precision-feedback-loop.md",
+                "docs/features/56-add-derived-edit-surface-credit-for-extraction-refactors.md"
             ])
     ];
 

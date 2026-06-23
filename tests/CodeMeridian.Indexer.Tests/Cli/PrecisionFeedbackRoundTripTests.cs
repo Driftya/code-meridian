@@ -113,6 +113,46 @@ public sealed class PrecisionFeedbackRoundTripTests : IDisposable
         featurePath.Should().Contain("feedback ignored 1/1 prior sessions");
     }
 
+    [Fact]
+    public async Task EvaluateAsync_PrecisionFeedbackPreservesDerivedAcceptanceSeparately()
+    {
+        var sessionFile = WriteSession(
+            """
+            {"project":"CodeMeridian","kind":"graph-call","toolName":"mcp__CodeMeridian.find_implementation_surface","files":["src/Application/PaymentsService.cs"],"targetConfidence":"exact"}
+            {"project":"CodeMeridian","kind":"suggestion","toolName":"mcp__CodeMeridian.find_implementation_surface","files":["src/Application/Payments/PaymentsExtractor.cs"],"derivedFromFiles":["src/Application/PaymentsService.cs"],"changeKind":"extract"}
+            """);
+
+        var evaluator = new SessionUsefulnessEvaluator(
+            new SessionEvidenceReader(),
+            new FakeChangeSource([
+                "src/Application/Payments/PaymentsExtractor.cs"
+            ]));
+
+        var evaluation = await evaluator.EvaluateAsync(new SessionEvaluationOptions(
+            new DirectoryInfo(_root),
+            "CodeMeridian",
+            sessionFile,
+            "HEAD"));
+
+        var feedbackPath = Path.Combine(_root, ".meridian", "precision-feedback.json");
+        WritePrecisionFeedback(feedbackPath, evaluation.PrecisionFeedback);
+
+        using var document = JsonDocument.Parse(File.ReadAllText(feedbackPath));
+        var tool = document.RootElement.GetProperty("tools").EnumerateArray().Single();
+        var file = tool.GetProperty("files").EnumerateArray().Single();
+
+        evaluation.PrecisionFeedback.Tools.Should().ContainSingle(tool =>
+            tool.ToolName == "mcp__CodeMeridian.find_implementation_surface"
+            && tool.AcceptedFileCount == 0
+            && tool.DerivedAcceptedFileCount == 1
+            && tool.IgnoredFileCount == 0);
+        tool.GetProperty("derivedAcceptedFileCount").GetInt32().Should().Be(1);
+        file.GetProperty("derivedAcceptedCount").GetInt32().Should().Be(1);
+        file.GetProperty("derivedPaths").EnumerateArray().Select(element => element.GetString())
+            .Should()
+            .BeEquivalentTo(["src/Application/Payments/PaymentsExtractor.cs"]);
+    }
+
     private FileInfo WriteSession(string content)
     {
         var sessionDirectory = Directory.CreateDirectory(Path.Combine(_root, ".meridian", "sessions"));
@@ -161,6 +201,7 @@ public sealed class PrecisionFeedbackRoundTripTests : IDisposable
         public Task<SessionChangeSet> GetChangesAsync(DirectoryInfo root, string gitBase, CancellationToken cancellationToken) =>
             Task.FromResult(new SessionChangeSet(changedFiles
                 .Select(SessionPathNormalizer.Normalize)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase)));
+                .ToHashSet(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
     }
 }
