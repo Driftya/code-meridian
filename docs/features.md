@@ -526,6 +526,7 @@ The first deterministic slice uses existing graph evidence:
 - related tests from the test-shield surface
 - documentation matches from the knowledge store
 - current folder and namespace patterns for the target
+- advisory Louvain community memberships over the local structural neighborhood when GDS is available
 
 Results include:
 
@@ -533,6 +534,7 @@ Results include:
 - candidate service and interface names per slice
 - methods to move
 - related tests or missing-test notes
+- an advisory community summary that says whether a slice boundary mostly reflects callers, repositories/dependencies, tests, or workflow entry points
 - migration strategy: facade-first, direct use-case replacement, or defer extraction
 - warnings for stale graph data and architecture-boundary risks
 

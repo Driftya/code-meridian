@@ -93,6 +93,12 @@ public interface ICodeGraphRepository
     /// <summary>GDS Louvain community detection — natural module boundaries the code has organically evolved into.</summary>
     Task<IReadOnlyList<(CodeNode Node, long Community)>> FindNaturalModulesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
 
+    /// <summary>GDS Louvain community memberships for a selected node set using structural neighborhood edges.</summary>
+    Task<IReadOnlyList<(CodeNode Node, long Community)>> FindNaturalModuleAssignmentsAsync(
+        IReadOnlyCollection<string> nodeIds,
+        string? projectContext = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Native vector similarity — find nodes semantically similar to the given node using stored embeddings.</summary>
     Task<IReadOnlyList<(CodeNode Node, double Score)>> FindSimilarToNodeAsync(string nodeId, string? projectContext = null, int topK = 10, CancellationToken cancellationToken = default);
 

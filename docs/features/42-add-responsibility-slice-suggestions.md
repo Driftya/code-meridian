@@ -4,6 +4,8 @@ Status: implemented
 Priority: P2
 Feature: `suggest_responsibility_slices`
 
+Implemented follow-up: responsibility-slice suggestions now use GDS community detection as advisory evidence only. Deterministic caller, dependency, test, documentation, and workflow scoring still decides the slice plan, while the output now reports whether the strongest supporting community mostly reflects callers, repositories/dependencies, tests, or workflow entry points and falls back cleanly when GDS is unavailable.
+
 ## Summary
 
 Add a CodeMeridian analysis tool that helps users split large services/classes into responsibility-based feature folders and namespaces.

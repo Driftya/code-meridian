@@ -61,6 +61,18 @@ public sealed class CodebaseQueryServiceResponsibilitySliceTests
             .Returns([(placeTests, "direct")]);
         graph.FindRelatedTestsAsync(cancel.Id, "Shop", Arg.Any<CancellationToken>())
             .Returns([]);
+        graph.FindNaturalModuleAssignmentsAsync(Arg.Any<IReadOnlyCollection<string>>(), "Shop", Arg.Any<CancellationToken>())
+            .Returns([
+                (place, 7L),
+                (price, 7L),
+                (repository, 7L),
+                (endpoint, 7L),
+                (controller, 7L),
+                (tool, 7L),
+                (cancel, 9L),
+                (command, 9L),
+                (cancelTool, 9L)
+            ]);
         vector.SearchByTextAsync("OrderService", "Shop", 5, Arg.Any<CancellationToken>())
             .Returns([new KnowledgeDocument { Id = "doc1", Source = "docs/features/orders.md", Content = "Orders feature" }]);
 
@@ -75,10 +87,12 @@ public sealed class CodebaseQueryServiceResponsibilitySliceTests
         result.Should().Contain("CancelOrderAsync");
         result.Should().Contain("OrderPlacementTests");
         result.Should().Contain("`facade_first_extraction`");
+        result.Should().Contain("### Advisory Community Signals");
+        result.Should().Contain("community 7 mostly reflects workflow entry points across 2 methods");
     }
 
     [Fact]
-    public async Task SuggestResponsibilitySlicesAsync_WithGenericOnlyMethods_ReturnsDeferExtraction()
+    public async Task SuggestResponsibilitySlicesAsync_WithGenericOnlyMethodsAndOnlyCommunitySignal_ReturnsDeferExtraction()
     {
         var graph = Substitute.For<ICodeGraphRepository>();
         var vector = Substitute.For<IVectorRepository>();
@@ -99,6 +113,11 @@ public sealed class CodebaseQueryServiceResponsibilitySliceTests
             .Returns(new EditingContext(process, [], [], []));
         graph.FindRelatedTestsAsync(Arg.Any<string>(), "Shop", Arg.Any<CancellationToken>())
             .Returns([]);
+        graph.FindNaturalModuleAssignmentsAsync(Arg.Any<IReadOnlyCollection<string>>(), "Shop", Arg.Any<CancellationToken>())
+            .Returns([
+                (handle, 5L),
+                (process, 5L)
+            ]);
         vector.SearchByTextAsync("LegacyService", "Shop", 5, Arg.Any<CancellationToken>())
             .Returns([]);
 
@@ -106,6 +125,60 @@ public sealed class CodebaseQueryServiceResponsibilitySliceTests
 
         result.Should().Contain("`defer_extraction`");
         result.Should().Contain("did not share enough caller, dependency, test, or workflow evidence");
+    }
+
+    [Fact]
+    public async Task SuggestResponsibilitySlicesAsync_WhenCommunityDetectionFails_ReturnsDeterministicResultWithWarning()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(graph, vector);
+        var target = Node(
+            "class:OrderService",
+            "OrderService",
+            CodeNodeType.Class,
+            "src/Application/Services/OrderService.cs",
+            1,
+            "Shop",
+            lineCount: 400,
+            sourceHash: "class-hash",
+            @namespace: "Shop.Application.Services");
+        var place = Node("method:PlaceOrderAsync", "PlaceOrderAsync", CodeNodeType.Method, target.FilePath, 20, "Shop");
+        var price = Node("method:CalculatePriceAsync", "CalculatePriceAsync", CodeNodeType.Method, target.FilePath, 80, "Shop");
+        var repository = Node("iface:IOrderRepository", "IOrderRepository", CodeNodeType.Interface, "src/Application/Orders/IOrderRepository.cs", 4, "Shop");
+        var endpoint = Node("endpoint:orders", "POST /api/orders", CodeNodeType.ApiEndpoint, "src/Api/OrdersEndpoint.cs", 10, "Shop");
+
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Class && query.NameFilter == "OrderService"),
+                Arg.Any<CancellationToken>())
+            .Returns([target]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Method),
+                Arg.Any<CancellationToken>())
+            .Returns([place, price]);
+        graph.QueryEdgesAsync(target.Id, 1, Arg.Any<CancellationToken>())
+            .Returns([
+                Contains(target, place),
+                Contains(target, price)
+            ]);
+        graph.GetContextForEditingAsync(place.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(place, [endpoint], [repository], []));
+        graph.GetContextForEditingAsync(price.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(price, [endpoint], [repository], []));
+        graph.FindRelatedTestsAsync(Arg.Any<string>(), "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindNaturalModuleAssignmentsAsync(Arg.Any<IReadOnlyCollection<string>>(), "Shop", Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IReadOnlyList<(CodeNode Node, long Community)>>(
+                new InvalidOperationException("No such procedure: gds.louvain.stream")));
+        vector.SearchByTextAsync("OrderService", "Shop", 5, Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.SuggestResponsibilitySlicesAsync("OrderService", "Shop", maxSlices: 2);
+
+        result.Should().Contain("PlaceOrderAsync");
+        result.Should().Contain("Community detection advisory evidence is unavailable");
+        result.Should().Contain("### Advisory Community Signals");
+        result.Should().Contain("no supporting community signal");
     }
 
     private static CodeNode Node(

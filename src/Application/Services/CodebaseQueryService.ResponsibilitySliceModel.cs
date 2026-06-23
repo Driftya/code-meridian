@@ -192,24 +192,28 @@ public sealed partial class CodebaseQueryService
         IReadOnlyList<CodeNode> RelatedTests,
         int Score,
         string Confidence,
+        string CommunitySignal,
         string Reason)
     {
         public static ResponsibilitySlice Create(
             string name,
             IReadOnlyList<ResponsibilityMethodSignals> methods,
-            IReadOnlyList<string> docSources)
+            IReadOnlyList<string> docSources,
+            ResponsibilityCommunityAdvice communityAdvice)
         {
             var dependencies = methods.SelectMany(method => method.Dependencies).DistinctBy(node => node.Id).ToArray();
             var callers = methods.SelectMany(method => method.WorkflowCallers).DistinctBy(node => node.Id).ToArray();
             var tests = methods.SelectMany(method => method.RelatedTests).DistinctBy(node => node.Id).ToArray();
-            var score = methods.Count
-                        + dependencies.Length * 5
-                        + callers.Length * 4
-                        + tests.Length * 4
-                        + Math.Min(docSources.Count, 3) * 2;
+            var baseScore = methods.Count
+                            + dependencies.Length * 5
+                            + callers.Length * 4
+                            + tests.Length * 4
+                            + Math.Min(docSources.Count, 3) * 2;
 
             if (methods.All(method => method.Dependencies.Count == 0 && method.WorkflowCallers.Count == 0 && method.RelatedTests.Count == 0))
-                score -= 3;
+                baseScore -= 3;
+
+            var score = baseScore + communityAdvice.Bonus;
 
             var confidence = score >= 18 ? "High" : score >= 9 ? "Medium" : "Low";
             var evidence = new List<string>
@@ -224,6 +228,8 @@ public sealed partial class CodebaseQueryService
                 evidence.Add($"{tests.Length} related tests");
             if (docSources.Count > 0)
                 evidence.Add($"{Math.Min(docSources.Count, 3)} docs");
+            if (communityAdvice.HasSignal)
+                evidence.Add(communityAdvice.Summary);
 
             return new ResponsibilitySlice(
                 name,
@@ -232,6 +238,7 @@ public sealed partial class CodebaseQueryService
                 tests,
                 score,
                 confidence,
+                communityAdvice.HasSignal ? communityAdvice.Summary : "no supporting community signal",
                 string.Join(", ", evidence));
         }
 

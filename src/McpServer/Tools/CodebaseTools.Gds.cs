@@ -73,7 +73,8 @@ public sealed partial class CodebaseTools
     [McpServerTool(Name = "suggest_responsibility_slices")]
     [Description(
         "Suggest responsibility-based extraction slices for a large class or service. " +
-        "Clusters indexed methods with graph evidence from shared dependencies, workflow callers, tests, docs, and existing namespace/folder patterns. " +
+        "Clusters indexed methods with deterministic graph evidence from shared dependencies, workflow callers, tests, docs, and existing namespace/folder patterns, " +
+        "then adds advisory community-detection evidence when available. " +
         "Returns folder, namespace, service, test, and migration recommendations without editing files.")]
     public Task<string> SuggestResponsibilitySlicesAsync(
         [Description("Class or service name to analyze, e.g. 'CodebaseQueryService'.")]

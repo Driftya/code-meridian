@@ -42,9 +42,18 @@ public sealed partial class CodebaseQueryService
         }
 
         var docMatches = await vectorStore.SearchByTextAsync(targetNode.Name, targetNode.ProjectContext ?? projectContext, topK: 5, cancellationToken);
+        var communityLookup = await TryGetResponsibilityCommunitiesAsync(methodSignals, projectContext, cancellationToken);
         var slices = methodSignals
             .GroupBy(signal => signal.SliceName, StringComparer.OrdinalIgnoreCase)
-            .Select(group => ResponsibilitySlice.Create(group.Key, group.ToArray(), docMatches.Select(doc => doc.Source).Where(source => !string.IsNullOrWhiteSpace(source)).Cast<string>().ToArray()))
+            .Select(group =>
+            {
+                var methods = group.ToArray();
+                return ResponsibilitySlice.Create(
+                    group.Key,
+                    methods,
+                    docMatches.Select(doc => doc.Source).Where(source => !string.IsNullOrWhiteSpace(source)).Cast<string>().ToArray(),
+                    BuildResponsibilityCommunityAdvice(methods, communityLookup));
+            })
             .Where(slice => slice.Methods.Count > 1 || slice.Score >= 8)
             .OrderByDescending(slice => slice.Score)
             .ThenBy(slice => slice.Name, StringComparer.OrdinalIgnoreCase)
@@ -128,6 +137,11 @@ public sealed partial class CodebaseQueryService
             }
         }
 
+        sb.AppendLine();
+        sb.AppendLine("### Advisory Community Signals");
+        foreach (var slice in slices)
+            sb.AppendLine($"- `{slice.Name}`: {slice.CommunitySignal}");
+
         if (includeMigrationSteps)
         {
             sb.AppendLine();
@@ -140,6 +154,8 @@ public sealed partial class CodebaseQueryService
         sb.AppendLine("### Warnings");
         if (graphFreshness != "fresh")
             sb.AppendLine("- Verify source before editing because graph metadata is incomplete or stale.");
+        if (!string.IsNullOrWhiteSpace(communityLookup.Warning))
+            sb.AppendLine($"- {communityLookup.Warning}");
         if (slices.Any(slice => IsVagueResponsibilityName(slice.RecommendedTypeName)))
             sb.AppendLine("- Rename vague slice services before implementation; prefer use-case names over lifecycle/helper/manager names.");
         sb.AppendLine("- Keep the extracted services in the same architecture layer as the original target.");

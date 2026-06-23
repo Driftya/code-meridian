@@ -194,6 +194,51 @@ public sealed partial class Neo4jCodeGraphRepository
             cancellationToken);
     }
 
+    public async Task<IReadOnlyList<(CodeNode Node, long Community)>> FindNaturalModuleAssignmentsAsync(
+        IReadOnlyCollection<string> nodeIds,
+        string? projectContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (nodeIds.Count == 0)
+            return [];
+
+        await using var session = _driver.AsyncSession();
+        var graphName = $"cm_lva_{Guid.NewGuid():N}";
+
+        const string projectCypher = """
+            CALL gds.graph.project($graphName, 'CodeNode', {
+              Calls: {orientation: 'UNDIRECTED'},
+              Uses: {orientation: 'UNDIRECTED'},
+              UsesClass: {orientation: 'UNDIRECTED'},
+              DependsOn: {orientation: 'UNDIRECTED'},
+              Contains: {orientation: 'UNDIRECTED'}
+            })
+            YIELD graphName, nodeCount, relationshipCount
+            """;
+
+        const string streamCypher = """
+            CALL gds.louvain.stream($graphName)
+            YIELD nodeId, communityId
+            MATCH (n:CodeNode) WHERE id(n) = nodeId
+              AND n.id IN $nodeIds
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
+            RETURN n, communityId
+            ORDER BY communityId, n.name
+            """;
+
+        var requestedIds = nodeIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (requestedIds.Length == 0)
+            return [];
+
+        return await RunGdsStreamAsync(session, graphName, projectCypher, streamCypher,
+            new { graphName, projectContextNormalized = (object?)Normalize(projectContext), nodeIds = requestedIds },
+            r => (MapToCodeNode(r["n"].As<INode>()), r["communityId"].As<long>()),
+            cancellationToken);
+    }
+
     public async Task<IReadOnlyList<(CodeNode Node, double Score)>> FindSimilarToNodeAsync(
         string nodeId,
         string? projectContext = null,
