@@ -1651,6 +1651,87 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindBridgesAsync_ExcludesTestsAndDocumentationFromRankedCandidates()
+    {
+        var (sut, graph) = Build();
+        var bridge = Node(
+            "prod:bridge",
+            "PaymentFacade",
+            CodeNodeType.Class,
+            "src/Application/Payments/PaymentFacade.cs",
+            line: 12,
+            project: "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            sourceHash: "prod-hash",
+            @namespace: "CodeMeridian.Application.Payments");
+        var infra = Node(
+            "prod:infra",
+            "StripeGateway",
+            CodeNodeType.Class,
+            "src/Infrastructure/Payments/StripeGateway.cs",
+            line: 20,
+            project: "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            sourceHash: "infra-hash",
+            @namespace: "CodeMeridian.Infrastructure.Payments");
+        var testHelper = Node(
+            "test:build",
+            "Build()",
+            CodeNodeType.Method,
+            "tests/CodeMeridian.Application.Tests/Services/PaymentFacadeTests.cs",
+            line: 8,
+            project: "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            sourceHash: "test-hash",
+            fileRole: IndexedFileRole.Test,
+            @namespace: "CodeMeridian.Application.Tests.Services");
+        var docAsset = Node(
+            "doc:file",
+            "docs-index.css",
+            CodeNodeType.File,
+            "docs/assets/docs-index.css",
+            line: 1,
+            project: "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            sourceHash: "doc-hash");
+
+        graph.GetBetweennessAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                (bridge, 900.0),
+                (testHelper, 950.0),
+                (docAsset, 920.0)
+            ]);
+        graph.GetPageRankAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                (bridge, 0.82),
+                (testHelper, 0.91),
+                (docAsset, 0.88)
+            ]);
+        graph.GetArticulationPointsAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                (bridge, 4),
+                (testHelper, 5),
+                (docAsset, 3)
+            ]);
+        graph.GetBridgeEdgesAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                (testHelper, bridge, (IReadOnlyList<long>)new long[] { 9, 4 }),
+                (docAsset, bridge, (IReadOnlyList<long>)new long[] { 8, 3 }),
+                (bridge, infra, (IReadOnlyList<long>)new long[] { 6, 2 })
+            ]);
+        graph.GetContextForEditingAsync(bridge.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(bridge, [], [infra], []));
+        graph.GetContextForEditingAsync(infra.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(infra, [bridge], [], []));
+
+        var result = await sut.FindBridgesAsync();
+
+        result.Should().Contain("PaymentFacade");
+        result.Should().NotContain("Build()");
+        result.Should().NotContain("docs-index.css");
+    }
+
+    [Fact]
     public async Task FindNaturalModulesAsync_WhenGdsFails_ReturnsInstallGuidance()
     {
         var (sut, graph) = Build();
@@ -3407,6 +3488,79 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task GetContextForEditingAsync_WithNamespaceStyleId_ResolvesCanonicalNodeId()
+    {
+        var (sut, graph) = Build();
+        var target = Node(
+            "CodeMeridian::Class::CodeMeridian.Tooling.Configuration.CodeMeridianConfigFileStore",
+            "CodeMeridianConfigFileStore",
+            CodeNodeType.Class,
+            "src/Tooling/Configuration/CodeMeridianConfigFileStore.cs",
+            7,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 503,
+            sourceHash: "cfg-store");
+
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q =>
+                    q.NameFilter == "CodeMeridianConfigFileStore"
+                    && q.ProjectContext == null),
+                Arg.Any<CancellationToken>())
+            .Returns([target]);
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [], [], []));
+
+        var result = await sut.GetContextForEditingAsync("CodeMeridian.Tooling.Configuration.CodeMeridianConfigFileStore");
+
+        result.Should().Contain("## Edit Context");
+        result.Should().Contain("CodeMeridianConfigFileStore");
+        await graph.Received(1).GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>());
+        await graph.DidNotReceive().GetContextForEditingAsync("CodeMeridian.Tooling.Configuration.CodeMeridianConfigFileStore", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task FindTestShieldAsync_WithNamespaceStyleId_AndCanonicalizableProjectContext_ResolvesBoth()
+    {
+        var (sut, graph) = Build();
+        var target = Node(
+            "CodeMeridian::Class::CodeMeridian.Tooling.Configuration.CodeMeridianConfigFileStore",
+            "CodeMeridianConfigFileStore",
+            CodeNodeType.Class,
+            "src/Tooling/Configuration/CodeMeridianConfigFileStore.cs",
+            7,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 503,
+            sourceHash: "cfg-store");
+
+        graph.GetProjectContextsAsync("code-meridian", Arg.Any<CancellationToken>())
+            .Returns(["CodeMeridian"]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q =>
+                    q.NameFilter == "CodeMeridianConfigFileStore"
+                    && q.ProjectContext == "CodeMeridian"),
+                Arg.Any<CancellationToken>())
+            .Returns([target]);
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.FindTestShieldAsync(
+            "CodeMeridian.Tooling.Configuration.CodeMeridianConfigFileStore",
+            projectContext: "code-meridian");
+
+        result.Should().Contain("## Test Shield Map");
+        result.Should().Contain("CodeMeridianConfigFileStore");
+        await graph.Received(1).GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>());
+        await graph.Received(1).FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>());
+        await graph.Received(1).FindRelatedTestsAsync(target.Id, "CodeMeridian", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task FindImplementationSurfaceAsync_FileOnlyTarget_PairsWithResolveExactSymbolGuidance()
     {
         var (sut, graph) = Build();
@@ -3488,13 +3642,42 @@ public sealed class CodebaseQueryServiceAnalyticsTests
             .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
             .Returns([]);
         graph
-            .GetProjectContextsAsync("code-meridian", Arg.Any<CancellationToken>())
+            .GetProjectContextsAsync("code3meridian", Arg.Any<CancellationToken>())
             .Returns(["CodeMeridian"]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "code3meridian");
+
+        result.Should().Contain("No graph nodes found in 'code3meridian'");
+        result.Should().Contain("Did you mean 'CodeMeridian'?");
+    }
+
+    [Fact]
+    public async Task CheckGraphFreshnessAsync_WithCanonicalizableProjectContext_UsesCanonicalProject()
+    {
+        var (sut, graph) = Build();
+        var target = Node(
+            "fresh",
+            "Fresh",
+            CodeNodeType.Class,
+            "src/Fresh.cs",
+            1,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 12,
+            sourceHash: "abc");
+
+        graph.GetProjectContextsAsync("code-meridian", Arg.Any<CancellationToken>())
+            .Returns(["CodeMeridian"]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q => q.ProjectContext == "CodeMeridian"),
+                Arg.Any<CancellationToken>())
+            .Returns([target]);
 
         var result = await sut.CheckGraphFreshnessAsync(projectContext: "code-meridian");
 
-        result.Should().Contain("No graph nodes found in 'code-meridian'");
-        result.Should().Contain("Did you mean 'CodeMeridian'?");
+        result.Should().Contain("## Graph Freshness - CodeMeridian");
+        result.Should().Contain("Fresh");
+        result.Should().NotContain("No graph nodes found");
     }
 
     [Fact]

@@ -205,6 +205,7 @@ public partial class CodebaseQueryService
         int limit = 8,
         CancellationToken cancellationToken = default)
     {
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
         IReadOnlyList<(CodeNode Node, long Community)> communities;
         try
         {

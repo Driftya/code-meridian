@@ -11,6 +11,7 @@ public partial class CodebaseQueryService
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
         var results = await codeGraph.FindGodClassesAsync(projectContext, lineThreshold: 300, fanInThreshold: 3, cancellationToken);
         var filteredResults = results.Where(item => AllowsProfile(item.Node, AnalysisProfile.DesignSmells)).ToArray();
 
@@ -191,6 +192,7 @@ public partial class CodebaseQueryService
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
+        nodeId = await ResolveCanonicalNodeIdAsync(nodeId, cancellationToken: cancellationToken);
         var results = await codeGraph.FindDownstreamAsync(nodeId, depth, cancellationToken);
 
         if (results.Count == 0)

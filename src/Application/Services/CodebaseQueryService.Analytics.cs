@@ -19,6 +19,7 @@ public partial class CodebaseQueryService
         bool includeConfidence = false,
         CancellationToken cancellationToken = default)
     {
+        nodeId = await ResolveCanonicalNodeIdAsync(nodeId, cancellationToken: cancellationToken);
         if (includeConfidence)
             return await FindImpactWithConfidenceAsync(nodeId, depth, detailLevel, cancellationToken);
 
@@ -177,6 +178,7 @@ public partial class CodebaseQueryService
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
         var results = await codeGraph.FindCoverageGapsAsync(projectContext, cancellationToken);
         var filteredResults = FilterNodesByProfile(results, AnalysisProfile.CoverageGaps);
 
@@ -221,6 +223,8 @@ public partial class CodebaseQueryService
         int limit = 20,
         CancellationToken cancellationToken = default)
     {
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
+        nodeId = await ResolveCanonicalNodeIdAsync(nodeId, projectContext, cancellationToken);
         var ctx = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
         if (ctx.Node is null)
             return $"Node `{nodeId}` not found in the graph. Run `query_codebase` or `resolve_exact_symbol` to find the correct target before checking its test shield.";
@@ -428,6 +432,7 @@ public partial class CodebaseQueryService
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
         var results = await codeGraph.FindLargeNodesAsync(projectContext, classThreshold, methodThreshold, cancellationToken);
         var filteredResults = FilterNodesByProfile(results, AnalysisProfile.DesignSmells);
 
@@ -472,6 +477,7 @@ public partial class CodebaseQueryService
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
+        nodeId = await ResolveCanonicalNodeIdAsync(nodeId, cancellationToken: cancellationToken);
         var ctx = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
 
         if (ctx.Node is null)
@@ -940,6 +946,7 @@ public partial class CodebaseQueryService
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
+        target = await ResolveCanonicalNodeIdAsync(target, cancellationToken: cancellationToken);
         var ctx = await codeGraph.GetContextForEditingAsync(target, cancellationToken);
         var degradations = new List<ContextPackDegradation>();
 

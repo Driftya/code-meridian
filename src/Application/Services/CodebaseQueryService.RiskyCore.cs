@@ -10,6 +10,7 @@ public sealed partial class CodebaseQueryService
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
         IReadOnlyList<(CodeNode Node, double Score)> betweenness;
         IReadOnlyList<(CodeNode Node, double Score)> pageRank;
         IReadOnlyList<(CodeNode Node, int ResultingComponentCount)> articulationPoints;
@@ -43,14 +44,18 @@ public sealed partial class CodebaseQueryService
                    "The graph may have no edges yet.";
         }
 
+        var filteredBridgeEdges = bridgeEdges
+            .Where(edge => ShouldIncludeRiskyCoreNode(edge.Source) && ShouldIncludeRiskyCoreNode(edge.Target))
+            .ToArray();
         var bridgeEdgeCounts = bridgeEdges
+            .Where(edge => ShouldIncludeRiskyCoreNode(edge.Source) && ShouldIncludeRiskyCoreNode(edge.Target))
             .SelectMany(edge => new[] { edge.Source.Id, edge.Target.Id })
             .GroupBy(id => id, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
         var nodesById = betweenness.Select(item => item.Node)
             .Concat(pageRank.Select(item => item.Node))
             .Concat(articulationPoints.Select(item => item.Node))
-            .Concat(bridgeEdges.SelectMany(edge => new[] { edge.Source, edge.Target }))
+            .Concat(filteredBridgeEdges.SelectMany(edge => new[] { edge.Source, edge.Target }))
             .GroupBy(node => node.Id, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         var betweennessById = betweenness.ToDictionary(item => item.Node.Id, item => item.Score, StringComparer.Ordinal);
@@ -87,6 +92,7 @@ public sealed partial class CodebaseQueryService
                     normalizedBridgeEdges,
                     baseScore);
             })
+            .Where(candidate => ShouldIncludeRiskyCoreNode(candidate.Node))
             .Where(candidate => candidate.BaseScore > 0)
             .OrderByDescending(candidate => candidate.BaseScore)
             .ThenBy(candidate => NodeDisplayRank(candidate.Node))
@@ -137,13 +143,13 @@ public sealed partial class CodebaseQueryService
 
         sb.AppendLine();
         sb.AppendLine("### Bridge edges");
-        foreach (var edge in bridgeEdges.Take(6))
+        foreach (var edge in filteredBridgeEdges.Take(6))
         {
             sb.AppendLine(
                 $"- `{edge.Source.Name}` -> `{edge.Target.Name}` splits components [{string.Join(", ", edge.RemainingSizes.Select(size => size.ToString(CultureInfo.InvariantCulture)))}]");
         }
 
-        if (bridgeEdges.Count == 0)
+        if (filteredBridgeEdges.Length == 0)
             sb.AppendLine("- none detected");
 
         sb.AppendLine();
@@ -152,6 +158,11 @@ public sealed partial class CodebaseQueryService
 
         return sb.ToString();
     }
+
+    private bool ShouldIncludeRiskyCoreNode(CodeNode node) =>
+        node.Type != CodeNodeType.File
+        && AllowsProfile(node, AnalysisProfile.DesignSmells)
+        && !LooksLikeDocumentationPath(node.FilePath ?? string.Empty);
 
     private static double NormalizeRiskSignal(double value, double maxValue) =>
         maxValue <= 0 ? 0 : value / maxValue;

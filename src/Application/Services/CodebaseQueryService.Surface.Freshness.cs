@@ -11,6 +11,7 @@ public partial class CodebaseQueryService
         int limit = 25,
         CancellationToken cancellationToken = default)
     {
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
         var nodes = await codeGraph.QueryNodesAsync(
             new CodeGraphQuery
             {
@@ -54,6 +55,7 @@ public partial class CodebaseQueryService
         int limit = 25,
         CancellationToken cancellationToken = default)
     {
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
         var nodes = await codeGraph.QueryNodesAsync(
             new CodeGraphQuery
             {
