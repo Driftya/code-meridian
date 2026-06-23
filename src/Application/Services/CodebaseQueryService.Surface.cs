@@ -139,7 +139,7 @@ public partial class CodebaseQueryService
         if (rankedNodes.Length == 0)
             return $"No edit route found for `{goal}`. Try `find_implementation_surface`, add more specific concepts, or re-index before relying on CodeMeridian for route planning.";
 
-        var anchor = SelectRouteAnchor(rankedNodes);
+        var anchor = SelectRouteAnchor(rankedNodes, goal, concepts);
         var ctx = await codeGraph.GetContextForEditingAsync(anchor.Id, cancellationToken)
             ?? new EditingContext(null, [], [], []);
         var impact = await codeGraph.FindImpactAsync(anchor.Id, depth: 2, cancellationToken) ?? [];
@@ -343,9 +343,10 @@ public partial class CodebaseQueryService
     private int ScoreRouteNode(CodeNode node, string goal, IReadOnlyCollection<string> concepts)
     {
         var score = ScoreSurfaceNode(node, goal, concepts);
+        if (TextMatches(goal, node.Name) || TextMatches(goal, Path.GetFileNameWithoutExtension(node.FilePath ?? string.Empty)))
+            score += 4;
         if (IsContractNode(node)) score += 2;
-        if (IsConfiguredTestNode(node)) score += 2;
-        if (IsApiNode(node) || IsInfrastructureNode(node)) score += 1;
+        if (IsApplicationNode(node) || IsDomainNode(node)) score += 1;
         return score;
     }
 
@@ -732,8 +733,29 @@ public partial class CodebaseQueryService
         return "Low - route is mostly heuristic; re-index or add concepts for better targeting";
     }
 
-    private CodeNode SelectRouteAnchor(IReadOnlyList<CodeNode> rankedNodes) =>
-        rankedNodes.FirstOrDefault(node =>
+    private CodeNode SelectRouteAnchor(IReadOnlyList<CodeNode> rankedNodes, string goal, IReadOnlyCollection<string> concepts) =>
+        rankedNodes
+            .Where(node =>
+                node.Type is CodeNodeType.Method or CodeNodeType.Class
+                && TextMatches(goal, node.Name))
+            .OrderBy(node => node.Type == CodeNodeType.Class ? 0 : 1)
+            .ThenBy(node => node.LineNumber ?? int.MaxValue)
+            .FirstOrDefault()
+        ?? rankedNodes
+            .Where(node =>
+                node.Type is CodeNodeType.Method or CodeNodeType.Class
+                && TextMatches(goal, Path.GetFileNameWithoutExtension(node.FilePath ?? string.Empty)))
+            .OrderBy(node => node.Type == CodeNodeType.Class ? 0 : 1)
+            .ThenBy(node => node.LineNumber ?? int.MaxValue)
+            .FirstOrDefault()
+        ?? rankedNodes
+            .Where(node =>
+                node.Type is CodeNodeType.Method or CodeNodeType.Class
+                && concepts.Any(concept => TextMatches(concept, node.Name)))
+            .OrderBy(node => node.Type == CodeNodeType.Class ? 0 : 1)
+            .ThenBy(node => node.LineNumber ?? int.MaxValue)
+            .FirstOrDefault()
+        ?? rankedNodes.FirstOrDefault(node =>
             node.Type is CodeNodeType.Method or CodeNodeType.Class
             && (IsApplicationNode(node) || IsDomainNode(node)))
         ?? rankedNodes.FirstOrDefault(node => node.Type == CodeNodeType.Interface)

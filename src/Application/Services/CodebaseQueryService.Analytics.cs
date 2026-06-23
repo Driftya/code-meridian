@@ -245,7 +245,7 @@ public partial class CodebaseQueryService
         var directShield = directAndHeuristicTargetTests
             .Where(match => match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
             .Select(match => match.Node)
-            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield))
+            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
             .DistinctBy(node => node.Id)
             .Take(Math.Clamp(limit, 1, 50))
             .ToArray();
@@ -254,7 +254,7 @@ public partial class CodebaseQueryService
         var secondaryShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
         foreach (var match in directAndHeuristicTargetTests.Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase)))
         {
-            if (!AllowsProfile(match.Node, AnalysisProfile.TestShield))
+            if (!AllowsProfile(match.Node, AnalysisProfile.TestShield) || !IsConfiguredTestNode(match.Node))
                 continue;
 
             secondaryShield[match.Node.Id] = CreateShieldEntry(
@@ -279,7 +279,7 @@ public partial class CodebaseQueryService
             var hasShield = false;
             foreach (var match in relatedTests)
             {
-                if (!AllowsProfile(match.Node, AnalysisProfile.TestShield))
+                if (!AllowsProfile(match.Node, AnalysisProfile.TestShield) || !IsConfiguredTestNode(match.Node))
                     continue;
 
                 hasShield = true;
@@ -986,12 +986,12 @@ public partial class CodebaseQueryService
         var directRelatedTests = relatedTests
             .Where(match => match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
             .Select(match => match.Node)
-            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield))
+            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
             .ToArray();
         var heuristicRelatedTests = relatedTests
             .Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
             .Select(match => match.Node)
-            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield))
+            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
             .Where(node => SameFile(node, ctx.Node) || SameNamespace(node, ctx.Node) || FileNameLooksRelated(node, ctx.Node) || NameLooksRelated(node.Name, ctx.Node.Name))
             .Take(10)
             .ToArray();

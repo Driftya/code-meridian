@@ -32,8 +32,11 @@ public sealed partial class CodebaseQueryService
 
     private bool IsConfiguredTestNode(CodeNode node)
     {
-        if (ResolveFileRole(node) == IndexedFileRole.Test)
+        var role = ResolveFileRole(node);
+        if (role == IndexedFileRole.Test)
             return true;
+        if (role != IndexedFileRole.Unknown)
+            return false;
 
         var haystack = $"{node.FilePath} {node.Namespace} {node.Name}";
         return analysisOptions.Ranking.TestPathContains

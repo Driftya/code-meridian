@@ -306,6 +306,57 @@ public sealed class CodebaseQueryServiceResponsibilitySliceTests
         result.Should().NotContain("CopyDirectoryDirectoryService");
     }
 
+    [Fact]
+    public async Task SuggestResponsibilitySlicesAsync_IgnoresNonTestRelatedMatchesInTestImpact()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(graph, vector);
+        var target = Node(
+            "class:ConfigStore",
+            "ConfigStore",
+            CodeNodeType.Class,
+            "src/Tooling/Configuration/ConfigStore.cs",
+            7,
+            "CodeMeridian",
+            lineCount: 420,
+            sourceHash: "class-hash",
+            @namespace: "CodeMeridian.Tooling.Configuration");
+        var load = Node("method:LoadAsync", "LoadAsync", CodeNodeType.Method, target.FilePath, 20, "CodeMeridian");
+        var write = Node("method:WriteAsync", "WriteAsync", CodeNodeType.Method, target.FilePath, 60, "CodeMeridian");
+        var dependency = Node("iface:IConfigSerializer", "IConfigSerializer", CodeNodeType.Interface, "src/Tooling/Configuration/IConfigSerializer.cs", 5, "CodeMeridian");
+        var realTest = Node("test:ConfigStoreTests", "ConfigStoreTests", CodeNodeType.Class, "tests/CodeMeridian.Indexer.Tests/Cli/ConfigStoreTests.cs", 8, "CodeMeridian", fileRole: IndexedFileRole.Test);
+        var sourceHelper = Node("method:AppendRelatedTestsList", "AppendRelatedTestsList", CodeNodeType.Method, "src/Application/Services/CodebaseQueryService.Analytics.Risk.cs", 620, "CodeMeridian", fileRole: IndexedFileRole.Source);
+
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Class && query.NameFilter == "ConfigStore"),
+                Arg.Any<CancellationToken>())
+            .Returns([target]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Method),
+                Arg.Any<CancellationToken>())
+            .Returns([load, write]);
+        graph.QueryEdgesAsync(target.Id, 1, Arg.Any<CancellationToken>())
+            .Returns([Contains(target, load), Contains(target, write)]);
+        graph.GetContextForEditingAsync(load.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(load, [], [dependency], []));
+        graph.GetContextForEditingAsync(write.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(write, [], [dependency], []));
+        graph.FindRelatedTestsAsync(load.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(realTest, "direct"), (sourceHelper, "heuristic")]);
+        graph.FindRelatedTestsAsync(write.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(realTest, "direct"), (sourceHelper, "heuristic")]);
+        graph.FindNaturalModuleAssignmentsAsync(Arg.Any<IReadOnlyCollection<string>>(), "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([]);
+        vector.SearchByTextAsync("ConfigStore", "CodeMeridian", 5, Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.SuggestResponsibilitySlicesAsync("ConfigStore", "CodeMeridian", maxSlices: 3);
+
+        result.Should().Contain("ConfigStoreTests");
+        result.Should().NotContain("AppendRelatedTestsList");
+    }
+
     private static CodeNode Node(
         string id,
         string name,

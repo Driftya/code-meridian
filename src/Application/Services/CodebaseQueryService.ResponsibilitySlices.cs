@@ -38,7 +38,11 @@ public sealed partial class CodebaseQueryService
         {
             var context = await codeGraph.GetContextForEditingAsync(method.Id, cancellationToken);
             var tests = await codeGraph.FindRelatedTestsAsync(method.Id, method.ProjectContext ?? projectContext, cancellationToken);
-            methodSignals.Add(ResponsibilityMethodSignals.Create(method, context, tests.Select(match => match.Node).ToArray(), IsConfiguredTestNode));
+            methodSignals.Add(ResponsibilityMethodSignals.Create(
+                method,
+                context,
+                tests.Select(match => match.Node).Where(IsConfiguredTestNode).ToArray(),
+                IsConfiguredTestNode));
         }
 
         var docMatches = await vectorStore.SearchByTextAsync(targetNode.Name, targetNode.ProjectContext ?? projectContext, topK: 5, cancellationToken);

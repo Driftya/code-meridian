@@ -2221,6 +2221,52 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindTestShieldAsync_IgnoresNonTestRelatedMatches()
+    {
+        var (sut, graph) = Build();
+        var target = Node("m2", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24);
+        var sourceHelper = Node("h1", "AppendRelatedTestsList", CodeNodeType.Method, "src/Application/Helpers/TestFormatting.cs", 44, "Shop", fileRole: IndexedFileRole.Source);
+        var realTest = Node("t3", "PlaceOrderTests", CodeNodeType.Class, "tests/Orders/PlaceOrderTests.cs", 18, "Shop", fileRole: IndexedFileRole.Test);
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([(sourceHelper, "heuristic"), (realTest, "direct")]);
+
+        var result = await sut.FindTestShieldAsync(target.Id, "Shop");
+
+        result.Should().Contain("PlaceOrderTests");
+        result.Should().NotContain("AppendRelatedTestsList");
+    }
+
+    [Fact]
+    public async Task BuildMinimalContextAsync_IgnoresNonTestRelatedMatches()
+    {
+        var (sut, graph) = Build();
+        var target = Node("m3", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24);
+        var sourceHelper = Node("h2", "AppendFocusedVerificationPlan", CodeNodeType.Method, "src/Application/Helpers/TestFormatting.cs", 30, "Shop", fileRole: IndexedFileRole.Source);
+        var realTest = Node("t4", "PlaceOrderTests", CodeNodeType.Class, "tests/Orders/PlaceOrderTests.cs", 18, "Shop", fileRole: IndexedFileRole.Test);
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+             .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>())
+             .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+             .Returns([(sourceHelper, "heuristic"), (realTest, "direct")]);
+
+        var result = await sut.BuildMinimalContextAsync(target.Id);
+
+        result.Should().Contain("PlaceOrderTests");
+        result.Should().NotContain("AppendFocusedVerificationPlan");
+    }
+
+    [Fact]
     public async Task BuildMinimalContextAsync_UsesSameFocusedVerificationTestSetAsFindTestShield()
     {
         var (sut, graph) = Build();
@@ -3365,6 +3411,39 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("PaymentServiceTests");
         result.Should().NotContain("Add Payments Feature");
         result.Should().NotContain("docs/features/add-payments.md");
+    }
+
+    [Fact]
+    public async Task PlanEditRouteAsync_PrefersExactGoalTargetOutsideApplicationAndDomain()
+    {
+        var (sut, graph) = Build();
+        var target = Node("cfg1", "CodeMeridianConfigFileStore", CodeNodeType.Class, "src/Tooling/Configuration/CodeMeridianConfigFileStore.cs", 7, "CodeMeridian", fileRole: IndexedFileRole.Source);
+        var helper = Node("core1", "FindRelatedTestsAsync(string,string?,CancellationToken)", CodeNodeType.Method, "src/Core/CodeGraph/ICodeGraphRepository.cs", 49, "CodeMeridian", fileRole: IndexedFileRole.Source);
+        var writeMethod = Node("cfg-write", "Write(DirectoryInfo,string?,string,bool,bool)", CodeNodeType.Method, "src/Tooling/Configuration/CodeMeridianConfigFileStore.cs", 118, "CodeMeridian", fileRole: IndexedFileRole.Source);
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([helper, target, writeMethod]);
+        graph
+            .GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [], [writeMethod], []));
+        graph
+            .FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(writeMethod, 1)]);
+        graph
+            .FindRelatedTestsAsync(target.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.PlanEditRouteAsync(
+            "refactor CodeMeridianConfigFileStore into smaller collaborators for template IO and write behavior",
+            "configuration,templates,file-io",
+            "CodeMeridian");
+
+        result.Should().Contain("**Anchor:** `CodeMeridianConfigFileStore` (Class) - `src/Tooling/Configuration/CodeMeridianConfigFileStore.cs`");
+        result.Should().NotContain("**Anchor:** `FindRelatedTestsAsync");
     }
 
     [Fact]
