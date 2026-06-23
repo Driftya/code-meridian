@@ -361,6 +361,24 @@ Finds nodes with the highest re-index count. High churn plus high fan-in is a us
 Which files change the most?
 ```
 
+### `analyze_changed_subgraph`
+
+Projects a bounded graph neighborhood around explicit changed files and turns that slice into a review-oriented risk summary.
+
+The first slice is intentionally file-list-first rather than Git-aware:
+
+- maps changed file paths to indexed graph nodes across mixed C# and TypeScript/TSX inputs
+- ranks highest-risk changed nodes using impact breadth, related-test coverage, churn, hotspot, and architecture-smell signals
+- reports nearby impacted nodes, focused verification suggestions, obvious protection gaps, and related docs or feature notes
+- filters architecture violations and dependency smell paths down to findings that touch the changed slice
+- suppresses structural noise when the input is docs-only or tests-only
+
+```text
+Analyze the changed subgraph for:
+- src/Application/Invites/InviteService.cs
+- src/Web/components/invite-panel.tsx
+```
+
 ### `find_similar_nodes`
 
 Finds semantically similar code nodes using Neo4j vector search. Requires code-node embeddings to be indexed.

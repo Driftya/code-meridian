@@ -113,6 +113,38 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task CodebaseTools_AnalyzeChangedSubgraphAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        var expectedFiles = new[] { "src/App.cs", "src/app.tsx" };
+        queryService.AnalyzeChangedSubgraphAsync(
+                Arg.Is<IReadOnlyCollection<string>>(files => files.SequenceEqual(expectedFiles)),
+                "CodeMeridian",
+                3,
+                7,
+                false,
+                Arg.Any<CancellationToken>())
+            .Returns("changed");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.AnalyzeChangedSubgraphAsync(
+            expectedFiles,
+            "CodeMeridian",
+            impactDepth: 3,
+            limit: 7,
+            includeDocs: false);
+
+        result.Should().Be("changed");
+        await queryService.Received(1).AnalyzeChangedSubgraphAsync(
+            Arg.Is<IReadOnlyCollection<string>>(files => files.SequenceEqual(expectedFiles)),
+            "CodeMeridian",
+            3,
+            7,
+            false,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task CodebaseTools_SuggestExtractionsAsync_ForwardsArguments()
     {
         var queryService = Substitute.For<ICodebaseQueryService>();

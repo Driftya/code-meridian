@@ -1,6 +1,6 @@
 # Add Changed-Subgraph Analysis
 
-- Status: pending
+- Status: implemented
 - Priority: P2
 - Note: Project the neighborhood around changed files and summarize risk, protections, and architecture impact.
 
@@ -38,6 +38,20 @@ Change risk: medium
 ```
 
 The result should explain whether the diff sits on important paths, whether it crosses architecture boundaries, and whether the surrounding test shield is strong enough.
+
+## Implemented
+
+- Added the `analyze_changed_subgraph` MCP/query-service tool.
+- The first slice accepts explicit changed file paths and maps them to indexed graph nodes across mixed C# and TypeScript/TSX inputs.
+- The report now includes:
+  - overall risk
+  - highest-risk changed nodes with concrete reasons
+  - impacted neighborhood summaries
+  - focused test recommendations and protection gaps
+  - architecture violations and dependency smell paths touching the changed slice
+  - related docs and feature notes to review
+- Docs-only and test-only inputs suppress structural risk noise instead of pretending they are production-code edits.
+- Git-working-tree and diff-hunk ingestion remain follow-up work; this slice stays explicit-file-list-first.
 
 ## Suggested Scope
 

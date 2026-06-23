@@ -286,4 +286,23 @@ public sealed partial class CodebaseTools
         int threshold = 3,
         CancellationToken cancellationToken = default) =>
         queryService.FindHighChurnAsync(projectContext, threshold, cancellationToken);
+
+    [McpServerTool(Name = "analyze_changed_subgraph")]
+    [Description(
+        "Project a bounded graph neighborhood around explicit changed files and summarize risk, impacted nodes, related tests, architecture smells, and docs to review. " +
+        "Use this for review-oriented diff context without dumping raw hunks. " +
+        "This first slice starts from explicit file paths rather than reading the Git working tree directly.")]
+    public Task<string> AnalyzeChangedSubgraphAsync(
+        [Description("Explicit changed file paths to analyse. This first slice does not read `git diff` automatically.")]
+        IReadOnlyCollection<string> changedFiles,
+        [Description("Optional project name to scope the analysis.")]
+        string? projectContext = null,
+        [Description("How many impact hops to project around changed nodes. Default 2; clamped to 1-4.")]
+        int impactDepth = 2,
+        [Description("Maximum number of changed-node, impact, and doc findings to include. Default 10.")]
+        int limit = 10,
+        [Description("Include related docs and feature notes when available. Default true.")]
+        bool includeDocs = true,
+        CancellationToken cancellationToken = default) =>
+        queryService.AnalyzeChangedSubgraphAsync(changedFiles, projectContext, impactDepth, limit, includeDocs, cancellationToken);
 }

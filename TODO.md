@@ -67,4 +67,4 @@ These are language-neutral roadmap slices. Items that link to existing feature n
 - [ ] [P2 - Expand Dependency Smell Paths With Forbidden-Dependency Presets](docs/features/33-add-dependency-smell-paths.md) - Add named architecture checks backed by variable-length path search.
 - [ ] [P2 - Expand Semantic Graph Hybrid Search With Graph Re-Ranking](docs/features/32-add-semantic-graph-hybrid-search.md) - Combine full-text, vector search, graph expansion, and graph-evidence reranking.
 - [x] [P2 - Expand Responsibility Slice Suggestions With Community Signals](docs/features/42-add-responsibility-slice-suggestions.md) - Use community detection as advisory evidence while keeping deterministic explanations.
-- [ ] [P2 - Add Changed-Subgraph Analysis](docs/features/55-add-changed-subgraph-analysis.md) - Analyze the projected neighborhood around changed files for risk, tests, and architecture drift.
+- [x] [P2 - Add Changed-Subgraph Analysis](docs/features/55-add-changed-subgraph-analysis.md) - Analyze the projected neighborhood around changed files for risk, tests, and architecture drift.

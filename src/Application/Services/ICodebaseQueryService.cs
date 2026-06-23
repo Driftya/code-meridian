@@ -22,6 +22,7 @@ public interface ICodebaseQueryService
     Task<string> FindStaleKnowledgeAsync(string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
     Task<string> FindImplementationSurfaceAsync(string goal, string? conceptsCsv = null, string? projectContext = null, int limit = 12, CancellationToken cancellationToken = default);
     Task<string> AnalyzeFeatureImplementationPathAsync(string feature, string? projectContext = null, bool includeTests = true, bool includeDocs = true, bool includeRisk = true, int limit = 12, CancellationToken cancellationToken = default);
+    Task<string> AnalyzeChangedSubgraphAsync(IReadOnlyCollection<string> changedFiles, string? projectContext = null, int impactDepth = 2, int limit = 10, bool includeDocs = true, CancellationToken cancellationToken = default);
     Task<string> PlanEditRouteAsync(string goal, string? conceptsCsv = null, string? projectContext = null, int limit = 8, CancellationToken cancellationToken = default);
     Task<string> ReplaceSurfaceAsync(string fromDependency, string toDependency, string? projectContext = null, int limit = 20, CancellationToken cancellationToken = default);
     Task<string> ResolveExactSymbolAsync(string symbol, string? filePath = null, int? line = null, string? projectContext = null, int limit = 10, CancellationToken cancellationToken = default);
