@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Core\CodeMeridian.Core.csproj" />
-    <PackageReference Include="Neo4j.Driver" Version="6.2.0" />
+    <PackageReference Include="Neo4j.Driver" Version="6.2.1" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.*" />
