@@ -3568,6 +3568,54 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task ResolveExactSymbolAsync_WithDuplicateMethodNamesAndFileHint_PrefersMatchingCanonicalNode()
+    {
+        var (sut, graph) = Build();
+        var applicationNode = Node(
+            "CodeMeridian::Method::CodeMeridian.Application.Services.CodebaseQueryService::BuildMinimalContextAsync(string,string?,int,bool,bool,bool,bool,ContextDetailLevel,CancellationToken)",
+            "BuildMinimalContextAsync",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.Analytics.cs",
+            938,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 140,
+            sourceHash: "app-build-minimal-context");
+        var mcpNode = Node(
+            "CodeMeridian::Method::CodeMeridian.McpServer.Tools.CodebaseTools::BuildMinimalContextAsync(string,string?,int,bool,bool,bool,bool,ContextDetailLevel,CancellationToken)",
+            "BuildMinimalContextAsync",
+            CodeNodeType.Method,
+            "src/McpServer/Tools/CodebaseTools.Analytics.cs",
+            174,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 20,
+            sourceHash: "mcp-build-minimal-context");
+
+        graph
+            .QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q =>
+                    q.NameFilter == "BuildMinimalContextAsync"
+                    && q.FilePathFilter == "src/Application/Services/CodebaseQueryService.Analytics.cs"
+                    && q.ProjectContext == "CodeMeridian"),
+                Arg.Any<CancellationToken>())
+            .Returns([applicationNode, mcpNode]);
+
+        var result = await sut.ResolveExactSymbolAsync(
+            "BuildMinimalContextAsync",
+            "src/Application/Services/CodebaseQueryService.Analytics.cs",
+            line: 940,
+            projectContext: "CodeMeridian");
+
+        result.Should().Contain("## Exact Symbol Resolution");
+        result.Should().Contain("**Confidence summary:** 1 exact");
+        result.Should().Contain(applicationNode.Id);
+        result.Should().NotContain(mcpNode.Id);
+        result.Should().Contain("file match");
+        result.Should().Contain("near line hint");
+    }
+
+    [Fact]
     public async Task GetContextForEditingAsync_WithNamespaceStyleId_ResolvesCanonicalNodeId()
     {
         var (sut, graph) = Build();

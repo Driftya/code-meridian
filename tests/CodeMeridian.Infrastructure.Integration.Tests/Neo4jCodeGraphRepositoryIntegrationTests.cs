@@ -64,6 +64,53 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task QueryNodesAsync_WithDuplicateMethodNamesAndFilePathFilter_ReturnsOnlyMatchingCandidate()
+    {
+        var projectContext = $"Integration.ResolveExact.{Guid.NewGuid():N}";
+        var targetName = "BuildMinimalContextAsync";
+        var applicationMethod = CreateNode(
+            id: $"{projectContext}.Application.BuildMinimalContextAsync",
+            name: targetName,
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CodebaseQueryService.Analytics.cs",
+            namespaceName: $"{projectContext}.Application.Services",
+            lineNumber: 938,
+            sourceHash: "app-build-minimal-context");
+        var mcpMethod = CreateNode(
+            id: $"{projectContext}.Mcp.BuildMinimalContextAsync",
+            name: targetName,
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CodebaseTools.Analytics.cs",
+            namespaceName: $"{projectContext}.McpServer.Tools",
+            lineNumber: 174,
+            sourceHash: "mcp-build-minimal-context");
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(applicationMethod);
+            await _repository.UpsertNodeAsync(mcpMethod);
+
+            var results = await _repository.QueryNodesAsync(
+                new CodeGraphQuery
+                {
+                    ProjectContext = projectContext,
+                    NameFilter = targetName,
+                    FilePathFilter = applicationMethod.FilePath,
+                    Limit = 10
+                });
+
+            results.Should().ContainSingle(node => node.Id == applicationMethod.Id);
+            results.Should().NotContain(node => node.Id == mcpMethod.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
     public async Task CountMethods_ForExistingGraph_ReturnReasonableValues()
     {
         var projectContext = $"Integration.Counts.{Guid.NewGuid():N}";

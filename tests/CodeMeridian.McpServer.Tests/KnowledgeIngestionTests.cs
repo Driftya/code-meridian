@@ -71,6 +71,59 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task CodebaseTools_ResolveExactSymbolAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.ResolveExactSymbolAsync(
+                "BuildMinimalContextAsync",
+                "src/Application/Services/CodebaseQueryService.Analytics.cs",
+                940,
+                "CodeMeridian",
+                5,
+                Arg.Any<CancellationToken>())
+            .Returns("resolved");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.ResolveExactSymbolAsync(
+            "BuildMinimalContextAsync",
+            "src/Application/Services/CodebaseQueryService.Analytics.cs",
+            940,
+            "CodeMeridian",
+            5);
+
+        result.Should().Be("resolved");
+        await queryService.Received(1).ResolveExactSymbolAsync(
+            "BuildMinimalContextAsync",
+            "src/Application/Services/CodebaseQueryService.Analytics.cs",
+            940,
+            "CodeMeridian",
+            5,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CodebaseTools_CheckGraphFreshnessAsync_ForwardsArguments()
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.CheckGraphFreshnessAsync(
+                "BuildMinimalContextAsync",
+                "CodeMeridian",
+                12,
+                Arg.Any<CancellationToken>())
+            .Returns("freshness");
+
+        var sut = new CodebaseTools(queryService);
+        var result = await sut.CheckGraphFreshnessAsync("BuildMinimalContextAsync", "CodeMeridian", 12);
+
+        result.Should().Be("freshness");
+        await queryService.Received(1).CheckGraphFreshnessAsync(
+            "BuildMinimalContextAsync",
+            "CodeMeridian",
+            12,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task CodebaseTools_FindToolDependencyImpactAsync_ForwardsArguments()
     {
         var queryService = Substitute.For<ICodebaseQueryService>();
