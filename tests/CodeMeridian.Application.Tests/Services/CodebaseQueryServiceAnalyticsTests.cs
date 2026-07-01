@@ -1962,6 +1962,33 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     // ── FindDuplicateCandidatesAsync ─────────────────────────────────────────
 
     [Fact]
+    public async Task FindHybridSearchAsync_WithAnchorAndNoNearbyMatches_ReturnsGuidanceInsteadOfEmbeddingFailure()
+    {
+        var (sut, graph, embeddings) = BuildWithEmbeddings();
+        embeddings.IsAvailableAsync(Arg.Any<CancellationToken>()).Returns(true);
+        embeddings.GenerateEmbeddingAsync("tool dependency impact", Arg.Any<CancellationToken>())
+            .Returns([0.1f, 0.2f, 0.3f]);
+        graph.FindHybridMatchesAsync(
+                Arg.Any<float[]>(),
+                "CodeMeridian::Method::CodeMeridian.Application.Services.CodebaseQueryService::FindStaleKnowledgeAsync(string?,int,CancellationToken)",
+                3,
+                "CodeMeridian",
+                true,
+                5,
+                Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.FindHybridSearchAsync(
+            "tool dependency impact",
+            nearNodeId: "CodeMeridian::Method::CodeMeridian.Application.Services.CodebaseQueryService::FindStaleKnowledgeAsync(string?,int,CancellationToken)",
+            projectContext: "CodeMeridian",
+            limit: 5);
+
+        result.Should().Be("No hybrid-search results found. Try broadening the graph neighborhood, lowering filters, or indexing more embedded nodes.");
+        result.Should().NotContain("requires embeddings to be enabled");
+    }
+
+    [Fact]
     public async Task FindImplementationPatternsAsync_WhenNoPatterns_ReturnsGuidance()
     {
         var (sut, graph) = Build();
