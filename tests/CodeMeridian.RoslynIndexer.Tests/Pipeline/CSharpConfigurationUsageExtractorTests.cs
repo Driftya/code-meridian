@@ -49,7 +49,7 @@ public sealed class CSharpConfigurationUsageExtractorTests : IDisposable
         handler.Requests.Should().Contain(request =>
             request.Path == "/api/v1/knowledge/nodes/edges"
             && request.Body.GetProperty("type").GetString() == "ReadsConfig"
-            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Read(Microsoft.Extensions.Configuration.IConfiguration)"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.SettingsReader::Read(Microsoft.Extensions.Configuration.IConfiguration)"
             && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::CodeMeridian:Auth:ApiKey"
             && request.Body.GetProperty("properties").GetProperty("rawKey").GetString() == "CodeMeridian:Auth:ApiKey");
     }
@@ -84,7 +84,7 @@ public sealed class CSharpConfigurationUsageExtractorTests : IDisposable
         handler.Requests.Should().Contain(request =>
             request.Path == "/api/v1/knowledge/nodes/edges"
             && request.Body.GetProperty("type").GetString() == "BindsConfig"
-            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Add(IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Bootstrap::Add(IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)"
             && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::Neo4j"
             && request.Body.GetProperty("properties").GetProperty("accessPattern").GetString() == "Configure"
             && request.Body.GetProperty("properties").GetProperty("optionsType").GetString() == "Neo4jOptions");
@@ -172,7 +172,7 @@ public sealed class CSharpConfigurationUsageExtractorTests : IDisposable
         handler.Requests.Should().Contain(request =>
             request.Path == "/api/v1/knowledge/nodes/edges"
             && request.Body.GetProperty("type").GetString() == "BindsConfig"
-            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Add(IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.DependencyInjection::Add(IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)"
             && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ConfigurationKey::Storage"
             && HasEdgeProperty(request.Body, "accessPattern", "Configure")
             && HasEdgeProperty(request.Body, "optionsType", "StorageOptions"));

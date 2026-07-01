@@ -3,25 +3,22 @@ import type {
   BinaryExpression,
   ElementAccessExpression,
   Node,
-  ObjectBindingPattern,
   PropertyAccessExpression,
   SourceFile,
   VariableDeclaration,
 } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import type { CodeEdgeDto, CodeNodeDto } from '../types.js';
-import { addNode, fileId, getNamespaceForPath, hashText, isTestFilePath, nodeId } from './common.js';
+import { addNode, fileId, nodeId } from './common.js';
 
 export function collectConfigurationNodes(
   sourceFile: SourceFile,
-  rootPath: string,
+  _rootPath: string,
   projectName: string,
   nodes: CodeNodeDto[],
   knownIds: Set<string>,
   classifyFileRole?: (relativePath: string) => string | undefined,
 ): void {
-  const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
-
   for (const usage of findConfigurationUsages(sourceFile)) {
     const canonicalKey = normalizeConfigurationKey(usage.rawKey);
     addNode(nodes, knownIds, {

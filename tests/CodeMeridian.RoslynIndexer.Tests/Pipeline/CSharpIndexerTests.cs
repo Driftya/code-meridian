@@ -53,8 +53,8 @@ public sealed class CSharpIndexerTests : IDisposable
             .ToArray();
 
         callEdges.Should().ContainSingle();
-        callEdges[0].Body.GetProperty("sourceId").GetString().Should().Be("CodeMeridian::Method::Demo.Caller()");
-        callEdges[0].Body.GetProperty("targetId").GetString().Should().Be("CodeMeridian::Method::Demo.Callee()");
+        callEdges[0].Body.GetProperty("sourceId").GetString().Should().Be("CodeMeridian::Method::Demo.Service::Caller()");
+        callEdges[0].Body.GetProperty("targetId").GetString().Should().Be("CodeMeridian::Method::Demo.Service::Callee()");
     }
 
     [Fact]
@@ -96,6 +96,119 @@ public sealed class CSharpIndexerTests : IDisposable
         var act = async () => await sut.IndexAsync([caller, other], "CodeMeridian", _root);
 
         await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task IndexAsync_KeepsInterfaceAndImplementationMethodsDistinctWithinSameNamespace()
+    {
+        var file = WriteFile(
+            "src/Services.cs",
+            """
+            namespace Demo.Services;
+
+            public interface ITool
+            {
+                void Run();
+            }
+
+            public sealed class Tool : ITool
+            {
+                public void Run()
+                {
+                }
+            }
+            """);
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([file], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::Method::Demo.Services.ITool::Run()");
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::Method::Demo.Services.Tool::Run()");
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "Implements"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Services.Tool::Run()"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::Method::Demo.Services.ITool::Run()");
+    }
+
+    [Fact]
+    public async Task IndexAsync_ResolvesPrimaryConstructorInterfaceCallsToInterfaceMethodIds()
+    {
+        var file = WriteFile(
+            "src/ToolHost.cs",
+            """
+            namespace Demo.Services;
+
+            public interface ITool
+            {
+                void Execute();
+            }
+
+            public sealed class ToolHost(ITool tool)
+            {
+                public void Run()
+                {
+                    tool.Execute();
+                }
+            }
+
+            public sealed class Tool : ITool
+            {
+                public void Execute()
+                {
+                }
+            }
+            """);
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([file], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "Calls"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Services.ToolHost::Run()"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::Method::Demo.Services.ITool::Execute()");
+    }
+
+    [Fact]
+    public async Task IndexAsync_ResolvesCallsToMethodsWithOptionalParameters()
+    {
+        var file = WriteFile(
+            "src/OptionalParameters.cs",
+            """
+            namespace Demo;
+
+            public sealed class Service
+            {
+                public void Caller()
+                {
+                    Target();
+                }
+
+                public void Target(string mode = "safe")
+                {
+                }
+            }
+            """);
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([file], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "Calls"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Service::Caller()"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::Method::Demo.Service::Target(string)");
     }
 
     [Fact]
@@ -141,7 +254,7 @@ public sealed class CSharpIndexerTests : IDisposable
             && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::Interface::Demo.Data.IChainRepository");
         handler.Requests.Should().Contain(request =>
             request.Path == "/api/v1/knowledge/nodes"
-            && request.Body.GetProperty("id").GetString() == "CodeMeridian::Method::Demo.Services.ChainService(IChainRepository)"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::Method::Demo.Services.ChainService::ChainService(IChainRepository)"
             && request.Body.GetProperty("type").GetString() == "Method");
     }
 
@@ -178,7 +291,7 @@ public sealed class CSharpIndexerTests : IDisposable
             && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::Struct::Demo.Size");
 
         usesEdges.Should().Contain(edge =>
-            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Field::Demo.CapturedPoint"
+            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Field::Demo.Box::CapturedPoint"
             && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::Class::Demo.Point");
     }
 
@@ -272,12 +385,12 @@ public sealed class CSharpIndexerTests : IDisposable
             .ToArray();
 
         routeEdges.Should().Contain(edge =>
-            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.Get(int)"
+            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.OrdersController::Get(int)"
             && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::GET /api/orders/{param}"
             && edge.Body.GetProperty("callSite").GetString() == "src/Routes.cs:8");
 
         routeEdges.Should().Contain(edge =>
-            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.HandleOrder()"
+            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.RouteRegistration::HandleOrder()"
             && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::POST /api/orders"
             && edge.Body.GetProperty("callSite").GetString() == "src/Routes.cs:16");
     }
@@ -314,7 +427,7 @@ public sealed class CSharpIndexerTests : IDisposable
         handler.Requests.Should().Contain(request =>
             request.Path == "/api/v1/knowledge/nodes/edges"
             && request.Body.GetProperty("type").GetString() == "Uses"
-            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.Create(int)"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.OrdersController::Create(int)"
             && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::POST /api/orders/create/{param}");
     }
 
@@ -359,13 +472,13 @@ public sealed class CSharpIndexerTests : IDisposable
             .ToArray();
 
         routeEdges.Should().Contain(edge =>
-            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.Register(WebApplication)"
+            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.RouteRegistration::Register(WebApplication)"
             && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::PUT /api/orders/{param}"
             && edge.Body.GetProperty("callSite").GetString() == "src/MapMethodsRoutes.cs:9"
             && edge.Body.GetProperty("confidence").GetDouble() == 0.9);
 
         routeEdges.Should().Contain(edge =>
-            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.Register(WebApplication)"
+            edge.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.RouteRegistration::Register(WebApplication)"
             && edge.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::PATCH /api/orders/{param}"
             && edge.Body.GetProperty("callSite").GetString() == "src/MapMethodsRoutes.cs:9"
             && edge.Body.GetProperty("confidence").GetDouble() == 0.9);
@@ -407,7 +520,7 @@ public sealed class CSharpIndexerTests : IDisposable
         handler.Requests.Should().Contain(request =>
             request.Path == "/api/v1/knowledge/nodes/edges"
             && request.Body.GetProperty("type").GetString() == "Uses"
-            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.HandleOrders()"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Api.RouteRegistration::HandleOrders()"
             && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::ApiEndpoint::GET /api/orders");
     }
 

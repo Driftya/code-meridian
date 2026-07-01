@@ -16,9 +16,11 @@ internal static class CSharpCallEdgeResolver
                 n.Namespace,
                 n.FilePath,
                 MethodName(n.Name),
-                ParameterCount(n.Name)))
-            .GroupBy(n => (n.Name, n.ParameterCount), StringTupleComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.ToArray(), StringTupleComparer.Ordinal);
+                RequiredParameterCount(n),
+                TotalParameterCount(n),
+                ReadProperty(n.Properties, "declaringTypeShortName")))
+            .GroupBy(n => n.Name, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
 
         var resolved = new List<IngestEdgeRequest>(edges.Count);
         foreach (var edge in edges)
@@ -35,10 +37,17 @@ internal static class CSharpCallEdgeResolver
             if (edge.ParamCount is null)
                 continue;
 
-            if (!methodCandidates.TryGetValue((edge.CallName, edge.ParamCount.Value), out var candidates))
+            if (!methodCandidates.TryGetValue(edge.CallName, out var candidates))
                 continue;
 
-            var selected = SelectBestCandidate(source, candidates);
+            var compatibleCandidates = candidates
+                .Where(candidate => candidate.RequiredParameterCount <= edge.ParamCount.Value
+                    && edge.ParamCount.Value <= candidate.TotalParameterCount)
+                .ToArray();
+            if (compatibleCandidates.Length == 0)
+                continue;
+
+            var selected = SelectBestCandidate(source, compatibleCandidates, ReadProperty(edge, "receiverTypeHint"));
             if (selected is not null)
                 resolved.Add(edge with { TargetId = selected.Id });
         }
@@ -56,10 +65,23 @@ internal static class CSharpCallEdgeResolver
     private static string? ReadProperty(IngestEdgeRequest edge, string key) =>
         edge.Properties is not null && edge.Properties.TryGetValue(key, out var value) ? value : null;
 
+    private static string? ReadProperty(Dictionary<string, string>? properties, string key) =>
+        properties is not null && properties.TryGetValue(key, out var value) ? value : null;
+
     private static MethodCandidate? SelectBestCandidate(
         IngestNodeRequest source,
-        IReadOnlyList<MethodCandidate> candidates)
+        IReadOnlyList<MethodCandidate> candidates,
+        string? receiverTypeHint)
     {
+        if (!string.IsNullOrWhiteSpace(receiverTypeHint))
+        {
+            var exactReceiverMatches = candidates
+                .Where(candidate => string.Equals(candidate.DeclaringTypeShortName, receiverTypeHint, StringComparison.Ordinal))
+                .ToArray();
+            if (exactReceiverMatches.Length == 1)
+                return exactReceiverMatches[0];
+        }
+
         if (candidates.Count == 1)
             return candidates[0];
 
@@ -92,4 +114,15 @@ internal static class CSharpCallEdgeResolver
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Length;
     }
+
+    private static int TotalParameterCount(IngestNodeRequest node) =>
+        TryReadIntProperty(node.Properties, "totalParameterCount") ?? ParameterCount(node.Name);
+
+    private static int RequiredParameterCount(IngestNodeRequest node) =>
+        TryReadIntProperty(node.Properties, "requiredParameterCount") ?? TotalParameterCount(node);
+
+    private static int? TryReadIntProperty(Dictionary<string, string>? properties, string key) =>
+        ReadProperty(properties, key) is { } rawValue && int.TryParse(rawValue, out var value)
+            ? value
+            : null;
 }

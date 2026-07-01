@@ -102,9 +102,14 @@ internal static class CSharpIndexerSyntaxUtilities
     private static string BuildQualifiedMemberName(SyntaxNode syntaxNode, string localName)
     {
         var namespaceName = syntaxNode.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().FirstOrDefault()?.Name.ToString();
-        return string.IsNullOrWhiteSpace(namespaceName)
+        var typeName = syntaxNode.Ancestors().OfType<BaseTypeDeclarationSyntax>().FirstOrDefault()?.Identifier.Text;
+        var scopedName = string.IsNullOrWhiteSpace(typeName)
             ? localName
-            : $"{namespaceName}.{localName}";
+            : $"{typeName}::{localName}";
+
+        return string.IsNullOrWhiteSpace(namespaceName)
+            ? scopedName
+            : $"{namespaceName}.{scopedName}";
     }
 
     private static string BuildSignature(string methodName, SeparatedSyntaxList<ParameterSyntax> parameters) =>

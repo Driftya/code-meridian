@@ -24,7 +24,7 @@ public sealed class CSharpAstWalkerTests
         nodes.Should().Contain(node => node.Type == "Method" && node.Name == "Create()");
         edges.Should().Contain(edge =>
             edge.SourceId == "Project::Interface::Demo.IFactory"
-            && edge.TargetId == "Project::Method::Demo.Create()"
+            && edge.TargetId == "Project::Method::Demo.IFactory::Create()"
             && edge.RelationshipType == "Contains");
     }
 
@@ -197,6 +197,36 @@ public sealed class CSharpAstWalkerTests
 
         method.SourceSnippet.Should().Contain("public void PlaceOrder()");
         method.SourceSnippet.Should().Contain("ValidateOrder();");
+    }
+
+    [Fact]
+    public void InterfaceAndImplementationMembers_WithSameSignature_GetDistinctIds()
+    {
+        const string source = """
+            namespace Demo;
+
+            public interface IService
+            {
+                void Run();
+            }
+
+            public sealed class Service : IService
+            {
+                public void Run()
+                {
+                }
+            }
+            """;
+
+        var nodes = ExtractNodes(source, "src/Service.cs");
+
+        nodes.Should().Contain(node => node.Type == "Method" && node.Id == "Project::Method::Demo.IService::Run()");
+        nodes.Should().Contain(node => node.Type == "Method" && node.Id == "Project::Method::Demo.Service::Run()");
+        nodes
+            .Where(node => node.Type == "Method" && node.Name == "Run()")
+            .Select(node => node.Id)
+            .Should()
+            .OnlyHaveUniqueItems();
     }
 
     private static List<IngestNodeRequest> ExtractNodes(string source, string filePath)

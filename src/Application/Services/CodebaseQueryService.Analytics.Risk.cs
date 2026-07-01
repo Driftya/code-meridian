@@ -130,53 +130,68 @@ public partial class CodebaseQueryService
             .Where(node => node.Type is CodeNodeType.Method or CodeNodeType.Class)
             .Take(limit)
             .ToArray();
+        var distinctUnresolvedDocMentions = unresolvedDocMentions
+            .DistinctBy(finding => $"{finding.Document.Source ?? finding.Document.Id}|{finding.Mention}|{finding.Reason}", StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var distinctStaleNotes = staleNotes
+            .DistinctBy(finding => $"{finding.Document.Source ?? finding.Document.Id}|{finding.Reason}", StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var distinctOrphanedConcepts = orphanedConcepts
+            .DistinctBy(node => node.Id, StringComparer.Ordinal)
+            .ToArray();
+        var distinctStaleOrphans = staleOrphans
+            .DistinctBy(node => node.Id, StringComparer.Ordinal)
+            .ToArray();
 
-        if (unresolvedDocMentions.Count == 0 && staleNotes.Count == 0 && orphanedConcepts.Count == 0 && staleOrphans.Length < 10)
+        if (distinctUnresolvedDocMentions.Length == 0
+            && distinctStaleNotes.Length == 0
+            && distinctOrphanedConcepts.Length == 0
+            && distinctStaleOrphans.Length < 10)
         {
             return $"No obvious stale knowledge found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
                    "Knowledge docs, external concepts, and code graph references appear consistent.";
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Stale Knowledge{(projectContext is not null ? $" â€” {projectContext}" : "")}");
+        sb.AppendLine($"## Stale Knowledge{(projectContext is not null ? $" - {projectContext}" : "")}");
         sb.AppendLine("Possibly stale knowledge found in documents, external concepts, and orphaned code references:\n");
 
-        if (unresolvedDocMentions.Count > 0)
+        if (distinctUnresolvedDocMentions.Length > 0)
         {
-            sb.AppendLine($"### Unresolved documentation references ({Math.Min(unresolvedDocMentions.Count, limit)})");
-            foreach (var finding in unresolvedDocMentions.Take(limit))
+            sb.AppendLine($"### Unresolved documentation references ({Math.Min(distinctUnresolvedDocMentions.Length, limit)})");
+            foreach (var finding in distinctUnresolvedDocMentions.Take(limit))
             {
-                sb.AppendLine($"- `{finding.Document.Source ?? finding.Document.Id}` mentions `{finding.Mention}` â€” {finding.Reason}");
+                sb.AppendLine($"- `{finding.Document.Source ?? finding.Document.Id}` mentions `{finding.Mention}` - {finding.Reason}");
             }
             sb.AppendLine();
         }
 
-        if (orphanedConcepts.Count > 0)
+        if (distinctOrphanedConcepts.Length > 0)
         {
-            sb.AppendLine($"### Orphaned external concepts ({Math.Min(orphanedConcepts.Count, limit)})");
-            foreach (var concept in orphanedConcepts.Take(limit))
+            sb.AppendLine($"### Orphaned external concepts ({Math.Min(distinctOrphanedConcepts.Length, limit)})");
+            foreach (var concept in distinctOrphanedConcepts.Take(limit))
             {
                 sb.AppendLine($"- `{concept.Name}` (`{concept.Id}`) has no live code links");
             }
             sb.AppendLine();
         }
 
-        if (staleNotes.Count > 0)
+        if (distinctStaleNotes.Length > 0)
         {
-            sb.AppendLine($"### Old notes ({Math.Min(staleNotes.Count, limit)})");
-            foreach (var finding in staleNotes.Take(limit))
+            sb.AppendLine($"### Old notes ({Math.Min(distinctStaleNotes.Length, limit)})");
+            foreach (var finding in distinctStaleNotes.Take(limit))
             {
                 var source = finding.Document.Source ?? finding.Document.Id;
-                sb.AppendLine($"- `{source}` â€” {finding.Reason}");
+                sb.AppendLine($"- `{source}` - {finding.Reason}");
             }
             sb.AppendLine();
         }
 
-        if (staleOrphans.Length >= 10)
+        if (distinctStaleOrphans.Length >= 10)
         {
-            sb.AppendLine($"### Orphaned code nodes ({staleOrphans.Length})");
-            foreach (var node in staleOrphans.Take(limit))
-                sb.AppendLine($"- `{node.Name}` â€” `{node.FilePath ?? "â€”"}`");
+            sb.AppendLine($"### Orphaned code nodes ({distinctStaleOrphans.Length})");
+            foreach (var node in distinctStaleOrphans.Take(limit))
+                sb.AppendLine($"- `{node.Name}` - `{node.FilePath ?? "-"}`");
             sb.AppendLine();
         }
 

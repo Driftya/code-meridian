@@ -47,6 +47,9 @@ internal static class CSharpReferenceEdgeResolver
                 resolved.Add(edge with { TargetId = selected.Id });
         }
 
+        var memberImplementationEdges = BuildMemberImplementationEdges(nodes, resolved);
+        resolved.AddRange(memberImplementationEdges);
+
         return resolved
             .Where(edge => !string.IsNullOrWhiteSpace(edge.TargetId))
             .DistinctBy(BuildEdgeIdentity, StringComparer.Ordinal)
@@ -60,6 +63,9 @@ internal static class CSharpReferenceEdgeResolver
 
     private static string? ReadProperty(IngestEdgeRequest edge, string key) =>
         edge.Properties is not null && edge.Properties.TryGetValue(key, out var value) ? value : null;
+
+    private static string? ReadProperty(Dictionary<string, string>? properties, string key) =>
+        properties is not null && properties.TryGetValue(key, out var value) ? value : null;
 
     private static TypeCandidate? SelectBestTypeCandidate(
         IngestNodeRequest source,
@@ -85,5 +91,48 @@ internal static class CSharpReferenceEdgeResolver
         var name = id.Split("::").LastOrDefault() ?? id;
         var dot = name.LastIndexOf('.');
         return dot >= 0 ? name[(dot + 1)..] : name;
+    }
+
+    private static IEnumerable<IngestEdgeRequest> BuildMemberImplementationEdges(
+        IReadOnlyList<IngestNodeRequest> nodes,
+        IReadOnlyList<IngestEdgeRequest> resolvedEdges)
+    {
+        var methodsByDeclaringType = nodes
+            .Where(node => node.Type == "Method")
+            .Select(node => new
+            {
+                Node = node,
+                DeclaringTypeId = ReadProperty(node.Properties, "declaringTypeId")
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.DeclaringTypeId))
+            .GroupBy(item => item.DeclaringTypeId!, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.Node).ToArray(),
+                StringComparer.Ordinal);
+
+        foreach (var edge in resolvedEdges.Where(edge => edge.RelationshipType == "Implements").ToArray())
+        {
+            if (!methodsByDeclaringType.TryGetValue(edge.SourceId, out var implementationMethods)
+                || !methodsByDeclaringType.TryGetValue(edge.TargetId, out var interfaceMethods))
+            {
+                continue;
+            }
+
+            foreach (var implementationMethod in implementationMethods)
+            {
+                var matches = interfaceMethods
+                    .Where(interfaceMethod => string.Equals(interfaceMethod.Name, implementationMethod.Name, StringComparison.Ordinal))
+                    .ToArray();
+
+                if (matches.Length != 1)
+                    continue;
+
+                yield return new IngestEdgeRequest(
+                    implementationMethod.Id,
+                    matches[0].Id,
+                    "Implements");
+            }
+        }
     }
 }

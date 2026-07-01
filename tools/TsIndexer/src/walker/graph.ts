@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { ArrowFunction, CallExpression, FunctionExpression, Node, SourceFile, Symbol as TsSymbol, TypeReferenceNode, VariableDeclaration } from 'ts-morph';
+import type { CallExpression, Node, SourceFile, Symbol as TsSymbol, TypeReferenceNode, VariableDeclaration } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import type { CodeEdgeDto, CodeNodeDto } from '../types.js';
 import { addNode, fileId, getNamespaceForPath, hashText, isTestFilePath, nodeId, sourceHash, sourceSnippet } from './common.js';
@@ -233,7 +233,7 @@ export function collectEdges(
   sourceFile: SourceFile,
   rootPath: string,
   projectName: string,
-  nodes: CodeNodeDto[],
+  _nodes: CodeNodeDto[],
   edges: CodeEdgeDto[],
   knownIds: Set<string>,
   methodIndex: Map<string, string[]>,
@@ -497,7 +497,7 @@ function addTypeUseEdges(
 function resolveTypeReference(
   projectName: string,
   rootPath: string,
-  relPath: string,
+  _relPath: string,
   typeRef: TypeReferenceNode,
   knownIds: Set<string>,
 ): string | undefined {
@@ -739,7 +739,7 @@ function resolveHeritageTargetId(
 
 function resolveClassIdByName(
   projectName: string,
-  rootPath: string,
+  _rootPath: string,
   name: string,
   knownIds: Set<string>,
 ): string | undefined {

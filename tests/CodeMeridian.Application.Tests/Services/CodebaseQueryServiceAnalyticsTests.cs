@@ -2764,6 +2764,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("PaymentGateway.ChargeAsync");
         result.Should().Contain("Orphaned external concepts");
         result.Should().Contain("orders table");
+        result.Should().NotContain("â");
     }
 
     [Fact]

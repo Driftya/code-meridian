@@ -26,7 +26,14 @@ internal sealed record IngestEdgeRequest(
     double? Confidence = null,
     Dictionary<string, string>? Properties = null);
 
-internal sealed record MethodCandidate(string Id, string? Namespace, string? FilePath, string Name, int ParameterCount);
+internal sealed record MethodCandidate(
+    string Id,
+    string? Namespace,
+    string? FilePath,
+    string Name,
+    int RequiredParameterCount,
+    int TotalParameterCount,
+    string? DeclaringTypeShortName);
 
 internal sealed record TypeCandidate(string Id, string Type, string? Namespace, string? FilePath, string Name, string ShortName);
 
