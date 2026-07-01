@@ -24,7 +24,7 @@ public partial class CodebaseQueryService
             : [];
         var keywords = ExtractFeatureKeywords(feature, documents).Take(8).ToArray();
         var queries = new[] { feature }
-            .Concat(keywords.Take(5))
+            .Concat(keywords.Take(6))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var candidates = new List<CodeNode>();
@@ -41,6 +41,20 @@ public partial class CodebaseQueryService
                 cancellationToken);
 
             candidates.AddRange(nodes);
+
+            if (keywords.Contains(query, StringComparer.OrdinalIgnoreCase))
+            {
+                var lexicalNodes = await codeGraph.QueryNodesAsync(
+                    new CodeGraphQuery
+                    {
+                        NameFilter = query,
+                        ProjectContext = projectContext,
+                        Limit = 20
+                    },
+                    cancellationToken);
+
+                candidates.AddRange(lexicalNodes);
+            }
         }
 
         var ranked = candidates
@@ -134,21 +148,37 @@ public partial class CodebaseQueryService
 
     private static string[] ExtractFeatureKeywords(string feature, IReadOnlyCollection<KnowledgeDocument> documents)
     {
-        var text = string.Join(
-            " ",
-            new[] { feature }.Concat(documents.Take(2).Select(document => document.Content)));
+        var terms = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        AddFeatureTerms(terms, feature, weight: 6);
+
+        foreach (var document in documents.Take(3))
+        {
+            AddFeatureTerms(terms, document.Source, weight: LooksLikeFeatureDocPath(document.Source ?? string.Empty) ? 5 : 2);
+            AddFeatureTerms(terms, ExtractDocumentHeading(document.Content), weight: 4);
+        }
+
+        return terms
+            .OrderByDescending(pair => pair.Value)
+            .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(pair => pair.Key)
+            .Take(16)
+            .ToArray();
+    }
+
+    private static void AddFeatureTerms(IDictionary<string, int> terms, string? text, int weight)
+    {
+        if (string.IsNullOrWhiteSpace(text) || weight <= 0)
+            return;
+
         var tokens = text
             .Split([' ', '\t', '\r', '\n', '.', ',', ':', ';', '/', '\\', '-', '_', '`', '"', '\'', '(', ')', '[', ']', '{', '}'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(token => token.Length >= 4)
             .Where(token => !FeatureStopWords.Contains(token))
-            .GroupBy(token => token, StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(group => group.Count())
-            .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.Key)
-            .Take(16)
             .ToArray();
 
-        return tokens;
+        foreach (var token in tokens)
+            terms[token] = terms.TryGetValue(token, out var existing) ? existing + weight : weight;
     }
 
     private int ScoreFeaturePathNode(CodeNode node, string feature, IReadOnlyCollection<string> keywords)
@@ -165,16 +195,35 @@ public partial class CodebaseQueryService
         if (TextMatches(node.Name, feature) || TextMatches(node.Summary, feature))
             score += 6;
 
-        score += keywords.Count(keyword =>
+        var keywordHits = keywords.Count(keyword =>
             TextMatches(node.Name, keyword)
             || TextMatches(node.Summary, keyword)
             || TextMatches(node.FilePath, keyword)
-            || TextMatches(node.Namespace, keyword)) * 2;
+            || TextMatches(node.Namespace, keyword));
+        score += keywordHits * 3;
+        if (keywordHits >= 2)
+            score += 6;
+
+        var directKeywordHits = keywords.Count(keyword =>
+            TextMatches(node.Name, keyword)
+            || TextMatches(node.Summary, keyword));
+        var pathKeywordHits = keywords.Count(keyword =>
+            TextMatches(node.FilePath, keyword)
+            || TextMatches(node.Namespace, keyword));
+
+        score += directKeywordHits * 2;
+        if (directKeywordHits == 0 && pathKeywordHits == 0)
+            score -= node.Type switch
+            {
+                CodeNodeType.Interface => 7,
+                CodeNodeType.File => 5,
+                _ => 4
+            };
 
         if (IsContractNode(node) || IsApiNode(node) || IsInfrastructureNode(node))
             score += 2;
         if (node.FileRole == IndexedFileRole.Test || TextMatches(node.FilePath, "test"))
-            score -= 2;
+            score -= 6;
 
         if (!string.IsNullOrWhiteSpace(node.FilePath))
         {
@@ -531,16 +580,57 @@ public partial class CodebaseQueryService
         return null;
     }
 
+    private static string ExtractDocumentHeading(string content)
+    {
+        foreach (var line in content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(8))
+        {
+            if (line.StartsWith("#", StringComparison.Ordinal))
+                return line.TrimStart('#', ' ', '\t');
+        }
+
+        return string.Empty;
+    }
+
     private static readonly HashSet<string> FeatureStopWords = new(StringComparer.OrdinalIgnoreCase)
     {
         "about",
+        "according",
+        "against",
         "after",
         "already",
+        "analysis",
+        "analyze",
+        "any",
+        "applied",
+        "better",
         "changed",
+        "check",
+        "checking",
+        "codebase",
+        "direct",
+        "docs",
+        "document",
+        "documents",
+        "file",
+        "files",
         "feature",
+        "features",
+        "fix",
+        "follow",
+        "from",
+        "generic",
         "given",
         "implementation",
+        "live",
+        "neo4j",
+        "path",
+        "quick",
+        "refactor",
+        "session",
+        "implementation",
         "should",
+        "specific",
+        "suggested",
         "tests",
         "their",
         "there",
@@ -549,6 +639,8 @@ public partial class CodebaseQueryService
         "tool",
         "tools",
         "update",
+        "verified",
+        "working",
         "which",
         "with"
     };

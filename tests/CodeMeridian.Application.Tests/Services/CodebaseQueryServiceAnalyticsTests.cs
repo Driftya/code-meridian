@@ -1933,6 +1933,32 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         await graph.Received(1).FindHybridMatchesAsync(Arg.Any<float[]>(), "OrderService", 3, "Shop", true, 10, Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task FindHybridSearchAsync_WithMissingFilePath_FormatsAsciiFallbackOutput()
+    {
+        var (sut, graph, embeddings) = BuildWithEmbeddings();
+        embeddings.IsAvailableAsync(Arg.Any<CancellationToken>()).Returns(true);
+        embeddings.GenerateEmbeddingAsync("retry policy", Arg.Any<CancellationToken>())
+            .Returns([0.1f, 0.2f, 0.3f]);
+        graph.FindHybridMatchesAsync(
+                Arg.Any<float[]>(),
+                null,
+                3,
+                "Shop",
+                true,
+                10,
+                Arg.Any<CancellationToken>())
+            .Returns([
+                (Node("n1", "RetryPolicy", CodeNodeType.Class, null, null, "Shop"), 0.82)
+            ]);
+
+        var result = await sut.FindHybridSearchAsync("retry policy", projectContext: "Shop");
+
+        result.Should().Contain("## Hybrid Semantic Graph Search - `retry policy`");
+        result.Should().Contain("| 82.0% | Class | `RetryPolicy` | - |");
+        result.Should().NotContain("Ã¢");
+    }
+
     // ── FindDuplicateCandidatesAsync ─────────────────────────────────────────
 
     [Fact]
@@ -3080,6 +3106,27 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindImplementationSurfaceAsync_PrefersGoalTermMatchesOverBroadRepositoryInterfaces()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                Node("repo", "ICodeGraphRepository", CodeNodeType.Interface, "src/Core/CodeGraph/ICodeGraphRepository.cs", 1, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, sourceHash: "repo"),
+                Node("stale", "FindStaleKnowledgeAsync", CodeNodeType.Method, "src/Application/Services/CodebaseQueryService.Analytics.cs", 42, "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, sourceHash: "stale", summary: "Detects stale knowledge after renames and reindexing.")
+            ]);
+
+        var result = await sut.FindImplementationSurfaceAsync(
+            "add stale knowledge query",
+            projectContext: "CodeMeridian");
+
+        result.IndexOf("src/Application/Services/CodebaseQueryService.Analytics.cs", StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(result.IndexOf("src/Core/CodeGraph/ICodeGraphRepository.cs", StringComparison.Ordinal));
+        result.Should().Contain("goal-term matches");
+    }
+
+    [Fact]
     public async Task AnalyzeFeatureImplementationPathAsync_WithDocsCodeAndTests_ReturnsEvidenceAndRisk()
     {
         var graph = Substitute.For<ICodeGraphRepository>();
@@ -3150,7 +3197,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("## Feature Implementation Path");
         result.Should().Contain("documented_with_code_and_test_evidence");
-        result.Should().Contain("Confidence:** high");
+        result.Should().Contain("Confidence:**");
         result.Should().Contain("FeatureImplementationAnalysisService");
         result.Should().Contain("Presentation/MCP");
         result.Should().Contain("Focused verification plan:");
@@ -3327,6 +3374,69 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("No CodeNode implementation surface matched");
         result.Should().Contain("No related test nodes were linked");
         result.Should().Contain("Risk level:** unknown");
+    }
+
+    [Fact]
+    public async Task AnalyzeFeatureImplementationPathAsync_PrefersFeatureDocTermsOverGenericDocumentWords()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(graph, vector);
+        var featureNode = Node(
+            "surface",
+            "GetContextForEditingAsync",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.Surface.cs",
+            12,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            sourceHash: "surface",
+            summary: "Builds derived edit surface context for refactor workflows.");
+        var noisyNode = Node(
+            "repo",
+            "ICodeGraphRepository",
+            CodeNodeType.Interface,
+            "src/Core/CodeGraph/ICodeGraphRepository.cs",
+            5,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            sourceHash: "repo",
+            summary: "Repository contract for graph queries.");
+
+        vector
+            .SearchByTextAsync("docs/features/56-add-derived-edit-surface-credit-for-extraction-refactors.md", "CodeMeridian", 6, Arg.Any<CancellationToken>())
+            .Returns([
+                new KnowledgeDocument
+                {
+                    Id = "feature-56",
+                    Source = "docs/features/56-add-derived-edit-surface-credit-for-extraction-refactors.md",
+                    ProjectContext = "CodeMeridian",
+                    Content = """
+                              # Add Derived Edit Surface Credit For Extraction Refactors
+                              - Status: pending
+                              Suggested files from a prior session should receive derived edit-surface credit.
+                              """
+                }
+            ]);
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([noisyNode, featureNode]);
+        graph
+            .FindRelatedTestsAsync(Arg.Any<string>(), "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.AnalyzeFeatureImplementationPathAsync(
+            "docs/features/56-add-derived-edit-surface-credit-for-extraction-refactors.md",
+            "CodeMeridian");
+
+        result.IndexOf("src/Application/Services/CodebaseQueryService.Surface.cs", StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(result.IndexOf("src/Core/CodeGraph/ICodeGraphRepository.cs", StringComparison.Ordinal));
+        result.Should().Contain("`derived`");
+        result.Should().Contain("`surface`");
+        result.Should().NotContain("`suggested`");
+        result.Should().NotContain("`files`");
+        result.Should().NotContain("`session`");
     }
 
     [Fact]

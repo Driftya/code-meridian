@@ -412,7 +412,11 @@ public partial class CodebaseQueryService
         sb.AppendLine();
         sb.AppendLine("> Hybrid search uses embeddings for relevance and graph distance for scope. Tests are excluded by default.");
 
-        return sb.ToString();
+        return sb.ToString()
+            .Replace("## Hybrid Semantic Graph Search Ã¢â‚¬â€", "## Hybrid Semantic Graph Search -", StringComparison.Ordinal)
+            .Replace("## Hybrid Semantic Graph Search â€”", "## Hybrid Semantic Graph Search -", StringComparison.Ordinal)
+            .Replace("Ã¢â‚¬â€", "-", StringComparison.Ordinal)
+            .Replace("â€”", "-", StringComparison.Ordinal);
     }
 
     public async Task<string> FindDuplicateCandidatesAsync(

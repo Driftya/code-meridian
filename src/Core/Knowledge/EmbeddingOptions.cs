@@ -62,9 +62,10 @@ public sealed class EmbeddingOptions
     /// <summary>
     /// Warning message shown when embeddings are disabled or unavailable.
     /// </summary>
-    public string NoEmbeddingsWarning => 
-        "⚠️  Embeddings are disabled. " +
-        "Set Embedding__Enabled=true to enable find_similar_nodes. " +
-        "Default provider: Ollama (local, free). For cloud embeddings, use Embedding__Provider=OpenAI. " +
-        "See https://github.com/driftya/CodeMeridian/docs/embeddings.md for setup.";
+    public string NoEmbeddingsWarning =>
+        string.Concat(
+            "Embeddings are disabled. ",
+            "Set Embedding__Enabled=true to enable find_similar_nodes. ",
+            "Default provider: Ollama (local, free). For cloud embeddings, use Embedding__Provider=OpenAI. ",
+            "See https://github.com/driftya/CodeMeridian/docs/embeddings.md for setup.");
 }

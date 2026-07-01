@@ -13,8 +13,13 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         var concepts = ParseConcepts(conceptsCsv);
+        var goalTerms = ExtractSurfaceTerms(goal, concepts);
         var frontendGoal = LooksLikeFrontendGoal(goal, concepts);
-        var queries = new[] { goal }.Concat(concepts).Where(q => !string.IsNullOrWhiteSpace(q)).Distinct(StringComparer.OrdinalIgnoreCase);
+        var queries = new[] { goal }
+            .Concat(concepts)
+            .Concat(goalTerms.Take(4))
+            .Where(q => !string.IsNullOrWhiteSpace(q))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
         var candidates = new List<CodeNode>();
 
         foreach (var query in queries)
@@ -30,6 +35,20 @@ public partial class CodebaseQueryService
 
             candidates.AddRange(nodes);
 
+            if (goalTerms.Contains(query, StringComparer.OrdinalIgnoreCase))
+            {
+                var lexicalNodes = await codeGraph.QueryNodesAsync(
+                    new CodeGraphQuery
+                    {
+                        NameFilter = query,
+                        ProjectContext = projectContext,
+                        Limit = 20
+                    },
+                    cancellationToken);
+
+                candidates.AddRange(lexicalNodes);
+            }
+
             if (frontendGoal || nodes.Any(IsFrontendGraphNode))
                 candidates.AddRange(await ExpandFrontendSurfaceCandidatesAsync(nodes, cancellationToken));
         }
@@ -40,7 +59,7 @@ public partial class CodebaseQueryService
         var ranked = candidates
             .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
             .GroupBy(n => n.FilePath!, StringComparer.OrdinalIgnoreCase)
-            .Select(group => BuildSurfaceCandidate("mcp__CodeMeridian.find_implementation_surface", group.Key, group, goal, concepts))
+            .Select(group => BuildSurfaceCandidate("mcp__CodeMeridian.find_implementation_surface", group.Key, group, goal, concepts, goalTerms))
             .OrderByDescending(candidate => candidate.Score)
             .ThenBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase)
             .Take(Math.Clamp(limit, 1, 50))
@@ -265,21 +284,22 @@ public partial class CodebaseQueryService
         string filePath,
         IEnumerable<CodeNode> nodes,
         string goal,
-        IReadOnlyCollection<string> concepts)
+        IReadOnlyCollection<string> concepts,
+        IReadOnlyCollection<string> goalTerms)
     {
         var nodeArray = nodes
             .DistinctBy(n => n.Id)
             .OrderBy(n => n.LineNumber ?? int.MaxValue)
             .ToArray();
-        var score = nodeArray.Sum(node => ScoreSurfaceNode(node, goal, concepts));
+        var score = nodeArray.Sum(node => ScoreSurfaceNode(node, goal, concepts, goalTerms));
         var freshness = BuildFreshness(nodeArray.First());
         var feedback = EvaluateSurfaceFeedback(toolName, filePath);
         score += feedback.ScoreAdjustment;
         var confidence = score >= 12 && freshness.Confidence != "Low" ? "High"
             : score >= 6 || freshness.Confidence == "Medium" ? "Medium"
             : "Low";
-        var targetConfidence = ResolveTargetConfidence(nodeArray, goal, concepts, freshness, feedback.Tool);
-        var reason = BuildSurfaceReason(nodeArray, concepts, feedback);
+        var targetConfidence = ResolveTargetConfidence(nodeArray, goal, concepts, goalTerms, freshness, feedback.Tool);
+        var reason = BuildSurfaceReason(nodeArray, concepts, goalTerms, feedback);
 
         return new SurfaceCandidate(filePath, nodeArray, score, confidence, targetConfidence, reason, freshness);
     }
@@ -316,7 +336,7 @@ public partial class CodebaseQueryService
             context.Take(Math.Clamp(limit, 1, 12)).ToArray());
     }
 
-    private static int ScoreSurfaceNode(CodeNode node, string goal, IReadOnlyCollection<string> concepts)
+    private static int ScoreSurfaceNode(CodeNode node, string goal, IReadOnlyCollection<string> concepts, IReadOnlyCollection<string> goalTerms)
     {
         var score = node.Type switch
         {
@@ -331,6 +351,14 @@ public partial class CodebaseQueryService
             score += 4;
 
         score += concepts.Count(concept => TextMatches(node.Name, concept) || TextMatches(node.Summary, concept) || TextMatches(node.FilePath, concept)) * 3;
+        var goalTermHits = goalTerms.Count(term =>
+            TextMatches(node.Name, term)
+            || TextMatches(node.Summary, term)
+            || TextMatches(node.FilePath, term)
+            || TextMatches(node.Namespace, term));
+        score += goalTermHits * 4;
+        if (goalTermHits >= 2)
+            score += 6;
 
         if (LooksLikeFrontendGoal(goal, concepts) && IsFrontendGraphNode(node))
             score += node.Type == CodeNodeType.ExternalConcept ? 4 : 3;
@@ -338,12 +366,22 @@ public partial class CodebaseQueryService
         if (node.FilePath?.Contains("test", StringComparison.OrdinalIgnoreCase) == true)
             score += 1;
 
+        if (goalTerms.Count > 0 && goalTermHits == 0)
+        {
+            score -= node.Type switch
+            {
+                CodeNodeType.Interface => 7,
+                CodeNodeType.File => 5,
+                _ => 4
+            };
+        }
+
         return score;
     }
 
     private int ScoreRouteNode(CodeNode node, string goal, IReadOnlyCollection<string> concepts)
     {
-        var score = ScoreSurfaceNode(node, goal, concepts);
+        var score = ScoreSurfaceNode(node, goal, concepts, ExtractSurfaceTerms(goal, concepts));
         if (TextMatches(goal, node.Name) || TextMatches(goal, Path.GetFileNameWithoutExtension(node.FilePath ?? string.Empty)))
             score += 4;
         if (IsContractNode(node)) score += 2;
@@ -420,18 +458,25 @@ public partial class CodebaseQueryService
     private static string BuildSurfaceReason(
         IReadOnlyCollection<CodeNode> nodes,
         IReadOnlyCollection<string> concepts,
+        IReadOnlyCollection<string> goalTerms,
         SurfaceFeedback feedback)
     {
         var methodCount = nodes.Count(n => n.Type == CodeNodeType.Method);
         var typeCount = nodes.Count(n => n.Type is CodeNodeType.Class or CodeNodeType.Interface);
         var frontendSignals = nodes.Count(IsFrontendGraphNode);
         var conceptHits = concepts.Count(concept => nodes.Any(n => TextMatches(n.Name, concept) || TextMatches(n.FilePath, concept)));
+        var termHits = goalTerms.Count(term => nodes.Any(n =>
+            TextMatches(n.Name, term)
+            || TextMatches(n.Summary, term)
+            || TextMatches(n.FilePath, term)
+            || TextMatches(n.Namespace, term)));
 
         var parts = new List<string>();
         if (methodCount > 0) parts.Add($"{methodCount} method hits");
         if (typeCount > 0) parts.Add($"{typeCount} type hits");
         if (frontendSignals > 0) parts.Add($"{frontendSignals} frontend graph matches");
         if (conceptHits > 0) parts.Add($"{conceptHits} concept matches");
+        if (termHits > 0) parts.Add($"{termHits} goal-term matches");
         var exactIds = nodes.Count(n => n.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.ExternalConcept);
         if (exactIds > 0) parts.Add($"{exactIds} canonical IDs");
         if (!string.IsNullOrWhiteSpace(feedback.Reason)) parts.Add(feedback.Reason);
@@ -443,6 +488,7 @@ public partial class CodebaseQueryService
         IReadOnlyCollection<CodeNode> nodes,
         string goal,
         IReadOnlyCollection<string> concepts,
+        IReadOnlyCollection<string> goalTerms,
         FreshnessCheck freshness,
         ToolPrecisionSnapshot? feedback)
     {
@@ -451,7 +497,12 @@ public partial class CodebaseQueryService
 
         var exactNode = nodes.Any(node =>
             node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.ExternalConcept
-            && (TextMatches(goal, node.Name) || concepts.Any(concept => TextMatches(node.Name, concept))));
+            && (TextMatches(goal, node.Name)
+                || concepts.Any(concept => TextMatches(node.Name, concept))
+                || goalTerms.Any(term =>
+                    TextMatches(node.Name, term)
+                    || TextMatches(node.Summary, term)
+                    || TextMatches(node.FilePath, term))));
 
         if (exactNode)
             return "exact";
@@ -637,6 +688,47 @@ public partial class CodebaseQueryService
         string.IsNullOrWhiteSpace(conceptsCsv)
             ? []
             : conceptsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static string[] ExtractSurfaceTerms(string goal, IReadOnlyCollection<string> concepts)
+    {
+        var tokens = string.Join(" ", new[] { goal }.Concat(concepts))
+            .Split([' ', '\t', '\r', '\n', '.', ',', ':', ';', '/', '\\', '-', '_', '`', '"', '\'', '(', ')', '[', ']', '{', '}'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(token => token.Length >= 4)
+            .Where(token => !SurfaceStopWords.Contains(token))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToArray();
+
+        return tokens;
+    }
+
+    private static readonly HashSet<string> SurfaceStopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "about",
+        "across",
+        "after",
+        "before",
+        "change",
+        "changes",
+        "code",
+        "feature",
+        "find",
+        "from",
+        "goal",
+        "implementation",
+        "likely",
+        "match",
+        "matches",
+        "query",
+        "service",
+        "should",
+        "surface",
+        "their",
+        "this",
+        "update",
+        "using",
+        "with"
+    };
 
     private static bool TextMatches(string? haystack, string needle) =>
         !string.IsNullOrWhiteSpace(haystack)
