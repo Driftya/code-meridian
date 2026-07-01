@@ -147,6 +147,7 @@ public partial class CodebaseQueryService
         var relatedTests = await codeGraph.FindRelatedTestsAsync(anchor.Id, anchor.ProjectContext ?? projectContext, cancellationToken) ?? [];
 
         var routeNodes = rankedNodes
+            .Where(node => node.Id == anchor.Id || IsRouteCompanionCandidate(node, anchor, goal, concepts))
             .Concat(ctx.Node is null ? [] : [ctx.Node])
             .Concat(ctx.Interfaces)
             .Concat(ctx.Callees)
@@ -369,6 +370,53 @@ public partial class CodebaseQueryService
         return true;
     }
 
+    private bool IsRouteCompanionCandidate(CodeNode node, CodeNode anchor, string goal, IReadOnlyCollection<string> concepts)
+    {
+        if (node.Id == anchor.Id)
+            return true;
+
+        var score = ScoreRouteNode(node, goal, concepts);
+        if (score >= 12)
+            return true;
+
+        if (!string.Equals(node.ProjectContext, anchor.ProjectContext, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (SharesRouteNamespace(node, anchor))
+            return true;
+
+        return SharesRouteDirectory(node, anchor) && score >= 6;
+    }
+
+    private static bool SharesRouteNamespace(CodeNode left, CodeNode right)
+    {
+        if (string.IsNullOrWhiteSpace(left.Namespace) || string.IsNullOrWhiteSpace(right.Namespace))
+            return false;
+
+        var leftSegments = left.Namespace.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var rightSegments = right.Namespace.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (leftSegments.Length < 2 || rightSegments.Length < 2)
+            return false;
+
+        return string.Equals(leftSegments[0], rightSegments[0], StringComparison.OrdinalIgnoreCase)
+            && string.Equals(leftSegments[1], rightSegments[1], StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool SharesRouteDirectory(CodeNode left, CodeNode right)
+    {
+        var leftPath = NormalizePath(left.FilePath);
+        var rightPath = NormalizePath(right.FilePath);
+        if (string.IsNullOrWhiteSpace(leftPath) || string.IsNullOrWhiteSpace(rightPath))
+            return false;
+
+        var leftDirectory = Path.GetDirectoryName(leftPath)?.Replace('\\', '/');
+        var rightDirectory = Path.GetDirectoryName(rightPath)?.Replace('\\', '/');
+        if (string.IsNullOrWhiteSpace(leftDirectory) || string.IsNullOrWhiteSpace(rightDirectory))
+            return false;
+
+        return string.Equals(leftDirectory, rightDirectory, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string BuildSurfaceReason(
         IReadOnlyCollection<CodeNode> nodes,
         IReadOnlyCollection<string> concepts,
@@ -515,9 +563,8 @@ public partial class CodebaseQueryService
     {
         var freshness = BuildFreshness(node);
         var hasSymbol = !string.IsNullOrWhiteSpace(symbol);
-        var nameExact = hasSymbol
-            && (string.Equals(node.Name, symbol, StringComparison.OrdinalIgnoreCase)
-                || node.Id.Contains(symbol, StringComparison.OrdinalIgnoreCase));
+        var nameExact = hasSymbol && IsExactResolutionNameMatch(node, symbol);
+        var idContains = hasSymbol && node.Id.Contains(symbol, StringComparison.OrdinalIgnoreCase);
         var fileMatches = MatchesFileHint(node, filePath);
         var lineDistance = line is not null && node.LineNumber is not null
             ? Math.Abs(node.LineNumber.Value - line.Value)
@@ -531,7 +578,7 @@ public partial class CodebaseQueryService
             _ => 1
         };
         var score = typeScore
-            + (nameExact ? 8 : TextMatches(node.Name, symbol) ? 4 : 0)
+            + (nameExact ? 8 : idContains ? 3 : TextMatches(node.Name, symbol) ? 4 : 0)
             + (fileMatches && !string.IsNullOrWhiteSpace(filePath) ? 4 : 0)
             + (nearLine ? 3 : 0)
             + (freshness.Confidence == "High" ? 2 : freshness.Confidence == "Medium" ? 1 : -4);
@@ -547,6 +594,43 @@ public partial class CodebaseQueryService
         reasons.Add(DescribeFreshness(freshness));
 
         return new SymbolResolution(node, confidence, score, lineDistance, string.Join(", ", reasons));
+    }
+
+    private static bool IsExactResolutionNameMatch(CodeNode node, string symbol)
+    {
+        if (string.IsNullOrWhiteSpace(symbol))
+            return false;
+
+        if (node.Type == CodeNodeType.Method
+            && !symbol.Contains('(')
+            && node.Name.StartsWith(symbol + "(", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (string.Equals(node.Name, symbol, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var relevantName = ExtractRelevantIdentifier(node.Name);
+        if (string.Equals(relevantName, symbol, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var terminalIdSegment = ExtractTerminalIdSegment(node.Id);
+        return string.Equals(terminalIdSegment, symbol, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ExtractTerminalIdSegment(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return value;
+
+        var canonicalSegments = value.Split("::", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (canonicalSegments.Length >= 1)
+        {
+            var candidate = canonicalSegments[^1];
+            return ExtractRelevantIdentifier(candidate);
+        }
+
+        var dotted = value.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return dotted.LastOrDefault() ?? value;
     }
 
     private static string[] ParseConcepts(string? conceptsCsv) =>

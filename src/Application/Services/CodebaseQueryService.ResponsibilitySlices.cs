@@ -221,15 +221,69 @@ public sealed partial class CodebaseQueryService
             cancellationToken);
 
         var targetFile = NormalizePath(targetNode.FilePath);
+        var siblingPartialPrefix = GetPartialTypeFilePrefix(targetNode);
+        var declaringTypeName = GetTargetDeclaringTypeName(targetNode);
         return methods
             .Where(method => AllowsProfile(method, AnalysisProfile.DesignSmells))
             .Where(method => !IsConfiguredTestNode(method))
             .Where(method => containedMethodIds.Contains(method.Id)
-                             || (!string.IsNullOrWhiteSpace(targetFile) && string.Equals(NormalizePath(method.FilePath), targetFile, StringComparison.OrdinalIgnoreCase)))
+                             || (!string.IsNullOrWhiteSpace(targetFile) && string.Equals(NormalizePath(method.FilePath), targetFile, StringComparison.OrdinalIgnoreCase))
+                             || MatchesTargetDeclaringType(method, declaringTypeName)
+                             || MatchesSiblingPartialFile(method, siblingPartialPrefix))
             .DistinctBy(method => method.Id)
             .OrderBy(method => method.LineNumber ?? int.MaxValue)
             .ThenBy(method => method.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static string GetTargetDeclaringTypeName(CodeNode targetNode)
+    {
+        if (!string.IsNullOrWhiteSpace(targetNode.Namespace))
+            return $"{targetNode.Namespace}.{targetNode.Name}";
+
+        return targetNode.Name;
+    }
+
+    private static bool MatchesTargetDeclaringType(CodeNode method, string declaringTypeName)
+    {
+        if (string.IsNullOrWhiteSpace(declaringTypeName))
+            return false;
+
+        var canonicalPattern = $"::{declaringTypeName}::";
+        var dottedPattern = $"{declaringTypeName}.";
+        return method.Id.Contains(canonicalPattern, StringComparison.OrdinalIgnoreCase)
+            || method.Id.Contains(dottedPattern, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? GetPartialTypeFilePrefix(CodeNode targetNode)
+    {
+        var path = NormalizePath(targetNode.FilePath);
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        var directory = Path.GetDirectoryName(path)?.Replace('\\', '/');
+        var fileName = Path.GetFileNameWithoutExtension(path);
+        if (string.IsNullOrWhiteSpace(fileName))
+            return null;
+
+        var dotIndex = fileName.IndexOf('.');
+        var stem = dotIndex > 0 ? fileName[..dotIndex] : fileName;
+        if (string.IsNullOrWhiteSpace(stem))
+            return null;
+
+        return string.IsNullOrWhiteSpace(directory)
+            ? stem
+            : $"{directory}/{stem}";
+    }
+
+    private static bool MatchesSiblingPartialFile(CodeNode method, string? partialPrefix)
+    {
+        if (string.IsNullOrWhiteSpace(partialPrefix))
+            return false;
+
+        var methodPath = NormalizePath(method.FilePath);
+        return methodPath.StartsWith(partialPrefix + ".", StringComparison.OrdinalIgnoreCase)
+            && methodPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string BuildResponsibilityDeferResult(

@@ -3448,6 +3448,42 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task PlanEditRouteAsync_PrunesUnrelatedSemanticMatchesFromStructuredRouteStages()
+    {
+        var (sut, graph) = Build();
+        var target = Node("cfg1", "CodeMeridianConfigFileStore", CodeNodeType.Class, "src/Tooling/Configuration/CodeMeridianConfigFileStore.cs", 7, "CodeMeridian", fileRole: IndexedFileRole.Source);
+        var unrelated = Node("dup1", "DuplicateCandidate", CodeNodeType.Class, "src/Core/CodeGraph/DuplicateCandidate.cs", 6, "CodeMeridian", fileRole: IndexedFileRole.Source, @namespace: "CodeMeridian.Core.CodeGraph");
+        var writeMethod = Node("cfg-write", "Write(DirectoryInfo,string?,string,bool,bool)", CodeNodeType.Method, "src/Tooling/Configuration/CodeMeridianConfigFileStore.cs", 118, "CodeMeridian", fileRole: IndexedFileRole.Source);
+        var configTests = Node("t1", "IndexerConfigTests", CodeNodeType.Class, "tests/CodeMeridian.Indexer.Tests/Cli/IndexerConfigTests.cs", 6, "CodeMeridian", fileRole: IndexedFileRole.Test);
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([target, unrelated, writeMethod]);
+        graph
+            .GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [], [writeMethod], []));
+        graph
+            .FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindDownstreamAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(writeMethod, 1)]);
+        graph
+            .FindRelatedTestsAsync(target.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(configTests, "direct")]);
+
+        var result = await sut.PlanEditRouteAsync(
+            "refactor CodeMeridianConfigFileStore safely",
+            "configuration,templates,file-io",
+            "CodeMeridian");
+
+        result.Should().Contain("**Anchor:** `CodeMeridianConfigFileStore` (Class) - `src/Tooling/Configuration/CodeMeridianConfigFileStore.cs`");
+        result.Should().Contain("IndexerConfigTests");
+        result.Should().NotContain("DuplicateCandidate");
+        result.Should().NotContain("src/Core/CodeGraph/DuplicateCandidate.cs");
+    }
+
+    [Fact]
     public async Task PlanEditRouteAsync_WhenNoMatches_ReturnsGuidance()
     {
         var (sut, graph) = Build();
@@ -3565,6 +3601,60 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("name/id match");
         result.Should().Contain("file match");
         result.Should().Contain("near line hint");
+    }
+
+    [Fact]
+    public async Task ResolveExactSymbolAsync_WithClassTarget_PrefersExactClassBeforeConstructors()
+    {
+        var (sut, graph) = Build();
+        var classNode = Node(
+            "CodeMeridian::Class::CodeMeridian.Application.Services.CodebaseQueryService",
+            "CodebaseQueryService",
+            CodeNodeType.Class,
+            "src/Application/Services/CodebaseQueryService.ToolDependencyImpact.cs",
+            5,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 160,
+            sourceHash: "class-hash");
+        var constructorOne = Node(
+            "CodeMeridian::Method::CodeMeridian.Application.Services.CodebaseQueryService::CodebaseQueryService(ICodeGraphRepository,IVectorRepository)",
+            "CodebaseQueryService(ICodeGraphRepository,IVectorRepository)",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.cs",
+            22,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 12,
+            sourceHash: "ctor-1");
+        var constructorTwo = Node(
+            "CodeMeridian::Method::CodeMeridian.Application.Services.CodebaseQueryService::CodebaseQueryService(ICodeGraphRepository,IVectorRepository,IEmbeddingProvider)",
+            "CodebaseQueryService(ICodeGraphRepository,IVectorRepository,IEmbeddingProvider)",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.cs",
+            49,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 12,
+            sourceHash: "ctor-2");
+
+        graph
+            .QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q =>
+                    q.NameFilter == "CodebaseQueryService"
+                    && q.ProjectContext == "CodeMeridian"),
+                Arg.Any<CancellationToken>())
+            .Returns([constructorOne, constructorTwo, classNode]);
+
+        var result = await sut.ResolveExactSymbolAsync(
+            "CodebaseQueryService",
+            projectContext: "CodeMeridian");
+
+        result.Should().Contain("## Exact Symbol Resolution");
+        result.Should().Contain(classNode.Id);
+        result.IndexOf(classNode.Id, StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(result.IndexOf(constructorOne.Id, StringComparison.Ordinal));
     }
 
     [Fact]

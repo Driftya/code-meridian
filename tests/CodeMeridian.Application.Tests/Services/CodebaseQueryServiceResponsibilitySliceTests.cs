@@ -357,6 +357,85 @@ public sealed class CodebaseQueryServiceResponsibilitySliceTests
         result.Should().NotContain("AppendRelatedTestsList");
     }
 
+    [Fact]
+    public async Task SuggestResponsibilitySlicesAsync_ForPartialClassTarget_UsesSiblingPartialFilesAndPluralizesQueryToQueries()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(graph, vector);
+        var target = Node(
+            "CodeMeridian::Class::CodeMeridian.Application.Services.CodebaseQueryService",
+            "CodebaseQueryService",
+            CodeNodeType.Class,
+            "src/Application/Services/CodebaseQueryService.ToolDependencyImpact.cs",
+            5,
+            "CodeMeridian",
+            lineCount: 160,
+            sourceHash: "target-hash",
+            @namespace: "CodeMeridian.Application.Services");
+        var toolDependencyMethod = Node(
+            "CodeMeridian::Method::CodeMeridian.Application.Services.CodebaseQueryService::FindToolDependencyImpactAsync(string?,bool,CancellationToken)",
+            "FindToolDependencyImpactAsync(string?,bool,CancellationToken)",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.ToolDependencyImpact.cs",
+            7,
+            "CodeMeridian");
+        var contextMethod = Node(
+            "CodeMeridian::Method::CodeMeridian.Application.Services.CodebaseQueryService::BuildMinimalContextAsync(string,string?,int,bool,bool,bool,bool,ContextDetailLevel,CancellationToken)",
+            "BuildMinimalContextAsync(string,string?,int,bool,bool,bool,bool,ContextDetailLevel,CancellationToken)",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.Analytics.cs",
+            938,
+            "CodeMeridian");
+        var contract = Node(
+            "iface:ICodebaseQueryService",
+            "ICodebaseQueryService",
+            CodeNodeType.Interface,
+            "src/Application/Services/ICodebaseQueryService.cs",
+            3,
+            "CodeMeridian");
+        var tests = Node(
+            "test:CodebaseQueryServiceAnalyticsTests",
+            "CodebaseQueryServiceAnalyticsTests",
+            CodeNodeType.Class,
+            "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs",
+            12,
+            "CodeMeridian",
+            fileRole: IndexedFileRole.Test);
+
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Class && query.NameFilter == "CodebaseQueryService"),
+                Arg.Any<CancellationToken>())
+            .Returns([target]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Method),
+                Arg.Any<CancellationToken>())
+            .Returns([toolDependencyMethod, contextMethod]);
+        graph.QueryEdgesAsync(target.Id, 1, Arg.Any<CancellationToken>())
+            .Returns([Contains(target, toolDependencyMethod)]);
+        graph.GetContextForEditingAsync(toolDependencyMethod.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(toolDependencyMethod, [], [contract], []));
+        graph.GetContextForEditingAsync(contextMethod.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(contextMethod, [], [contract], []));
+        graph.FindRelatedTestsAsync(toolDependencyMethod.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(tests, "direct")]);
+        graph.FindRelatedTestsAsync(contextMethod.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(tests, "direct")]);
+        graph.FindNaturalModuleAssignmentsAsync(Arg.Any<IReadOnlyCollection<string>>(), "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([]);
+        vector.SearchByTextAsync("CodebaseQueryService", "CodeMeridian", 5, Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.SuggestResponsibilitySlicesAsync("CodebaseQueryService", "CodeMeridian", maxSlices: 4);
+
+        result.Should().Contain("## Responsibility Slice Suggestions - `CodebaseQueryService`");
+        result.Should().Contain("Recommended namespace root:** `CodeMeridian.Application.CodebaseQueries`");
+        result.Should().Contain("Recommended folder root:** `src/Application/CodebaseQueries`");
+        result.Should().Contain("FindToolDependencyImpactAsync");
+        result.Should().Contain("BuildMinimalContextAsync");
+        result.Should().NotContain("CodebaseQuerys");
+    }
+
     private static CodeNode Node(
         string id,
         string name,

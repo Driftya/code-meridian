@@ -60,7 +60,7 @@ public sealed partial class CodebaseQueryService
     private static string ToPluralFeatureName(string value)
     {
         var cleaned = CleanName(value);
-        return cleaned.EndsWith("s", StringComparison.OrdinalIgnoreCase) ? cleaned : cleaned + "s";
+        return PluralizeIdentifier(cleaned);
     }
 
     private static string ToPascalPlural(string value)
@@ -69,7 +69,7 @@ public sealed partial class CodebaseQueryService
         if (string.IsNullOrWhiteSpace(cleaned))
             return "Deferred";
 
-        return cleaned.EndsWith("s", StringComparison.OrdinalIgnoreCase) ? cleaned : cleaned + "s";
+        return PluralizeIdentifier(cleaned);
     }
 
     private static string CleanName(string value)
@@ -152,6 +152,38 @@ public sealed partial class CodebaseQueryService
 
     private static string RemoveInterfacePrefix(string value) =>
         value.Length > 1 && value[0] == 'I' && char.IsUpper(value[1]) ? value[1..] : value;
+
+    private static string PluralizeIdentifier(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return value;
+
+        if (value.EndsWith("ies", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith("ses", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith("xes", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith("zes", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith("ches", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith("shes", StringComparison.OrdinalIgnoreCase))
+            return value;
+
+        if (value.EndsWith("y", StringComparison.OrdinalIgnoreCase)
+            && value.Length > 1
+            && !IsVowel(value[^2]))
+            return value[..^1] + "ies";
+
+        if (value.EndsWith("s", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith("x", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith("z", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith("ch", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith("sh", StringComparison.OrdinalIgnoreCase))
+            return value + "es";
+
+        return value + "s";
+    }
+
+    private static bool IsVowel(char value) =>
+        value is 'a' or 'e' or 'i' or 'o' or 'u'
+            or 'A' or 'E' or 'I' or 'O' or 'U';
 
     private static string NormalizePath(string? path) => path?.Replace('\\', '/') ?? string.Empty;
 
@@ -258,7 +290,7 @@ public sealed partial class CodebaseQueryService
 
         private static string BuildServiceName(string name)
         {
-            var normalized = name.EndsWith("s", StringComparison.OrdinalIgnoreCase) ? name[..^1] : name;
+            var normalized = SingularizeIdentifier(name);
             return normalized switch
             {
                 "ContextPack" => "ContextPackBuilderService",
@@ -269,6 +301,27 @@ public sealed partial class CodebaseQueryService
                 "Configuration" => "ConfigurationQueryService",
                 _ => normalized + "Service"
             };
+        }
+
+        private static string SingularizeIdentifier(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return value;
+
+            if (value.EndsWith("ies", StringComparison.OrdinalIgnoreCase) && value.Length > 3)
+                return value[..^3] + "y";
+
+            if ((value.EndsWith("ses", StringComparison.OrdinalIgnoreCase)
+                || value.EndsWith("xes", StringComparison.OrdinalIgnoreCase)
+                || value.EndsWith("zes", StringComparison.OrdinalIgnoreCase)
+                || value.EndsWith("ches", StringComparison.OrdinalIgnoreCase)
+                || value.EndsWith("shes", StringComparison.OrdinalIgnoreCase))
+                && value.Length > 2)
+                return value[..^2];
+
+            return value.EndsWith("s", StringComparison.OrdinalIgnoreCase) && value.Length > 1
+                ? value[..^1]
+                : value;
         }
     }
 }
