@@ -200,7 +200,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("path crosses route or knowledge nodes");
         result.Should().Contain("### Unknown risk (1)");
         result.Should().Contain("LegacyBatchJob.Run");
-        result.Should().Contain("node has no file path");
+        result.Should().Contain("node is missing update metadata");
     }
 
     [Fact]
