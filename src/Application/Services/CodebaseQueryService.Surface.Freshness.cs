@@ -71,12 +71,10 @@ public partial class CodebaseQueryService
         }
 
         var checks = nodes.Select(BuildFreshness).ToArray();
-        var missingFileMetadata = checks.Where(c => string.IsNullOrWhiteSpace(c.Node.FilePath)).ToArray();
-        var incompleteLines = checks.Where(c => c.LineMetadata == "incomplete").ToArray();
-        var missingTimestamps = checks.Where(c => c.Node.UpdatedAt is null).ToArray();
-        var missingSourceHashes = checks
-            .Where(c => c.SourceVerification == "missing source hash" && RequiresSourceHash(c.Node))
-            .ToArray();
+        var missingFileMetadata = checks.Where(c => c.ExpectsFilePath && !c.HasFilePath).ToArray();
+        var incompleteLines = checks.Where(c => c.ExpectsLineMetadata && !c.HasLineMetadata).ToArray();
+        var missingTimestamps = checks.Where(c => !c.HasTimestamp).ToArray();
+        var missingSourceHashes = checks.Where(c => c.ExpectsSourceHash && c.HasFilePath && !c.HasSourceHash).ToArray();
         var lowConfidence = checks.Count(c => c.Confidence == "Low");
 
         if (missingFileMetadata.Length == 0 && incompleteLines.Length == 0 && missingTimestamps.Length == 0 && missingSourceHashes.Length == 0)
@@ -104,36 +102,73 @@ public partial class CodebaseQueryService
 
     private static FreshnessCheck BuildFreshness(CodeNode node)
     {
+        var expectations = GetFreshnessExpectations(node);
         var hasFilePath = !string.IsNullOrWhiteSpace(node.FilePath);
         var hasLineMetadata = node.LineNumber is > 0 || node.LineCount is > 0;
         var hasTimestamp = node.UpdatedAt is not null;
         var hasSourceHash = !string.IsNullOrWhiteSpace(node.SourceHash);
-        var requiresSourceHash = RequiresSourceHash(node);
-        var lineMetadata = hasLineMetadata ? "present" : "incomplete";
-        var sourceVerification = !hasFilePath ? "no file path"
+        var lineMetadata = !expectations.RequiresLineMetadata ? "not required"
+            : hasLineMetadata ? "present"
+            : "incomplete";
+        var sourceVerification = !expectations.RequiresFilePath ? "not required"
+            : !hasFilePath ? "no file path"
+            : !expectations.RequiresSourceHash ? "not required"
             : hasSourceHash ? "checksum indexed"
-            : !requiresSourceHash ? "structural node"
             : "missing source hash";
-        var confidence = hasFilePath && hasLineMetadata && hasTimestamp && (hasSourceHash || !requiresSourceHash) ? "High"
-            : hasFilePath && hasTimestamp ? "Medium"
+        var confidence = !hasTimestamp || (expectations.RequiresFilePath && !hasFilePath) ? "Low"
+            : (expectations.RequiresLineMetadata && !hasLineMetadata) || (expectations.RequiresSourceHash && !hasSourceHash) ? "Medium"
             : "Low";
+        if (confidence == "Low" && hasTimestamp && (!expectations.RequiresFilePath || hasFilePath))
+            confidence = "High";
         var reason = confidence switch
         {
-            "High" when !requiresSourceHash => "structural node with file, line, and content-update metadata",
-            "High" => "indexer supplied file, line, checksum, and content-update metadata",
-            "Medium" when requiresSourceHash && !hasSourceHash => "indexer supplied file and update metadata, but source hash is missing",
-            "Medium" => "indexer supplied file and update metadata, but line metadata is incomplete",
-            _ => !hasFilePath ? "node has no file path" : "node is missing update metadata"
+            "High" when !expectations.RequiresFilePath => "structural node with content-update metadata",
+            "High" when expectations.RequiresLineMetadata && expectations.RequiresSourceHash => "indexer supplied file, line, checksum, and content-update metadata",
+            "High" when expectations.RequiresSourceHash => "indexer supplied file, checksum, and content-update metadata",
+            "High" => "indexer supplied the metadata expected for this node type",
+            "Medium" when expectations.RequiresSourceHash && !hasSourceHash => "indexer supplied file and update metadata, but source hash is missing",
+            "Medium" => "indexer supplied file and update metadata, but required line metadata is incomplete",
+            _ => !hasTimestamp ? "node is missing update metadata" : "node has no file path"
         };
 
-        return new FreshnessCheck(node, sourceVerification, lineMetadata, confidence, reason);
+        return new FreshnessCheck(
+            node,
+            sourceVerification,
+            lineMetadata,
+            confidence,
+            reason,
+            expectations.RequiresFilePath,
+            hasFilePath,
+            expectations.RequiresLineMetadata,
+            hasLineMetadata,
+            expectations.RequiresSourceHash,
+            hasSourceHash,
+            hasTimestamp);
     }
 
     private static string DescribeFreshness(FreshnessCheck check) =>
         $"{check.Confidence}: {check.Reason}";
 
-    private static bool RequiresSourceHash(CodeNode node) =>
-        node.Type is not CodeNodeType.Namespace and not CodeNodeType.Diagnostic;
+    private static FreshnessExpectations GetFreshnessExpectations(CodeNode node) =>
+        node.Type switch
+        {
+            CodeNodeType.Class or
+            CodeNodeType.Struct or
+            CodeNodeType.Interface or
+            CodeNodeType.Method or
+            CodeNodeType.Delegate or
+            CodeNodeType.Property or
+            CodeNodeType.Field or
+            CodeNodeType.Event or
+            CodeNodeType.Indexer or
+            CodeNodeType.Operator or
+            CodeNodeType.Enum => new(true, true, true),
+            CodeNodeType.File or
+            CodeNodeType.Module or
+            CodeNodeType.ConfigurationFile => new(true, false, true),
+            CodeNodeType.ConfigurationEntry => new(true, false, false),
+            _ => new(false, false, false)
+        };
 
     private static void AppendDriftSection(StringBuilder sb, string title, IReadOnlyCollection<FreshnessCheck> checks, int limit)
     {
@@ -151,5 +186,17 @@ public partial class CodebaseQueryService
         string SourceVerification,
         string LineMetadata,
         string Confidence,
-        string Reason);
+        string Reason,
+        bool ExpectsFilePath,
+        bool HasFilePath,
+        bool ExpectsLineMetadata,
+        bool HasLineMetadata,
+        bool ExpectsSourceHash,
+        bool HasSourceHash,
+        bool HasTimestamp);
+
+    private sealed record FreshnessExpectations(
+        bool RequiresFilePath,
+        bool RequiresLineMetadata,
+        bool RequiresSourceHash);
 }

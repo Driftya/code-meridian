@@ -3715,6 +3715,27 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task CheckGraphFreshnessAsync_TreatsConfigurationNodesAsExpectedMetadataShapes()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                Node("cfg-key", "Embedding:Enabled", CodeNodeType.ConfigurationKey, project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow),
+                Node("cfg-entry", "Embedding__Enabled", CodeNodeType.ConfigurationEntry, ".env", project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow),
+                Node("cfg-file", ".env", CodeNodeType.ConfigurationFile, ".env", project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, sourceHash: "env-hash")
+            ]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "CodeMeridian");
+
+        result.Should().Contain("## Graph Freshness");
+        result.Should().Contain("3 High, 0 Medium, 0 Low confidence");
+        result.Should().Contain("not required");
+        result.Should().Contain("structural node with content-update metadata");
+        result.Should().Contain("indexer supplied the metadata expected for this node type");
+    }
+
+    [Fact]
     public async Task CheckGraphFreshnessAsync_WhenProjectContextHasNoNodes_SuggestsClosestProject()
     {
         var (sut, graph) = Build();
@@ -3852,5 +3873,23 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("ServiceWithoutPath");
         result.Should().NotContain("CodeMeridian.Services");
         result.Should().Contain("codemeridian index");
+    }
+
+    [Fact]
+    public async Task FindGraphDriftAsync_IgnoresStructuralAndConfigurationMetadataThatIsNotRequired()
+    {
+        var (sut, graph) = Build();
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                Node("cfg-key", "Embedding:Enabled", CodeNodeType.ConfigurationKey, project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow),
+                Node("cfg-entry", "Embedding__Enabled", CodeNodeType.ConfigurationEntry, ".env", project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow),
+                Node("api", "POST /nodes", CodeNodeType.ApiEndpoint, project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow),
+                Node("cfg-file", ".env", CodeNodeType.ConfigurationFile, ".env", project: "CodeMeridian", updatedAt: DateTimeOffset.UtcNow, sourceHash: "env-hash")
+            ]);
+
+        var result = await sut.FindGraphDriftAsync("CodeMeridian");
+
+        result.Should().Be("Graph drift: low for 'CodeMeridian'. Indexed file metadata, line metadata, source hashes, and update timestamps look consistent. Source files are not read by the MCP server.");
     }
 }
