@@ -102,7 +102,7 @@ CodeMeridian currently supports:
 - TypeScript / TSX via a ts-morph indexer
 - HTML, CSS, and SCSS via a static frontend relationship indexer
 - README and documentation files
-- Configuration files such as `appsettings*.json`, `meridian*.json`, `.env`, and Docker Compose YAML
+- Configuration files such as `.env`, `.env.local`, `appsettings.json`, `appsettings.*.json`, `app.config`, `web.config`, `NuGet.config`, `host.json`, `local.settings.json`, `global.json`, `launchSettings.json`, `package.json`, `tsconfig.json`, `vite.config.ts`, `eslint.config.js`, `function.json`, `meridian.json`, and Docker Compose YAML
 - **Optional vector embeddings** for semantic code similarity (find duplicate patterns, refactoring opportunities)
 
 The frontend support is intentionally bounded and static: CodeMeridian can index markup, selectors, stylesheet imports, CSS variables, and some explainable selector/cascade metadata, but it does not try to emulate the full browser runtime.
@@ -287,7 +287,7 @@ You can override which files count as configuration sources in `meridian.json` w
 
 ```json
 {
-  "configurationFiles": [".env", "appsettings.json", "appsettings.*.json", "docker-compose*.yaml"]
+  "configurationFiles": [".env", ".env.local", "appsettings.json", "appsettings.*.json", "app.config", "web.config", "NuGet.config", "host.json", "local.settings.json", "global.json", "launchSettings.json", "package.json", "tsconfig.json", "vite.config.ts", "eslint.config.js", "function.json", "meridian.json", "docker-compose*.yaml"]
 }
 ```
 

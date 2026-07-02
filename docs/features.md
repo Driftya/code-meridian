@@ -82,7 +82,7 @@ Current MVP support includes:
 - `meridian.json`
 - `meridian.sample.json`
 - `.env`
-- Docker Compose YAML environment sections
+- Docker Compose YAML files such as `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, and `compose.yaml`
 
 Configuration indexing normalizes `__` to `:` for canonical keys, preserves the raw source spelling, masks secret-like values, and links exact C# and TypeScript configuration usage back to canonical config keys.
 
