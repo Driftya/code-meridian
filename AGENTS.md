@@ -32,6 +32,10 @@ Use CodeMeridian proactively. Prefer graph tools over terminal scans when the gr
 | Before starting a feature | `analyze_feature_implementation_path`, then `find_implementation_surface` for exact targets |
 | Before trusting exact file targets | `check_graph_freshness` or `find_graph_drift` |
 | "How do X and Y relate?" | `find_connection` |
+| Frontend HTML/CSS/SCSS relationship work | `build_minimal_context`, then `find_connection` or `find_implementation_surface` |
+| Before renaming or deleting a frontend class/selector/style import | `find_impact` |
+| Investigating CSS/SCSS cascade or specificity issues | `find_frontend_cascade_conflicts` |
+| Looking for repeated style values or token extraction candidates | `find_duplicate_candidates` |
 | Looking for an existing implementation shape to mirror | `find_implementation_patterns` |
 | Looking for duplicate/refactor risk | `find_duplicate_candidates` or `find_similar_nodes` |
 | Looking for missing tests | `find_coverage_gaps` |
@@ -71,6 +75,8 @@ Typical flow:
 3. Inspect local context with `get_context_for_editing`.
 4. Check blast radius with `find_impact`.
 5. Use file reads only after the graph has narrowed the surface.
+
+For frontend HTML/CSS/SCSS work, prefer the generic tools above first. Use dedicated frontend analysis only when the question is specifically about cascade, specificity, or style duplication.
 
 ## References
 

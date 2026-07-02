@@ -11,6 +11,7 @@ The files in `meridian-agent-capabilities/` are intentionally provider-neutral w
 | Capability | File | Purpose |
 |---|---|---|
 | Context Skill | `docs/agent-capabilities/skills/codemeridian-context/SKILL.md` | Build minimal graph-grounded context before code work. |
+| Frontend Skill | `docs/agent-capabilities/skills/codemeridian-frontend/SKILL.md` | Route HTML/CSS/SCSS work through frontend-aware generic tools and bounded frontend-specific analysis. |
 | Refactor Skill | `docs/agent-capabilities/skills/codemeridian-refactor/SKILL.md` | Plan safer refactors with impact, tests, and dependency risk. |
 | Test Planning Skill | `docs/agent-capabilities/skills/codemeridian-test-planning/SKILL.md` | Find relevant tests and coverage gaps before behavior changes. |
 | Context Agent | `docs/agent-capabilities/agents/codemeridian-context-agent.md` | Specialist agent for gathering CodeMeridian context. |
@@ -29,6 +30,8 @@ Use the context skill before:
 * reviewing impact or architecture risk
 
 When a feature likely follows an existing slice, pair the context skill with `find_implementation_patterns` so the agent sees reusable entry/service/repository/test shapes before editing.
+
+Use the frontend skill when the task touches HTML, CSS, SCSS, selectors, style imports, or CSS variables. It keeps the default routing generic by preferring `build_minimal_context`, `find_connection`, `find_impact`, and `find_implementation_surface` before using frontend-only analysis such as `find_frontend_cascade_conflicts`.
 
 Use the context agent when your provider supports specialist agents or subagents and you want a dedicated helper to gather CodeMeridian context before the main agent edits files.
 

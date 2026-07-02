@@ -51,6 +51,7 @@ Also use this agent after a non-trivial implementation or refactor.
 Use installed CodeMeridian skills when they fit the task:
 
 * `codemeridian-context` for graph-grounded context before review
+* `codemeridian-frontend` when the review touches HTML/CSS/SCSS relationships, selector impact, cascade risk, or style duplication
 * `codemeridian-refactor` for refactor impact, blast radius, and route planning
 * `codemeridian-test-planning` for test shield and coverage gaps
 
@@ -282,6 +283,7 @@ Prefer:
 * `find_test_shield`
 * `find_coverage_gaps`
 * `find_impact`
+* `find_frontend_cascade_conflicts` when reviewing CSS/SCSS override or specificity risks
 
 Report:
 

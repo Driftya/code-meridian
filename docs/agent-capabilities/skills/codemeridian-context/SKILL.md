@@ -24,6 +24,8 @@ Use this skill before:
 * planning tests
 * modifying architecture-sensitive code
 
+If the task touches HTML, CSS, SCSS, selectors, style imports, or CSS variables, pair this skill with `codemeridian-frontend` so the context routing stays frontend-aware.
+
 ## Workflow
 
 ### 1. Check Graph Freshness
@@ -87,6 +89,8 @@ Prefer:
 * `find_implementation_patterns` when the feature should mirror an existing entry/service/repository/test shape
 * `resolve_exact_symbol` before editing a named class, method, interface, endpoint, or file
 * `get_context_for_editing` when preparing a focused edit
+
+For frontend work, expect these generic tools to surface indexed frontend edges such as `UsesClass`, `UsesId`, `DefinesSelector`, `ImportsStyle`, `UsesCssVariable`, and `DefinesCssVariable` before using frontend-only analysis.
 
 Avoid loading large unrelated files unless CodeMeridian cannot answer the question.
 

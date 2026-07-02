@@ -34,6 +34,7 @@ Prioritize:
 Use installed CodeMeridian skills when they fit the task:
 
 * `codemeridian-context` for graph-grounded context workflows
+* `codemeridian-frontend` for HTML/CSS/SCSS relationship, impact, duplicate-style, and cascade-aware frontend workflows
 * `codemeridian-refactor` for refactor impact and route planning
 * `codemeridian-test-planning` for test shield and coverage gaps
 
@@ -53,9 +54,23 @@ Use:
 * `find_test_shield` before behavior changes
 * `find_coverage_gaps` when tests are unclear
 * `find_unreferenced` before deleting code
+* `find_frontend_cascade_conflicts` when the question is about selector override, specificity, or likely cascade shadowing
 * `search_documentation` for architecture notes, decisions, and docs
 * `find_related_knowledge` for related indexed knowledge
 * `find_stale_knowledge` when remembered knowledge may no longer match the code
+
+For frontend HTML/CSS/SCSS work, prefer generic frontend-aware tools first:
+
+* `build_minimal_context`
+* `find_implementation_surface`
+* `find_connection`
+* `find_impact`
+
+Then use dedicated frontend analysis only when the user is specifically asking about:
+
+* cascade or specificity conflicts
+* repeated near-duplicate style values
+* CSS variable or selector cleanup that needs frontend-specific evidence
 
 If CodeMeridian tools are unavailable, say so and fall back to narrow repository search.
 

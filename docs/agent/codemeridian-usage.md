@@ -12,6 +12,7 @@ Use graph tools for:
 - dead-code checks
 - coverage gaps
 - feature implementation planning
+- frontend HTML/CSS/SCSS relationship analysis
 - size and refactor-risk analysis
 - exact symbol resolution before edits
 
@@ -44,6 +45,10 @@ Do not guess callers or blast radius from file names or grep output.
 | Before starting feature work | `analyze_feature_implementation_path` |
 | Need exact files for a feature/fix | `find_implementation_surface` |
 | "How do X and Y relate?" | `find_connection` |
+| Frontend component/template/stylesheet relationship work | `build_minimal_context`, then `find_connection` or `find_implementation_surface` |
+| Frontend class/selector rename or delete risk | `find_impact` |
+| CSS/SCSS cascade or specificity questions | `find_frontend_cascade_conflicts` |
+| CSS value duplication or token extraction work | `find_duplicate_candidates` |
 | Starting work in a risky area | `find_hotspots` |
 | Writing new tests | `find_coverage_gaps` |
 | Reviewing recent work | `find_recently_changed` |
@@ -71,6 +76,8 @@ Good examples:
 - high-risk high-fan-in methods
 - major testing gaps
 - architectural constraints discovered during implementation
+
+For frontend work, prefer the generic tools first and use `find_frontend_cascade_conflicts` only when the question is truly about cascade behavior rather than ordinary impact or connection analysis.
 
 Example:
 
