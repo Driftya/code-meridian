@@ -233,8 +233,28 @@ public partial class CodebaseQueryService
             ProjectContext = projectContext,
             Limit = Math.Clamp(limit * 5, 25, 200)
         };
-        var nodes = await codeGraph.QueryNodesAsync(query, cancellationToken);
+        var nodes = (await codeGraph.QueryNodesAsync(query, cancellationToken)).ToList();
+        if (!string.IsNullOrWhiteSpace(symbol)
+            && !nodes.Any(node => BuildSymbolResolution(node, symbol, filePath, line).TargetConfidence == "exact"))
+        {
+            foreach (var type in SymbolResolutionFallbackTypes)
+            {
+                var typedNodes = await codeGraph.QueryNodesAsync(
+                    new CodeGraphQuery
+                    {
+                        NameFilter = symbol,
+                        FilePathFilter = string.IsNullOrWhiteSpace(filePath) ? null : filePath,
+                        ProjectContext = projectContext,
+                        TypeFilter = type,
+                        Limit = Math.Clamp(limit * 2, 10, 50)
+                    },
+                    cancellationToken);
+                nodes.AddRange(typedNodes);
+            }
+        }
+
         var matches = nodes
+            .DistinctBy(node => node.Id)
             .Where(node => MatchesFileHint(node, filePath) || string.IsNullOrWhiteSpace(filePath))
             .Select(node => BuildSymbolResolution(node, symbol, filePath, line))
             .OrderByDescending(match => match.Score)
@@ -688,6 +708,14 @@ public partial class CodebaseQueryService
         string.IsNullOrWhiteSpace(conceptsCsv)
             ? []
             : conceptsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static readonly CodeNodeType[] SymbolResolutionFallbackTypes =
+    [
+        CodeNodeType.Class,
+        CodeNodeType.Interface,
+        CodeNodeType.Method,
+        CodeNodeType.File
+    ];
 
     private static string[] ExtractSurfaceTerms(string goal, IReadOnlyCollection<string> concepts)
     {

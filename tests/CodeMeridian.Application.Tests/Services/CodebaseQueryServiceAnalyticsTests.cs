@@ -3795,6 +3795,89 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task ResolveExactSymbolAsync_WhenBroadLookupMissesExactClass_UsesTypedFallbackQueries()
+    {
+        var (sut, graph) = Build();
+        var classNode = Node(
+            "CodeMeridian::Class::CodeMeridian.Application.Services.CodebaseQueryService",
+            "CodebaseQueryService",
+            CodeNodeType.Class,
+            "src/Application/Services/CodebaseQueryService.Surface.cs",
+            6,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 964,
+            sourceHash: "class-hash");
+        var constructorOne = Node(
+            "CodeMeridian::Method::CodeMeridian.Application.Services.CodebaseQueryService::CodebaseQueryService(ICodeGraphRepository,IVectorRepository)",
+            "CodebaseQueryService(ICodeGraphRepository,IVectorRepository)",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.cs",
+            22,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 12,
+            sourceHash: "ctor-1");
+        var constructorTwo = Node(
+            "CodeMeridian::Method::CodeMeridian.Application.Services.CodebaseQueryService::CodebaseQueryService(ICodeGraphRepository,IVectorRepository,IEmbeddingProvider)",
+            "CodebaseQueryService(ICodeGraphRepository,IVectorRepository,IEmbeddingProvider)",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.cs",
+            49,
+            "CodeMeridian",
+            updatedAt: DateTimeOffset.UtcNow,
+            lineCount: 12,
+            sourceHash: "ctor-2");
+
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q =>
+                    q.NameFilter == "CodebaseQueryService"
+                    && q.ProjectContext == "CodeMeridian"
+                    && q.TypeFilter == null),
+                Arg.Any<CancellationToken>())
+            .Returns([constructorOne, constructorTwo]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q =>
+                    q.NameFilter == "CodebaseQueryService"
+                    && q.ProjectContext == "CodeMeridian"
+                    && q.TypeFilter == CodeNodeType.Class),
+                Arg.Any<CancellationToken>())
+            .Returns([classNode]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q =>
+                    q.NameFilter == "CodebaseQueryService"
+                    && q.ProjectContext == "CodeMeridian"
+                    && q.TypeFilter == CodeNodeType.Interface),
+                Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q =>
+                    q.NameFilter == "CodebaseQueryService"
+                    && q.ProjectContext == "CodeMeridian"
+                    && q.TypeFilter == CodeNodeType.Method),
+                Arg.Any<CancellationToken>())
+            .Returns([constructorOne, constructorTwo]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(q =>
+                    q.NameFilter == "CodebaseQueryService"
+                    && q.ProjectContext == "CodeMeridian"
+                    && q.TypeFilter == CodeNodeType.File),
+                Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.ResolveExactSymbolAsync(
+            "CodebaseQueryService",
+            projectContext: "CodeMeridian");
+
+        result.Should().Contain("## Exact Symbol Resolution");
+        result.Should().Contain("**Confidence summary:** 1 exact");
+        result.Should().Contain(classNode.Id);
+        result.IndexOf(classNode.Id, StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(result.IndexOf(constructorOne.Id, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ResolveExactSymbolAsync_WithDuplicateMethodNamesAndFileHint_PrefersMatchingCanonicalNode()
     {
         var (sut, graph) = Build();
