@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using System.Text.RegularExpressions;
+using System.Globalization;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
 
@@ -60,18 +61,37 @@ public partial class CodebaseQueryService
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Coupling Hotspots{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine("Nodes with the most incoming dependencies — highest risk to change:\n");
-        sb.AppendLine("| Rank | Fan-in | Type | Name | File |");
-        sb.AppendLine("|------|--------|------|------|------|");
+        sb.AppendLine("Nodes with the most incoming dependencies — highest risk to change. Production candidates are prioritized by default.\n");
 
-        var rank = 1;
-        foreach (var (node, fanIn) in results
-                     .OrderBy(item => NodeDisplayRank(item.Node))
-                     .ThenByDescending(item => item.FanIn))
+        var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.FanIn)));
+        AppendActionabilitySection(
+            sb,
+            "Production candidates",
+            sections.ProductionCandidates,
+            "Fan-in",
+            fanIn => fanIn.ToString(CultureInfo.InvariantCulture));
+
+        if (ShouldShowBroaderHeuristicMatchesInline())
         {
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
-            sb.AppendLine($"| {rank++} | {fanIn} | {node.Type} | `{node.Name}` | {file} |");
+            AppendActionabilitySection(
+                sb,
+                "Broader heuristic matches",
+                sections.BroaderHeuristicMatches,
+                "Fan-in",
+                fanIn => fanIn.ToString(CultureInfo.InvariantCulture));
         }
+
+        if (ShouldShowSuppressedNoiseInline())
+        {
+            AppendActionabilitySection(
+                sb,
+                "Suppressed noise",
+                sections.SuppressedNoise,
+                "Fan-in",
+                fanIn => fanIn.ToString(CultureInfo.InvariantCulture));
+        }
+
+        AppendSuppressedActionabilitySummary(sb, sections);
 
         return sb.ToString();
     }
@@ -1166,6 +1186,50 @@ public partial class CodebaseQueryService
         foreach (var file in candidateFiles)
             sb.AppendLine($"- `{file}`");
         sb.AppendLine();
+    }
+
+    private void AppendActionabilitySection<T>(
+        StringBuilder sb,
+        string title,
+        IReadOnlyList<ScoredNodeDisplayItem<T>> items,
+        string scoreColumn,
+        Func<T, string> formatScore)
+    {
+        sb.AppendLine($"### {title} ({items.Count})");
+        if (items.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        sb.AppendLine($"| Rank | {scoreColumn} | Type | Name | Confidence | File |");
+        sb.AppendLine($"|------|{new string('-', scoreColumn.Length + 2)}|------|------|------------|------|");
+
+        var rank = 1;
+        foreach (var item in items)
+        {
+            var file = item.Node.FilePath is not null ? $"`{item.Node.FilePath}`" : "—";
+            sb.AppendLine(
+                $"| {rank++} | {formatScore(item.Value)} | {item.Node.Type} | `{item.Node.Name}` | {item.Assessment.Confidence} | {file} |");
+        }
+
+        sb.AppendLine();
+    }
+
+    private void AppendSuppressedActionabilitySummary<T>(StringBuilder sb, RankedNodeSections<T> sections)
+    {
+        var broaderCount = sections.BroaderHeuristicMatches.Count;
+        var suppressedCount = sections.SuppressedNoise.Count;
+
+        if (broaderCount == 0 && suppressedCount == 0)
+            return;
+
+        var broaderLabel = broaderCount == 1 ? "broader heuristic match" : "broader heuristic matches";
+        var suppressedLabel = suppressedCount == 1 ? "suppressed noise node" : "suppressed noise nodes";
+        sb.AppendLine(
+            $"> Hidden by default: {broaderCount} {broaderLabel}, {suppressedCount} {suppressedLabel}. " +
+            "Set `CodeMeridian:Analysis:Ranking:ProductionOnlyByDefault=false` or enable `IncludeBroaderHeuristicMatches` / `IncludeSuppressedNoise` to inspect them inline.");
     }
 
     private static void AppendDegradedContextSection(StringBuilder sb, IReadOnlyCollection<ContextPackDegradation> degradations)

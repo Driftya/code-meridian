@@ -278,12 +278,60 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var result = await sut.FindHotspotsAsync();
 
         result.Should().Contain("## Coupling Hotspots");
+        result.Should().Contain("### Production candidates (2)");
         result.Should().Contain("CoreService");
         result.Should().Contain("42");
         result.Should().Contain("UtilHelper");
         result.Should().Contain("17");
         result.Should().Contain("| 1 |"); // rank 1
         result.Should().Contain("| 2 |"); // rank 2
+    }
+
+    [Fact]
+    public async Task FindHotspotsAsync_DefaultNoiseReduction_HidesBroaderAndSuppressedResults()
+    {
+        var (sut, graph) = Build();
+        graph.FindHotspotsAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                (Node("prod-1", "BillingService", CodeNodeType.Class, "src/BillingService.cs", fileRole: IndexedFileRole.Source), 11),
+                (Node("heur-1", "Orders", CodeNodeType.Namespace, "src/Orders", fileRole: IndexedFileRole.Source), 9),
+                (Node("noise-1", "Orders:Timeout", CodeNodeType.ConfigurationKey, "appsettings.json", fileRole: IndexedFileRole.Configuration), 15)
+            ]);
+
+        var result = await sut.FindHotspotsAsync();
+
+        result.Should().Contain("### Production candidates (1)");
+        result.Should().Contain("BillingService");
+        result.Should().Contain("Hidden by default: 1 broader heuristic match, 1 suppressed noise node.");
+        result.Should().NotContain("### Broader heuristic matches");
+        result.Should().NotContain("### Suppressed noise");
+        result.Should().NotContain("Orders:Timeout");
+    }
+
+    [Fact]
+    public async Task FindHotspotsAsync_WhenBroaderOutputEnabled_ShowsHeuristicAndSuppressedSections()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                ProductionOnlyByDefault = false,
+                IncludeSuppressedNoise = true
+            }
+        });
+        graph.FindHotspotsAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                (Node("prod-1", "BillingService", CodeNodeType.Class, "src/BillingService.cs", fileRole: IndexedFileRole.Source), 11),
+                (Node("heur-1", "Orders", CodeNodeType.Namespace, "src/Orders", fileRole: IndexedFileRole.Source), 9),
+                (Node("noise-1", "Orders:Timeout", CodeNodeType.ConfigurationKey, "appsettings.json", fileRole: IndexedFileRole.Configuration), 15)
+            ]);
+
+        var result = await sut.FindHotspotsAsync();
+
+        result.Should().Contain("### Broader heuristic matches (1)");
+        result.Should().Contain("### Suppressed noise (1)");
+        result.Should().Contain("Orders");
+        result.Should().Contain("Orders:Timeout");
     }
 
     // ── FindConnectionAsync ───────────────────────────────────────────────────
@@ -1309,7 +1357,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("## High-Churn Nodes");
         result.Should().Contain("**2** nodes");
-        result.Should().Contain("Production code is ranked ahead");
+        result.Should().Contain("Production candidates are prioritized by default");
+        result.Should().Contain("### Production candidates (2)");
         result.Should().Contain("HotFile");
         result.Should().Contain("12×");
         result.Should().Contain("5×");
@@ -1335,9 +1384,34 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         var result = await sut.FindHighChurnAsync();
 
-        result.IndexOf("RealService", StringComparison.Ordinal)
-            .Should()
-            .BeLessThan(result.IndexOf("Build", StringComparison.Ordinal));
+        result.Should().Contain("RealService");
+        result.Should().NotContain("Build");
+    }
+
+    [Fact]
+    public async Task FindHighChurnAsync_WhenBroaderOutputEnabled_ShowsHeuristicAndSuppressedSections()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                ProductionOnlyByDefault = false,
+                IncludeSuppressedNoise = true
+            }
+        });
+        graph.FindHighChurnAsync(null, 3, Arg.Any<CancellationToken>())
+            .Returns([
+                (Node("prod-1", "RealService", CodeNodeType.Class, "src/RealService.cs", fileRole: IndexedFileRole.Source), 6),
+                (Node("heur-1", "Orders", CodeNodeType.Namespace, "src/Orders", fileRole: IndexedFileRole.Source), 7),
+                (Node("noise-1", "Build", CodeNodeType.Method, "tests/ServiceTests.cs", fileRole: IndexedFileRole.Test), 20)
+            ]);
+
+        var result = await sut.FindHighChurnAsync();
+
+        result.Should().Contain("### Broader heuristic matches (1)");
+        result.Should().Contain("### Suppressed noise (1)");
+        result.Should().Contain("Orders");
+        result.Should().Contain("Build");
     }
 
     // ── GetPageRankAsync ──────────────────────────────────────────────────────
@@ -1548,11 +1622,59 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var result = await sut.GetPageRankAsync();
 
         result.Should().Contain("## PageRank");
+        result.Should().Contain("### Production candidates (2)");
         result.Should().Contain("| 1 |");
         result.Should().Contain("CoreHub");
         result.Should().Contain("0.8700");
         result.Should().Contain("BaseRepo");
         result.Should().Contain("transitive call-graph influence");
+    }
+
+    [Fact]
+    public async Task GetPageRankAsync_DefaultNoiseReduction_HidesBroaderAndSuppressedResults()
+    {
+        var (sut, graph) = Build();
+        graph.GetPageRankAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                (Node("prod-1", "CoreHub", CodeNodeType.Class, "src/CoreHub.cs", fileRole: IndexedFileRole.Source), 0.87),
+                (Node("heur-1", "POST /orders", CodeNodeType.ApiEndpoint, "src/OrdersEndpoints.cs", fileRole: IndexedFileRole.Source), 0.91),
+                (Node("noise-1", "Orders:Timeout", CodeNodeType.ConfigurationKey, "appsettings.json", fileRole: IndexedFileRole.Configuration), 0.99)
+            ]);
+
+        var result = await sut.GetPageRankAsync();
+
+        result.Should().Contain("### Production candidates (1)");
+        result.Should().Contain("CoreHub");
+        result.Should().Contain("Hidden by default: 1 broader heuristic match, 1 suppressed noise node.");
+        result.Should().NotContain("### Broader heuristic matches");
+        result.Should().NotContain("### Suppressed noise");
+        result.Should().NotContain("Orders:Timeout");
+    }
+
+    [Fact]
+    public async Task GetPageRankAsync_WhenBroaderOutputEnabled_ShowsHeuristicAndSuppressedSections()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                ProductionOnlyByDefault = false,
+                IncludeSuppressedNoise = true
+            }
+        });
+        graph.GetPageRankAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                (Node("prod-1", "CoreHub", CodeNodeType.Class, "src/CoreHub.cs", fileRole: IndexedFileRole.Source), 0.87),
+                (Node("heur-1", "POST /orders", CodeNodeType.ApiEndpoint, "src/OrdersEndpoints.cs", fileRole: IndexedFileRole.Source), 0.91),
+                (Node("noise-1", "Orders:Timeout", CodeNodeType.ConfigurationKey, "appsettings.json", fileRole: IndexedFileRole.Configuration), 0.99)
+            ]);
+
+        var result = await sut.GetPageRankAsync();
+
+        result.Should().Contain("### Broader heuristic matches (1)");
+        result.Should().Contain("### Suppressed noise (1)");
+        result.Should().Contain("POST /orders");
+        result.Should().Contain("Orders:Timeout");
     }
 
     // ── GetBetweennessAsync ───────────────────────────────────────────────────

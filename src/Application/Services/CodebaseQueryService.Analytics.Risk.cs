@@ -364,17 +364,37 @@ public partial class CodebaseQueryService
 
         var sb = new StringBuilder();
         sb.AppendLine($"## High-Churn Nodes{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{results.Count}** nodes re-indexed ≥{threshold} times (frequently changed). Production code is ranked ahead of namespaces and tests:\n");
-        sb.AppendLine("| Churn | Type | Name | File |");
-        sb.AppendLine("|-------|------|------|------|");
+        sb.AppendLine($"**{results.Count}** nodes re-indexed ≥{threshold} times (frequently changed). Production candidates are prioritized by default:\n");
 
-        foreach (var (node, changeCount) in results
-                     .OrderBy(item => NodeDisplayRank(item.Node))
-                     .ThenByDescending(item => item.ChangeCount))
+        var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.ChangeCount)));
+        AppendActionabilitySection(
+            sb,
+            "Production candidates",
+            sections.ProductionCandidates,
+            "Churn",
+            changeCount => $"{changeCount}×");
+
+        if (ShouldShowBroaderHeuristicMatchesInline())
         {
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
-            sb.AppendLine($"| {changeCount}× | {node.Type} | `{node.Name}` | {file} |");
+            AppendActionabilitySection(
+                sb,
+                "Broader heuristic matches",
+                sections.BroaderHeuristicMatches,
+                "Churn",
+                changeCount => $"{changeCount}×");
         }
+
+        if (ShouldShowSuppressedNoiseInline())
+        {
+            AppendActionabilitySection(
+                sb,
+                "Suppressed noise",
+                sections.SuppressedNoise,
+                "Churn",
+                changeCount => $"{changeCount}×");
+        }
+
+        AppendSuppressedActionabilitySummary(sb, sections);
 
         sb.AppendLine();
         sb.AppendLine("> High churn + high fan-in = maximum technical debt risk. Cross-reference with find_hotspots.");

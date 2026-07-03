@@ -32,19 +32,37 @@ public partial class CodebaseQueryService
 
         var sb = new StringBuilder();
         sb.AppendLine($"## PageRank — Architectural Influence{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine("Nodes ranked by **transitive call-graph influence** (not just direct fan-in):\n");
-        sb.AppendLine("| Rank | Score | Type | Name | File |");
-        sb.AppendLine("|------|-------|------|------|------|");
+        sb.AppendLine("Nodes ranked by **transitive call-graph influence** (not just direct fan-in). Production candidates are prioritized by default.\n");
+        var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.Score)));
+        AppendActionabilitySection(
+            sb,
+            "Production candidates",
+            sections.ProductionCandidates,
+            "Score",
+            score => score.ToString("F4", CultureInfo.InvariantCulture));
 
-        var rank = 1;
-        foreach (var (node, score) in results
-                     .OrderBy(item => NodeDisplayRank(item.Node))
-                     .ThenByDescending(item => item.Score))
+        if (ShouldShowBroaderHeuristicMatchesInline())
         {
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
-            sb.AppendLine($"| {rank++} | {score.ToString("F4", CultureInfo.InvariantCulture)} | {node.Type} | `{node.Name}` | {file} |");
+            AppendActionabilitySection(
+                sb,
+                "Broader heuristic matches",
+                sections.BroaderHeuristicMatches,
+                "Score",
+                score => score.ToString("F4", CultureInfo.InvariantCulture));
         }
 
+        if (ShouldShowSuppressedNoiseInline())
+        {
+            AppendActionabilitySection(
+                sb,
+                "Suppressed noise",
+                sections.SuppressedNoise,
+                "Score",
+                score => score.ToString("F4", CultureInfo.InvariantCulture));
+        }
+
+        AppendSuppressedActionabilitySummary(sb, sections);
+        sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine("> PageRank captures *who calls the callers* — deeper architectural weight than fan-in alone.");
 
@@ -405,7 +423,7 @@ public partial class CodebaseQueryService
 
         foreach (var (node, score) in results)
         {
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "â€”";
+            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "-";
             sb.AppendLine($"| {(score * 100).ToString("F1", CultureInfo.InvariantCulture)}% | {node.Type} | `{node.Name}` | {file} |");
         }
 

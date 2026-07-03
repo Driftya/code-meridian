@@ -105,6 +105,14 @@ public sealed class RankingOptions
 {
     public bool PreferProductionOverTests { get; set; } = true;
 
+    public bool ProductionOnlyByDefault { get; set; } = true;
+
+    public bool IncludeBroaderHeuristicMatches { get; set; } = false;
+
+    public bool IncludeSuppressedNoise { get; set; } = false;
+
+    public int MinimumActionableLineCount { get; set; } = 3;
+
     public List<string> TestPathContains { get; set; } =
     [
         "test",
@@ -131,6 +139,40 @@ public sealed class RankingOptions
         "Module",
         "AppModule",
         "ContainerModule"
+    ];
+
+    public List<string> SuppressedFileRoles { get; set; } =
+    [
+        "Test",
+        "Configuration",
+        "Migration",
+        "Snapshot",
+        "Generated",
+        "BuildArtifact"
+    ];
+
+    public List<string> SuppressedNodeTypes { get; set; } =
+    [
+        "ConfigurationKey",
+        "ConfigurationEntry",
+        "Diagnostic",
+        "Property",
+        "Field",
+        "Event",
+        "Indexer",
+        "Operator"
+    ];
+
+    public List<string> BroaderHeuristicNodeTypes { get; set; } =
+    [
+        "Namespace",
+        "File",
+        "ApiEndpoint",
+        "ConfigurationFile",
+        "DatabaseTable",
+        "ExternalConcept",
+        "MessageTopic",
+        "ExternalService"
     ];
 }
 
