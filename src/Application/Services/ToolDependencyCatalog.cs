@@ -7,6 +7,21 @@ internal static class ToolDependencyCatalog
     public static IReadOnlyList<ToolDependencyEdge> Edges { get; } =
     [
         Edge(
+            "suggest_extractions",
+            "plan_context_workflow",
+            "extraction-planning workflow guidance",
+            "awareness",
+            "Workflow recipes recommend suggest_extractions as one comparison signal for refactor planning, so planner guidance should stay aligned with extraction confidence and location semantics.",
+            [
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceContextWorkflowTests.cs"
+            ],
+            [
+                "docs/features.md",
+                "docs/features/29-add-refactor-extraction-candidates.md",
+                "docs/features/43-add-context-workflow-planning.md"
+            ]),
+        Edge(
             "plan_context_workflow",
             "execute_context_workflow",
             "workflow plan shape",
@@ -231,6 +246,7 @@ internal static class ToolDependencyCatalog
             Subject("build_minimal_context", "Tool", "Build Minimal Context", "Bounded context-pack tool for editing and review.", ["mcp__codemeridian.build_minimal_context"]),
             Subject("find_related_knowledge", "Tool", "Find Related Knowledge", "Keyword-driven related-doc and related-code discovery tool.", ["mcp__codemeridian.find_related_knowledge"]),
             Subject("find_implementation_patterns", "Tool", "Find Implementation Patterns", "Structural implementation-pattern search that blends semantic seeds with graph reranking.", ["mcp__codemeridian.find_implementation_patterns"]),
+            Subject("suggest_extractions", "Tool", "Suggest Extractions", "Safe-first extraction candidate tool built from natural modules, hotspot signals, tests, and coverage gaps.", ["mcp__codemeridian.suggest_extractions"]),
             Subject("pr_context_report", "CLI report", "PR Context Report", "codemeridian report pr-context CI summary.", ["codemeridian report pr-context", "report pr-context"]),
             Subject("session_evidence_format", "Contract", "Session Evidence Format", "Provider-neutral .meridian/sessions/*.jsonl schema used by session evaluation.", ["session evidence", "session evidence jsonl", "session-evidence-format"]),
             Subject("evaluate_session", "CLI evaluator", "Evaluate Session", "codemeridian evaluate-session evidence evaluator and precision-feedback writer.", ["codemeridian evaluate-session", "evaluate-session"]),

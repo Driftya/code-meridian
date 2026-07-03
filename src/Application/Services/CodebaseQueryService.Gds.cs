@@ -601,34 +601,80 @@ public partial class CodebaseQueryService
 
     private static string ResolveExtractionLocation(IReadOnlyCollection<CodeNode> members)
     {
-        var namespaceLocation = members
+        var namespacePrefix = GetCommonNamespacePrefix(members);
+        var pathPrefix = GetCommonDirectoryPrefix(members);
+
+        if (!string.IsNullOrWhiteSpace(namespacePrefix))
+        {
+            var namespaceDepth = namespacePrefix.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
+            var pathDepth = string.IsNullOrWhiteSpace(pathPrefix)
+                ? 0
+                : pathPrefix.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
+
+            if (namespaceDepth >= 3 || namespaceDepth >= pathDepth)
+                return namespacePrefix;
+        }
+
+        if (!string.IsNullOrWhiteSpace(pathPrefix))
+            return pathPrefix;
+
+        return namespacePrefix ?? "Unknown";
+    }
+
+    private static string? GetCommonNamespacePrefix(IReadOnlyCollection<CodeNode> members)
+    {
+        var namespaces = members
             .Select(member => member.Namespace)
             .Where(value => !string.IsNullOrWhiteSpace(value))
-            .GroupBy(value =>
-            {
-                var parts = value!.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                return parts.Length >= 2 ? $"{parts[0]}.{parts[1]}" : parts[0];
-            }, StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(group => group.Count())
-            .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault()?.Key;
+            .Select(value => value!
+                .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToArray();
 
-        if (!string.IsNullOrWhiteSpace(namespaceLocation))
-            return namespaceLocation;
+        if (namespaces.Length == 0)
+            return null;
 
-        var pathLocation = members
+        return JoinCommonPrefix(namespaces, ".");
+    }
+
+    private static string? GetCommonDirectoryPrefix(IReadOnlyCollection<CodeNode> members)
+    {
+        var paths = members
             .Select(member => member.FilePath?.Replace('\\', '/'))
             .Where(path => !string.IsNullOrWhiteSpace(path))
-            .GroupBy(path =>
-            {
-                var parts = path!.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                return parts.Length >= 3 ? $"{parts[0]}/{parts[1]}/{parts[2]}" : string.Join("/", parts);
-            }, StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(group => group.Count())
-            .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault()?.Key;
+            .Select(path => path!
+                .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Reverse()
+                .Skip(1)
+                .Reverse()
+                .ToArray())
+            .Where(parts => parts.Length > 0)
+            .ToArray();
 
-        return pathLocation ?? "Unknown";
+        if (paths.Length == 0)
+            return null;
+
+        return JoinCommonPrefix(paths, "/");
+    }
+
+    private static string? JoinCommonPrefix(IReadOnlyList<string[]> values, string separator)
+    {
+        if (values.Count == 0)
+            return null;
+
+        var minLength = values.Min(parts => parts.Length);
+        var prefixLength = 0;
+        for (var index = 0; index < minLength; index++)
+        {
+            var segment = values[0][index];
+            if (values.Any(parts => !segment.Equals(parts[index], StringComparison.OrdinalIgnoreCase)))
+                break;
+
+            prefixLength++;
+        }
+
+        return prefixLength == 0
+            ? null
+            : string.Join(separator, values[0].Take(prefixLength));
     }
 
     private static int ScoreExtractionCandidate(

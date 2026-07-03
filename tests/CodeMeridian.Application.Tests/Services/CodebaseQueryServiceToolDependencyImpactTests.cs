@@ -103,6 +103,19 @@ public sealed class CodebaseQueryServiceToolDependencyImpactTests
     }
 
     [Fact]
+    public async Task FindToolDependencyImpactAsync_WithSuggestExtractionsSubject_ShowsPlannerAwareness()
+    {
+        var sut = BuildService();
+
+        var result = await sut.FindToolDependencyImpactAsync("suggest_extractions", includeAwarenessOnly: true);
+
+        result.Should().Contain("## Tool Dependency Impact - `suggest_extractions`");
+        result.Should().Contain("### Downstream Consumers");
+        result.Should().Contain("`plan_context_workflow`");
+        result.Should().Contain("docs/features/29-add-refactor-extraction-candidates.md");
+    }
+
+    [Fact]
     public async Task FindToolDependencyImpactAsync_WithUnknownSubject_ReturnsGuidance()
     {
         var sut = BuildService();
@@ -111,6 +124,7 @@ public sealed class CodebaseQueryServiceToolDependencyImpactTests
 
         result.Should().Contain("No tracked tool dependency subject matched `not_a_real_tool`.");
         result.Should().Contain("`find_test_shield`");
+        result.Should().Contain("`suggest_extractions`");
         result.Should().Contain("`evaluate_session`");
     }
 

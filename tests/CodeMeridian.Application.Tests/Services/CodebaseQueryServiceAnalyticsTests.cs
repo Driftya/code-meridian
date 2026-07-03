@@ -1857,7 +1857,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var result = await sut.SuggestExtractionsAsync("Shop", limit: 5);
 
         result.Should().Contain("## Refactor Extraction Candidates - Shop");
-        result.Should().Contain("`Shop.Application`");
+        result.Should().Contain("`Shop.Application.Payments`");
         result.Should().Contain("PaymentFacade");
         result.Should().Contain("PaymentFacadeTests");
         result.Should().Contain("coverage gaps");
