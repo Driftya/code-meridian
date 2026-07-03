@@ -2,6 +2,12 @@
 
 Use a global CodeMeridian config when you want the `codemeridian` CLI to work across many repositories without copying `meridian.json` into each project.
 
+Recommended split:
+
+- one dedicated runtime folder where you run `codemeridian serve`
+- `codemeridian init .` inside repos that need project-local config
+- `codemeridian init --global` once when you want user-wide fallback config
+
 ## Create The Global Config
 
 ```powershell
@@ -68,6 +74,8 @@ Add:
 
 If you do not use `CodeMeridian_Auth_ApiKey`, the header can remain present with an empty environment variable, or you can remove the `headers` block.
 
+On Windows, VS Code needs `CodeMeridian_Auth_ApiKey` in the actual VS Code process environment. A project `.env` is not enough for this user-level MCP registration. Set the variable in User or System environment variables and restart VS Code.
+
 ## Codex Global MCP Registration
 
 For Codex, add the server to your user-level config:
@@ -86,6 +94,8 @@ On Windows this is typically:
 ```text
 %USERPROFILE%\.codex\config.toml
 ```
+
+On Windows, Codex also needs `CodeMeridian_Auth_ApiKey` in the actual Codex process environment. A repo `.env` does not automatically flow into the MCP client. Set the variable in User or System environment variables and restart Codex or the terminal that launched it.
 
 ## Project-Local Still Works
 

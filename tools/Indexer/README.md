@@ -12,13 +12,17 @@ dotnet tool install -g CodeMeridian.Indexer
 
 ## Use
 
-The indexer sends data to a running CodeMeridian backend. To create local MCP client config and start Neo4j plus the MCP server with Docker Compose:
+The indexer sends data to a running CodeMeridian backend. Run `codemeridian serve` in a dedicated runtime folder for the shared MCP server and Neo4j stack, then run `codemeridian init .` in each indexed project or `codemeridian init --global` for user-wide defaults.
+
+To create local runtime files and start Neo4j plus the MCP server with Docker Compose:
 
 ```powershell
+codemeridian serve --no-start
 codemeridian serve
 ```
 
 ```powershell
+codemeridian init .
 codemeridian index .
 codemeridian index C:\Projects\MyApp --project MyApp --clear
 codemeridian index .
@@ -33,8 +37,7 @@ codemeridian config rebuild --project MyApp
 codemeridian index . --skip-csharp --skip-docs --skip-diagnostics
 codemeridian index . --skip-config
 codemeridian index . --watch
-codemeridian init .
-codemeridian serve --no-start
+
 codemeridian doctor --project CodeMeridian
 codemeridian report --project CodeMeridian
 codemeridian report pr-context --project CodeMeridian --base origin/main --head HEAD --format markdown --output artifacts/pr-context.md
@@ -62,7 +65,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Can generate CI-friendly PR context reports as Markdown or JSON without requiring an interactive assistant.
 - Can verify graph drift with `codemeridian check-drift` or `codemeridian index --verify`.
 - Can evaluate whether CodeMeridian helped an implementation session by comparing provider-neutral session evidence with git changes, then write `.meridian/precision-feedback.json` for future ranking feedback.
-- Can create local MCP client config and start the backend stack with `codemeridian serve`.
+- Can create local runtime files and start the backend stack with `codemeridian serve`.
 - Supports dry runs and capability listing for environment checks.
 - Can generate a local `meridian.json` and MCP client config with an auto-detected project name.
 - Can refresh an existing `meridian.json` in place by rerunning `codemeridian init .`, merging missing defaults without overwriting local settings.
@@ -104,7 +107,9 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
 - Use `codemeridian init .` to create or refresh `meridian.json` for a project and then step through prompts for `.vscode`, `.continue`, `.codex`, and `meridian-agent-capabilities`. When `meridian.json` already exists, `init` merges missing defaults, bumps the config `version`, and writes `meridian.json.bak` before replacing the file. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.
 - Use `codemeridian init --global --url http://localhost:5100` to create a user-level fallback config when you want the CLI to work across many repos without project-local config. Global init also seeds `.meridian/architecture.json`, `.meridian/keyword-classification.json`, `.meridian/database-tracing.json`, `.meridian/architectures/`, and `meridian-agent-capabilities/` under the global config root.
-- Use `codemeridian serve` to create `.env`, `.vscode/mcp.json`, `.codex/config.toml`, and `docker-compose.codemeridian.yml`, then start the backend stack.
-- Use `codemeridian serve --no-start` when you only want to write or merge those files.
+- Use `codemeridian serve` in a separate runtime folder to create `.env` and `docker-compose.codemeridian.yml`, then run `docker compose pull` followed by `docker compose up -d`.
+- Use `codemeridian serve --no-start` when you only want to write or merge those runtime files.
+- Use `codemeridian init .` when you want to create or merge client MCP config such as `.vscode/mcp.json`, `.continue/mcpServers/code-meridian.yaml`, or `.codex/config.toml`.
+- On Windows, keep `CodeMeridian_Auth_ApiKey` in the runtime `.env` for the server and also in User or System environment variables for MCP clients such as VS Code or Codex; project `.env` files are not automatically imported into those client processes.
 - The global tool does not include Neo4j. It starts Neo4j and the MCP server through Docker using the published MCP server image.
 - The repo-level README covers the full CodeMeridian product and architecture.

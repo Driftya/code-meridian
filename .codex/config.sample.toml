@@ -2,13 +2,15 @@
 # Applies to the OpenAI Codex IDE extension (openai.chatgpt) and the Codex CLI.
 # See: https://developers.openai.com/codex/mcp
 
-# CodeMeridian — persistent Neo4j code knowledge graph exposed as an MCP server.
-# Run `codemeridian serve` first to start the server.
+# CodeMeridian - persistent Neo4j code knowledge graph exposed as an MCP server.
+# Run `codemeridian serve` in your separate runtime folder first to start the server.
 [mcp_servers.CodeMeridian]
 url = "{{mcpUrl}}"
 default_tools_approval_mode = "auto"
 startup_timeout_sec = 15
 tool_timeout_sec = 60
 
-# Required only when CodeMeridian_Auth_ApiKey is set in .env / your shell.
+# Required only when CodeMeridian_Auth_ApiKey is enabled on the server.
+# MCP clients read this from their own process environment, not from a repo .env by default.
+# On Windows, prefer a User or System environment variable and restart the client after setting it.
 bearer_token_env_var = "CodeMeridian_Auth_ApiKey"

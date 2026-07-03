@@ -4,6 +4,8 @@ The unified indexer CLI scans a target directory and runs the available language
 
 ## Start the Server
 
+Run `codemeridian serve` in a dedicated runtime folder for the shared backend, not inside every indexed repository.
+
 ```powershell
 codemeridian serve
 ```
@@ -57,16 +59,28 @@ dotnet run --project tools/Indexer -- . --clear
 
 ## Common Commands
 
-Create MCP client config and start the local backend stack:
+Create local runtime files and start the local backend stack:
 
 ```powershell
 codemeridian serve
 ```
 
-Generate config without starting Docker:
+Generate runtime files without starting Docker:
 
 ```powershell
 codemeridian serve --no-start
+```
+
+Create project-local indexer and MCP client config in the repository you actually want to index:
+
+```powershell
+codemeridian init .
+```
+
+Create user-wide fallback config once for many repositories:
+
+```powershell
+codemeridian init --global --url http://localhost:5100
 ```
 
 Index the current directory:
@@ -346,7 +360,7 @@ Useful variables:
 |----------|---------|-------------|
 | `CodeMeridian_Url` | `http://localhost:5100` | CodeMeridian server URL used by indexers |
 | `CodeMeridian_Project` | auto-detected | Optional project context name used when `--project` is omitted |
-| `CodeMeridian_Auth_ApiKey` | empty | Optional bearer token sent by indexers and MCP clients |
+| `CodeMeridian_Auth_ApiKey` | empty | Optional bearer token used by the server, indexers, and MCP clients |
 | `NEO4J__URI` | `bolt://codemeridian-neo4j:7687` | Neo4j URI inside Docker |
 | `NEO4J__USERNAME` | `neo4j` | Neo4j username |
 | `NEO4J__PASSWORD` | `CodeMeridian` | Neo4j password |
@@ -379,6 +393,12 @@ When `CodeMeridian_Auth_ApiKey` is set, clients must send:
 Authorization: Bearer <your-api-key>
 ```
 
+Important split:
+
+- The indexer CLI can read `CodeMeridian_Auth_ApiKey` from `.env`.
+- MCP clients such as VS Code and Codex usually cannot read a project `.env` automatically.
+- On Windows, set `CodeMeridian_Auth_ApiKey` in User or System environment variables for the MCP client process, then restart the client.
+
 ## MCP Registration in VS Code
 
 When this repository is opened in VS Code, `.vscode/mcp.json` registers CodeMeridian automatically:
@@ -399,7 +419,7 @@ When this repository is opened in VS Code, `.vscode/mcp.json` registers CodeMeri
 
 To use CodeMeridian from another project, copy `.vscode/mcp.json` into that project's `.vscode/` folder and make sure the MCP server is running.
 
-`codemeridian serve` can create or merge this file for the current project.
+Use `codemeridian init .` when you want to create or merge this file for the current project.
 
 ## Stop or Reset
 

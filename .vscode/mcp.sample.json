@@ -3,7 +3,9 @@
     "CodeMeridian": {
       "type": "sse",
       "url": "{{mcpUrl}}",
-      // Required only when CodeMeridian_Auth_ApiKey is set in .env / your shell.
+      // Required only when CodeMeridian_Auth_ApiKey is enabled on the server.
+      // MCP clients read this from their own process environment, not from a repo .env by default.
+      // On Windows, prefer a User or System environment variable and restart the client after setting it.
       "headers": {
         "Authorization": "Bearer ${env:CodeMeridian_Auth_ApiKey}"
       }

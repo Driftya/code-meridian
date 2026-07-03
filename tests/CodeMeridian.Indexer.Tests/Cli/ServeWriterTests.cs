@@ -16,14 +16,15 @@ public sealed class ServeWriterTests : IDisposable
     }
 
     [Fact]
-    public void Apply_CreatesAllFilesInEmptyDirectory()
+    public void Apply_CreatesOnlyRuntimeFilesInEmptyDirectory()
     {
         var result = Apply();
 
         File.Exists(Path.Combine(_root, ".env")).Should().BeTrue();
         File.Exists(Path.Combine(_root, "docker-compose.codemeridian.yml")).Should().BeTrue();
-        File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeTrue();
-        File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeFalse();
+        File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeFalse();
+        File.Exists(Path.Combine(_root, ".continue", "mcpServers", "code-meridian.yaml")).Should().BeFalse();
         result.Changes.Should().OnlyContain(change => change.Status == "created");
     }
 
@@ -40,7 +41,7 @@ public sealed class ServeWriterTests : IDisposable
     }
 
     [Fact]
-    public void Apply_MergesMcpJsonAndPreservesUnrelatedServer()
+    public void ApplyClientConfig_MergesMcpJsonAndPreservesUnrelatedServer()
     {
         Directory.CreateDirectory(Path.Combine(_root, ".vscode"));
         File.WriteAllText(
@@ -57,7 +58,7 @@ public sealed class ServeWriterTests : IDisposable
             }
             """);
 
-        Apply();
+        ApplyClientConfig();
 
         var json = File.ReadAllText(Path.Combine(_root, ".vscode", "mcp.json"));
 
@@ -68,7 +69,7 @@ public sealed class ServeWriterTests : IDisposable
     }
 
     [Fact]
-    public void Apply_MergesCodexConfigAndPreservesUnrelatedSections()
+    public void ApplyClientConfig_MergesCodexConfigAndPreservesUnrelatedSections()
     {
         Directory.CreateDirectory(Path.Combine(_root, ".codex"));
         File.WriteAllText(
@@ -80,7 +81,7 @@ public sealed class ServeWriterTests : IDisposable
             command = "other"
             """);
 
-        Apply();
+        ApplyClientConfig();
 
         var toml = File.ReadAllText(Path.Combine(_root, ".codex", "config.toml"));
 
@@ -91,7 +92,7 @@ public sealed class ServeWriterTests : IDisposable
     }
 
     [Fact]
-    public void Apply_ReplacesExistingCodexCodeMeridianSection()
+    public void ApplyClientConfig_ReplacesExistingCodexCodeMeridianSection()
     {
         Directory.CreateDirectory(Path.Combine(_root, ".codex"));
         File.WriteAllText(
@@ -105,7 +106,7 @@ public sealed class ServeWriterTests : IDisposable
             command = "other"
             """);
 
-        Apply(port: 5200);
+        ApplyClientConfig(port: 5200);
 
         var toml = File.ReadAllText(Path.Combine(_root, ".codex", "config.toml"));
 
@@ -208,6 +209,17 @@ public sealed class ServeWriterTests : IDisposable
             Start: false);
 
         return new ServeWriter().Apply(options);
+    }
+
+    private IReadOnlyList<ServeFileChange> ApplyClientConfig(
+        string host = ServeOptions.DefaultHost,
+        int port = ServeOptions.DefaultPort,
+        bool force = false)
+    {
+        return new ServeWriter().ApplyClientConfig(
+            new DirectoryInfo(_root),
+            $"http://{host}:{port}",
+            force);
     }
 
     public void Dispose()

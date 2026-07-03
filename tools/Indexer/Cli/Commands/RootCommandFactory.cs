@@ -277,7 +277,7 @@ internal sealed class RootCommandFactory(
 
     private Command CreateServeCommand()
     {
-        var command = new Command("serve", "Create local MCP config and optionally start the backend stack.");
+        var command = new Command("serve", "Create local runtime files and optionally start the backend stack.");
         var pathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory to initialize. Defaults to the current directory." };
         var hostOption = new Option<string>("--host") { DefaultValueFactory = _ => ServeOptions.DefaultHost, Description = "Hostname for generated MCP URLs." };
         var portOption = new Option<int>("--port") { DefaultValueFactory = _ => ServeOptions.DefaultPort, Description = "MCP server host port." };

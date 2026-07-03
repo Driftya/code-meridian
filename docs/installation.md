@@ -51,15 +51,17 @@ dotnet tool update CodeMeridian.Indexer --global --add-source artifacts/packages
 
 ## Start the Server
 
-Create the local server config and start the containers:
+Run `codemeridian serve` in a dedicated runtime folder for the shared CodeMeridian backend, not inside every project you want to index.
+
+Create the local server runtime files and start the containers:
 
 ```powershell
 codemeridian serve
 ```
 
-This creates or merges `.env`, `.vscode/mcp.json`, `.codex/config.toml`, and `docker-compose.codemeridian.yml` from the repo's `*.sample.*` templates, then runs `docker compose -f docker-compose.codemeridian.yml up -d`.
+This creates or merges `.env` and `docker-compose.codemeridian.yml` from the repo's `*.sample.*` templates, then runs `docker compose -f docker-compose.codemeridian.yml pull` followed by `docker compose -f docker-compose.codemeridian.yml up -d`.
 
-To generate the files without starting Docker:
+To generate the runtime files without starting Docker:
 
 ```powershell
 codemeridian serve --no-start
@@ -71,7 +73,13 @@ This starts:
 - Neo4j bolt: `bolt://localhost:47687`
 - MCP server: `http://localhost:5100/sse`
 
-Open this repository in VS Code. The included `.vscode/mcp.json` registers the MCP server for GitHub Copilot.
+Typical split:
+
+- One runtime folder: run `codemeridian serve` there to manage `.env`, `docker-compose.codemeridian.yml`, Neo4j, and the MCP server.
+- Each indexed project: run `codemeridian init .` in that project when you want project-local `meridian.json` and MCP client config.
+- User-wide fallback: run `codemeridian init --global` when you want the indexer and MCP client defaults available across many repos.
+
+Open this repository in VS Code. The repo's checked-in `.vscode/mcp.json` registers the MCP server for GitHub Copilot.
 
 For source-checkout development, you can still start the repository compose file directly:
 
@@ -132,9 +140,17 @@ Node.js 18+ must be available on `PATH`.
 
 ## Authentication
 
-For public or shared deployments, set `CodeMeridian_Auth_ApiKey` in `.env`.
+For public or shared deployments, set `CodeMeridian_Auth_ApiKey` in the runtime folder `.env` so the server container starts with auth enabled.
 
 The indexer reads `.env` from the current directory or a parent directory first, then falls back to `meridian.json` for non-secret settings like the server URL or project name.
+
+Important: MCP clients such as VS Code, Codex, and similar tools do not automatically read your project `.env` just because the server does. They send `Authorization: Bearer ${env:CodeMeridian_Auth_ApiKey}` from their own process environment.
+
+On Windows, the practical setup is usually:
+
+1. keep `CodeMeridian_Auth_ApiKey` in the runtime folder `.env` for `codemeridian serve`
+2. also set `CodeMeridian_Auth_ApiKey` in your User or System environment variables for the MCP client
+3. restart VS Code, Codex, or any terminal/agent process after changing the environment variable
 
 If you want to pin the project name without using `--project`, set `CodeMeridian_Project` in `.env`:
 
@@ -152,11 +168,15 @@ codemeridian init .
 
 For a machine-wide fallback config, see [Global CodeMeridian Configuration](installation-global.md).
 
-The API key still comes from `.env` or your shell environment and is sent as:
+The API key sent by the indexer or MCP client is:
 
 ```http
 Authorization: Bearer <your-api-key>
 ```
+
+For the indexer CLI, `.env` is usually enough.
+
+For MCP clients, prefer a real environment variable in the client process, especially on Windows.
 
 You can also set the server URL explicitly:
 

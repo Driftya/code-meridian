@@ -18,9 +18,6 @@ internal sealed class ServeWriter
         {
             WriteEnv(options),
             WriteCompose(options),
-            WriteMcpJson(options),
-            WriteCodexToml(options),
-            WriteContinueMcpServer(options),
         };
 
         var composePath = Path.Combine(options.RootDirectory.FullName, options.ComposeFileName);

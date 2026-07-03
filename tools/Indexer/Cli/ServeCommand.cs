@@ -31,17 +31,31 @@ internal sealed class ServeCommand(ServeWriter serveWriter)
         {
             Console.WriteLine();
             Console.WriteLine("Next step:");
-            Console.WriteLine($"  docker compose -f {QuoteIfNeeded(result.ComposePath)} up -d");
+            foreach (var step in BuildDockerCommands(result.ComposePath))
+                Console.WriteLine($"  {FormatCommand(step)}");
             return 0;
         }
 
-        return await RunProcessAsync("docker", ["compose", "-f", result.ComposePath, "up", "-d"], options.RootDirectory);
+        foreach (var step in BuildDockerCommands(result.ComposePath))
+        {
+            var exitCode = await RunProcessAsync("docker", step, options.RootDirectory);
+            if (exitCode != 0)
+                return exitCode;
+        }
+
+        return 0;
     }
+
+    internal static IReadOnlyList<IReadOnlyList<string>> BuildDockerCommands(string composePath) =>
+    [
+        ["compose", "-f", composePath, "pull"],
+        ["compose", "-f", composePath, "up", "-d"],
+    ];
 
     private static async Task<int> RunProcessAsync(string fileName, IReadOnlyList<string> arguments, DirectoryInfo workingDirectory)
     {
         Console.WriteLine();
-        Console.WriteLine($"> {fileName} {string.Join(' ', arguments.Select(QuoteIfNeeded))}");
+        Console.WriteLine($"> {FormatCommand(arguments, fileName)}");
 
         using var process = new Process();
         process.StartInfo = new ProcessStartInfo
@@ -58,6 +72,9 @@ internal sealed class ServeCommand(ServeWriter serveWriter)
         await process.WaitForExitAsync();
         return process.ExitCode;
     }
+
+    internal static string FormatCommand(IReadOnlyList<string> arguments, string fileName = "docker") =>
+        $"{fileName} {string.Join(' ', arguments.Select(QuoteIfNeeded))}";
 
     private static string QuoteIfNeeded(string value) =>
         value.Any(char.IsWhiteSpace) ? $"\"{value}\"" : value;
