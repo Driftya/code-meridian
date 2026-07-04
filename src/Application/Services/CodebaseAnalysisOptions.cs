@@ -4,6 +4,11 @@ public sealed class CodebaseAnalysisOptions
 {
     public StaleKnowledgeOptions StaleKnowledge { get; set; } = new();
     public RankingOptions Ranking { get; set; } = new();
+    public CommunityNoiseOptions CommunityNoise { get; set; } = new();
+    public CoverageNoiseOptions CoverageNoise { get; set; } = new();
+    public DependencyNoiseOptions DependencyNoise { get; set; } = new();
+    public SimilarityNoiseOptions SimilarityNoise { get; set; } = new();
+    public DuplicateNoiseOptions DuplicateNoise { get; set; } = new();
     public PrecisionFeedbackOptions PrecisionFeedback { get; set; } = new();
 }
 
@@ -174,6 +179,63 @@ public sealed class RankingOptions
         "MessageTopic",
         "ExternalService"
     ];
+}
+
+public sealed class CommunityNoiseOptions
+{
+    public int MinimumCommunitySize { get; set; } = 3;
+
+    public double MinimumProductionMemberRatio { get; set; } = 0.6d;
+
+    public bool IncludeTestCommunities { get; set; } = false;
+
+    public int MaximumVisibleCommunities { get; set; } = 15;
+
+    public int MinimumExtractionCandidateMembers { get; set; } = 3;
+
+    public int MinimumPrimaryExtractionScore { get; set; } = 5;
+}
+
+public sealed class CoverageNoiseOptions
+{
+    public int MinimumHighPriorityLineCount { get; set; } = 8;
+
+    public List<string> LowPriorityNameSuffixes { get; set; } =
+    [
+        "Dto",
+        "Model",
+        "Request",
+        "Response",
+        "Options",
+        "Args",
+        "Record",
+        "Result",
+        "Event",
+        "Message"
+    ];
+}
+
+public sealed class DependencyNoiseOptions
+{
+    public bool IncludeTestDependenciesByDefault { get; set; } = false;
+}
+
+public sealed class SimilarityNoiseOptions
+{
+    public bool PreferSameNodeFamily { get; set; } = true;
+
+    public bool PreferSameLayer { get; set; } = true;
+
+    public double MinimumPrimarySimilarity { get; set; } = 0.85d;
+}
+
+public sealed class DuplicateNoiseOptions
+{
+    public double MinimumPrimarySimilarity { get; set; } = 0.92d;
+
+    public int MaximumPrimaryCombinedFanIn { get; set; } = 4;
+
+    public bool PreferSameLayer { get; set; } = true;
 }
 
 public sealed class PrecisionFeedbackOptions

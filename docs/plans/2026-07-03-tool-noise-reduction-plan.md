@@ -68,13 +68,13 @@
 
 ### Community And Extraction Tools
 
-- [ ] Reduce singleton and micro-community noise in `find_natural_modules`.
+- [x] Reduce singleton and micro-community noise in `find_natural_modules`.
   - Default output should collapse or suppress tiny communities and highlight only actionable production clusters.
   - Add summary metrics for omitted singleton/test/config communities.
   - Configuration-first detail: expose minimum community size, minimum production-member ratio, and optional include-test communities.
   - Indexer update needed: no.
 
-- [ ] Improve `suggest_extractions` candidate filtering and confidence.
+- [x] Improve `suggest_extractions` candidate filtering and confidence.
   - Keep the tool generic and safe-first.
   - Require stronger production-member density and better actionability before surfacing a candidate in the main table.
   - Add a secondary section for weak candidates instead of promoting them as primary suggestions.
@@ -89,7 +89,7 @@
 
 ### Coverage, Routing, And Similarity Tools
 
-- [ ] Reduce false-positive noise in `find_coverage_gaps`.
+- [x] Reduce false-positive noise in `find_coverage_gaps`.
   - Continue surfacing real gaps, but de-prioritize DTOs, tiny value objects, low-risk records, and types that are intentionally exercised indirectly.
   - Separate "high-priority untested behavior" from "low-priority uncalled support types."
   - Configuration-first detail: allow projects to declare ignorable file roles, namespaces, or low-risk type categories.
@@ -101,18 +101,18 @@
   - Configuration-first detail: allow per-project route preferences for contracts, infrastructure, CLI, or API surfaces.
   - Indexer update needed: no.
 
-- [ ] Reduce test leakage in `find_downstream`.
+- [x] Reduce test leakage in `find_downstream`.
   - Default downstream traversal for production targets should prioritize production dependencies and move test-only paths into a secondary section.
   - Configuration-first detail: expose whether tests should be included in downstream traversal by default.
   - Indexer update needed: no.
 
-- [ ] Improve `find_similar_nodes` default filtering.
+- [x] Improve `find_similar_nodes` default filtering.
   - Default to same node family, same architecture layer when possible, and non-test results first.
   - Keep broader semantic similarity available behind explicit flags.
   - Configuration-first detail: allow layer-sensitive similarity preferences per project.
   - Indexer update needed: optional if layer inference needs richer indexed metadata.
 
-- [ ] Revisit `find_duplicate_candidates` grouping and risk presentation.
+- [x] Revisit `find_duplicate_candidates` grouping and risk presentation.
   - Preserve broad discovery value, but group duplicate families more coherently and separate low-risk extraction candidates from broad incidental similarity.
   - Configuration-first detail: allow project-specific namespace/path exclusions and minimum size thresholds.
   - Indexer update needed: no for grouping; optional for stronger structural metadata.
@@ -166,8 +166,8 @@
 
 - [x] 1. Shared ranking/filtering primitives
 - [x] 2. `find_hotspots`, `get_pagerank`, `find_high_churn`
-- [ ] 3. `find_natural_modules`, `suggest_extractions`
-- [ ] 4. `find_coverage_gaps`, `find_downstream`, `find_similar_nodes`, `find_duplicate_candidates`
+- [x] 3. `find_natural_modules`, `suggest_extractions`
+- [x] 4. `find_coverage_gaps`, `find_downstream`, `find_similar_nodes`, `find_duplicate_candidates`
 - [ ] 5. `plan_edit_route`, `suggest_responsibility_slices`
 - [ ] 6. Configuration surface
 - [ ] 7. Indexer metadata follow-ups if still required after the first application-layer pass

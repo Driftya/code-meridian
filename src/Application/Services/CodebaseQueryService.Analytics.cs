@@ -207,26 +207,27 @@ public partial class CodebaseQueryService
                    "All production classes and methods appear to be called from test namespaces.";
 
         var rankedResults = RankNodesForDisplay(filteredResults).ToArray();
-        var grouped = rankedResults.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString()).ToArray();
+        var highPriority = rankedResults.Where(IsHighPriorityCoverageGap).ToArray();
+        var lowPriority = rankedResults.Where(node => !IsHighPriorityCoverageGap(node)).ToArray();
 
         if (detailLevel == ContextDetailLevel.Summary)
             return $"Coverage gap summary{(projectContext is not null ? $" for '{projectContext}'" : "")}: " +
-                   string.Join(", ", grouped.Select(g => $"{g.Count()} {g.Key}"));
+                   $"{highPriority.Length} high-priority, {lowPriority.Length} low-priority.";
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Test Coverage Gaps{(projectContext is not null ? $" — {projectContext}" : "")}");
         sb.AppendLine($"**{rankedResults.Length}** production types/methods with no test calling them, ranked by likely risk:\n");
 
-        foreach (var group in grouped)
+        AppendCoverageGapSection(sb, "High-priority untested behavior", highPriority);
+
+        if (ShouldShowBroaderHeuristicMatchesInline())
         {
-            sb.AppendLine($"### {group.Key}s ({group.Count()})");
-            foreach (var node in group)
-            {
-                var loc = node.FilePath is not null
-                    ? $"`{node.FilePath}`{(node.LineNumber.HasValue ? $":{node.LineNumber}" : "")}"
-                    : "—";
-                sb.AppendLine($"- `{node.Name}` — {loc}");
-            }
+            AppendCoverageGapSection(sb, "Low-priority support types", lowPriority);
+        }
+        else if (lowPriority.Length > 0)
+        {
+            sb.AppendLine($"> Hidden by default: {lowPriority.Length} low-priority support type{(lowPriority.Length == 1 ? string.Empty : "s")}. " +
+                          "Set `CodeMeridian:Analysis:Ranking:ProductionOnlyByDefault=false` or enable `IncludeBroaderHeuristicMatches` to inspect them inline.");
             sb.AppendLine();
         }
 
@@ -1230,6 +1231,44 @@ public partial class CodebaseQueryService
         sb.AppendLine(
             $"> Hidden by default: {broaderCount} {broaderLabel}, {suppressedCount} {suppressedLabel}. " +
             "Set `CodeMeridian:Analysis:Ranking:ProductionOnlyByDefault=false` or enable `IncludeBroaderHeuristicMatches` / `IncludeSuppressedNoise` to inspect them inline.");
+    }
+
+    private void AppendCoverageGapSection(StringBuilder sb, string title, IReadOnlyList<CodeNode> nodes)
+    {
+        sb.AppendLine($"### {title} ({nodes.Count})");
+        if (nodes.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        var grouped = nodes.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString(), StringComparer.Ordinal).ToArray();
+        foreach (var group in grouped)
+        {
+            sb.AppendLine($"#### {group.Key}s ({group.Count()})");
+            foreach (var node in group)
+            {
+                var loc = node.FilePath is not null
+                    ? $"`{node.FilePath}`{(node.LineNumber.HasValue ? $":{node.LineNumber}" : string.Empty)}"
+                    : "—";
+                sb.AppendLine($"- `{node.Name}` — {loc}");
+            }
+        }
+
+        sb.AppendLine();
+    }
+
+    private bool IsHighPriorityCoverageGap(CodeNode node)
+    {
+        if (AssessActionability(node).Bucket != ActionabilityBucket.ProductionCandidate)
+            return false;
+
+        if (node.LineCount.HasValue && node.LineCount.Value < analysisOptions.CoverageNoise.MinimumHighPriorityLineCount)
+            return false;
+
+        return analysisOptions.CoverageNoise.LowPriorityNameSuffixes
+            .Any(suffix => node.Name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) is false;
     }
 
     private static void AppendDegradedContextSection(StringBuilder sb, IReadOnlyCollection<ContextPackDegradation> degradations)

@@ -611,24 +611,50 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
-    public async Task FindCoverageGapsAsync_WithGaps_GroupsByTypeAndIncludesDisclaimer()
+    public async Task FindCoverageGapsAsync_DefaultNoiseReduction_HidesLowPrioritySupportTypes()
     {
         var (sut, graph) = Build();
         graph.FindCoverageGapsAsync("MyApi", Arg.Any<CancellationToken>())
-             .Returns([Node("u1", "UntouchedService", CodeNodeType.Class, "src/Untouched.cs", project: "MyApi"),
-                       Node("u2", "OrphanMethod",    CodeNodeType.Method, "src/Orphan.cs", 10, "MyApi")]);
+             .Returns([
+                 Node("u1", "UntouchedService", CodeNodeType.Class, "src/Untouched.cs", project: "MyApi", lineCount: 20, fileRole: IndexedFileRole.Source),
+                 Node("u2", "CheckoutResponse", CodeNodeType.Class, "src/CheckoutResponse.cs", 10, "MyApi", lineCount: 4, fileRole: IndexedFileRole.Source)
+             ]);
 
         var result = await sut.FindCoverageGapsAsync("MyApi");
 
-        result.Should().Contain("## Test Coverage Gaps — MyApi");
+        result.Should().Contain("## Test Coverage Gaps");
         result.Should().Contain("**2** production");
-        result.Should().Contain("ranked by likely risk");
-        result.Should().Contain("`UntouchedService`");
-        result.Should().Contain("`OrphanMethod`");
-        result.Should().Contain(":10");
+        result.Should().Contain("### High-priority untested behavior (1)");
+        result.Should().Contain("UntouchedService");
+        result.Should().NotContain("### Low-priority support types");
+        result.Should().NotContain("CheckoutResponse");
+        result.Should().Contain("Hidden by default: 1 low-priority support type");
         result.Should().Contain("heuristic");
     }
 
+    [Fact]
+    public async Task FindCoverageGapsAsync_WhenBroaderOutputEnabled_ShowsLowPrioritySupportTypes()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                IncludeBroaderHeuristicMatches = true
+            }
+        });
+        graph.FindCoverageGapsAsync("MyApi", Arg.Any<CancellationToken>())
+             .Returns([
+                 Node("u1", "UntouchedService", CodeNodeType.Class, "src/Untouched.cs", project: "MyApi", lineCount: 20, fileRole: IndexedFileRole.Source),
+                 Node("u2", "CheckoutResponse", CodeNodeType.Class, "src/CheckoutResponse.cs", 10, "MyApi", lineCount: 4, fileRole: IndexedFileRole.Source)
+             ]);
+
+        var result = await sut.FindCoverageGapsAsync("MyApi");
+
+        result.Should().Contain("### High-priority untested behavior (1)");
+        result.Should().Contain("### Low-priority support types (1)");
+        result.Should().Contain("UntouchedService");
+        result.Should().Contain("CheckoutResponse");
+    }
     [Fact]
     public async Task FindCoverageGapsAsync_IncludesUnknownRoleNodesButFiltersGeneratedNodes()
     {
@@ -1146,24 +1172,54 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
-    public async Task FindDownstreamAsync_WithResults_ReturnsMarkdownTable()
+    public async Task FindDownstreamAsync_DefaultNoiseReduction_HidesSuppressedTestDependencies()
     {
         var (sut, graph) = Build();
         graph.FindDownstreamAsync("Method:Foo.Bar()", 3, Arg.Any<CancellationToken>())
-             .Returns([(Node("d1", "DepService", CodeNodeType.Class, "src/Dep.cs"), 1),
-                       (Node("d2", "DbRepo", CodeNodeType.Class), 2)]);
+             .Returns([
+                 (Node("d1", "DepService", CodeNodeType.Class, "src/Dep.cs", fileRole: IndexedFileRole.Source), 1),
+                 (Node("d2", "DepServiceTests", CodeNodeType.Class, "tests/DepServiceTests.cs", fileRole: IndexedFileRole.Test), 2)
+             ]);
 
         var result = await sut.FindDownstreamAsync("Method:Foo.Bar()", depth: 3);
 
         result.Should().Contain("## Downstream Blast Radius");
         result.Should().Contain("**2** elements");
+        result.Should().Contain("### Production dependencies (1)");
         result.Should().Contain("DepService");
         result.Should().Contain("src/Dep.cs");
-        result.Should().Contain("| 1 |");
-        result.Should().Contain("| 2 |");
+        result.Should().NotContain("### Suppressed test/config noise");
+        result.Should().NotContain("DepServiceTests");
+        result.Should().Contain("Hidden by default: 0 broader heuristic matches, 1 suppressed noise node");
         result.Should().Contain("find_impact");
     }
 
+    [Fact]
+    public async Task FindDownstreamAsync_WhenBroaderOutputEnabled_ShowsHeuristicAndSuppressedDependencies()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                IncludeBroaderHeuristicMatches = true,
+                IncludeSuppressedNoise = true
+            }
+        });
+        graph.FindDownstreamAsync("Method:Foo.Bar()", 3, Arg.Any<CancellationToken>())
+             .Returns([
+                 (Node("d1", "DepService", CodeNodeType.Class, "src/Dep.cs", fileRole: IndexedFileRole.Source), 1),
+                 (Node("d2", "POST /deps", CodeNodeType.ApiEndpoint, "src/DepsEndpoint.cs", fileRole: IndexedFileRole.Source), 2),
+                 (Node("d3", "DepServiceTests", CodeNodeType.Class, "tests/DepServiceTests.cs", fileRole: IndexedFileRole.Test), 3)
+             ]);
+
+        var result = await sut.FindDownstreamAsync("Method:Foo.Bar()", depth: 3);
+
+        result.Should().Contain("### Production dependencies (1)");
+        result.Should().Contain("### Broader heuristic matches (1)");
+        result.Should().Contain("### Suppressed test/config noise (1)");
+        result.Should().Contain("POST /deps");
+        result.Should().Contain("DepServiceTests");
+    }
     // ── FindCyclesAsync ───────────────────────────────────────────────────────
 
     [Fact]
@@ -1192,7 +1248,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("**1** namespace pairs");
         result.Should().Contain("`MyApp.Services`");
         result.Should().Contain("`MyApp.Repositories`");
-        result.Should().Contain("↔");
+        result.Should().Contain("| Namespace A |");
         result.Should().Contain("abstraction");
     }
 
@@ -1881,12 +1937,38 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("## Natural Modules (Louvain)");
         result.Should().Contain("**2** organic communities");
-        result.Should().Contain("Community 1");
+        result.Should().Contain("### Production candidates (0)");
+        result.Should().Contain("Hidden by default: 2 broader heuristic communities");
+        result.Should().NotContain("Community 1");
+        result.Should().NotContain("HelperX");
+        result.Should().Contain("organic module boundaries");
+    }
+
+    [Fact]
+    public async Task FindNaturalModulesAsync_WhenBroaderOutputEnabled_ShowsHeuristicCommunities()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                ProductionOnlyByDefault = false
+            }
+        });
+        graph.FindNaturalModulesAsync(null, Arg.Any<CancellationToken>())
+             .Returns([
+                 (Node("a1", "ServiceA", CodeNodeType.Class, "src/A.cs", fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments"), 1L),
+                 (Node("a2", "ServiceB", CodeNodeType.Class, "src/B.cs", fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments"), 1L),
+                 (Node("b1", "HelperX",  CodeNodeType.Class, "src/X.cs", fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications"), 2L)
+             ]);
+
+        var result = await sut.FindNaturalModulesAsync();
+
+        result.Should().Contain("### Broader heuristic matches (2)");
+        result.Should().Contain("Community 1 (2 nodes)");
         result.Should().Contain("ServiceA");
         result.Should().Contain("ServiceB");
         result.Should().Contain("Community 2");
         result.Should().Contain("HelperX");
-        result.Should().Contain("organic module boundaries");
     }
 
     [Fact]
@@ -1979,12 +2061,95 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var result = await sut.SuggestExtractionsAsync("Shop", limit: 5);
 
         result.Should().Contain("## Refactor Extraction Candidates - Shop");
+        result.Should().Contain("### Primary candidates (1)");
         result.Should().Contain("`Shop.Application.Payments`");
         result.Should().Contain("PaymentFacade");
         result.Should().Contain("PaymentFacadeTests");
         result.Should().Contain("coverage gaps");
         result.Should().Contain("anchor fan-in 6");
         result.Should().Contain("large (340 lines)");
+    }
+
+    [Fact]
+    public async Task SuggestExtractionsAsync_DefaultNoiseReduction_HidesWeakCandidates()
+    {
+        var (sut, graph) = Build();
+        var strongA = Node("a1", "PaymentFacade", CodeNodeType.Class, "src/Application/Payments/PaymentFacade.cs", project: "Shop", lineCount: 340, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments");
+        var strongB = Node("a2", "RetryPolicyBuilder", CodeNodeType.Class, "src/Application/Payments/RetryPolicyBuilder.cs", project: "Shop", lineCount: 90, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments");
+        var strongC = Node("a3", "PaymentMapper", CodeNodeType.Method, "src/Application/Payments/PaymentMapper.cs", project: "Shop", lineCount: 30, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments");
+        var weakA = Node("b1", "EmailTemplateBuilder", CodeNodeType.Class, "src/Application/Notifications/EmailTemplateBuilder.cs", project: "Shop", lineCount: 40, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications");
+        var weakB = Node("b2", "EmailFormatter", CodeNodeType.Method, "src/Application/Notifications/EmailFormatter.cs", project: "Shop", lineCount: 20, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications");
+        var weakC = Node("b3", "EmailPreviewBuilder", CodeNodeType.Method, "src/Application/Notifications/EmailPreviewBuilder.cs", project: "Shop", lineCount: 18, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications");
+        var strongTest = Node("t1", "PaymentFacadeTests", CodeNodeType.Class, "tests/Payments/PaymentFacadeTests.cs", project: "Shop", fileRole: IndexedFileRole.Test);
+
+        graph.FindNaturalModulesAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns([
+                (strongA, 1L),
+                (strongB, 1L),
+                (strongC, 1L),
+                (weakA, 2L),
+                (weakB, 2L),
+                (weakC, 2L)
+            ]);
+        graph.FindHotspotsAsync("Shop", 50, Arg.Any<CancellationToken>()).Returns([(strongA, 6)]);
+        graph.FindGodClassesAsync("Shop", 300, 3, Arg.Any<CancellationToken>()).Returns([(strongA, 340, 6)]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>()).Returns([strongC]);
+        graph.FindRelatedTestsAsync(strongA.Id, "Shop", Arg.Any<CancellationToken>()).Returns([(strongTest, "direct")]);
+        graph.FindRelatedTestsAsync(strongB.Id, "Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(strongC.Id, "Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(weakA.Id, "Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(weakB.Id, "Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(weakC.Id, "Shop", Arg.Any<CancellationToken>()).Returns([]);
+
+        var result = await sut.SuggestExtractionsAsync("Shop", limit: 5);
+
+        result.Should().Contain("### Primary candidates (1)");
+        result.Should().Contain("Hidden by default: 1 weaker heuristic candidate.");
+        result.Should().NotContain("### Weaker heuristic candidates");
+        result.Should().NotContain("EmailTemplateBuilder");
+    }
+
+    [Fact]
+    public async Task SuggestExtractionsAsync_WhenBroaderOutputEnabled_ShowsWeakCandidatesSection()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                ProductionOnlyByDefault = false
+            }
+        });
+        var strongA = Node("a1", "PaymentFacade", CodeNodeType.Class, "src/Application/Payments/PaymentFacade.cs", project: "Shop", lineCount: 340, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments");
+        var strongB = Node("a2", "RetryPolicyBuilder", CodeNodeType.Class, "src/Application/Payments/RetryPolicyBuilder.cs", project: "Shop", lineCount: 90, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments");
+        var strongC = Node("a3", "PaymentMapper", CodeNodeType.Method, "src/Application/Payments/PaymentMapper.cs", project: "Shop", lineCount: 30, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments");
+        var weakA = Node("b1", "EmailTemplateBuilder", CodeNodeType.Class, "src/Application/Notifications/EmailTemplateBuilder.cs", project: "Shop", lineCount: 40, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications");
+        var weakB = Node("b2", "EmailFormatter", CodeNodeType.Method, "src/Application/Notifications/EmailFormatter.cs", project: "Shop", lineCount: 20, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications");
+        var weakC = Node("b3", "EmailPreviewBuilder", CodeNodeType.Method, "src/Application/Notifications/EmailPreviewBuilder.cs", project: "Shop", lineCount: 18, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications");
+        var strongTest = Node("t1", "PaymentFacadeTests", CodeNodeType.Class, "tests/Payments/PaymentFacadeTests.cs", project: "Shop", fileRole: IndexedFileRole.Test);
+
+        graph.FindNaturalModulesAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns([
+                (strongA, 1L),
+                (strongB, 1L),
+                (strongC, 1L),
+                (weakA, 2L),
+                (weakB, 2L),
+                (weakC, 2L)
+            ]);
+        graph.FindHotspotsAsync("Shop", 50, Arg.Any<CancellationToken>()).Returns([(strongA, 6)]);
+        graph.FindGodClassesAsync("Shop", 300, 3, Arg.Any<CancellationToken>()).Returns([(strongA, 340, 6)]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>()).Returns([strongC]);
+        graph.FindRelatedTestsAsync(strongA.Id, "Shop", Arg.Any<CancellationToken>()).Returns([(strongTest, "direct")]);
+        graph.FindRelatedTestsAsync(strongB.Id, "Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(strongC.Id, "Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(weakA.Id, "Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(weakB.Id, "Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(weakC.Id, "Shop", Arg.Any<CancellationToken>()).Returns([]);
+
+        var result = await sut.SuggestExtractionsAsync("Shop", limit: 5);
+
+        result.Should().Contain("### Weaker heuristic candidates (1)");
+        result.Should().Contain("EmailTemplateBuilder");
     }
 
     // ── FindSimilarToNodeAsync ────────────────────────────────────────────────
@@ -2004,24 +2169,56 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
-    public async Task FindSimilarToNodeAsync_WithResults_ReturnsSimilarityTable()
+    public async Task FindSimilarToNodeAsync_DefaultNoiseReduction_PrefersSameFamilyProductionMatches()
     {
         var (sut, graph) = Build();
-        graph.FindSimilarToNodeAsync("Method:Foo.Bar", null, 10, Arg.Any<CancellationToken>())
-             .Returns([(Node("s1", "SimilarMethod", CodeNodeType.Method, "src/Similar.cs"), 0.96),
-                       (Node("s2", "RelatedHelper", CodeNodeType.Method), 0.74)]);
+        graph.FindSimilarToNodeAsync("Method:Shop.Application.Foo.Bar", null, 10, Arg.Any<CancellationToken>())
+             .Returns([
+                 (Node("s1", "SimilarMethod", CodeNodeType.Method, "src/Application/Similar.cs", project: "Shop", fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments"), 0.96),
+                 (Node("s2", "RelatedService", CodeNodeType.Class, "src/Application/RelatedService.cs", project: "Shop", fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments"), 0.93),
+                 (Node("s3", "PaymentFlowTests", CodeNodeType.Method, "tests/Application/PaymentFlowTests.cs", project: "Shop", fileRole: IndexedFileRole.Test, @namespace: "Shop.Tests.Payments"), 0.97)
+             ]);
 
-        var result = await sut.FindSimilarToNodeAsync("Method:Foo.Bar");
+        var result = await sut.FindSimilarToNodeAsync("Method:Shop.Application.Foo.Bar");
 
         result.Should().Contain("## Semantically Similar Nodes");
-        result.Should().Contain("**2** nodes");
+        result.Should().Contain("**3** nodes");
+        result.Should().Contain("### Same-family production matches (1)");
         result.Should().Contain("SimilarMethod");
         result.Should().Contain("96.0%");
-        result.Should().Contain("RelatedHelper");
-        result.Should().Contain("74.0%");
-        result.Should().Contain("Semantic similarity");
+        result.Should().NotContain("### Broader semantic matches");
+        result.Should().NotContain("### Suppressed test/config matches");
+        result.Should().NotContain("RelatedService");
+        result.Should().NotContain("PaymentFlowTests");
+        result.Should().Contain("Hidden by default: 1 broader heuristic match, 1 suppressed noise node");
     }
 
+    [Fact]
+    public async Task FindSimilarToNodeAsync_WhenBroaderOutputEnabled_ShowsCrossFamilyAndSuppressedMatches()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                IncludeBroaderHeuristicMatches = true,
+                IncludeSuppressedNoise = true
+            }
+        });
+        graph.FindSimilarToNodeAsync("Method:Shop.Application.Foo.Bar", null, 10, Arg.Any<CancellationToken>())
+             .Returns([
+                 (Node("s1", "SimilarMethod", CodeNodeType.Method, "src/Application/Similar.cs", project: "Shop", fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments"), 0.96),
+                 (Node("s2", "RelatedService", CodeNodeType.Class, "src/Application/RelatedService.cs", project: "Shop", fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments"), 0.93),
+                 (Node("s3", "PaymentFlowTests", CodeNodeType.Method, "tests/Application/PaymentFlowTests.cs", project: "Shop", fileRole: IndexedFileRole.Test, @namespace: "Shop.Tests.Payments"), 0.97)
+             ]);
+
+        var result = await sut.FindSimilarToNodeAsync("Method:Shop.Application.Foo.Bar");
+
+        result.Should().Contain("### Same-family production matches (1)");
+        result.Should().Contain("### Broader semantic matches (1)");
+        result.Should().Contain("### Suppressed test/config matches (1)");
+        result.Should().Contain("RelatedService");
+        result.Should().Contain("PaymentFlowTests");
+    }
     [Fact]
     public async Task FindHybridSearchAsync_WithResults_UsesEmbeddingAndGraphConstraints()
     {
@@ -2242,14 +2439,18 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
-    public async Task FindDuplicateCandidatesAsync_WithCandidates_ReturnsWorkflowTable()
+    public async Task FindDuplicateCandidatesAsync_DefaultNoiseReduction_ShowsLowRiskExtractionCandidatesFirst()
     {
         var (sut, graph) = Build();
-        var source = Node("m1", "CalculateTotal", CodeNodeType.Method, "src/Orders.cs", line: 42, lineCount: 18);
-        var candidate = Node("m2", "ComputeTotal", CodeNodeType.Method, "src/Billing.cs", line: 87, lineCount: 20);
+        var source = Node("m1", "CalculateTotal", CodeNodeType.Method, "src/Application/Orders.cs", line: 42, lineCount: 18, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Orders");
+        var candidate = Node("m2", "ComputeTotal", CodeNodeType.Method, "src/Application/Billing.cs", line: 87, lineCount: 20, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Billing");
+        var incidental = Node("m3", "ComputeLedgerTotal", CodeNodeType.Method, "src/Infrastructure/Ledger.cs", line: 12, lineCount: 21, fileRole: IndexedFileRole.Source, @namespace: "Shop.Infrastructure.Billing");
 
         graph.FindDuplicateCandidatesAsync("Shop", "Domain", CodeNodeType.Method, 10, 0.90, true, 20, Arg.Any<CancellationToken>())
-             .Returns([new DuplicateCandidate(source, candidate, 0.94, 1, 2, true, false)]);
+             .Returns([
+                 new DuplicateCandidate(source, candidate, 0.94, 1, 2, true, false),
+                 new DuplicateCandidate(source, incidental, 0.90, 4, 3, false, false)
+             ]);
 
         var result = await sut.FindDuplicateCandidatesAsync(
             projectContext: "Shop",
@@ -2259,14 +2460,54 @@ public sealed class CodebaseQueryServiceAnalyticsTests
             minSimilarity: 0.90);
 
         result.Should().Contain("## Duplicate-Code Candidates - Shop");
+        result.Should().Contain("### Low-risk extraction candidates (1)");
         result.Should().Contain("94.0%");
         result.Should().Contain("CalculateTotal");
         result.Should().Contain("ComputeTotal");
         result.Should().Contain("18/20 lines");
         result.Should().Contain("Medium (3 callers)");
         result.Should().Contain("source only");
+        result.Should().NotContain("### Broader incidental similarity");
+        result.Should().NotContain("ComputeLedgerTotal");
+        result.Should().Contain("Hidden by default: 1 broader heuristic match, 0 suppressed noise nodes");
     }
 
+    [Fact]
+    public async Task FindDuplicateCandidatesAsync_WhenBroaderOutputEnabled_ShowsIncidentalAndSuppressedFamilies()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                IncludeBroaderHeuristicMatches = true,
+                IncludeSuppressedNoise = true
+            }
+        });
+        var source = Node("m1", "CalculateTotal", CodeNodeType.Method, "src/Application/Orders.cs", line: 42, lineCount: 18, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Orders");
+        var primary = Node("m2", "ComputeTotal", CodeNodeType.Method, "src/Application/Billing.cs", line: 87, lineCount: 20, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Billing");
+        var incidental = Node("m3", "ComputeLedgerTotal", CodeNodeType.Method, "src/Infrastructure/Ledger.cs", line: 12, lineCount: 21, fileRole: IndexedFileRole.Source, @namespace: "Shop.Infrastructure.Billing");
+        var testOnly = Node("m4", "CalculateTotalTests", CodeNodeType.Method, "tests/Application/CalculateTotalTests.cs", line: 15, lineCount: 20, fileRole: IndexedFileRole.Test, @namespace: "Shop.Tests.Orders");
+
+        graph.FindDuplicateCandidatesAsync("Shop", "Domain", CodeNodeType.Method, 10, 0.90, false, 20, Arg.Any<CancellationToken>())
+             .Returns([
+                 new DuplicateCandidate(source, primary, 0.94, 1, 2, true, false),
+                 new DuplicateCandidate(source, incidental, 0.90, 4, 3, false, false),
+                 new DuplicateCandidate(source, testOnly, 0.95, 0, 0, true, true)
+             ]);
+
+        var result = await sut.FindDuplicateCandidatesAsync(
+            projectContext: "Shop",
+            namespaceFilter: "Domain",
+            nodeType: "Method",
+            minLineCount: 10,
+            minSimilarity: 0.90,
+            excludeTests: false);
+
+        result.Should().Contain("### Low-risk extraction candidates (1)");
+        result.Should().Contain("### Broader incidental similarity (1)");
+        result.Should().Contain("### Suppressed test/config similarity (0)");
+        result.Should().Contain("ComputeLedgerTotal");
+    }
     [Fact]
     public async Task FindDuplicateCandidatesAsync_WithInvalidNodeType_ReturnsGuidance()
     {
@@ -4373,3 +4614,5 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Be("Graph drift: low for 'CodeMeridian'. Indexed file metadata, line metadata, source hashes, and update timestamps look consistent. Source files are not read by the MCP server.");
     }
 }
+
+

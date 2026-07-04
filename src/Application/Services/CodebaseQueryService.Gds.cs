@@ -173,16 +173,19 @@ public partial class CodebaseQueryService
             return $"No communities detected{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
                    "The graph may have no edges — run the indexer first.";
 
-        var communities = results
-            .GroupBy(r => r.Community)
-            .OrderByDescending(g => g.Count())
-            .ToList();
+        var communities = ClassifyCommunities(results);
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Natural Modules (Louvain){(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{communities.Count}** organic communities detected from {results.Count} nodes:\n");
+        sb.AppendLine($"**{communities.Count}** organic communities detected from {results.Count} nodes.\n");
 
-        foreach (var community in communities.Take(15))
+        AppendCommunitySection(sb, "Production candidates", communities.Where(c => c.Bucket == ActionabilityBucket.ProductionCandidate).ToArray());
+        if (ShouldShowBroaderHeuristicMatchesInline())
+            AppendCommunitySection(sb, "Broader heuristic matches", communities.Where(c => c.Bucket == ActionabilityBucket.BroaderHeuristicMatch).ToArray());
+        if (ShouldShowSuppressedNoiseInline())
+            AppendCommunitySection(sb, "Suppressed noise", communities.Where(c => c.Bucket == ActionabilityBucket.SuppressedNoise).ToArray());
+        AppendCommunitySuppressionSummary(sb, communities);
+/*
         {
             var members = community.OrderBy(r => r.Node.Name).ToList();
             sb.AppendLine($"### Community {community.Key} ({members.Count} nodes)");
@@ -212,6 +215,7 @@ public partial class CodebaseQueryService
 
         if (communities.Count > 15)
             sb.AppendLine($"*{communities.Count - 15} smaller communities omitted.*");
+*/
 
         sb.AppendLine("> Communities represent organic module boundaries. Compare with your folder structure to identify hidden coupling.");
 
@@ -248,19 +252,18 @@ public partial class CodebaseQueryService
             .Select(node => node.Id)
             .ToHashSet(StringComparer.Ordinal);
 
-        var candidates = new List<ExtractionCandidate>();
-        foreach (var community in communities
-                     .GroupBy(item => item.Community)
-                     .OrderByDescending(group => group.Count()))
+        var classifiedCommunities = ClassifyCommunities(communities);
+        var primaryCandidates = new List<ExtractionCandidate>();
+        var weakCandidates = new List<ExtractionCandidate>();
+        foreach (var community in classifiedCommunities)
         {
-            var members = community
-                .Select(item => item.Node)
+            var members = community.Members
                 .Where(node => AllowsProfile(node, AnalysisProfile.DesignSmells) && !IsConfiguredTestNode(node))
                 .Where(node => node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
                 .DistinctBy(node => node.Id)
                 .ToArray();
 
-            if (members.Length < 3)
+            if (members.Length < analysisOptions.CommunityNoise.MinimumExtractionCandidateMembers)
                 continue;
 
             var tests = new List<CodeNode>();
@@ -286,12 +289,12 @@ public partial class CodebaseQueryService
                 .ToArray();
             var anchor = SelectExtractionAnchor(members, hotspotScores, godClassScores);
             var location = ResolveExtractionLocation(members);
-            var score = ScoreExtractionCandidate(members.Length, uniqueFiles.Length, uniqueTests.Length, coverageGapCount, layers.Length, anchor, hotspotScores, godClassScores);
-            var confidence = DescribeExtractionConfidence(uniqueTests.Length, coverageGapCount, layers.Length, anchor, hotspotScores, godClassScores);
-            var reason = BuildExtractionReason(members, uniqueFiles.Length, uniqueTests.Length, coverageGapCount, layers, anchor, hotspotScores, godClassScores);
+            var score = ScoreExtractionCandidate(members.Length, uniqueFiles.Length, uniqueTests.Length, coverageGapCount, layers.Length, community.ProductionRatio, anchor, hotspotScores, godClassScores);
+            var confidence = DescribeExtractionConfidence(uniqueTests.Length, coverageGapCount, layers.Length, community.ProductionRatio, anchor, hotspotScores, godClassScores);
+            var reason = BuildExtractionReason(members, uniqueFiles.Length, uniqueTests.Length, coverageGapCount, layers, community.ProductionRatio, anchor, hotspotScores, godClassScores);
 
-            candidates.Add(new ExtractionCandidate(
-                community.Key,
+            var candidate = new ExtractionCandidate(
+                community.CommunityId,
                 location,
                 confidence,
                 score,
@@ -299,26 +302,49 @@ public partial class CodebaseQueryService
                 members,
                 uniqueTests,
                 coverageGapCount,
-                reason));
+                community.ProductionRatio,
+                reason);
+
+            if (community.Bucket == ActionabilityBucket.ProductionCandidate
+                && score >= analysisOptions.CommunityNoise.MinimumPrimaryExtractionScore
+                && !string.Equals(confidence, "Low", StringComparison.OrdinalIgnoreCase))
+                primaryCandidates.Add(candidate);
+            else
+                weakCandidates.Add(candidate);
         }
 
-        var ranked = candidates
+        var ranked = primaryCandidates
+            .OrderByDescending(candidate => candidate.Score)
+            .ThenBy(candidate => candidate.Location, StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Clamp(limit, 1, 25))
+            .ToArray();
+        var weakRanked = weakCandidates
             .OrderByDescending(candidate => candidate.Score)
             .ThenBy(candidate => candidate.Location, StringComparer.OrdinalIgnoreCase)
             .Take(Math.Clamp(limit, 1, 25))
             .ToArray();
 
-        if (ranked.Length == 0)
+        if (ranked.Length == 0 && weakRanked.Length == 0)
             return $"No extraction candidates survived the current safety filters{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
                    "Try re-indexing, or wait until the graph contains larger production-only communities.";
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Refactor Extraction Candidates{(projectContext is not null ? $" - {projectContext}" : "")}");
-        sb.AppendLine($"**{ranked.Length}** tightly connected groups ranked as extraction candidates.");
+        sb.AppendLine($"**{ranked.Length}** primary extraction candidates survived the current actionability thresholds.");
         sb.AppendLine();
-        sb.AppendLine("| Rank | Move-from location | Confidence | Anchor | Nearby tests | Coverage gaps | Why |");
-        sb.AppendLine("|---:|---|---|---|---|---:|---|");
+        AppendExtractionCandidateTable(sb, ranked, "Primary candidates");
+        if (weakRanked.Length > 0 && ShouldShowBroaderHeuristicMatchesInline())
+        {
+            AppendExtractionCandidateTable(sb, weakRanked, "Weaker heuristic candidates");
+        }
+        else if (weakRanked.Length > 0)
+        {
+            sb.AppendLine($"> Hidden by default: {weakRanked.Length} weaker heuristic candidate{(weakRanked.Length == 1 ? string.Empty : "s")}. " +
+                          "Set `CodeMeridian:Analysis:Ranking:ProductionOnlyByDefault=false` or enable `IncludeBroaderHeuristicMatches` to inspect them inline.");
+            sb.AppendLine();
+        }
 
+/*
         var rank = 1;
         foreach (var candidate in ranked)
         {
@@ -330,11 +356,13 @@ public partial class CodebaseQueryService
         }
 
         sb.AppendLine();
+*/
         sb.AppendLine("### Candidate details");
-        foreach (var candidate in ranked)
+        foreach (var candidate in ranked.Concat(ShouldShowBroaderHeuristicMatchesInline() ? weakRanked : Array.Empty<ExtractionCandidate>()))
         {
             sb.AppendLine($"#### Community {candidate.Community} - `{candidate.Location}`");
             sb.AppendLine($"- Anchor: `{candidate.Anchor.Name}` ({candidate.Anchor.Type})");
+            sb.AppendLine($"- Production member ratio: {(candidate.ProductionRatio * 100).ToString("F0", CultureInfo.InvariantCulture)}%");
             sb.AppendLine($"- Members: {string.Join(", ", candidate.Members.Take(5).Select(member => $"`{member.Name}`"))}");
             sb.AppendLine($"- Nearby tests: {(candidate.NearbyTests.Count == 0 ? "none found" : string.Join(", ", candidate.NearbyTests.Take(4).Select(test => $"`{test.Name}`")))}");
             sb.AppendLine($"- Reason: {candidate.Reason}");
@@ -358,23 +386,46 @@ public partial class CodebaseQueryService
                    "Pass an `embeddingCsv` when calling ingest_code_node, or re-index with an embedding-enabled indexer.";
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Semantically Similar Nodes — `{nodeId}`");
+        sb.AppendLine($"## Semantically Similar Nodes - `{nodeId}`");
         sb.AppendLine($"**{results.Count}** nodes with similar vector embeddings:\n");
-        sb.AppendLine("| Similarity | Type | Name | File |");
-        sb.AppendLine("|-----------|------|------|------|");
 
-        foreach (var (node, score) in results)
+        var sections = PartitionSimilarityMatches(nodeId, results);
+        AppendActionabilitySection(
+            sb,
+            "Same-family production matches",
+            sections.ProductionCandidates,
+            "Similarity",
+            score => $"{(score * 100).ToString("F1", CultureInfo.InvariantCulture)}%");
+
+        if (ShouldShowBroaderHeuristicMatchesInline())
         {
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
-            sb.AppendLine($"| {(score * 100).ToString("F1", CultureInfo.InvariantCulture)}% | {node.Type} | `{node.Name}` | {file} |");
+            AppendActionabilitySection(
+                sb,
+                "Broader semantic matches",
+                sections.BroaderHeuristicMatches,
+                "Similarity",
+                score => $"{(score * 100).ToString("F1", CultureInfo.InvariantCulture)}%");
+        }
+
+        if (ShouldShowSuppressedNoiseInline())
+        {
+            AppendActionabilitySection(
+                sb,
+                "Suppressed test/config matches",
+                sections.SuppressedNoise,
+                "Similarity",
+                score => $"{(score * 100).ToString("F1", CultureInfo.InvariantCulture)}%");
+        }
+        else
+        {
+            AppendSuppressedActionabilitySummary(sb, sections);
         }
 
         sb.AppendLine();
-        sb.AppendLine("> Semantic similarity finds conceptually related code regardless of call-graph proximity — useful for finding duplicates or related implementations.");
+        sb.AppendLine("> Semantic similarity keeps same-family production matches first by default. Enable broader output to inspect cross-layer or test-adjacent semantic neighbors.");
 
         return sb.ToString();
     }
-
     public async Task<string> FindHybridSearchAsync(
         string query,
         string? nearNodeId = null,
@@ -493,30 +544,193 @@ public partial class CodebaseQueryService
             .ToList();
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Duplicate-Code Candidates{(projectContext is not null ? $" - {projectContext}" : "")}");
+        sb.AppendLine($"## Duplicate-Code Candidates{(projectContext is not null ? $" - {projectContext}" : string.Empty)}");
         sb.AppendLine($"**{results.Count}** similar method/class pairs across **{grouped.Count}** source groups.\n");
-        sb.AppendLine("| Similarity | Type | Source | Candidate | Size | Refactor Risk | Coverage |");
-        sb.AppendLine("|-----------|------|--------|-----------|------|---------------|----------|");
 
-        foreach (var candidate in results)
-        {
-            var source = FormatDuplicateNode(candidate.Source);
-            var duplicate = FormatDuplicateNode(candidate.Candidate);
-            var size = $"{candidate.Source.LineCount ?? 0}/{candidate.Candidate.LineCount ?? 0} lines";
-            var risk = FormatDuplicateRisk(candidate.SourceFanIn + candidate.CandidateFanIn);
-            var coverage = FormatCoverage(candidate.SourceHasTestCoverage, candidate.CandidateHasTestCoverage);
+        var sections = PartitionDuplicateCandidates(results);
+        AppendDuplicateCandidateSection(sb, "Low-risk extraction candidates", sections.ProductionCandidates);
 
-            sb.AppendLine(
-                $"| {(candidate.Score * 100).ToString("F1", CultureInfo.InvariantCulture)}% | " +
-                $"{candidate.Source.Type} | {source} | {duplicate} | {size} | {risk} | {coverage} |");
-        }
+        if (ShouldShowBroaderHeuristicMatchesInline())
+            AppendDuplicateCandidateSection(sb, "Broader incidental similarity", sections.BroaderHeuristicMatches);
+
+        if (ShouldShowSuppressedNoiseInline())
+            AppendDuplicateCandidateSection(sb, "Suppressed test/config similarity", sections.SuppressedNoise);
+        else
+            AppendSuppressedActionabilitySummary(sb, sections);
 
         sb.AppendLine();
-        sb.AppendLine("> Review these as candidates, not proof of duplication. Prioritise high-similarity pairs with low fan-in and some test coverage.");
+        sb.AppendLine("> Review these as candidates, not proof of duplication. Prioritise low fan-in, same-layer pairs with strong similarity before considering broader semantic overlap.");
 
         return sb.ToString();
     }
 
+    private RankedNodeSections<double> PartitionSimilarityMatches(
+        string nodeId,
+        IReadOnlyList<(CodeNode Node, double Score)> results)
+    {
+        var referenceType = TryInferReferenceNodeType(nodeId);
+        var referenceLayer = TryInferLayerFromNodeId(nodeId);
+        var ranked = new List<ScoredNodeDisplayItem<double>>(results.Count);
+
+        foreach (var (node, score) in results)
+        {
+            var baseAssessment = AssessActionability(node);
+            if (baseAssessment.Bucket == ActionabilityBucket.SuppressedNoise)
+            {
+                ranked.Add(new ScoredNodeDisplayItem<double>(node, score, baseAssessment));
+                continue;
+            }
+
+            var sameFamily = !analysisOptions.SimilarityNoise.PreferSameNodeFamily
+                             || referenceType is null
+                             || node.Type == referenceType.Value;
+            var sameLayer = !analysisOptions.SimilarityNoise.PreferSameLayer
+                            || referenceLayer is null
+                            || string.Equals(InferLayer(node), referenceLayer, StringComparison.OrdinalIgnoreCase);
+            var primary = sameFamily
+                          && sameLayer
+                          && score >= analysisOptions.SimilarityNoise.MinimumPrimarySimilarity
+                          && baseAssessment.Bucket == ActionabilityBucket.ProductionCandidate;
+
+            var confidence = primary
+                ? baseAssessment.Confidence
+                : baseAssessment.Bucket == ActionabilityBucket.ProductionCandidate ? "Medium" : "Low";
+            var bucket = primary
+                ? ActionabilityBucket.ProductionCandidate
+                : ActionabilityBucket.BroaderHeuristicMatch;
+            var penalty = baseAssessment.RankPenalty
+                          + (sameFamily ? 0 : 15)
+                          + (sameLayer ? 0 : 10)
+                          + Math.Max(0, (int)Math.Round((analysisOptions.SimilarityNoise.MinimumPrimarySimilarity - score) * 100, MidpointRounding.AwayFromZero));
+            var reason = primary
+                ? "same-family production match"
+                : BuildSimilarityReason(sameFamily, sameLayer, score, analysisOptions.SimilarityNoise.MinimumPrimarySimilarity);
+
+            ranked.Add(new ScoredNodeDisplayItem<double>(
+                node,
+                score,
+                new NodeActionabilityAssessment(bucket, confidence, penalty, reason)));
+        }
+
+        return new RankedNodeSections<double>(
+            ranked.Where(item => item.Assessment.Bucket == ActionabilityBucket.ProductionCandidate)
+                .OrderByDescending(item => item.Value)
+                .ThenBy(item => item.Assessment.RankPenalty)
+                .ToArray(),
+            ranked.Where(item => item.Assessment.Bucket == ActionabilityBucket.BroaderHeuristicMatch)
+                .OrderByDescending(item => item.Value)
+                .ThenBy(item => item.Assessment.RankPenalty)
+                .ToArray(),
+            ranked.Where(item => item.Assessment.Bucket == ActionabilityBucket.SuppressedNoise)
+                .OrderByDescending(item => item.Value)
+                .ThenBy(item => item.Assessment.RankPenalty)
+                .ToArray());
+    }
+
+    private RankedNodeSections<DuplicateCandidate> PartitionDuplicateCandidates(IReadOnlyList<DuplicateCandidate> candidates)
+    {
+        var ranked = new List<ScoredNodeDisplayItem<DuplicateCandidate>>(candidates.Count);
+        foreach (var candidate in candidates)
+        {
+            var sourceAssessment = AssessActionability(candidate.Source);
+            var duplicateAssessment = AssessActionability(candidate.Candidate);
+            if (sourceAssessment.Bucket == ActionabilityBucket.SuppressedNoise
+                || duplicateAssessment.Bucket == ActionabilityBucket.SuppressedNoise)
+            {
+                var suppressedPenalty = Math.Max(sourceAssessment.RankPenalty, duplicateAssessment.RankPenalty);
+                ranked.Add(new ScoredNodeDisplayItem<DuplicateCandidate>(
+                    candidate.Source,
+                    candidate,
+                    new NodeActionabilityAssessment(
+                        ActionabilityBucket.SuppressedNoise,
+                        "Low",
+                        suppressedPenalty,
+                        "test or non-production duplicate candidate")));
+                continue;
+            }
+
+            var combinedFanIn = candidate.SourceFanIn + candidate.CandidateFanIn;
+            var sameLayer = !analysisOptions.DuplicateNoise.PreferSameLayer
+                            || string.Equals(InferLayer(candidate.Source), InferLayer(candidate.Candidate), StringComparison.OrdinalIgnoreCase);
+            var primary = candidate.Score >= analysisOptions.DuplicateNoise.MinimumPrimarySimilarity
+                          && combinedFanIn <= analysisOptions.DuplicateNoise.MaximumPrimaryCombinedFanIn
+                          && sameLayer
+                          && sourceAssessment.Bucket == ActionabilityBucket.ProductionCandidate
+                          && duplicateAssessment.Bucket == ActionabilityBucket.ProductionCandidate;
+
+            var bucket = primary ? ActionabilityBucket.ProductionCandidate : ActionabilityBucket.BroaderHeuristicMatch;
+            var confidence = primary
+                ? (candidate.SourceHasTestCoverage || candidate.CandidateHasTestCoverage ? "High" : "Medium")
+                : "Medium";
+            var penalty = Math.Max(sourceAssessment.RankPenalty, duplicateAssessment.RankPenalty)
+                          + Math.Max(0, combinedFanIn - analysisOptions.DuplicateNoise.MaximumPrimaryCombinedFanIn) * 5
+                          + (sameLayer ? 0 : 10)
+                          + Math.Max(0, (int)Math.Round((analysisOptions.DuplicateNoise.MinimumPrimarySimilarity - candidate.Score) * 100, MidpointRounding.AwayFromZero));
+            var reason = primary
+                ? "same-layer duplicate family with low refactor risk"
+                : BuildDuplicateReason(candidate, combinedFanIn, sameLayer, analysisOptions.DuplicateNoise.MinimumPrimarySimilarity, analysisOptions.DuplicateNoise.MaximumPrimaryCombinedFanIn);
+
+            ranked.Add(new ScoredNodeDisplayItem<DuplicateCandidate>(
+                candidate.Source,
+                candidate,
+                new NodeActionabilityAssessment(bucket, confidence, penalty, reason)));
+        }
+
+        return new RankedNodeSections<DuplicateCandidate>(
+            ranked.Where(item => item.Assessment.Bucket == ActionabilityBucket.ProductionCandidate)
+                .OrderByDescending(item => item.Value.Score)
+                .ThenBy(item => item.Assessment.RankPenalty)
+                .ToArray(),
+            ranked.Where(item => item.Assessment.Bucket == ActionabilityBucket.BroaderHeuristicMatch)
+                .OrderByDescending(item => item.Value.Score)
+                .ThenBy(item => item.Assessment.RankPenalty)
+                .ToArray(),
+            ranked.Where(item => item.Assessment.Bucket == ActionabilityBucket.SuppressedNoise)
+                .OrderByDescending(item => item.Value.Score)
+                .ThenBy(item => item.Assessment.RankPenalty)
+                .ToArray());
+    }
+
+    private void AppendDuplicateCandidateSection(
+        StringBuilder sb,
+        string title,
+        IReadOnlyList<ScoredNodeDisplayItem<DuplicateCandidate>> items)
+    {
+        sb.AppendLine($"### {title} ({items.Count})");
+        if (items.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        foreach (var group in items
+                     .GroupBy(item => item.Value.Source.Id)
+                     .OrderByDescending(group => group.Max(item => item.Value.Score))
+                     .ThenBy(group => group.First().Value.Source.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var source = group.First().Value.Source;
+            sb.AppendLine($"#### `{source.Name}`");
+            sb.AppendLine($"- Source: {FormatDuplicateNode(source)}");
+            sb.AppendLine($"- Family size: {group.Count()} candidate{(group.Count() == 1 ? string.Empty : "s")}");
+            sb.AppendLine();
+            sb.AppendLine("| Similarity | Candidate | Size | Refactor Risk | Coverage | Confidence |");
+            sb.AppendLine("|-----------|-----------|------|---------------|----------|------------|");
+
+            foreach (var item in group.OrderByDescending(entry => entry.Value.Score).ThenBy(entry => entry.Value.Candidate.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var candidate = item.Value;
+                var duplicate = FormatDuplicateNode(candidate.Candidate);
+                var size = $"{candidate.Source.LineCount ?? 0}/{candidate.Candidate.LineCount ?? 0} lines";
+                var risk = FormatDuplicateRisk(candidate.SourceFanIn + candidate.CandidateFanIn);
+                var coverage = FormatCoverage(candidate.SourceHasTestCoverage, candidate.CandidateHasTestCoverage);
+                sb.AppendLine(
+                    $"| {(candidate.Score * 100).ToString("F1", CultureInfo.InvariantCulture)}% | {duplicate} | {size} | {risk} | {coverage} | {item.Assessment.Confidence} |");
+            }
+
+            sb.AppendLine();
+        }
+    }
     private static string FormatDuplicateNode(CodeNode node)
     {
         var location = node.FilePath is null
@@ -581,6 +795,75 @@ public partial class CodebaseQueryService
         return "Unknown";
     }
 
+    private static CodeNodeType? TryInferReferenceNodeType(string nodeId)
+    {
+        foreach (var type in Enum.GetValues<CodeNodeType>())
+        {
+            if (nodeId.Contains($"::{type}::", StringComparison.OrdinalIgnoreCase)
+                || nodeId.StartsWith(type + ":", StringComparison.OrdinalIgnoreCase))
+                return type;
+        }
+
+        return null;
+    }
+
+    private static string? TryInferLayerFromNodeId(string nodeId)
+    {
+        if (nodeId.Contains(".Tests.", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains("tests/", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains("tests\\", StringComparison.OrdinalIgnoreCase))
+            return "Tests";
+        if (nodeId.Contains(".Core.", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains("/Core/", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains("\\Core\\", StringComparison.OrdinalIgnoreCase))
+            return "Core";
+        if (nodeId.Contains(".Application.", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains("/Application/", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains("\\Application\\", StringComparison.OrdinalIgnoreCase))
+            return "Application";
+        if (nodeId.Contains(".Infrastructure.", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains("/Infrastructure/", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains("\\Infrastructure\\", StringComparison.OrdinalIgnoreCase))
+            return "Infrastructure";
+        if (nodeId.Contains(".Api.", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains(".McpServer.", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains("/Api/", StringComparison.OrdinalIgnoreCase)
+            || nodeId.Contains("\\Api\\", StringComparison.OrdinalIgnoreCase))
+            return "API";
+
+        return null;
+    }
+
+    private static string BuildSimilarityReason(bool sameFamily, bool sameLayer, double score, double minimumPrimarySimilarity)
+    {
+        var parts = new List<string>();
+        if (!sameFamily)
+            parts.Add("cross-family match");
+        if (!sameLayer)
+            parts.Add("cross-layer match");
+        if (score < minimumPrimarySimilarity)
+            parts.Add("below primary similarity threshold");
+
+        return parts.Count == 0 ? "broader semantic match" : string.Join(", ", parts);
+    }
+
+    private static string BuildDuplicateReason(
+        DuplicateCandidate candidate,
+        int combinedFanIn,
+        bool sameLayer,
+        double minimumPrimarySimilarity,
+        int maximumPrimaryCombinedFanIn)
+    {
+        var parts = new List<string>();
+        if (candidate.Score < minimumPrimarySimilarity)
+            parts.Add("below primary similarity threshold");
+        if (combinedFanIn > maximumPrimaryCombinedFanIn)
+            parts.Add("higher caller count");
+        if (!sameLayer)
+            parts.Add("cross-layer pair");
+
+        return parts.Count == 0 ? "broader duplicate candidate" : string.Join(", ", parts);
+    }
     private static bool ContainsSegment(string value, string segment)
     {
         return value.Equals(segment, StringComparison.OrdinalIgnoreCase)
@@ -701,6 +984,7 @@ public partial class CodebaseQueryService
         int testCount,
         int coverageGapCount,
         int layerCount,
+        double productionRatio,
         CodeNode anchor,
         IReadOnlyDictionary<string, int> hotspotScores,
         IReadOnlyDictionary<string, (int LineCount, int FanIn)> godClassScores)
@@ -715,6 +999,9 @@ public partial class CodebaseQueryService
             _ => 1
         };
 
+        score += productionRatio >= 0.8d ? 3
+            : productionRatio >= 0.6d ? 2
+            : 0;
         score += fileCount <= 2 ? 3
             : fileCount <= 4 ? 2
             : 0;
@@ -731,14 +1018,19 @@ public partial class CodebaseQueryService
         int testCount,
         int coverageGapCount,
         int layerCount,
+        double productionRatio,
         CodeNode anchor,
         IReadOnlyDictionary<string, int> hotspotScores,
         IReadOnlyDictionary<string, (int LineCount, int FanIn)> godClassScores)
     {
-        if (testCount > 0 && coverageGapCount == 0 && layerCount <= 1 && (godClassScores.ContainsKey(anchor.Id) || hotspotScores.GetValueOrDefault(anchor.Id) >= 3))
+        if (productionRatio >= 0.8d
+            && testCount > 0
+            && coverageGapCount == 0
+            && layerCount <= 1
+            && (godClassScores.ContainsKey(anchor.Id) || hotspotScores.GetValueOrDefault(anchor.Id) >= 3))
             return "High";
 
-        if (testCount > 0 && layerCount <= 2)
+        if (productionRatio >= 0.6d && testCount > 0 && layerCount <= 2)
             return "Medium";
 
         return "Low";
@@ -750,6 +1042,7 @@ public partial class CodebaseQueryService
         int testCount,
         int coverageGapCount,
         IReadOnlyCollection<string> layers,
+        double productionRatio,
         CodeNode anchor,
         IReadOnlyDictionary<string, int> hotspotScores,
         IReadOnlyDictionary<string, (int LineCount, int FanIn)> godClassScores)
@@ -757,7 +1050,8 @@ public partial class CodebaseQueryService
         var parts = new List<string>
         {
             $"{members.Count} production members",
-            $"{fileCount} files"
+            $"{fileCount} files",
+            $"{(productionRatio * 100).ToString("F0", CultureInfo.InvariantCulture)}% production density"
         };
 
         if (layers.Count > 0)
@@ -782,5 +1076,165 @@ public partial class CodebaseQueryService
         IReadOnlyList<CodeNode> Members,
         IReadOnlyList<CodeNode> NearbyTests,
         int CoverageGapCount,
+        double ProductionRatio,
         string Reason);
+
+    private IReadOnlyList<CommunityCluster> ClassifyCommunities(IReadOnlyList<(CodeNode Node, long Community)> results)
+    {
+        return results
+            .GroupBy(item => item.Community)
+            .Select(group =>
+            {
+                var members = group
+                    .Select(item => item.Node)
+                    .DistinctBy(node => node.Id)
+                    .OrderBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                var productionMembers = members
+                    .Where(node => AssessActionability(node).Bucket == ActionabilityBucket.ProductionCandidate)
+                    .ToArray();
+                var testMembers = members.Count(IsConfiguredTestNode);
+                var suppressedMembers = members.Count(node => AssessActionability(node).Bucket == ActionabilityBucket.SuppressedNoise);
+                var productionRatio = members.Length == 0 ? 0d : (double)productionMembers.Length / members.Length;
+                var dominantNamespace = members
+                    .Where(node => node.Namespace is not null)
+                    .Select(node => node.Namespace!.Split('.').LastOrDefault() ?? string.Empty)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .GroupBy(value => value)
+                    .OrderByDescending(bucket => bucket.Count())
+                    .FirstOrDefault()?.Key;
+                var bucket = ClassifyCommunityBucket(members.Length, productionMembers.Length, productionRatio, testMembers);
+                var confidence = bucket == ActionabilityBucket.ProductionCandidate
+                    ? (productionRatio >= 0.8d ? "High" : "Medium")
+                    : bucket == ActionabilityBucket.BroaderHeuristicMatch ? "Medium" : "Low";
+                var reason = DescribeCommunityBucket(members.Length, productionMembers.Length, productionRatio, testMembers, suppressedMembers, bucket);
+
+                return new CommunityCluster(group.Key, members, productionRatio, bucket, confidence, reason, dominantNamespace);
+            })
+            .OrderByDescending(cluster => cluster.Members.Count)
+            .ThenByDescending(cluster => cluster.ProductionRatio)
+            .ThenBy(cluster => cluster.CommunityId)
+            .ToArray();
+    }
+
+    private ActionabilityBucket ClassifyCommunityBucket(
+        int memberCount,
+        int productionCount,
+        double productionRatio,
+        int testCount)
+    {
+        if (memberCount >= analysisOptions.CommunityNoise.MinimumCommunitySize
+            && productionCount >= analysisOptions.CommunityNoise.MinimumCommunitySize
+            && productionRatio >= analysisOptions.CommunityNoise.MinimumProductionMemberRatio)
+            return ActionabilityBucket.ProductionCandidate;
+
+        if (productionCount > 0 || (analysisOptions.CommunityNoise.IncludeTestCommunities && testCount > 0))
+            return ActionabilityBucket.BroaderHeuristicMatch;
+
+        return ActionabilityBucket.SuppressedNoise;
+    }
+
+    private static string DescribeCommunityBucket(
+        int memberCount,
+        int productionCount,
+        double productionRatio,
+        int testCount,
+        int suppressedCount,
+        ActionabilityBucket bucket)
+    {
+        return bucket switch
+        {
+            ActionabilityBucket.ProductionCandidate => $"{productionCount}/{memberCount} actionable production members",
+            ActionabilityBucket.BroaderHeuristicMatch when memberCount < 3 => "micro-community below the primary size threshold",
+            ActionabilityBucket.BroaderHeuristicMatch when productionRatio < 0.6d => $"{(productionRatio * 100).ToString("F0", CultureInfo.InvariantCulture)}% production density",
+            ActionabilityBucket.BroaderHeuristicMatch => "partially actionable cluster with weak production density",
+            _ when testCount > 0 && testCount == memberCount => "test-only community",
+            _ when suppressedCount == memberCount => "config/generated/noise-only community",
+            _ => "low-actionability community"
+        };
+    }
+
+    private void AppendCommunitySection(StringBuilder sb, string title, IReadOnlyList<CommunityCluster> communities)
+    {
+        sb.AppendLine($"### {title} ({communities.Count})");
+        if (communities.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        foreach (var community in communities.Take(analysisOptions.CommunityNoise.MaximumVisibleCommunities))
+        {
+            sb.AppendLine($"#### Community {community.CommunityId} ({community.Members.Count} nodes)");
+            if (!string.IsNullOrWhiteSpace(community.DominantNamespace))
+                sb.AppendLine($"- Dominant namespace segment: `{community.DominantNamespace}`");
+            sb.AppendLine($"- Confidence: {community.Confidence}");
+            sb.AppendLine($"- Reason: {community.Reason}");
+            sb.AppendLine($"- Production density: {(community.ProductionRatio * 100).ToString("F0", CultureInfo.InvariantCulture)}%");
+            foreach (var node in community.Members.Take(6))
+            {
+                var loc = node.FilePath is not null ? $" - `{node.FilePath}`" : string.Empty;
+                sb.AppendLine($"- **{node.Type}** `{node.Name}`{loc}");
+            }
+
+            if (community.Members.Count > 6)
+                sb.AppendLine($"- ...and {community.Members.Count - 6} more");
+
+            sb.AppendLine();
+        }
+    }
+
+    private void AppendCommunitySuppressionSummary(StringBuilder sb, IReadOnlyList<CommunityCluster> communities)
+    {
+        var broaderCount = communities.Count(cluster => cluster.Bucket == ActionabilityBucket.BroaderHeuristicMatch);
+        var suppressedCount = communities.Count(cluster => cluster.Bucket == ActionabilityBucket.SuppressedNoise);
+        if (broaderCount == 0 && suppressedCount == 0)
+            return;
+
+        var singletonCount = communities.Count(cluster => cluster.Members.Count < analysisOptions.CommunityNoise.MinimumCommunitySize);
+        var testOnlyCount = communities.Count(cluster =>
+            cluster.Bucket == ActionabilityBucket.SuppressedNoise &&
+            cluster.Members.All(IsConfiguredTestNode));
+        sb.AppendLine(
+            $"> Hidden by default: {broaderCount} broader heuristic communit{(broaderCount == 1 ? "y" : "ies")}, " +
+            $"{suppressedCount} suppressed noise communit{(suppressedCount == 1 ? "y" : "ies")} ({singletonCount} micro/singleton, {testOnlyCount} test-only).");
+        sb.AppendLine();
+    }
+
+    private static void AppendExtractionCandidateTable(StringBuilder sb, IReadOnlyList<ExtractionCandidate> candidates, string title)
+    {
+        sb.AppendLine($"### {title} ({candidates.Count})");
+        if (candidates.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        sb.AppendLine("| Rank | Move-from location | Confidence | Anchor | Production density | Nearby tests | Coverage gaps | Why |");
+        sb.AppendLine("|---:|---|---|---|---:|---|---:|---|");
+
+        var rank = 1;
+        foreach (var candidate in candidates)
+        {
+            var tests = candidate.NearbyTests.Count == 0
+                ? "â€”"
+                : string.Join("<br>", candidate.NearbyTests.Take(3).Select(test => $"`{test.Name}`"));
+            sb.AppendLine(
+                $"| {rank++} | `{candidate.Location}` | {candidate.Confidence} | `{candidate.Anchor.Name}` | {(candidate.ProductionRatio * 100).ToString("F0", CultureInfo.InvariantCulture)}% | {tests} | {candidate.CoverageGapCount} | {EscapeTableCell(candidate.Reason)} |");
+        }
+
+        sb.AppendLine();
+    }
+
+    private sealed record CommunityCluster(
+        long CommunityId,
+        IReadOnlyList<CodeNode> Members,
+        double ProductionRatio,
+        ActionabilityBucket Bucket,
+        string Confidence,
+        string Reason,
+        string? DominantNamespace);
 }
+
