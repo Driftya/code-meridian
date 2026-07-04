@@ -3984,6 +3984,48 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task PlanEditRouteAsync_CanPreferInfrastructureAnchorsFromConfiguration()
+    {
+        var (sut, graph) = Build(new CodebaseAnalysisOptions
+        {
+            RoutePlanning = new RoutePlanningOptions
+            {
+                PreferContractAnchors = false,
+                PreferApplicationOrDomainAnchors = false,
+                PreferInfrastructureAnchors = true,
+                PreferredAnchorBoost = 6
+            }
+        });
+        var service = Node("s1", "PaymentService", CodeNodeType.Class, "src/Application/Payments/PaymentService.cs", 12, "Shop", fileRole: IndexedFileRole.Source);
+        var repository = Node("r1", "SqlPaymentRepository", CodeNodeType.Class, "src/Infrastructure/Payments/SqlPaymentRepository.cs", 9, "Shop", fileRole: IndexedFileRole.Source);
+        var retryPolicy = Node("r2", "RetryPolicy", CodeNodeType.Class, "src/Infrastructure/Payments/RetryPolicy.cs", 30, "Shop", fileRole: IndexedFileRole.Source);
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([service, repository, retryPolicy]);
+        graph
+            .GetContextForEditingAsync(repository.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(repository, [], [retryPolicy], []));
+        graph
+            .FindImpactAsync(repository.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindDownstreamAsync(repository.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(retryPolicy, 1)]);
+        graph
+            .FindRelatedTestsAsync(repository.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.PlanEditRouteAsync(
+            "stabilize payment persistence retries",
+            "payments,persistence,retries",
+            "Shop");
+
+        result.Should().Contain("**Anchor:** `SqlPaymentRepository` (Class) - `src/Infrastructure/Payments/SqlPaymentRepository.cs`");
+        result.Should().NotContain("**Anchor:** `PaymentService`");
+    }
+
+    [Fact]
     public async Task PlanEditRouteAsync_WhenNoMatches_ReturnsGuidance()
     {
         var (sut, graph) = Build();

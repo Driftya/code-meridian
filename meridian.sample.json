@@ -227,6 +227,10 @@
     },
     "ranking": {
       "preferProductionOverTests": true,
+      "productionOnlyByDefault": true,
+      "includeBroaderHeuristicMatches": false,
+      "includeSuppressedNoise": false,
+      "minimumActionableLineCount": 3,
       "testPathContains": [
         "test",
         ".spec.",
@@ -248,7 +252,111 @@
         "Module",
         "AppModule",
         "ContainerModule"
+      ],
+      "suppressedFileRoles": [
+        "Test",
+        "Configuration",
+        "Migration",
+        "Snapshot",
+        "Generated",
+        "BuildArtifact"
+      ],
+      "suppressedNodeTypes": [
+        "ConfigurationKey",
+        "ConfigurationEntry",
+        "Diagnostic",
+        "Property",
+        "Field",
+        "Event",
+        "Indexer",
+        "Operator"
+      ],
+      "broaderHeuristicNodeTypes": [
+        "Namespace",
+        "File",
+        "ApiEndpoint",
+        "ConfigurationFile",
+        "DatabaseTable",
+        "ExternalConcept",
+        "MessageTopic",
+        "ExternalService"
       ]
+    },
+    "communityNoise": {
+      "minimumCommunitySize": 3,
+      "minimumProductionMemberRatio": 0.6,
+      "includeTestCommunities": false,
+      "maximumVisibleCommunities": 15,
+      "minimumExtractionCandidateMembers": 3,
+      "minimumPrimaryExtractionScore": 5
+    },
+    "coverageNoise": {
+      "minimumHighPriorityLineCount": 8,
+      "lowPriorityNameSuffixes": [
+        "Dto",
+        "Model",
+        "Request",
+        "Response",
+        "Options",
+        "Args",
+        "Record",
+        "Result",
+        "Event",
+        "Message"
+      ]
+    },
+    "dependencyNoise": {
+      "includeTestDependenciesByDefault": false
+    },
+    "similarityNoise": {
+      "preferSameNodeFamily": true,
+      "preferSameLayer": true,
+      "minimumPrimarySimilarity": 0.85
+    },
+    "duplicateNoise": {
+      "minimumPrimarySimilarity": 0.92,
+      "maximumPrimaryCombinedFanIn": 4,
+      "preferSameLayer": true
+    },
+    "routePlanning": {
+      "preferContractAnchors": false,
+      "preferApplicationOrDomainAnchors": true,
+      "preferInfrastructureAnchors": false,
+      "preferApiAnchors": false,
+      "preferCliAnchors": false,
+      "preferredAnchorBoost": 2,
+      "highConfidenceCompanionScore": 12,
+      "sameDirectoryCompanionMinimumScore": 6,
+      "configurationGoalTerms": [
+        "config",
+        "configuration",
+        "option",
+        "options",
+        "setting",
+        "settings",
+        "appsettings",
+        ".env",
+        "env",
+        "environment",
+        "docker compose",
+        "compose",
+        "meridian.json"
+      ]
+    },
+    "responsibilitySlices": {
+      "defaultServiceSuffix": "Service",
+      "namespaceRootOverrides": [],
+      "folderRootOverrides": []
+    },
+    "precisionFeedback": {
+      "enabled": true,
+      "feedbackFilePath": ".meridian/precision-feedback.json",
+      "acceptedFileBoost": 4,
+      "acceptedTestBoost": 2,
+      "ignoredFilePenalty": 3,
+      "fileOnlyPenalty": 2,
+      "heuristicPenalty": 1,
+      "stalePenalty": 2
     }
   }
 }

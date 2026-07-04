@@ -56,7 +56,8 @@ public sealed partial class CodebaseQueryService
                     group.Key,
                     methods,
                     docMatches.Select(doc => doc.Source).Where(source => !string.IsNullOrWhiteSpace(source)).Cast<string>().ToArray(),
-                    BuildResponsibilityCommunityAdvice(methods, communityLookup));
+                    BuildResponsibilityCommunityAdvice(methods, communityLookup),
+                    analysisOptions.ResponsibilitySlices.DefaultServiceSuffix);
             })
             .Where(slice => slice.Methods.Count > 1 || slice.Score >= 8)
             .OrderByDescending(slice => slice.Score)
@@ -286,7 +287,7 @@ public sealed partial class CodebaseQueryService
             && methodPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string BuildResponsibilityDeferResult(
+    private string BuildResponsibilityDeferResult(
         CodeNode targetNode,
         string strategy,
         string reason,
@@ -317,8 +318,12 @@ public sealed partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    private static string BuildResponsibilityNamespaceRoot(CodeNode targetNode)
+    private string BuildResponsibilityNamespaceRoot(CodeNode targetNode)
     {
+        var configuredRoot = ApplyResponsibilityOverride(targetNode.Namespace, analysisOptions.ResponsibilitySlices.NamespaceRootOverrides);
+        if (!string.IsNullOrWhiteSpace(configuredRoot))
+            return configuredRoot;
+
         var suffix = ToPluralFeatureName(RemoveSuffix(targetNode.Name, "Service"));
         if (string.IsNullOrWhiteSpace(targetNode.Namespace))
             return suffix;
@@ -330,8 +335,12 @@ public sealed partial class CodebaseQueryService
         return $"{targetNode.Namespace}.{suffix}";
     }
 
-    private static string BuildResponsibilityFolderRoot(CodeNode targetNode)
+    private string BuildResponsibilityFolderRoot(CodeNode targetNode)
     {
+        var configuredRoot = ApplyResponsibilityOverride(NormalizePath(targetNode.FilePath), analysisOptions.ResponsibilitySlices.FolderRootOverrides);
+        if (!string.IsNullOrWhiteSpace(configuredRoot))
+            return configuredRoot;
+
         var suffix = ToPluralFeatureName(RemoveSuffix(targetNode.Name, "Service"));
         var path = NormalizePath(targetNode.FilePath);
         if (string.IsNullOrWhiteSpace(path))
@@ -347,6 +356,19 @@ public sealed partial class CodebaseQueryService
             return string.Join('/', parts.Take(toolsIndex + 2).Append(suffix));
 
         return suffix;
+    }
+
+    private static string? ApplyResponsibilityOverride(string? value, IReadOnlyCollection<PrefixOverrideOptions> overrides)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        return overrides
+            .FirstOrDefault(overrideOption =>
+                !string.IsNullOrWhiteSpace(overrideOption.MatchPrefix)
+                && value.StartsWith(overrideOption.MatchPrefix, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(overrideOption.ReplaceWith))
+            ?.ReplaceWith;
     }
 
     private static IReadOnlyList<string> BuildResponsibilityMigrationSteps(string strategy, string folderRoot)

@@ -107,6 +107,27 @@
               "default": true,
               "description": "Rank production nodes ahead of tests/namespaces/boilerplate in graph-tool output."
             },
+            "productionOnlyByDefault": {
+              "type": "boolean",
+              "default": true,
+              "description": "Hide broader heuristic matches inline unless the caller opts in."
+            },
+            "includeBroaderHeuristicMatches": {
+              "type": "boolean",
+              "default": false,
+              "description": "Show broader heuristic matches alongside primary production candidates."
+            },
+            "includeSuppressedNoise": {
+              "type": "boolean",
+              "default": false,
+              "description": "Show suppressed test/config/generated noise inline instead of only summarizing it."
+            },
+            "minimumActionableLineCount": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 3,
+              "description": "Minimum line count used when ranking code nodes as strongly actionable."
+            },
             "testPathContains": {
               "type": "array",
               "items": { "type": "string" },
@@ -135,6 +156,240 @@
                   "ContainerModule"
                 ]
               ]
+            },
+            "suppressedFileRoles": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Indexed file roles suppressed from primary low-noise output."
+            },
+            "suppressedNodeTypes": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Node kinds suppressed from primary low-noise output."
+            },
+            "broaderHeuristicNodeTypes": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Node kinds that stay available as broader heuristic matches."
+            }
+          }
+        },
+        "communityNoise": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "minimumCommunitySize": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3
+            },
+            "minimumProductionMemberRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.6
+            },
+            "includeTestCommunities": {
+              "type": "boolean",
+              "default": false
+            },
+            "maximumVisibleCommunities": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 15
+            },
+            "minimumExtractionCandidateMembers": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3
+            },
+            "minimumPrimaryExtractionScore": {
+              "type": "integer",
+              "default": 5
+            }
+          }
+        },
+        "coverageNoise": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "minimumHighPriorityLineCount": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 8
+            },
+            "lowPriorityNameSuffixes": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "dependencyNoise": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "includeTestDependenciesByDefault": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "similarityNoise": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "preferSameNodeFamily": {
+              "type": "boolean",
+              "default": true
+            },
+            "preferSameLayer": {
+              "type": "boolean",
+              "default": true
+            },
+            "minimumPrimarySimilarity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.85
+            }
+          }
+        },
+        "duplicateNoise": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "minimumPrimarySimilarity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.92
+            },
+            "maximumPrimaryCombinedFanIn": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 4
+            },
+            "preferSameLayer": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "routePlanning": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "preferContractAnchors": {
+              "type": "boolean",
+              "default": false
+            },
+            "preferApplicationOrDomainAnchors": {
+              "type": "boolean",
+              "default": true
+            },
+            "preferInfrastructureAnchors": {
+              "type": "boolean",
+              "default": false
+            },
+            "preferApiAnchors": {
+              "type": "boolean",
+              "default": false
+            },
+            "preferCliAnchors": {
+              "type": "boolean",
+              "default": false
+            },
+            "preferredAnchorBoost": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 2
+            },
+            "highConfidenceCompanionScore": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 12
+            },
+            "sameDirectoryCompanionMinimumScore": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 6
+            },
+            "configurationGoalTerms": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Terms that allow configuration files to remain primary route candidates."
+            }
+          }
+        },
+        "responsibilitySlices": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "defaultServiceSuffix": {
+              "type": "string",
+              "default": "Service"
+            },
+            "namespaceRootOverrides": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "matchPrefix": { "type": "string" },
+                  "replaceWith": { "type": "string" }
+                },
+                "required": ["matchPrefix", "replaceWith"]
+              }
+            },
+            "folderRootOverrides": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "matchPrefix": { "type": "string" },
+                  "replaceWith": { "type": "string" }
+                },
+                "required": ["matchPrefix", "replaceWith"]
+              }
+            }
+          }
+        },
+        "precisionFeedback": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "feedbackFilePath": {
+              "type": "string",
+              "default": ".meridian/precision-feedback.json"
+            },
+            "acceptedFileBoost": {
+              "type": "integer",
+              "default": 4
+            },
+            "acceptedTestBoost": {
+              "type": "integer",
+              "default": 2
+            },
+            "ignoredFilePenalty": {
+              "type": "integer",
+              "default": 3
+            },
+            "fileOnlyPenalty": {
+              "type": "integer",
+              "default": 2
+            },
+            "heuristicPenalty": {
+              "type": "integer",
+              "default": 1
+            },
+            "stalePenalty": {
+              "type": "integer",
+              "default": 2
             }
           }
         }

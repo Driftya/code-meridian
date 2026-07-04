@@ -381,9 +381,23 @@ Useful variables:
 | `analysis.staleKnowledge.codeLikeSuffixes` | Suffixes used to decide whether single PascalCase words are likely code symbols |
 | `analysis.staleKnowledge.ignoredDottedSuffixes` | Dotted suffixes treated as filenames, domains, or config names rather than code |
 | `analysis.ranking.preferProductionOverTests` | Rank production nodes ahead of test/namespaces/boilerplate in tool output |
+| `analysis.ranking.productionOnlyByDefault` | Keep broader heuristic matches hidden unless explicitly requested |
+| `analysis.ranking.includeBroaderHeuristicMatches` | Show broader heuristic matches inline instead of only summarizing them |
+| `analysis.ranking.includeSuppressedNoise` | Show suppressed test/config/generated findings inline for exploratory runs |
+| `analysis.ranking.minimumActionableLineCount` | Minimum line count used for stronger actionability ranking |
 | `analysis.ranking.testPathContains` | Case-insensitive substrings used to classify test nodes |
 | `analysis.ranking.infrastructureNameSuffixes` | Node name suffixes treated as lower-priority infrastructure boilerplate |
 | `analysis.ranking.infrastructureNames` | Exact node names treated as lower-priority infrastructure boilerplate |
+| `analysis.ranking.suppressedFileRoles` / `analysis.ranking.suppressedNodeTypes` | File roles and node kinds hidden from primary low-noise output |
+| `analysis.communityNoise.*` | Thresholds for natural-module suppression and extraction-candidate filtering |
+| `analysis.coverageNoise.*` | Low-priority coverage-gap suppression thresholds and suffixes |
+| `analysis.dependencyNoise.includeTestDependenciesByDefault` | Keep test-only downstream edges hidden unless explicitly requested |
+| `analysis.similarityNoise.*` | Same-family/layer preference and minimum primary similarity thresholds |
+| `analysis.duplicateNoise.*` | Primary duplicate-candidate thresholds and same-layer preference |
+| `analysis.routePlanning.*` | Generic route-target preferences for contracts, application/domain, infrastructure, API, and CLI anchors |
+| `analysis.responsibilitySlices.defaultServiceSuffix` | Default suffix for generated slice service names |
+| `analysis.responsibilitySlices.namespaceRootOverrides` / `folderRootOverrides` | Optional per-project root overrides for responsibility-slice namespace and folder plans |
+| `analysis.precisionFeedback.*` | Weights and storage path for acceptance/ignore feedback that nudges future target ranking |
 
 If an analysis section is omitted, CodeMeridian uses built-in defaults. These settings affect MCP analysis output such as stale-knowledge, coverage-gap, high-churn, hotspot, PageRank, and betweenness ranking.
 

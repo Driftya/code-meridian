@@ -2,6 +2,7 @@ using CodeMeridian.Application.Services;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace CodeMeridian.Application.Tests.Services;
@@ -238,6 +239,91 @@ public sealed class CodebaseQueryServiceResponsibilitySliceTests
         result.Should().Contain("Recommended namespace root:** `CodeMeridian.Indexer.IndexCommandHandlers`");
         result.Should().Contain("Recommended folder root:** `tools/Indexer/IndexCommandHandlers`");
         result.Should().NotContain("NdexCommandHandlers");
+    }
+
+    [Fact]
+    public async Task SuggestResponsibilitySlicesAsync_AppliesConfiguredRootOverridesAndServiceSuffix()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(
+            graph,
+            vector,
+            Options.Create(new CodebaseAnalysisOptions
+            {
+                ResponsibilitySlices = new ResponsibilitySliceOptions
+                {
+                    DefaultServiceSuffix = "Handler",
+                    NamespaceRootOverrides =
+                    [
+                        new PrefixOverrideOptions
+                        {
+                            MatchPrefix = "Shop.Application.Services",
+                            ReplaceWith = "Shop.Application.UseCases"
+                        }
+                    ],
+                    FolderRootOverrides =
+                    [
+                        new PrefixOverrideOptions
+                        {
+                            MatchPrefix = "src/Application/Services",
+                            ReplaceWith = "src/Application/UseCases"
+                        }
+                    ]
+                }
+            }));
+        var target = Node(
+            "class:OrderService",
+            "OrderService",
+            CodeNodeType.Class,
+            "src/Application/Services/OrderService.cs",
+            1,
+            "Shop",
+            lineCount: 640,
+            sourceHash: "class-hash",
+            @namespace: "Shop.Application.Services");
+        var place = Node("method:PlaceOrderAsync", "PlaceOrderAsync", CodeNodeType.Method, target.FilePath, 20, "Shop");
+        var cancel = Node("method:CancelOrderAsync", "CancelOrderAsync", CodeNodeType.Method, target.FilePath, 160, "Shop");
+        var repository = Node("iface:IOrderRepository", "IOrderRepository", CodeNodeType.Interface, "src/Application/Orders/IOrderRepository.cs", 4, "Shop");
+        var endpoint = Node("endpoint:orders", "POST /api/orders", CodeNodeType.ApiEndpoint, "src/Api/OrdersEndpoint.cs", 10, "Shop");
+        var command = Node("method:CancelOrderCommand", "CancelOrderCommand", CodeNodeType.Method, "src/Cli/OrdersCommand.cs", 18, "Shop");
+
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Class && query.NameFilter == "OrderService"),
+                Arg.Any<CancellationToken>())
+            .Returns([target]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Method),
+                Arg.Any<CancellationToken>())
+            .Returns([place, cancel]);
+        graph.QueryEdgesAsync(target.Id, 1, Arg.Any<CancellationToken>())
+            .Returns([
+                Contains(target, place),
+                Contains(target, cancel)
+            ]);
+        graph.GetContextForEditingAsync(place.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(place, [endpoint], [repository], []));
+        graph.GetContextForEditingAsync(cancel.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(cancel, [command], [repository], []));
+        graph.FindRelatedTestsAsync(Arg.Any<string>(), "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindNaturalModuleAssignmentsAsync(Arg.Any<IReadOnlyCollection<string>>(), "Shop", Arg.Any<CancellationToken>())
+            .Returns([
+                (place, 7L),
+                (endpoint, 7L),
+                (repository, 7L),
+                (cancel, 9L),
+                (command, 9L)
+            ]);
+        vector.SearchByTextAsync("OrderService", "Shop", 5, Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.SuggestResponsibilitySlicesAsync("OrderService", "Shop", maxSlices: 3);
+
+        result.Should().Contain("Recommended namespace root:** `Shop.Application.UseCases`");
+        result.Should().Contain("Recommended folder root:** `src/Application/UseCases`");
+        result.Should().Contain("`CancelOrderCommandHandler`");
+        result.Should().NotContain("`CancelOrderCommandService`");
     }
 
     [Fact]

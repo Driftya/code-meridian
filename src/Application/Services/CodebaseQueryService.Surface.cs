@@ -403,9 +403,9 @@ public partial class CodebaseQueryService
     {
         var score = ScoreSurfaceNode(node, goal, concepts, ExtractSurfaceTerms(goal, concepts));
         if (TextMatches(goal, node.Name) || TextMatches(goal, Path.GetFileNameWithoutExtension(node.FilePath ?? string.Empty)))
-            score += 4;
-        if (IsContractNode(node)) score += 2;
-        if (IsApplicationNode(node) || IsDomainNode(node)) score += 1;
+            score += analysisOptions.RoutePlanning.PreferredAnchorBoost * 2;
+
+        score += GetRoutePreferenceBoost(node);
         return score;
     }
 
@@ -423,7 +423,7 @@ public partial class CodebaseQueryService
             return false;
 
         if (role == IndexedFileRole.Configuration)
-            return TextMatches(goal, "config") || concepts.Any(concept => TextMatches(concept, "config"));
+            return IsConfigurationRouteGoal(goal, concepts);
 
         return true;
     }
@@ -434,7 +434,7 @@ public partial class CodebaseQueryService
             return true;
 
         var score = ScoreRouteNode(node, goal, concepts);
-        if (score >= 12)
+        if (score >= analysisOptions.RoutePlanning.HighConfidenceCompanionScore)
             return true;
 
         if (!string.Equals(node.ProjectContext, anchor.ProjectContext, StringComparison.OrdinalIgnoreCase))
@@ -443,7 +443,8 @@ public partial class CodebaseQueryService
         if (SharesRouteNamespace(node, anchor))
             return true;
 
-        return SharesRouteDirectory(node, anchor) && score >= 6;
+        return SharesRouteDirectory(node, anchor)
+               && score >= analysisOptions.RoutePlanning.SameDirectoryCompanionMinimumScore;
     }
 
     private static bool SharesRouteNamespace(CodeNode left, CodeNode right)
@@ -905,6 +906,12 @@ public partial class CodebaseQueryService
         || TextMatches(node.FilePath, "\\Infrastructure\\")
         || TextMatches(node.Namespace, ".Infrastructure");
 
+    private static bool IsCliNode(CodeNode node) =>
+        TextMatches(node.FilePath, "/Cli/")
+        || TextMatches(node.FilePath, "\\Cli\\")
+        || TextMatches(node.Namespace, ".Cli")
+        || TextMatches(node.Name, "Command");
+
     private bool IsCompositionNode(CodeNode node) =>
         analysisOptions.Ranking.InfrastructureNames.Any(name =>
             TextMatches(node.Name, name) || TextMatches(node.FilePath, name));
@@ -959,12 +966,37 @@ public partial class CodebaseQueryService
             .OrderBy(node => node.Type == CodeNodeType.Class ? 0 : 1)
             .ThenBy(node => node.LineNumber ?? int.MaxValue)
             .FirstOrDefault()
-        ?? rankedNodes.FirstOrDefault(node =>
-            node.Type is CodeNodeType.Method or CodeNodeType.Class
-            && (IsApplicationNode(node) || IsDomainNode(node)))
-        ?? rankedNodes.FirstOrDefault(node => node.Type == CodeNodeType.Interface)
+        ?? rankedNodes
+            .Where(node => node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
+            .OrderByDescending(GetRoutePreferenceBoost)
+            .ThenBy(node => node.Type == CodeNodeType.Class ? 0 : node.Type == CodeNodeType.Method ? 1 : 2)
+            .ThenBy(node => node.LineNumber ?? int.MaxValue)
+            .FirstOrDefault()
         ?? rankedNodes.FirstOrDefault(node => node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
         ?? rankedNodes[0];
+
+    private int GetRoutePreferenceBoost(CodeNode node)
+    {
+        var boost = 0;
+        if (analysisOptions.RoutePlanning.PreferContractAnchors && IsContractNode(node))
+            boost += analysisOptions.RoutePlanning.PreferredAnchorBoost;
+        if (analysisOptions.RoutePlanning.PreferApplicationOrDomainAnchors && (IsApplicationNode(node) || IsDomainNode(node)))
+            boost += analysisOptions.RoutePlanning.PreferredAnchorBoost;
+        if (analysisOptions.RoutePlanning.PreferInfrastructureAnchors && IsInfrastructureNode(node))
+            boost += analysisOptions.RoutePlanning.PreferredAnchorBoost;
+        if (analysisOptions.RoutePlanning.PreferApiAnchors && IsApiNode(node))
+            boost += analysisOptions.RoutePlanning.PreferredAnchorBoost;
+        if (analysisOptions.RoutePlanning.PreferCliAnchors && IsCliNode(node))
+            boost += analysisOptions.RoutePlanning.PreferredAnchorBoost;
+
+        return boost;
+    }
+
+    private bool IsConfigurationRouteGoal(string goal, IReadOnlyCollection<string> concepts)
+    {
+        var terms = new[] { goal }.Concat(concepts);
+        return terms.Any(term => analysisOptions.RoutePlanning.ConfigurationGoalTerms.Any(configTerm => TextMatches(term, configTerm)));
+    }
 
     private sealed record SurfaceCandidate(
         string FilePath,

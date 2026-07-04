@@ -138,6 +138,11 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"buildArtifact\"");
         json.Should().Contain("\"skipHeuristicSourcePrefixes\"");
         json.Should().Contain("\"preferProductionOverTests\": true");
+        json.Should().Contain("\"productionOnlyByDefault\": true");
+        json.Should().Contain("\"communityNoise\"");
+        json.Should().Contain("\"routePlanning\"");
+        json.Should().Contain("\"responsibilitySlices\"");
+        json.Should().Contain("\"defaultServiceSuffix\": \"Service\"");
         json.Should().Contain("\"DependencyInjection\"");
         json.Should().Contain("\"Startup\"");
         json.Should().Contain("\"CompositionRoot\"");
@@ -255,6 +260,9 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"DependencyInjection\"");
         json.Should().Contain("\"allowRepoScripts\": true");
         json.Should().Contain("\"skipHeuristicSourcePrefixes\"");
+        json.Should().Contain("\"productionOnlyByDefault\": true");
+        json.Should().Contain("\"routePlanning\"");
+        json.Should().Contain("\"responsibilitySlices\"");
         json.Should().Contain("\"fileRoles\"");
         json.Should().Contain("\"architecture\"");
         json.Should().Contain("\"meridian.sample.json\"");

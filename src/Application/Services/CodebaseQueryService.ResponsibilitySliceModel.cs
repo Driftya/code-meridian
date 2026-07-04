@@ -245,7 +245,8 @@ public sealed partial class CodebaseQueryService
             string name,
             IReadOnlyList<ResponsibilityMethodSignals> methods,
             IReadOnlyList<string> docSources,
-            ResponsibilityCommunityAdvice communityAdvice)
+            ResponsibilityCommunityAdvice communityAdvice,
+            string defaultServiceSuffix)
         {
             var dependencies = methods.SelectMany(method => method.Dependencies).DistinctBy(node => node.Id).ToArray();
             var callers = methods.SelectMany(method => method.WorkflowCallers).DistinctBy(node => node.Id).ToArray();
@@ -279,7 +280,7 @@ public sealed partial class CodebaseQueryService
 
             return new ResponsibilitySlice(
                 name,
-                BuildServiceName(name),
+                BuildServiceName(name, defaultServiceSuffix),
                 methods,
                 tests,
                 score,
@@ -288,20 +289,26 @@ public sealed partial class CodebaseQueryService
                 string.Join(", ", evidence));
         }
 
-        private static string BuildServiceName(string name)
+        private static string BuildServiceName(string name, string defaultServiceSuffix)
         {
             var normalized = SingularizeIdentifier(name);
+            var suffix = string.IsNullOrWhiteSpace(defaultServiceSuffix) ? "Service" : defaultServiceSuffix.Trim();
             return normalized switch
             {
-                "ContextPack" => "ContextPackBuilderService",
-                "Impact" => "ImpactAnalysisService",
-                "Diagnostic" => "CodeDiagnosticsQueryService",
-                "Knowledge" => "RelatedKnowledgeQueryService",
-                "Search" => "CodebaseSearchService",
-                "Configuration" => "ConfigurationQueryService",
-                _ => normalized + "Service"
+                "ContextPack" => AppendSuffix("ContextPackBuilder", suffix),
+                "Impact" => AppendSuffix("ImpactAnalysis", suffix),
+                "Diagnostic" => AppendSuffix("CodeDiagnosticsQuery", suffix),
+                "Knowledge" => AppendSuffix("RelatedKnowledgeQuery", suffix),
+                "Search" => AppendSuffix("CodebaseSearch", suffix),
+                "Configuration" => AppendSuffix("ConfigurationQuery", suffix),
+                _ => AppendSuffix(normalized, suffix)
             };
         }
+
+        private static string AppendSuffix(string baseName, string suffix) =>
+            baseName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                ? baseName
+                : baseName + suffix;
 
         private static string SingularizeIdentifier(string value)
         {

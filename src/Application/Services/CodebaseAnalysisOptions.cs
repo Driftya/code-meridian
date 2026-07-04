@@ -9,6 +9,8 @@ public sealed class CodebaseAnalysisOptions
     public DependencyNoiseOptions DependencyNoise { get; set; } = new();
     public SimilarityNoiseOptions SimilarityNoise { get; set; } = new();
     public DuplicateNoiseOptions DuplicateNoise { get; set; } = new();
+    public RoutePlanningOptions RoutePlanning { get; set; } = new();
+    public ResponsibilitySliceOptions ResponsibilitySlices { get; set; } = new();
     public PrecisionFeedbackOptions PrecisionFeedback { get; set; } = new();
 }
 
@@ -16,7 +18,7 @@ public sealed class StaleKnowledgeOptions
 {
     public List<string> SkipHeuristicSourcePrefixes { get; set; } =
     [
-        "docs/plan/",
+        "docs/plans/",
         "docs/features/"
     ];
 
@@ -236,6 +238,58 @@ public sealed class DuplicateNoiseOptions
     public int MaximumPrimaryCombinedFanIn { get; set; } = 4;
 
     public bool PreferSameLayer { get; set; } = true;
+}
+
+public sealed class RoutePlanningOptions
+{
+    public bool PreferContractAnchors { get; set; } = false;
+
+    public bool PreferApplicationOrDomainAnchors { get; set; } = true;
+
+    public bool PreferInfrastructureAnchors { get; set; } = false;
+
+    public bool PreferApiAnchors { get; set; } = false;
+
+    public bool PreferCliAnchors { get; set; } = false;
+
+    public int PreferredAnchorBoost { get; set; } = 2;
+
+    public int HighConfidenceCompanionScore { get; set; } = 12;
+
+    public int SameDirectoryCompanionMinimumScore { get; set; } = 6;
+
+    public List<string> ConfigurationGoalTerms { get; set; } =
+    [
+        "config",
+        "configuration",
+        "option",
+        "options",
+        "setting",
+        "settings",
+        "appsettings",
+        ".env",
+        "env",
+        "environment",
+        "docker compose",
+        "compose",
+        "meridian.json"
+    ];
+}
+
+public sealed class ResponsibilitySliceOptions
+{
+    public string DefaultServiceSuffix { get; set; } = "Service";
+
+    public List<PrefixOverrideOptions> NamespaceRootOverrides { get; set; } = [];
+
+    public List<PrefixOverrideOptions> FolderRootOverrides { get; set; } = [];
+}
+
+public sealed class PrefixOverrideOptions
+{
+    public string MatchPrefix { get; set; } = string.Empty;
+
+    public string ReplaceWith { get; set; } = string.Empty;
 }
 
 public sealed class PrecisionFeedbackOptions
