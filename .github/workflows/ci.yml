@@ -51,7 +51,7 @@ jobs:
           --configuration Release
           --no-build
           --filter "FullyQualifiedName!~CodeMeridian.Infrastructure.Integration.Tests"
-          --logger "trx;LogFileName=test-results.trx"
+          --logger "trx"
           --results-directory TestResults
 
       - name: Publish .NET test report
