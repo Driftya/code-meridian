@@ -28,7 +28,7 @@ public sealed partial class CodebaseQueryService
             return await ResolveProjectContextAsync(fallbackProjectContext, cancellationToken);
 
         var context = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
-        return await ResolveProjectContextAsync(context.Node?.ProjectContext, cancellationToken);
+        return await ResolveProjectContextAsync(context?.Node?.ProjectContext, cancellationToken);
     }
 
     private sealed class AnalysisOptionsScope : IDisposable

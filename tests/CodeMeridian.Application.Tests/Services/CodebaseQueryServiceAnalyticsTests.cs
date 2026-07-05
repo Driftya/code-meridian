@@ -1416,8 +1416,8 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("Production candidates are prioritized by default");
         result.Should().Contain("### Production candidates (2)");
         result.Should().Contain("HotFile");
-        result.Should().Contain("12×");
-        result.Should().Contain("5×");
+        result.Should().Contain("12x");
+        result.Should().Contain("5x");
         result.Should().Contain("find_hotspots");
     }
 
@@ -4656,5 +4656,4 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Be("Graph drift: low for 'CodeMeridian'. Indexed file metadata, line metadata, source hashes, and update timestamps look consistent. Source files are not read by the MCP server.");
     }
 }
-
 
