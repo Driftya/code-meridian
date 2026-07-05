@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   checks: write
   pull-requests: write
 
@@ -71,10 +71,23 @@ jobs:
           path: TestResults/**/*.trx
           if-no-files-found: warn
 
-  tsindexer:
-    name: TsIndexer build and test
+  node-tools:
+    name: ${{ matrix.workspace.name }} build and test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace:
+          - name: IndexerShared
+            path: tools/IndexerShared
+            artifact: indexer-shared-test-results
+          - name: TsIndexer
+            path: tools/TsIndexer
+            artifact: tsindexer-test-results
+          - name: HtmlCssIndexer
+            path: tools/HtmlCssIndexer
+            artifact: htmlcssindexer-test-results
 
     steps:
       - name: Checkout repository
@@ -85,16 +98,63 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: tools/TsIndexer/package-lock.json
+          cache-dependency-path: ${{ matrix.workspace.path }}/package-lock.json
 
-      - name: Restore TsIndexer
-        working-directory: tools/TsIndexer
+      - name: Restore workspace
+        working-directory: ${{ matrix.workspace.path }}
         run: npm install --include=optional
 
-      - name: Build TsIndexer
-        working-directory: tools/TsIndexer
+      - name: Build workspace
+        working-directory: ${{ matrix.workspace.path }}
         run: npm run build
 
-      - name: Test TsIndexer
-        working-directory: tools/TsIndexer
-        run: npm test
+      - name: Test workspace
+        working-directory: ${{ matrix.workspace.path }}
+        run: >
+          npx vitest run
+          --reporter=default
+          --reporter=junit
+          --outputFile=test-results/${{ matrix.workspace.name }}.junit.xml
+
+      - name: Upload workspace test results
+        uses: actions/upload-artifact@v7
+        if: success() || failure()
+        with:
+          name: ${{ matrix.workspace.artifact }}
+          path: ${{ matrix.workspace.path }}/test-results/*.junit.xml
+          if-no-files-found: warn
+
+  publish-test-badge:
+    name: Publish combined test badge
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      - dotnet
+      - node-tools
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download test artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts/test-results
+          pattern: "*-test-results"
+          merge-multiple: true
+
+      - name: Generate badge JSON
+        shell: pwsh
+        run: >
+          ./.github/scripts/generate-test-badge.ps1
+          -ResultsRoot artifacts/test-results
+          -OutputPath badge-output/badges/tests.json
+
+      - name: Publish badge to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: badge-output
+          keep_files: true
