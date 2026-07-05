@@ -15,9 +15,14 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
     private readonly ICodeGraphRepository codeGraph;
     private readonly IVectorRepository vectorStore;
     private readonly IEmbeddingProvider embeddingProvider;
-    private readonly CodebaseAnalysisOptions analysisOptions;
+    private readonly CodebaseAnalysisOptions defaultAnalysisOptions;
+    private readonly IProjectAnalysisOptionsResolver analysisOptionsResolver;
     private readonly IIndexedFileRoleClassifier fileRoleClassifier;
     private readonly IAnalysisProfilePolicy analysisProfilePolicy;
+    private ResolvedProjectAnalysisOptions? currentAnalysisResolution;
+
+    private CodebaseAnalysisOptions analysisOptions =>
+        currentAnalysisResolution?.Options ?? defaultAnalysisOptions;
 
     public CodebaseQueryService(
         ICodeGraphRepository codeGraph,
@@ -28,7 +33,8 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
             new NoOpEmbeddingProvider(),
             Options.Create(new CodebaseAnalysisOptions()),
             Options.Create(new CodebaseIndexingOptions()),
-            new DefaultAnalysisProfilePolicy())
+            new DefaultAnalysisProfilePolicy(),
+            new StaticProjectAnalysisOptionsResolver(new CodebaseAnalysisOptions()))
     {
     }
 
@@ -42,7 +48,8 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
             new NoOpEmbeddingProvider(),
             analysisOptions,
             Options.Create(new CodebaseIndexingOptions()),
-            new DefaultAnalysisProfilePolicy())
+            new DefaultAnalysisProfilePolicy(),
+            new StaticProjectAnalysisOptionsResolver(analysisOptions.Value))
     {
     }
 
@@ -56,7 +63,8 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
             embeddingProvider,
             Options.Create(new CodebaseAnalysisOptions()),
             Options.Create(new CodebaseIndexingOptions()),
-            new DefaultAnalysisProfilePolicy())
+            new DefaultAnalysisProfilePolicy(),
+            new StaticProjectAnalysisOptionsResolver(new CodebaseAnalysisOptions()))
     {
     }
 
@@ -67,13 +75,33 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         IOptions<CodebaseAnalysisOptions> analysisOptions,
         IOptions<CodebaseIndexingOptions> indexingOptions,
         IAnalysisProfilePolicy analysisProfilePolicy)
+        : this(
+            codeGraph,
+            vectorStore,
+            embeddingProvider,
+            analysisOptions,
+            indexingOptions,
+            analysisProfilePolicy,
+            new StaticProjectAnalysisOptionsResolver(analysisOptions.Value))
+    {
+    }
+
+    public CodebaseQueryService(
+        ICodeGraphRepository codeGraph,
+        IVectorRepository vectorStore,
+        IEmbeddingProvider embeddingProvider,
+        IOptions<CodebaseAnalysisOptions> analysisOptions,
+        IOptions<CodebaseIndexingOptions> indexingOptions,
+        IAnalysisProfilePolicy analysisProfilePolicy,
+        IProjectAnalysisOptionsResolver analysisOptionsResolver)
     {
         this.codeGraph = codeGraph;
         this.vectorStore = vectorStore;
         this.embeddingProvider = embeddingProvider;
-        this.analysisOptions = analysisOptions.Value;
+        defaultAnalysisOptions = analysisOptions.Value;
         fileRoleClassifier = new ConfiguredIndexedFileRoleClassifier(indexingOptions);
         this.analysisProfilePolicy = analysisProfilePolicy;
+        this.analysisOptionsResolver = analysisOptionsResolver;
     }
 
     public async Task<string> QueryStructureAsync(

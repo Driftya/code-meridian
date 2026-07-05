@@ -40,7 +40,9 @@ public static class DependencyInjection
         services.AddSingleton<IExtensionRegistry, ExtensionRegistry>();
         services.AddSingleton<IIndexedFileRoleClassifier, ConfiguredIndexedFileRoleClassifier>();
         services.AddSingleton<IAnalysisProfilePolicy, DefaultAnalysisProfilePolicy>();
+        services.AddSingleton<IGlobalAnalysisConfigurationSource, NullGlobalAnalysisConfigurationSource>();
         services.AddSingleton(TimeProvider.System);
+        services.AddTransient<IProjectAnalysisOptionsResolver, ProjectAnalysisOptionsResolver>();
         services.AddTransient<ICodebaseQueryService, CodebaseQueryService>();
         services.AddTransient<ICodebaseStatusService, CodebaseStatusService>();
         services.AddTransient<IPrContextReportService, PrContextReportService>();

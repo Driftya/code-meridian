@@ -35,10 +35,12 @@ CodeMeridian resolves non-secret settings in this order:
 2. Shell environment variables
 3. Values loaded from `.env`
 4. Project-local `meridian.json`
-5. Global `%APPDATA%\CodeMeridian\meridian.json`
+5. Global `%LOCALAPPDATA%\CodeMeridian\meridian.json`
 6. Auto-detected defaults
 
 Project-local config always wins over global config.
+
+For live MCP analysis behavior, the shared server reads global `analysis.*` directly from this global `meridian.json`, then overlays project-local indexed `meridian.json` analysis settings for the requested project. After changing a repo-local `analysis` section, re-index that project so the graph-backed override is refreshed.
 
 ## VS Code User MCP Registration
 

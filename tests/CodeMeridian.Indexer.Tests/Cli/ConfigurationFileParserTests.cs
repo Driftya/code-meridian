@@ -93,6 +93,36 @@ public sealed class ConfigurationFileParserTests : IDisposable
         entries.Should().Contain(entry => entry.CanonicalKey == "Neo4j:Uri");
     }
 
+    [Fact]
+    public void ParseJson_FlattensNestedAnalysisObjectArrays()
+    {
+        var file = WriteFile(
+            "meridian.json",
+            """
+            {
+              "analysis": {
+                "responsibilitySlices": {
+                  "namespaceRootOverrides": [
+                    {
+                      "matchPrefix": "CodeMeridian.Application",
+                      "replaceWith": "CodeMeridian.Features"
+                    }
+                  ]
+                }
+              }
+            }
+            """);
+
+        var entries = ConfigurationFileParser.Parse(file, _root);
+
+        entries.Should().Contain(entry =>
+            entry.CanonicalKey == "analysis:responsibilitySlices:namespaceRootOverrides:0:matchPrefix" &&
+            entry.ValuePreview == "CodeMeridian.Application");
+        entries.Should().Contain(entry =>
+            entry.CanonicalKey == "analysis:responsibilitySlices:namespaceRootOverrides:0:replaceWith" &&
+            entry.ValuePreview == "CodeMeridian.Features");
+    }
+
     private FileInfo WriteFile(string relativePath, string content)
     {
         var file = new FileInfo(Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar)));

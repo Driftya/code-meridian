@@ -20,155 +20,159 @@ public sealed partial class CodebaseQueryService
             throw new ArgumentException("Target is required.", nameof(target));
 
         maxSlices = Math.Clamp(maxSlices, 1, 12);
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
         var targetNode = await ResolveResponsibilityTargetAsync(target, projectContext, cancellationToken);
         if (targetNode is null)
             return $"No class target found for `{target}`{(projectContext is not null ? $" in '{projectContext}'" : "")}. Use `resolve_exact_symbol` first if the target name is ambiguous.";
 
-        var methodNodes = await FindResponsibilityMethodsAsync(targetNode, projectContext, cancellationToken);
-        if (methodNodes.Count < 2)
-            return BuildResponsibilityDeferResult(
-                targetNode,
-                "defer_extraction",
-                "The target does not have enough indexed method members to form responsibility slices.",
-                includeNamespacePlan,
-                includeMigrationSteps);
-
-        var methodSignals = new List<ResponsibilityMethodSignals>();
-        foreach (var method in methodNodes)
+        return await WithResolvedAnalysisOptionsAsync(targetNode.ProjectContext ?? projectContext, cancellationToken, async () =>
         {
-            var context = await codeGraph.GetContextForEditingAsync(method.Id, cancellationToken);
-            var tests = await codeGraph.FindRelatedTestsAsync(method.Id, method.ProjectContext ?? projectContext, cancellationToken);
-            methodSignals.Add(ResponsibilityMethodSignals.Create(
-                method,
-                context,
-                tests.Select(match => match.Node).Where(IsConfiguredTestNode).ToArray(),
-                IsConfiguredTestNode));
-        }
+            var methodNodes = await FindResponsibilityMethodsAsync(targetNode, projectContext, cancellationToken);
+            if (methodNodes.Count < 2)
+                return BuildResponsibilityDeferResult(
+                    targetNode,
+                    "defer_extraction",
+                    "The target does not have enough indexed method members to form responsibility slices.",
+                    includeNamespacePlan,
+                    includeMigrationSteps);
 
-        var docMatches = await vectorStore.SearchByTextAsync(targetNode.Name, targetNode.ProjectContext ?? projectContext, topK: 5, cancellationToken);
-        var communityLookup = await TryGetResponsibilityCommunitiesAsync(methodSignals, projectContext, cancellationToken);
-        var slices = methodSignals
-            .GroupBy(signal => signal.SliceName, StringComparer.OrdinalIgnoreCase)
-            .Select(group =>
+            var methodSignals = new List<ResponsibilityMethodSignals>();
+            foreach (var method in methodNodes)
             {
-                var methods = group.ToArray();
-                return ResponsibilitySlice.Create(
-                    group.Key,
-                    methods,
-                    docMatches.Select(doc => doc.Source).Where(source => !string.IsNullOrWhiteSpace(source)).Cast<string>().ToArray(),
-                    BuildResponsibilityCommunityAdvice(methods, communityLookup),
-                    analysisOptions.ResponsibilitySlices.DefaultServiceSuffix);
-            })
-            .Where(slice => slice.Methods.Count > 1 || slice.Score >= 8)
-            .OrderByDescending(slice => slice.Score)
-            .ThenBy(slice => slice.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(maxSlices)
-            .ToArray();
+                var context = await codeGraph.GetContextForEditingAsync(method.Id, cancellationToken);
+                var tests = await codeGraph.FindRelatedTestsAsync(method.Id, method.ProjectContext ?? projectContext, cancellationToken);
+                methodSignals.Add(ResponsibilityMethodSignals.Create(
+                    method,
+                    context,
+                    tests.Select(match => match.Node).Where(IsConfiguredTestNode).ToArray(),
+                    IsConfiguredTestNode));
+            }
 
-        if (slices.Length == 0)
-            return BuildResponsibilityDeferResult(
-                targetNode,
-                "defer_extraction",
-                "Indexed methods did not share enough caller, dependency, test, or workflow evidence to recommend a safe extraction.",
-                includeNamespacePlan,
-                includeMigrationSteps);
+            var docMatches = await vectorStore.SearchByTextAsync(targetNode.Name, targetNode.ProjectContext ?? projectContext, topK: 5, cancellationToken);
+            var communityLookup = await TryGetResponsibilityCommunitiesAsync(methodSignals, projectContext, cancellationToken);
+            var slices = methodSignals
+                .GroupBy(signal => signal.SliceName, StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    var methods = group.ToArray();
+                    return ResponsibilitySlice.Create(
+                        group.Key,
+                        methods,
+                        docMatches.Select(doc => doc.Source).Where(source => !string.IsNullOrWhiteSpace(source)).Cast<string>().ToArray(),
+                        BuildResponsibilityCommunityAdvice(methods, communityLookup),
+                        analysisOptions.ResponsibilitySlices.DefaultServiceSuffix);
+                })
+                .Where(slice => slice.Methods.Count > 1 || slice.Score >= 8)
+                .OrderByDescending(slice => slice.Score)
+                .ThenBy(slice => slice.Name, StringComparer.OrdinalIgnoreCase)
+                .Take(maxSlices)
+                .ToArray();
 
-        if (slices.All(slice => slice.Confidence == "Low"))
-            return BuildResponsibilityDeferResult(
-                targetNode,
-                "defer_extraction",
-                "Indexed methods did not share enough caller, dependency, test, or workflow evidence to recommend a safe extraction.",
-                includeNamespacePlan,
-                includeMigrationSteps);
+            if (slices.Length == 0)
+                return BuildResponsibilityDeferResult(
+                    targetNode,
+                    "defer_extraction",
+                    "Indexed methods did not share enough caller, dependency, test, or workflow evidence to recommend a safe extraction.",
+                    includeNamespacePlan,
+                    includeMigrationSteps);
 
-        var fanIn = methodSignals.Sum(signal => signal.ProductionCallers.Count);
-        var fanOut = methodSignals.Sum(signal => signal.Dependencies.Count);
-        var testCount = methodSignals.SelectMany(signal => signal.RelatedTests).DistinctBy(test => test.Id).Count();
-        var graphFreshness = DescribeResponsibilityFreshness(targetNode);
-        var riskLevel = DescribeResponsibilityRisk(targetNode, fanIn, fanOut, graphFreshness);
-        var strategy = SelectResponsibilityStrategy(fanIn, testCount, graphFreshness, slices);
-        var namespaceRoot = BuildResponsibilityNamespaceRoot(targetNode);
-        var folderRoot = BuildResponsibilityFolderRoot(targetNode);
+            if (slices.All(slice => slice.Confidence == "Low"))
+                return BuildResponsibilityDeferResult(
+                    targetNode,
+                    "defer_extraction",
+                    "Indexed methods did not share enough caller, dependency, test, or workflow evidence to recommend a safe extraction.",
+                    includeNamespacePlan,
+                    includeMigrationSteps);
 
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Responsibility Slice Suggestions - `{targetNode.Name}`");
-        sb.AppendLine();
-        sb.AppendLine($"**Target:** `{targetNode.Id}`");
-        if (!string.IsNullOrWhiteSpace(targetNode.FilePath))
-            sb.AppendLine($"**File:** `{targetNode.FilePath}`");
-        if (!string.IsNullOrWhiteSpace(targetNode.Namespace))
-            sb.AppendLine($"**Namespace:** `{targetNode.Namespace}`");
-        if (targetNode.LineCount is not null)
-            sb.AppendLine($"**Line count:** {targetNode.LineCount.Value.ToString(CultureInfo.InvariantCulture)}");
-        sb.AppendLine($"**Current risk:** {riskLevel} (fan-in {fanIn}, fan-out {fanOut}, test shield {(testCount > 0 ? "partial" : "missing")}, graph freshness {graphFreshness})");
-        sb.AppendLine($"**Recommended strategy:** `{strategy}`");
-        sb.AppendLine();
+            var fanIn = methodSignals.Sum(signal => signal.ProductionCallers.Count);
+            var fanOut = methodSignals.Sum(signal => signal.Dependencies.Count);
+            var testCount = methodSignals.SelectMany(signal => signal.RelatedTests).DistinctBy(test => test.Id).Count();
+            var graphFreshness = DescribeResponsibilityFreshness(targetNode);
+            var riskLevel = DescribeResponsibilityRisk(targetNode, fanIn, fanOut, graphFreshness);
+            var strategy = SelectResponsibilityStrategy(fanIn, testCount, graphFreshness, slices);
+            var namespaceRoot = BuildResponsibilityNamespaceRoot(targetNode);
+            var folderRoot = BuildResponsibilityFolderRoot(targetNode);
 
-        if (includeNamespacePlan)
-        {
-            sb.AppendLine($"**Recommended namespace root:** `{namespaceRoot}`");
-            sb.AppendLine($"**Recommended folder root:** `{folderRoot}`");
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Responsibility Slice Suggestions - `{targetNode.Name}`");
             sb.AppendLine();
-        }
-
-        sb.AppendLine("| Slice | Recommended service | Methods | Shared evidence | Confidence |");
-        sb.AppendLine("|---|---|---|---|---|");
-        foreach (var slice in slices)
-        {
-            sb.AppendLine(
-                $"| `{slice.Name}` | `{slice.RecommendedTypeName}` | {string.Join("<br>", slice.Methods.Select(method => $"`{method.Method.Name}`"))} | {EscapeTableCell(slice.Reason)} | {slice.Confidence} |");
-        }
-
-        sb.AppendLine();
-        sb.AppendLine("### Folder Plan");
-        sb.AppendLine($"`{folderRoot}/`");
-        foreach (var slice in slices)
-        {
-            sb.AppendLine($"- `{slice.Name}/`");
-            sb.AppendLine($"  - `{slice.RecommendedTypeName}.cs`");
-            sb.AppendLine($"  - `I{slice.RecommendedTypeName}.cs`");
-        }
-
-        if (includeTestPlan)
-        {
+            sb.AppendLine($"**Target:** `{targetNode.Id}`");
+            if (!string.IsNullOrWhiteSpace(targetNode.FilePath))
+                sb.AppendLine($"**File:** `{targetNode.FilePath}`");
+            if (!string.IsNullOrWhiteSpace(targetNode.Namespace))
+                sb.AppendLine($"**Namespace:** `{targetNode.Namespace}`");
+            if (targetNode.LineCount is not null)
+                sb.AppendLine($"**Line count:** {targetNode.LineCount.Value.ToString(CultureInfo.InvariantCulture)}");
+            sb.AppendLine($"**Current risk:** {riskLevel} (fan-in {fanIn}, fan-out {fanOut}, test shield {(testCount > 0 ? "partial" : "missing")}, graph freshness {graphFreshness})");
+            sb.AppendLine($"**Recommended strategy:** `{strategy}`");
             sb.AppendLine();
-            sb.AppendLine("### Test Impact");
+
+            if (includeNamespacePlan)
+            {
+                sb.AppendLine($"**Recommended namespace root:** `{namespaceRoot}`");
+                sb.AppendLine($"**Recommended folder root:** `{folderRoot}`");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("| Slice | Recommended service | Methods | Shared evidence | Confidence |");
+            sb.AppendLine("|---|---|---|---|---|");
             foreach (var slice in slices)
             {
-                var tests = slice.RelatedTests.Count == 0
-                    ? "missing direct related tests"
-                    : string.Join(", ", slice.RelatedTests.Take(4).Select(test => $"`{test.Name}`"));
-                sb.AppendLine($"- `{slice.Name}`: {tests}");
+                sb.AppendLine(
+                    $"| `{slice.Name}` | `{slice.RecommendedTypeName}` | {string.Join("<br>", slice.Methods.Select(method => $"`{method.Method.Name}`"))} | {EscapeTableCell(slice.Reason)} | {slice.Confidence} |");
             }
-        }
 
-        sb.AppendLine();
-        sb.AppendLine("### Advisory Community Signals");
-        foreach (var slice in slices)
-            sb.AppendLine($"- `{slice.Name}`: {slice.CommunitySignal}");
-
-        if (includeMigrationSteps)
-        {
             sb.AppendLine();
-            sb.AppendLine("### Migration Steps");
-            foreach (var step in BuildResponsibilityMigrationSteps(strategy, folderRoot))
-                sb.AppendLine($"- {step}");
-        }
+            sb.AppendLine("### Folder Plan");
+            sb.AppendLine($"`{folderRoot}/`");
+            foreach (var slice in slices)
+            {
+                sb.AppendLine($"- `{slice.Name}/`");
+                sb.AppendLine($"  - `{slice.RecommendedTypeName}.cs`");
+                sb.AppendLine($"  - `I{slice.RecommendedTypeName}.cs`");
+            }
 
-        sb.AppendLine();
-        sb.AppendLine("### Warnings");
-        if (graphFreshness != "fresh")
-            sb.AppendLine("- Verify source before editing because graph metadata is incomplete or stale.");
-        if (!string.IsNullOrWhiteSpace(communityLookup.Warning))
-            sb.AppendLine($"- {communityLookup.Warning}");
-        if (slices.Any(slice => IsVagueResponsibilityName(slice.RecommendedTypeName)))
-            sb.AppendLine("- Rename vague slice services before implementation; prefer use-case names over lifecycle/helper/manager names.");
-        sb.AppendLine("- Keep the extracted services in the same architecture layer as the original target.");
-        sb.AppendLine("- Do not use partial classes as the default extraction strategy.");
-        if (includeSourceSnippets)
-            sb.AppendLine("- Source snippets are intentionally not included in this first formatter; use `get_context_for_editing` for bounded snippets.");
+            if (includeTestPlan)
+            {
+                sb.AppendLine();
+                sb.AppendLine("### Test Impact");
+                foreach (var slice in slices)
+                {
+                    var tests = slice.RelatedTests.Count == 0
+                        ? "missing direct related tests"
+                        : string.Join(", ", slice.RelatedTests.Take(4).Select(test => $"`{test.Name}`"));
+                    sb.AppendLine($"- `{slice.Name}`: {tests}");
+                }
+            }
 
-        return sb.ToString();
+            sb.AppendLine();
+            sb.AppendLine("### Advisory Community Signals");
+            foreach (var slice in slices)
+                sb.AppendLine($"- `{slice.Name}`: {slice.CommunitySignal}");
+
+            if (includeMigrationSteps)
+            {
+                sb.AppendLine();
+                sb.AppendLine("### Migration Steps");
+                foreach (var step in BuildResponsibilityMigrationSteps(strategy, folderRoot))
+                    sb.AppendLine($"- {step}");
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("### Warnings");
+            if (graphFreshness != "fresh")
+                sb.AppendLine("- Verify source before editing because graph metadata is incomplete or stale.");
+            if (!string.IsNullOrWhiteSpace(communityLookup.Warning))
+                sb.AppendLine($"- {communityLookup.Warning}");
+            if (slices.Any(slice => IsVagueResponsibilityName(slice.RecommendedTypeName)))
+                sb.AppendLine("- Rename vague slice services before implementation; prefer use-case names over lifecycle/helper/manager names.");
+            sb.AppendLine("- Keep the extracted services in the same architecture layer as the original target.");
+            sb.AppendLine("- Do not use partial classes as the default extraction strategy.");
+            if (includeSourceSnippets)
+                sb.AppendLine("- Source snippets are intentionally not included in this first formatter; use `get_context_for_editing` for bounded snippets.");
+
+            return sb.ToString();
+        });
     }
 
     private async Task<CodeNode?> ResolveResponsibilityTargetAsync(

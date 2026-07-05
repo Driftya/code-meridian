@@ -53,47 +53,52 @@ public partial class CodebaseQueryService
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
-        var results = await codeGraph.FindHotspotsAsync(projectContext, limit: 15, cancellationToken);
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
 
-        if (results.Count == 0)
-            return $"No hotspots found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "Ensure the codebase has been indexed with relationship data.";
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Coupling Hotspots{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine("Nodes with the most incoming dependencies — highest risk to change. Production candidates are prioritized by default.\n");
-
-        var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.FanIn)));
-        AppendActionabilitySection(
-            sb,
-            "Production candidates",
-            sections.ProductionCandidates,
-            "Fan-in",
-            fanIn => fanIn.ToString(CultureInfo.InvariantCulture));
-
-        if (ShouldShowBroaderHeuristicMatchesInline())
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
+            var results = await codeGraph.FindHotspotsAsync(projectContext, limit: 15, cancellationToken);
+
+            if (results.Count == 0)
+                return $"No hotspots found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                       "Ensure the codebase has been indexed with relationship data.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Coupling Hotspots{(projectContext is not null ? $" — {projectContext}" : "")}");
+            sb.AppendLine("Nodes with the most incoming dependencies — highest risk to change. Production candidates are prioritized by default.\n");
+
+            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.FanIn)));
             AppendActionabilitySection(
                 sb,
-                "Broader heuristic matches",
-                sections.BroaderHeuristicMatches,
+                "Production candidates",
+                sections.ProductionCandidates,
                 "Fan-in",
                 fanIn => fanIn.ToString(CultureInfo.InvariantCulture));
-        }
 
-        if (ShouldShowSuppressedNoiseInline())
-        {
-            AppendActionabilitySection(
-                sb,
-                "Suppressed noise",
-                sections.SuppressedNoise,
-                "Fan-in",
-                fanIn => fanIn.ToString(CultureInfo.InvariantCulture));
-        }
+            if (ShouldShowBroaderHeuristicMatchesInline())
+            {
+                AppendActionabilitySection(
+                    sb,
+                    "Broader heuristic matches",
+                    sections.BroaderHeuristicMatches,
+                    "Fan-in",
+                    fanIn => fanIn.ToString(CultureInfo.InvariantCulture));
+            }
 
-        AppendSuppressedActionabilitySummary(sb, sections);
+            if (ShouldShowSuppressedNoiseInline())
+            {
+                AppendActionabilitySection(
+                    sb,
+                    "Suppressed noise",
+                    sections.SuppressedNoise,
+                    "Fan-in",
+                    fanIn => fanIn.ToString(CultureInfo.InvariantCulture));
+            }
 
-        return sb.ToString();
+            AppendSuppressedActionabilitySummary(sb, sections);
+
+            return sb.ToString();
+        });
     }
 
     public async Task<string> FindConnectionAsync(
@@ -199,42 +204,45 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
-        var results = await codeGraph.FindCoverageGapsAsync(projectContext, cancellationToken);
-        var filteredResults = FilterNodesByProfile(results, AnalysisProfile.CoverageGaps);
-
-        if (filteredResults.Count == 0)
-            return $"No coverage gaps found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "All production classes and methods appear to be called from test namespaces.";
-
-        var rankedResults = RankNodesForDisplay(filteredResults).ToArray();
-        var highPriority = rankedResults.Where(IsHighPriorityCoverageGap).ToArray();
-        var lowPriority = rankedResults.Where(node => !IsHighPriorityCoverageGap(node)).ToArray();
-
-        if (detailLevel == ContextDetailLevel.Summary)
-            return $"Coverage gap summary{(projectContext is not null ? $" for '{projectContext}'" : "")}: " +
-                   $"{highPriority.Length} high-priority, {lowPriority.Length} low-priority.";
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Test Coverage Gaps{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{rankedResults.Length}** production types/methods with no test calling them, ranked by likely risk:\n");
-
-        AppendCoverageGapSection(sb, "High-priority untested behavior", highPriority);
-
-        if (ShouldShowBroaderHeuristicMatchesInline())
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
-            AppendCoverageGapSection(sb, "Low-priority support types", lowPriority);
-        }
-        else if (lowPriority.Length > 0)
-        {
-            sb.AppendLine($"> Hidden by default: {lowPriority.Length} low-priority support type{(lowPriority.Length == 1 ? string.Empty : "s")}. " +
-                          "Set `CodeMeridian:Analysis:Ranking:ProductionOnlyByDefault=false` or enable `IncludeBroaderHeuristicMatches` to inspect them inline.");
-            sb.AppendLine();
-        }
+            var results = await codeGraph.FindCoverageGapsAsync(projectContext, cancellationToken);
+            var filteredResults = FilterNodesByProfile(results, AnalysisProfile.CoverageGaps);
 
-        sb.AppendLine("> Detection is heuristic: test namespaces or file paths are identified by containing 'test'. " +
-                      "DI entry points and abstract types may appear here.");
+            if (filteredResults.Count == 0)
+                return $"No coverage gaps found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                       "All production classes and methods appear to be called from test namespaces.";
 
-        return sb.ToString();
+            var rankedResults = RankNodesForDisplay(filteredResults).ToArray();
+            var highPriority = rankedResults.Where(IsHighPriorityCoverageGap).ToArray();
+            var lowPriority = rankedResults.Where(node => !IsHighPriorityCoverageGap(node)).ToArray();
+
+            if (detailLevel == ContextDetailLevel.Summary)
+                return $"Coverage gap summary{(projectContext is not null ? $" for '{projectContext}'" : "")}: " +
+                       $"{highPriority.Length} high-priority, {lowPriority.Length} low-priority.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Test Coverage Gaps{(projectContext is not null ? $" — {projectContext}" : "")}");
+            sb.AppendLine($"**{rankedResults.Length}** production types/methods with no test calling them, ranked by likely risk:\n");
+
+            AppendCoverageGapSection(sb, "High-priority untested behavior", highPriority);
+
+            if (ShouldShowBroaderHeuristicMatchesInline())
+            {
+                AppendCoverageGapSection(sb, "Low-priority support types", lowPriority);
+            }
+            else if (lowPriority.Length > 0)
+            {
+                sb.AppendLine($"> Hidden by default: {lowPriority.Length} low-priority support type{(lowPriority.Length == 1 ? string.Empty : "s")}. " +
+                              "Set `CodeMeridian:Analysis:Ranking:ProductionOnlyByDefault=false` or enable `IncludeBroaderHeuristicMatches` to inspect them inline.");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("> Detection is heuristic: test namespaces or file paths are identified by containing 'test'. " +
+                          "DI entry points and abstract types may appear here.");
+
+            return sb.ToString();
+        });
     }
 
     public async Task<string> FindTestShieldAsync(
@@ -973,6 +981,8 @@ public partial class CodebaseQueryService
 
         if (ctx.Node is null)
             return $"Target `{target}` not found in the graph. Run query_codebase first to find the correct node ID.";
+
+        using var _ = await BeginAnalysisOptionsScopeAsync(ctx.Node.ProjectContext, cancellationToken);
 
         var impact = await TryContextStepAsync(
             "impact_analysis",

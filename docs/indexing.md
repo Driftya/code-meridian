@@ -401,6 +401,20 @@ Useful variables:
 
 If an analysis section is omitted, CodeMeridian uses built-in defaults. These settings affect MCP analysis output such as stale-knowledge, coverage-gap, high-churn, hotspot, PageRank, and betweenness ranking.
 
+Live MCP analysis now resolves `analysis.*` in this order:
+
+1. Explicit request/tool behavior
+2. Project-local indexed `meridian.json`
+3. Global `%LOCALAPPDATA%\CodeMeridian\meridian.json` or `CODEMERIDIAN_CONFIG_HOME\meridian.json`
+4. Runtime `codemeridian serve` configuration
+5. Built-in defaults
+
+Important split:
+
+- Global `meridian.json` is read live by the shared MCP server and acts as the shared analysis fallback.
+- Project-local `meridian.json` analysis settings are read from indexed `ConfigurationEntry` graph data, so you must re-index after changing them.
+- Project-local `meridian.json` overrides global analysis settings for the same field.
+
 When `CodeMeridian_Auth_ApiKey` is set, clients must send:
 
 ```http

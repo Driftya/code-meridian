@@ -4,7 +4,7 @@ using CodeMeridian.Core.CodeGraph;
 
 namespace CodeMeridian.Application.Services;
 
-// ── GDS (Graph Data Science) algorithm formatters ─────────────────────────────
+// â”€â”€ GDS (Graph Data Science) algorithm formatters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SRP: this file formats results from Neo4j GDS plugin algorithms only.
 // Structural analytics live in CodebaseQueryService.Analytics.cs.
 // Core CRUD methods live in CodebaseQueryService.cs.
@@ -15,58 +15,62 @@ public partial class CodebaseQueryService
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<(CodeNode Node, double Score)> results;
-        try
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
-            results = await codeGraph.GetPageRankAsync(projectContext, limit: 20, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            return $"PageRank failed: {ex.Message}\n" +
-                   "Ensure the Graph Data Science plugin is installed (`NEO4J_PLUGINS: '[\"graph-data-science\"]'` in docker-compose).";
-        }
+            IReadOnlyList<(CodeNode Node, double Score)> results;
+            try
+            {
+                results = await codeGraph.GetPageRankAsync(projectContext, limit: 20, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                return $"PageRank failed: {ex.Message}\n" +
+                       "Ensure the Graph Data Science plugin is installed (`NEO4J_PLUGINS: '[\"graph-data-science\"]'` in docker-compose).";
+            }
 
-        if (results.Count == 0)
-            return $"No results from PageRank{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "The graph may have no Calls/Uses/DependsOn edges yet.";
+            if (results.Count == 0)
+                return $"No results from PageRank{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                       "The graph may have no Calls/Uses/DependsOn edges yet.";
 
-        var sb = new StringBuilder();
-        sb.AppendLine($"## PageRank — Architectural Influence{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine("Nodes ranked by **transitive call-graph influence** (not just direct fan-in). Production candidates are prioritized by default.\n");
-        var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.Score)));
-        AppendActionabilitySection(
-            sb,
-            "Production candidates",
-            sections.ProductionCandidates,
-            "Score",
-            score => score.ToString("F4", CultureInfo.InvariantCulture));
-
-        if (ShouldShowBroaderHeuristicMatchesInline())
-        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"## PageRank - Architectural Influence{(projectContext is not null ? $" - {projectContext}" : "")}");
+            sb.AppendLine("Nodes ranked by **transitive call-graph influence** (not just direct fan-in). Production candidates are prioritized by default.\n");
+            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.Score)));
             AppendActionabilitySection(
                 sb,
-                "Broader heuristic matches",
-                sections.BroaderHeuristicMatches,
+                "Production candidates",
+                sections.ProductionCandidates,
                 "Score",
                 score => score.ToString("F4", CultureInfo.InvariantCulture));
-        }
 
-        if (ShouldShowSuppressedNoiseInline())
-        {
-            AppendActionabilitySection(
-                sb,
-                "Suppressed noise",
-                sections.SuppressedNoise,
-                "Score",
-                score => score.ToString("F4", CultureInfo.InvariantCulture));
-        }
+            if (ShouldShowBroaderHeuristicMatchesInline())
+            {
+                AppendActionabilitySection(
+                    sb,
+                    "Broader heuristic matches",
+                    sections.BroaderHeuristicMatches,
+                    "Score",
+                    score => score.ToString("F4", CultureInfo.InvariantCulture));
+            }
 
-        AppendSuppressedActionabilitySummary(sb, sections);
-        sb.AppendLine();
-        sb.AppendLine();
-        sb.AppendLine("> PageRank captures *who calls the callers* — deeper architectural weight than fan-in alone.");
+            if (ShouldShowSuppressedNoiseInline())
+            {
+                AppendActionabilitySection(
+                    sb,
+                    "Suppressed noise",
+                    sections.SuppressedNoise,
+                    "Score",
+                    score => score.ToString("F4", CultureInfo.InvariantCulture));
+            }
 
-        return sb.ToString();
+            AppendSuppressedActionabilitySummary(sb, sections);
+            sb.AppendLine();
+            sb.AppendLine();
+            sb.AppendLine("> PageRank captures *who calls the callers* - deeper architectural weight than fan-in alone.");
+
+            return sb.ToString();
+        });
     }
 
     public async Task<string> GetBetweennessAsync(
@@ -89,8 +93,8 @@ public partial class CodebaseQueryService
                    "The graph may have no edges yet.";
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Betweenness Centrality — Bridge Nodes{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine("Nodes that sit **between subsystems** — the connective tissue of your codebase:\n");
+        sb.AppendLine($"## Betweenness Centrality â€” Bridge Nodes{(projectContext is not null ? $" â€” {projectContext}" : "")}");
+        sb.AppendLine("Nodes that sit **between subsystems** â€” the connective tissue of your codebase:\n");
         sb.AppendLine("| Rank | Score | Type | Name | File |");
         sb.AppendLine("|------|-------|------|------|------|");
 
@@ -99,7 +103,7 @@ public partial class CodebaseQueryService
                      .OrderBy(item => NodeDisplayRank(item.Node))
                      .ThenByDescending(item => item.Score))
         {
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
+            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "â€”";
             sb.AppendLine($"| {rank++} | {score.ToString("F0", CultureInfo.InvariantCulture)} | {node.Type} | `{node.Name}` | {file} |");
         }
 
@@ -131,7 +135,7 @@ public partial class CodebaseQueryService
         var ranked = results.OrderByDescending(item => item.Score).ToArray();
         var topScore = ranked[0].Score;
         var sb = new StringBuilder();
-        sb.AppendLine($"## Bridge Nodes{(projectContext is not null ? $" — {projectContext}" : "")}");
+        sb.AppendLine($"## Bridge Nodes{(projectContext is not null ? $" â€” {projectContext}" : "")}");
         sb.AppendLine("Small but structurally important nodes that appear to connect otherwise separate parts of the system:\n");
         sb.AppendLine("| Rank | Score | Type | Name | Connects | Risk note | Confidence | File |");
         sb.AppendLine("|------|-------|------|------|----------|-----------|------------|------|");
@@ -142,7 +146,7 @@ public partial class CodebaseQueryService
             var context = await codeGraph.GetContextForEditingAsync(node.Id, cancellationToken);
             var freshness = BuildFreshness(node);
             var layers = GetConnectedLayers(node, context);
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
+            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "â€”";
             var connects = layers.Count > 0 ? string.Join(", ", layers.Take(4)) : "unknown";
             var risk = DescribeBridgeRisk(score, topScore, layers.Count, freshness.Confidence);
             sb.AppendLine($"| {rank++} | {score.ToString("F0", CultureInfo.InvariantCulture)} | {node.Type} | `{node.Name}` | {connects} | {risk} | {freshness.Confidence} | {file} |");
@@ -158,33 +162,36 @@ public partial class CodebaseQueryService
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<(CodeNode Node, long Community)> results;
-        try
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
-            results = await codeGraph.FindNaturalModulesAsync(projectContext, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            return $"Community detection failed: {ex.Message}\n" +
-                   "Ensure the Graph Data Science plugin is installed.";
-        }
+            IReadOnlyList<(CodeNode Node, long Community)> results;
+            try
+            {
+                results = await codeGraph.FindNaturalModulesAsync(projectContext, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                return $"Community detection failed: {ex.Message}\n" +
+                       "Ensure the Graph Data Science plugin is installed.";
+            }
 
-        if (results.Count == 0)
-            return $"No communities detected{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "The graph may have no edges — run the indexer first.";
+            if (results.Count == 0)
+                return $"No communities detected{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                       "The graph may have no edges - run the indexer first.";
 
-        var communities = ClassifyCommunities(results);
+            var communities = ClassifyCommunities(results);
 
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Natural Modules (Louvain){(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{communities.Count}** organic communities detected from {results.Count} nodes.\n");
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Natural Modules (Louvain){(projectContext is not null ? $" - {projectContext}" : "")}");
+            sb.AppendLine($"**{communities.Count}** organic communities detected from {results.Count} nodes.\n");
 
-        AppendCommunitySection(sb, "Production candidates", communities.Where(c => c.Bucket == ActionabilityBucket.ProductionCandidate).ToArray());
-        if (ShouldShowBroaderHeuristicMatchesInline())
-            AppendCommunitySection(sb, "Broader heuristic matches", communities.Where(c => c.Bucket == ActionabilityBucket.BroaderHeuristicMatch).ToArray());
-        if (ShouldShowSuppressedNoiseInline())
-            AppendCommunitySection(sb, "Suppressed noise", communities.Where(c => c.Bucket == ActionabilityBucket.SuppressedNoise).ToArray());
-        AppendCommunitySuppressionSummary(sb, communities);
+            AppendCommunitySection(sb, "Production candidates", communities.Where(c => c.Bucket == ActionabilityBucket.ProductionCandidate).ToArray());
+            if (ShouldShowBroaderHeuristicMatchesInline())
+                AppendCommunitySection(sb, "Broader heuristic matches", communities.Where(c => c.Bucket == ActionabilityBucket.BroaderHeuristicMatch).ToArray());
+            if (ShouldShowSuppressedNoiseInline())
+                AppendCommunitySection(sb, "Suppressed noise", communities.Where(c => c.Bucket == ActionabilityBucket.SuppressedNoise).ToArray());
+            AppendCommunitySuppressionSummary(sb, communities);
 /*
         {
             var members = community.OrderBy(r => r.Node.Name).ToList();
@@ -203,12 +210,12 @@ public partial class CodebaseQueryService
 
             foreach (var (node, _) in members.Take(10))
             {
-                var loc = node.FilePath is not null ? $" — `{node.FilePath}`" : "";
+                var loc = node.FilePath is not null ? $" - `{node.FilePath}`" : "";
                 sb.AppendLine($"- **{node.Type}** `{node.Name}`{loc}");
             }
 
             if (members.Count > 10)
-                sb.AppendLine($"- *…and {members.Count - 10} more*");
+                sb.AppendLine($"- *...and {members.Count - 10} more*");
 
             sb.AppendLine();
         }
@@ -217,9 +224,10 @@ public partial class CodebaseQueryService
             sb.AppendLine($"*{communities.Count - 15} smaller communities omitted.*");
 */
 
-        sb.AppendLine("> Communities represent organic module boundaries. Compare with your folder structure to identify hidden coupling.");
+            sb.AppendLine("> Communities represent organic module boundaries. Compare with your folder structure to identify hidden coupling.");
 
-        return sb.ToString();
+            return sb.ToString();
+        });
     }
 
     public async Task<string> SuggestExtractionsAsync(
@@ -228,128 +236,130 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
-        IReadOnlyList<(CodeNode Node, long Community)> communities;
-        try
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
-            communities = await codeGraph.FindNaturalModulesAsync(projectContext, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            return $"Extraction suggestion failed: {ex.Message}\n" +
-                   "Ensure the Graph Data Science plugin is installed.";
-        }
-
-        if (communities.Count == 0)
-            return $"No extraction candidates found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "The graph may have no communities yet — run the indexer first.";
-
-        var hotspotScores = (await codeGraph.FindHotspotsAsync(projectContext, limit: 50, cancellationToken))
-            .ToDictionary(item => item.Node.Id, item => item.FanIn, StringComparer.Ordinal);
-        var godClassScores = (await codeGraph.FindGodClassesAsync(projectContext, lineThreshold: 300, fanInThreshold: 3, cancellationToken))
-            .ToDictionary(item => item.Node.Id, item => (item.LineCount, item.FanIn), StringComparer.Ordinal);
-        var coverageGapIds = (await codeGraph.FindCoverageGapsAsync(projectContext, cancellationToken))
-            .Where(node => AllowsProfile(node, AnalysisProfile.CoverageGaps))
-            .Select(node => node.Id)
-            .ToHashSet(StringComparer.Ordinal);
-
-        var classifiedCommunities = ClassifyCommunities(communities);
-        var primaryCandidates = new List<ExtractionCandidate>();
-        var weakCandidates = new List<ExtractionCandidate>();
-        foreach (var community in classifiedCommunities)
-        {
-            var members = community.Members
-                .Where(node => AllowsProfile(node, AnalysisProfile.DesignSmells) && !IsConfiguredTestNode(node))
-                .Where(node => node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
-                .DistinctBy(node => node.Id)
-                .ToArray();
-
-            if (members.Length < analysisOptions.CommunityNoise.MinimumExtractionCandidateMembers)
-                continue;
-
-            var tests = new List<CodeNode>();
-            foreach (var member in members.Take(3))
+            IReadOnlyList<(CodeNode Node, long Community)> communities;
+            try
             {
-                var relatedTests = await codeGraph.FindRelatedTestsAsync(member.Id, member.ProjectContext ?? projectContext, cancellationToken);
-                tests.AddRange(relatedTests
-                    .Select(match => match.Node)
-                    .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node)));
+                communities = await codeGraph.FindNaturalModulesAsync(projectContext, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                return $"Extraction suggestion failed: {ex.Message}\n" +
+                       "Ensure the Graph Data Science plugin is installed.";
             }
 
-            var uniqueTests = tests.DistinctBy(node => node.Id).ToArray();
-            var uniqueFiles = members
-                .Select(node => node.FilePath)
-                .Where(path => !string.IsNullOrWhiteSpace(path))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+            if (communities.Count == 0)
+                return $"No extraction candidates found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                       "The graph may have no communities yet - run the indexer first.";
+
+            var hotspotScores = (await codeGraph.FindHotspotsAsync(projectContext, limit: 50, cancellationToken))
+                .ToDictionary(item => item.Node.Id, item => item.FanIn, StringComparer.Ordinal);
+            var godClassScores = (await codeGraph.FindGodClassesAsync(projectContext, lineThreshold: 300, fanInThreshold: 3, cancellationToken))
+                .ToDictionary(item => item.Node.Id, item => (item.LineCount, item.FanIn), StringComparer.Ordinal);
+            var coverageGapIds = (await codeGraph.FindCoverageGapsAsync(projectContext, cancellationToken))
+                .Where(node => AllowsProfile(node, AnalysisProfile.CoverageGaps))
+                .Select(node => node.Id)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var classifiedCommunities = ClassifyCommunities(communities);
+            var primaryCandidates = new List<ExtractionCandidate>();
+            var weakCandidates = new List<ExtractionCandidate>();
+            foreach (var community in classifiedCommunities)
+            {
+                var members = community.Members
+                    .Where(node => AllowsProfile(node, AnalysisProfile.DesignSmells) && !IsConfiguredTestNode(node))
+                    .Where(node => node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
+                    .DistinctBy(node => node.Id)
+                    .ToArray();
+
+                if (members.Length < analysisOptions.CommunityNoise.MinimumExtractionCandidateMembers)
+                    continue;
+
+                var tests = new List<CodeNode>();
+                foreach (var member in members.Take(3))
+                {
+                    var relatedTests = await codeGraph.FindRelatedTestsAsync(member.Id, member.ProjectContext ?? projectContext, cancellationToken);
+                    tests.AddRange(relatedTests
+                        .Select(match => match.Node)
+                        .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node)));
+                }
+
+                var uniqueTests = tests.DistinctBy(node => node.Id).ToArray();
+                var uniqueFiles = members
+                    .Select(node => node.FilePath)
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                var coverageGapCount = members.Count(node => coverageGapIds.Contains(node.Id));
+                var layers = members
+                    .Select(InferLayer)
+                    .Where(layer => !string.Equals(layer, "Unknown", StringComparison.Ordinal))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                var anchor = SelectExtractionAnchor(members, hotspotScores, godClassScores);
+                var location = ResolveExtractionLocation(members);
+                var score = ScoreExtractionCandidate(members.Length, uniqueFiles.Length, uniqueTests.Length, coverageGapCount, layers.Length, community.ProductionRatio, anchor, hotspotScores, godClassScores);
+                var confidence = DescribeExtractionConfidence(uniqueTests.Length, coverageGapCount, layers.Length, community.ProductionRatio, anchor, hotspotScores, godClassScores);
+                var reason = BuildExtractionReason(members, uniqueFiles.Length, uniqueTests.Length, coverageGapCount, layers, community.ProductionRatio, anchor, hotspotScores, godClassScores);
+
+                var candidate = new ExtractionCandidate(
+                    community.CommunityId,
+                    location,
+                    confidence,
+                    score,
+                    anchor,
+                    members,
+                    uniqueTests,
+                    coverageGapCount,
+                    community.ProductionRatio,
+                    reason);
+
+                if (community.Bucket == ActionabilityBucket.ProductionCandidate
+                    && score >= analysisOptions.CommunityNoise.MinimumPrimaryExtractionScore
+                    && !string.Equals(confidence, "Low", StringComparison.OrdinalIgnoreCase))
+                    primaryCandidates.Add(candidate);
+                else
+                    weakCandidates.Add(candidate);
+            }
+
+            var ranked = primaryCandidates
+                .OrderByDescending(candidate => candidate.Score)
+                .ThenBy(candidate => candidate.Location, StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Clamp(limit, 1, 25))
                 .ToArray();
-            var coverageGapCount = members.Count(node => coverageGapIds.Contains(node.Id));
-            var layers = members
-                .Select(InferLayer)
-                .Where(layer => !string.Equals(layer, "Unknown", StringComparison.Ordinal))
-                .Distinct(StringComparer.Ordinal)
+            var weakRanked = weakCandidates
+                .OrderByDescending(candidate => candidate.Score)
+                .ThenBy(candidate => candidate.Location, StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Clamp(limit, 1, 25))
                 .ToArray();
-            var anchor = SelectExtractionAnchor(members, hotspotScores, godClassScores);
-            var location = ResolveExtractionLocation(members);
-            var score = ScoreExtractionCandidate(members.Length, uniqueFiles.Length, uniqueTests.Length, coverageGapCount, layers.Length, community.ProductionRatio, anchor, hotspotScores, godClassScores);
-            var confidence = DescribeExtractionConfidence(uniqueTests.Length, coverageGapCount, layers.Length, community.ProductionRatio, anchor, hotspotScores, godClassScores);
-            var reason = BuildExtractionReason(members, uniqueFiles.Length, uniqueTests.Length, coverageGapCount, layers, community.ProductionRatio, anchor, hotspotScores, godClassScores);
 
-            var candidate = new ExtractionCandidate(
-                community.CommunityId,
-                location,
-                confidence,
-                score,
-                anchor,
-                members,
-                uniqueTests,
-                coverageGapCount,
-                community.ProductionRatio,
-                reason);
+            if (ranked.Length == 0 && weakRanked.Length == 0)
+                return $"No extraction candidates survived the current safety filters{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                       "Try re-indexing, or wait until the graph contains larger production-only communities.";
 
-            if (community.Bucket == ActionabilityBucket.ProductionCandidate
-                && score >= analysisOptions.CommunityNoise.MinimumPrimaryExtractionScore
-                && !string.Equals(confidence, "Low", StringComparison.OrdinalIgnoreCase))
-                primaryCandidates.Add(candidate);
-            else
-                weakCandidates.Add(candidate);
-        }
-
-        var ranked = primaryCandidates
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenBy(candidate => candidate.Location, StringComparer.OrdinalIgnoreCase)
-            .Take(Math.Clamp(limit, 1, 25))
-            .ToArray();
-        var weakRanked = weakCandidates
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenBy(candidate => candidate.Location, StringComparer.OrdinalIgnoreCase)
-            .Take(Math.Clamp(limit, 1, 25))
-            .ToArray();
-
-        if (ranked.Length == 0 && weakRanked.Length == 0)
-            return $"No extraction candidates survived the current safety filters{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "Try re-indexing, or wait until the graph contains larger production-only communities.";
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Refactor Extraction Candidates{(projectContext is not null ? $" - {projectContext}" : "")}");
-        sb.AppendLine($"**{ranked.Length}** primary extraction candidates survived the current actionability thresholds.");
-        sb.AppendLine();
-        AppendExtractionCandidateTable(sb, ranked, "Primary candidates");
-        if (weakRanked.Length > 0 && ShouldShowBroaderHeuristicMatchesInline())
-        {
-            AppendExtractionCandidateTable(sb, weakRanked, "Weaker heuristic candidates");
-        }
-        else if (weakRanked.Length > 0)
-        {
-            sb.AppendLine($"> Hidden by default: {weakRanked.Length} weaker heuristic candidate{(weakRanked.Length == 1 ? string.Empty : "s")}. " +
-                          "Set `CodeMeridian:Analysis:Ranking:ProductionOnlyByDefault=false` or enable `IncludeBroaderHeuristicMatches` to inspect them inline.");
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Refactor Extraction Candidates{(projectContext is not null ? $" - {projectContext}" : "")}");
+            sb.AppendLine($"**{ranked.Length}** primary extraction candidates survived the current actionability thresholds.");
             sb.AppendLine();
-        }
+            AppendExtractionCandidateTable(sb, ranked, "Primary candidates");
+            if (weakRanked.Length > 0 && ShouldShowBroaderHeuristicMatchesInline())
+            {
+                AppendExtractionCandidateTable(sb, weakRanked, "Weaker heuristic candidates");
+            }
+            else if (weakRanked.Length > 0)
+            {
+                sb.AppendLine($"> Hidden by default: {weakRanked.Length} weaker heuristic candidate{(weakRanked.Length == 1 ? string.Empty : "s")}. " +
+                              "Set `CodeMeridian:Analysis:Ranking:ProductionOnlyByDefault=false` or enable `IncludeBroaderHeuristicMatches` to inspect them inline.");
+                sb.AppendLine();
+            }
 
 /*
         var rank = 1;
         foreach (var candidate in ranked)
         {
             var tests = candidate.NearbyTests.Count == 0
-                ? "—"
+                ? "-"
                 : string.Join("<br>", candidate.NearbyTests.Take(3).Select(test => $"`{test.Name}`"));
             sb.AppendLine(
                 $"| {rank++} | `{candidate.Location}` | {candidate.Confidence} | `{candidate.Anchor.Name}` | {tests} | {candidate.CoverageGapCount} | {EscapeTableCell(candidate.Reason)} |");
@@ -357,20 +367,21 @@ public partial class CodebaseQueryService
 
         sb.AppendLine();
 */
-        sb.AppendLine("### Candidate details");
-        foreach (var candidate in ranked.Concat(ShouldShowBroaderHeuristicMatchesInline() ? weakRanked : Array.Empty<ExtractionCandidate>()))
-        {
-            sb.AppendLine($"#### Community {candidate.Community} - `{candidate.Location}`");
-            sb.AppendLine($"- Anchor: `{candidate.Anchor.Name}` ({candidate.Anchor.Type})");
-            sb.AppendLine($"- Production member ratio: {(candidate.ProductionRatio * 100).ToString("F0", CultureInfo.InvariantCulture)}%");
-            sb.AppendLine($"- Members: {string.Join(", ", candidate.Members.Take(5).Select(member => $"`{member.Name}`"))}");
-            sb.AppendLine($"- Nearby tests: {(candidate.NearbyTests.Count == 0 ? "none found" : string.Join(", ", candidate.NearbyTests.Take(4).Select(test => $"`{test.Name}`")))}");
-            sb.AppendLine($"- Reason: {candidate.Reason}");
-            sb.AppendLine();
-        }
+            sb.AppendLine("### Candidate details");
+            foreach (var candidate in ranked.Concat(ShouldShowBroaderHeuristicMatchesInline() ? weakRanked : Array.Empty<ExtractionCandidate>()))
+            {
+                sb.AppendLine($"#### Community {candidate.Community} - `{candidate.Location}`");
+                sb.AppendLine($"- Anchor: `{candidate.Anchor.Name}` ({candidate.Anchor.Type})");
+                sb.AppendLine($"- Production member ratio: {(candidate.ProductionRatio * 100).ToString("F0", CultureInfo.InvariantCulture)}%");
+                sb.AppendLine($"- Members: {string.Join(", ", candidate.Members.Take(5).Select(member => $"`{member.Name}`"))}");
+                sb.AppendLine($"- Nearby tests: {(candidate.NearbyTests.Count == 0 ? "none found" : string.Join(", ", candidate.NearbyTests.Take(4).Select(test => $"`{test.Name}`")))}");
+                sb.AppendLine($"- Reason: {candidate.Reason}");
+                sb.AppendLine();
+            }
 
-        sb.AppendLine("> Safe-first heuristic: candidates are dense natural modules with a strong internal anchor. Nearby tests and coverage gaps are included so you can judge whether an extraction is protected before changing boundaries.");
-        return sb.ToString();
+            sb.AppendLine("> Safe-first heuristic: candidates are dense natural modules with a strong internal anchor. Nearby tests and coverage gaps are included so you can judge whether an extraction is protected before changing boundaries.");
+            return sb.ToString();
+        });
     }
 
     public async Task<string> FindSimilarToNodeAsync(
@@ -378,54 +389,59 @@ public partial class CodebaseQueryService
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
-        var results = await codeGraph.FindSimilarToNodeAsync(nodeId, projectContext, topK: 10, cancellationToken);
-
-        if (results.Count == 0)
-            return $"No similar nodes found for `{nodeId}`. " +
-                   "Embeddings must be stored on nodes to use semantic similarity. " +
-                   "Pass an `embeddingCsv` when calling ingest_code_node, or re-index with an embedding-enabled indexer.";
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Semantically Similar Nodes - `{nodeId}`");
-        sb.AppendLine($"**{results.Count}** nodes with similar vector embeddings:\n");
-
-        var sections = PartitionSimilarityMatches(nodeId, results);
-        AppendActionabilitySection(
-            sb,
-            "Same-family production matches",
-            sections.ProductionCandidates,
-            "Similarity",
-            score => $"{(score * 100).ToString("F1", CultureInfo.InvariantCulture)}%");
-
-        if (ShouldShowBroaderHeuristicMatchesInline())
+        projectContext = await ResolveAnalysisProjectContextForNodeAsync(nodeId, projectContext, cancellationToken);
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
+            var results = await codeGraph.FindSimilarToNodeAsync(nodeId, projectContext, topK: 10, cancellationToken);
+
+            if (results.Count == 0)
+                return $"No similar nodes found for `{nodeId}`. " +
+                       "Embeddings must be stored on nodes to use semantic similarity. " +
+                       "Pass an `embeddingCsv` when calling ingest_code_node, or re-index with an embedding-enabled indexer.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Semantically Similar Nodes - `{nodeId}`");
+            sb.AppendLine($"**{results.Count}** nodes with similar vector embeddings:\n");
+
+            var sections = PartitionSimilarityMatches(nodeId, results);
             AppendActionabilitySection(
                 sb,
-                "Broader semantic matches",
-                sections.BroaderHeuristicMatches,
+                "Same-family production matches",
+                sections.ProductionCandidates,
                 "Similarity",
                 score => $"{(score * 100).ToString("F1", CultureInfo.InvariantCulture)}%");
-        }
 
-        if (ShouldShowSuppressedNoiseInline())
-        {
-            AppendActionabilitySection(
-                sb,
-                "Suppressed test/config matches",
-                sections.SuppressedNoise,
-                "Similarity",
-                score => $"{(score * 100).ToString("F1", CultureInfo.InvariantCulture)}%");
-        }
-        else
-        {
-            AppendSuppressedActionabilitySummary(sb, sections);
-        }
+            if (ShouldShowBroaderHeuristicMatchesInline())
+            {
+                AppendActionabilitySection(
+                    sb,
+                    "Broader semantic matches",
+                    sections.BroaderHeuristicMatches,
+                    "Similarity",
+                    score => $"{(score * 100).ToString("F1", CultureInfo.InvariantCulture)}%");
+            }
 
-        sb.AppendLine();
-        sb.AppendLine("> Semantic similarity keeps same-family production matches first by default. Enable broader output to inspect cross-layer or test-adjacent semantic neighbors.");
+            if (ShouldShowSuppressedNoiseInline())
+            {
+                AppendActionabilitySection(
+                    sb,
+                    "Suppressed test/config matches",
+                    sections.SuppressedNoise,
+                    "Similarity",
+                    score => $"{(score * 100).ToString("F1", CultureInfo.InvariantCulture)}%");
+            }
+            else
+            {
+                AppendSuppressedActionabilitySummary(sb, sections);
+            }
 
-        return sb.ToString();
+            sb.AppendLine();
+            sb.AppendLine("> Semantic similarity keeps same-family production matches first by default. Enable broader output to inspect cross-layer or test-adjacent semantic neighbors.");
+
+            return sb.ToString();
+        });
     }
+
     public async Task<string> FindHybridSearchAsync(
         string query,
         string? nearNodeId = null,
@@ -464,7 +480,7 @@ public partial class CodebaseQueryService
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Hybrid Semantic Graph Search â€” `{query}`");
+        sb.AppendLine($"## Hybrid Semantic Graph Search Ã¢â‚¬â€ `{query}`");
         sb.AppendLine($"**{results.Count}** results ranked by embedding similarity and graph proximity.");
         if (!string.IsNullOrWhiteSpace(nearNodeId))
             sb.AppendLine($"Anchored near `{nearNodeId}` within {Math.Clamp(maxHops, 1, 8)} hops.");
@@ -482,10 +498,10 @@ public partial class CodebaseQueryService
         sb.AppendLine("> Hybrid search uses embeddings for relevance and graph distance for scope. Tests are excluded by default.");
 
         return sb.ToString()
+            .Replace("## Hybrid Semantic Graph Search ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â", "## Hybrid Semantic Graph Search -", StringComparison.Ordinal)
             .Replace("## Hybrid Semantic Graph Search Ã¢â‚¬â€", "## Hybrid Semantic Graph Search -", StringComparison.Ordinal)
-            .Replace("## Hybrid Semantic Graph Search â€”", "## Hybrid Semantic Graph Search -", StringComparison.Ordinal)
-            .Replace("Ã¢â‚¬â€", "-", StringComparison.Ordinal)
-            .Replace("â€”", "-", StringComparison.Ordinal);
+            .Replace("ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â", "-", StringComparison.Ordinal)
+            .Replace("Ã¢â‚¬â€", "-", StringComparison.Ordinal);
     }
 
     public async Task<string> FindDuplicateCandidatesAsync(
@@ -497,6 +513,7 @@ public partial class CodebaseQueryService
         bool excludeTests = true,
         CancellationToken cancellationToken = default)
     {
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
         CodeNodeType? parsedType = null;
         if (!string.IsNullOrWhiteSpace(nodeType))
         {
@@ -514,54 +531,56 @@ public partial class CodebaseQueryService
 
         minLineCount = Math.Max(0, minLineCount);
         minSimilarity = Math.Clamp(minSimilarity, 0.0, 1.0);
-
-        var results = await codeGraph.FindDuplicateCandidatesAsync(
-            projectContext,
-            namespaceFilter,
-            parsedType,
-            minLineCount,
-            minSimilarity,
-            excludeTests,
-            limit: 20,
-            cancellationToken);
-        results = results
-            .Where(candidate =>
-                AllowsProfile(candidate.Source, AnalysisProfile.DuplicateDetection) &&
-                AllowsProfile(candidate.Candidate, AnalysisProfile.DuplicateDetection) &&
-                (!excludeTests || (ResolveFileRole(candidate.Source) != IndexedFileRole.Test && ResolveFileRole(candidate.Candidate) != IndexedFileRole.Test)))
-            .ToArray();
-
-        if (results.Count == 0)
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
-            return "No duplicate-code candidates found. " +
-                   "Embeddings must be stored on method/class nodes, and the current filters may be too strict. " +
-                   "Try lowering `minSimilarity`, lowering `minLineCount`, or re-indexing with backend embeddings enabled.";
-        }
+            var results = await codeGraph.FindDuplicateCandidatesAsync(
+                projectContext,
+                namespaceFilter,
+                parsedType,
+                minLineCount,
+                minSimilarity,
+                excludeTests,
+                limit: 20,
+                cancellationToken);
+            results = results
+                .Where(candidate =>
+                    AllowsProfile(candidate.Source, AnalysisProfile.DuplicateDetection) &&
+                    AllowsProfile(candidate.Candidate, AnalysisProfile.DuplicateDetection) &&
+                    (!excludeTests || (ResolveFileRole(candidate.Source) != IndexedFileRole.Test && ResolveFileRole(candidate.Candidate) != IndexedFileRole.Test)))
+                .ToArray();
 
-        var grouped = results
-            .GroupBy(candidate => candidate.Source.Id)
-            .OrderByDescending(group => group.Max(candidate => candidate.Score))
-            .ToList();
+            if (results.Count == 0)
+            {
+                return "No duplicate-code candidates found. " +
+                       "Embeddings must be stored on method/class nodes, and the current filters may be too strict. " +
+                       "Try lowering `minSimilarity`, lowering `minLineCount`, or re-indexing with backend embeddings enabled.";
+            }
 
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Duplicate-Code Candidates{(projectContext is not null ? $" - {projectContext}" : string.Empty)}");
-        sb.AppendLine($"**{results.Count}** similar method/class pairs across **{grouped.Count}** source groups.\n");
+            var grouped = results
+                .GroupBy(candidate => candidate.Source.Id)
+                .OrderByDescending(group => group.Max(candidate => candidate.Score))
+                .ToList();
 
-        var sections = PartitionDuplicateCandidates(results);
-        AppendDuplicateCandidateSection(sb, "Low-risk extraction candidates", sections.ProductionCandidates);
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Duplicate-Code Candidates{(projectContext is not null ? $" - {projectContext}" : string.Empty)}");
+            sb.AppendLine($"**{results.Count}** similar method/class pairs across **{grouped.Count}** source groups.\n");
 
-        if (ShouldShowBroaderHeuristicMatchesInline())
-            AppendDuplicateCandidateSection(sb, "Broader incidental similarity", sections.BroaderHeuristicMatches);
+            var sections = PartitionDuplicateCandidates(results);
+            AppendDuplicateCandidateSection(sb, "Low-risk extraction candidates", sections.ProductionCandidates);
 
-        if (ShouldShowSuppressedNoiseInline())
-            AppendDuplicateCandidateSection(sb, "Suppressed test/config similarity", sections.SuppressedNoise);
-        else
-            AppendSuppressedActionabilitySummary(sb, sections);
+            if (ShouldShowBroaderHeuristicMatchesInline())
+                AppendDuplicateCandidateSection(sb, "Broader incidental similarity", sections.BroaderHeuristicMatches);
 
-        sb.AppendLine();
-        sb.AppendLine("> Review these as candidates, not proof of duplication. Prioritise low fan-in, same-layer pairs with strong similarity before considering broader semantic overlap.");
+            if (ShouldShowSuppressedNoiseInline())
+                AppendDuplicateCandidateSection(sb, "Suppressed test/config similarity", sections.SuppressedNoise);
+            else
+                AppendSuppressedActionabilitySummary(sb, sections);
 
-        return sb.ToString();
+            sb.AppendLine();
+            sb.AppendLine("> Review these as candidates, not proof of duplication. Prioritise low fan-in, same-layer pairs with strong similarity before considering broader semantic overlap.");
+
+            return sb.ToString();
+        });
     }
 
     private RankedNodeSections<double> PartitionSimilarityMatches(
@@ -1219,7 +1238,7 @@ public partial class CodebaseQueryService
         foreach (var candidate in candidates)
         {
             var tests = candidate.NearbyTests.Count == 0
-                ? "â€”"
+                ? "Ã¢â‚¬â€"
                 : string.Join("<br>", candidate.NearbyTests.Take(3).Select(test => $"`{test.Name}`"));
             sb.AppendLine(
                 $"| {rank++} | `{candidate.Location}` | {candidate.Confidence} | `{candidate.Anchor.Name}` | {(candidate.ProductionRatio * 100).ToString("F0", CultureInfo.InvariantCulture)}% | {tests} | {candidate.CoverageGapCount} | {EscapeTableCell(candidate.Reason)} |");
@@ -1237,4 +1256,6 @@ public partial class CodebaseQueryService
         string Reason,
         string? DominantNamespace);
 }
+
+
 

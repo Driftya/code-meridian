@@ -1,8 +1,11 @@
 using CodeMeridian.Application;
+using CodeMeridian.Application.Services;
 using CodeMeridian.Infrastructure;
 using CodeMeridian.McpServer.Api;
+using CodeMeridian.McpServer.Configuration;
 using CodeMeridian.McpServer.Keywording;
 using CodeMeridian.McpServer.Tools;
+using CodeMeridian.Tooling.Configuration;
 using Microsoft.Extensions.Logging.Console;
 using System.Security.Cryptography;
 using System.Text;
@@ -18,6 +21,8 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // ── Application services (no LLM — reasoning lives in GitHub Copilot) ────────
 builder.Services.AddApplication(builder.Configuration);
+builder.Services.AddSingleton<CodeMeridianConfigFileStore>();
+builder.Services.AddSingleton<IGlobalAnalysisConfigurationSource, GlobalMeridianAnalysisConfigurationSource>();
 builder.Services.Configure<KeywordRefreshQueueOptions>(builder.Configuration.GetSection("KeywordRefreshQueue"));
 builder.Services.AddSingleton<BackgroundKeywordRefreshQueue>();
 builder.Services.AddSingleton<IKeywordRefreshQueue>(sp => sp.GetRequiredService<BackgroundKeywordRefreshQueue>());

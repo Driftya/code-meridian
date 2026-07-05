@@ -12,102 +12,106 @@ public partial class CodebaseQueryService
         int limit = 12,
         CancellationToken cancellationToken = default)
     {
-        var concepts = ParseConcepts(conceptsCsv);
-        var goalTerms = ExtractSurfaceTerms(goal, concepts);
-        var frontendGoal = LooksLikeFrontendGoal(goal, concepts);
-        var queries = new[] { goal }
-            .Concat(concepts)
-            .Concat(goalTerms.Take(4))
-            .Where(q => !string.IsNullOrWhiteSpace(q))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-        var candidates = new List<CodeNode>();
-
-        foreach (var query in queries)
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
-            var nodes = await codeGraph.QueryNodesAsync(
-                new CodeGraphQuery
-                {
-                    SemanticQuery = query,
-                    ProjectContext = projectContext,
-                    Limit = 30
-                },
-                cancellationToken);
+            var concepts = ParseConcepts(conceptsCsv);
+            var goalTerms = ExtractSurfaceTerms(goal, concepts);
+            var frontendGoal = LooksLikeFrontendGoal(goal, concepts);
+            var queries = new[] { goal }
+                .Concat(concepts)
+                .Concat(goalTerms.Take(4))
+                .Where(q => !string.IsNullOrWhiteSpace(q))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            var candidates = new List<CodeNode>();
 
-            candidates.AddRange(nodes);
-
-            if (goalTerms.Contains(query, StringComparer.OrdinalIgnoreCase))
+            foreach (var query in queries)
             {
-                var lexicalNodes = await codeGraph.QueryNodesAsync(
+                var nodes = await codeGraph.QueryNodesAsync(
                     new CodeGraphQuery
                     {
-                        NameFilter = query,
+                        SemanticQuery = query,
                         ProjectContext = projectContext,
-                        Limit = 20
+                        Limit = 30
                     },
                     cancellationToken);
 
-                candidates.AddRange(lexicalNodes);
+                candidates.AddRange(nodes);
+
+                if (goalTerms.Contains(query, StringComparer.OrdinalIgnoreCase))
+                {
+                    var lexicalNodes = await codeGraph.QueryNodesAsync(
+                        new CodeGraphQuery
+                        {
+                            NameFilter = query,
+                            ProjectContext = projectContext,
+                            Limit = 20
+                        },
+                        cancellationToken);
+
+                    candidates.AddRange(lexicalNodes);
+                }
+
+                if (frontendGoal || nodes.Any(IsFrontendGraphNode))
+                    candidates.AddRange(await ExpandFrontendSurfaceCandidatesAsync(nodes, cancellationToken));
             }
 
-            if (frontendGoal || nodes.Any(IsFrontendGraphNode))
-                candidates.AddRange(await ExpandFrontendSurfaceCandidatesAsync(nodes, cancellationToken));
-        }
+            if (candidates.Count == 0)
+                return $"No implementation surface found for `{goal}`. Try a more specific goal, or re-index before relying on CodeMeridian for exact targets.";
 
-        if (candidates.Count == 0)
-            return $"No implementation surface found for `{goal}`. Try a more specific goal, or re-index before relying on CodeMeridian for exact targets.";
+            var ranked = candidates
+                .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
+                .GroupBy(n => n.FilePath!, StringComparer.OrdinalIgnoreCase)
+                .Select(group => BuildSurfaceCandidate("mcp__CodeMeridian.find_implementation_surface", group.Key, group, goal, concepts, goalTerms))
+                .OrderByDescending(candidate => candidate.Score)
+                .ThenBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Clamp(limit, 1, 50))
+                .ToArray();
 
-        var ranked = candidates
-            .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
-            .GroupBy(n => n.FilePath!, StringComparer.OrdinalIgnoreCase)
-            .Select(group => BuildSurfaceCandidate("mcp__CodeMeridian.find_implementation_surface", group.Key, group, goal, concepts, goalTerms))
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenBy(candidate => candidate.FilePath, StringComparer.OrdinalIgnoreCase)
-            .Take(Math.Clamp(limit, 1, 50))
-            .ToArray();
+            if (ranked.Length == 0)
+                return $"CodeMeridian found related nodes for `{goal}`, but none had file paths. Re-index with an up-to-date indexer before using this for implementation targeting.";
 
-        if (ranked.Length == 0)
-            return $"CodeMeridian found related nodes for `{goal}`, but none had file paths. Re-index with an up-to-date indexer before using this for implementation targeting.";
+            var pruned = PruneSurfaceCandidates(ranked, limit);
 
-        var pruned = PruneSurfaceCandidates(ranked, limit);
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Implementation Surface - `{goal}`");
-        if (concepts.Length > 0)
-            sb.AppendLine($"**Concepts:** {string.Join(", ", concepts.Select(c => $"`{c}`"))}");
-        sb.AppendLine($"**Pruned result:** {pruned.PrimaryTargets.Count} primary edit target(s), {pruned.ContextOnlyTargets.Count} context-only target(s)");
-        sb.AppendLine();
-        sb.AppendLine("### Primary Edit Targets");
-        sb.AppendLine("| Rank | Target confidence | File | Canonical IDs | Likely methods/classes | Why | Freshness |");
-        sb.AppendLine("|---:|---|---|---|---|---|---|");
-
-        var rank = 1;
-        foreach (var candidate in pruned.PrimaryTargets)
-        {
-            var nodes = string.Join(", ", candidate.Nodes.Take(4).Select(n => $"`{n.Name}`"));
-            var ids = FormatCanonicalIds(candidate.Nodes);
-            var freshness = DescribeFreshness(candidate.Freshness);
-            sb.AppendLine($"| {rank++} | {candidate.TargetConfidence} | `{candidate.FilePath}` | {ids} | {nodes} | {candidate.Reason} | {freshness} |");
-        }
-
-        if (pruned.ContextOnlyTargets.Count > 0)
-        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Implementation Surface - `{goal}`");
+            if (concepts.Length > 0)
+                sb.AppendLine($"**Concepts:** {string.Join(", ", concepts.Select(c => $"`{c}`"))}");
+            sb.AppendLine($"**Pruned result:** {pruned.PrimaryTargets.Count} primary edit target(s), {pruned.ContextOnlyTargets.Count} context-only target(s)");
             sb.AppendLine();
-            sb.AppendLine("### Context-Only Targets");
-            sb.AppendLine("| File | Why excluded from primary | Target confidence | Likely methods/classes | Freshness |");
-            sb.AppendLine("|---|---|---|---|---|");
+            sb.AppendLine("### Primary Edit Targets");
+            sb.AppendLine("| Rank | Target confidence | File | Canonical IDs | Likely methods/classes | Why | Freshness |");
+            sb.AppendLine("|---:|---|---|---|---|---|---|");
 
-            foreach (var item in pruned.ContextOnlyTargets)
+            var rank = 1;
+            foreach (var candidate in pruned.PrimaryTargets)
             {
-                var nodes = string.Join(", ", item.Candidate.Nodes.Take(4).Select(n => $"`{n.Name}`"));
-                var freshness = DescribeFreshness(item.Candidate.Freshness);
-                sb.AppendLine($"| `{item.Candidate.FilePath}` | {item.ExclusionReason} | {item.Candidate.TargetConfidence} | {nodes} | {freshness} |");
+                var nodes = string.Join(", ", candidate.Nodes.Take(4).Select(n => $"`{n.Name}`"));
+                var ids = FormatCanonicalIds(candidate.Nodes);
+                var freshness = DescribeFreshness(candidate.Freshness);
+                sb.AppendLine($"| {rank++} | {candidate.TargetConfidence} | `{candidate.FilePath}` | {ids} | {nodes} | {candidate.Reason} | {freshness} |");
             }
-        }
 
-        sb.AppendLine();
-        sb.AppendLine("CodeMeridian result: primary edit targets are pruned from broader graph matches using file-role heuristics, exact-symbol signals, and indexed metadata freshness. Use `resolve_exact_symbol` when target confidence is not exact.");
+            if (pruned.ContextOnlyTargets.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("### Context-Only Targets");
+                sb.AppendLine("| File | Why excluded from primary | Target confidence | Likely methods/classes | Freshness |");
+                sb.AppendLine("|---|---|---|---|---|");
 
-        return sb.ToString();
+                foreach (var item in pruned.ContextOnlyTargets)
+                {
+                    var nodes = string.Join(", ", item.Candidate.Nodes.Take(4).Select(n => $"`{n.Name}`"));
+                    var freshness = DescribeFreshness(item.Candidate.Freshness);
+                    sb.AppendLine($"| `{item.Candidate.FilePath}` | {item.ExclusionReason} | {item.Candidate.TargetConfidence} | {nodes} | {freshness} |");
+                }
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("CodeMeridian result: primary edit targets are pruned from broader graph matches using file-role heuristics, exact-symbol signals, and indexed metadata freshness. Use `resolve_exact_symbol` when target confidence is not exact.");
+
+            return sb.ToString();
+        });
     }
 
     public async Task<string> PlanEditRouteAsync(
@@ -117,102 +121,106 @@ public partial class CodebaseQueryService
         int limit = 8,
         CancellationToken cancellationToken = default)
     {
-        var concepts = ParseConcepts(conceptsCsv);
-        var queries = new[] { goal }.Concat(concepts).Where(q => !string.IsNullOrWhiteSpace(q)).Distinct(StringComparer.OrdinalIgnoreCase);
-        var candidates = new List<CodeNode>();
-
-        foreach (var query in queries)
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
-            var nodes = await codeGraph.QueryNodesAsync(
-                new CodeGraphQuery
-                {
-                    SemanticQuery = query,
-                    ProjectContext = projectContext,
-                    Limit = 30
-                },
-                cancellationToken);
+            var concepts = ParseConcepts(conceptsCsv);
+            var queries = new[] { goal }.Concat(concepts).Where(q => !string.IsNullOrWhiteSpace(q)).Distinct(StringComparer.OrdinalIgnoreCase);
+            var candidates = new List<CodeNode>();
 
-            candidates.AddRange(nodes);
-        }
+            foreach (var query in queries)
+            {
+                var nodes = await codeGraph.QueryNodesAsync(
+                    new CodeGraphQuery
+                    {
+                        SemanticQuery = query,
+                        ProjectContext = projectContext,
+                        Limit = 30
+                    },
+                    cancellationToken);
 
-        var rankedNodes = candidates
-            .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
-            .Where(node => ShouldIncludeRouteCandidate(node, goal, concepts))
-            .DistinctBy(n => n.Id)
-            .OrderByDescending(node => ScoreRouteNode(node, goal, concepts))
-            .ThenBy(node => node.FilePath, StringComparer.OrdinalIgnoreCase)
-            .Take(Math.Clamp(limit, 1, 25))
-            .ToArray();
+                candidates.AddRange(nodes);
+            }
 
-        if (rankedNodes.Length == 0)
-        {
-            rankedNodes = candidates
+            var rankedNodes = candidates
                 .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
+                .Where(node => ShouldIncludeRouteCandidate(node, goal, concepts))
                 .DistinctBy(n => n.Id)
                 .OrderByDescending(node => ScoreRouteNode(node, goal, concepts))
                 .ThenBy(node => node.FilePath, StringComparer.OrdinalIgnoreCase)
                 .Take(Math.Clamp(limit, 1, 25))
                 .ToArray();
-        }
 
-        if (rankedNodes.Length == 0)
-            return $"No edit route found for `{goal}`. Try `find_implementation_surface`, add more specific concepts, or re-index before relying on CodeMeridian for route planning.";
+            if (rankedNodes.Length == 0)
+            {
+                rankedNodes = candidates
+                    .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
+                    .DistinctBy(n => n.Id)
+                    .OrderByDescending(node => ScoreRouteNode(node, goal, concepts))
+                    .ThenBy(node => node.FilePath, StringComparer.OrdinalIgnoreCase)
+                    .Take(Math.Clamp(limit, 1, 25))
+                    .ToArray();
+            }
 
-        var anchor = SelectRouteAnchor(rankedNodes, goal, concepts);
-        var ctx = await codeGraph.GetContextForEditingAsync(anchor.Id, cancellationToken)
-            ?? new EditingContext(null, [], [], []);
-        var impact = await codeGraph.FindImpactAsync(anchor.Id, depth: 2, cancellationToken) ?? [];
-        var downstream = await codeGraph.FindDownstreamAsync(anchor.Id, depth: 2, cancellationToken) ?? [];
-        var relatedTests = await codeGraph.FindRelatedTestsAsync(anchor.Id, anchor.ProjectContext ?? projectContext, cancellationToken) ?? [];
+            if (rankedNodes.Length == 0)
+                return $"No edit route found for `{goal}`. Try `find_implementation_surface`, add more specific concepts, or re-index before relying on CodeMeridian for route planning.";
 
-        var routeNodes = rankedNodes
-            .Where(node => node.Id == anchor.Id || IsRouteCompanionCandidate(node, anchor, goal, concepts))
-            .Concat(ctx.Node is null ? [] : [ctx.Node])
-            .Concat(ctx.Interfaces)
-            .Concat(ctx.Callees)
-            .Concat(ctx.Callers)
-            .Concat(downstream.Select(d => d.Node))
-            .Concat(impact.Select(i => i.Node))
-            .Concat(relatedTests.Select(t => t.Node))
-            .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
-            .DistinctBy(n => n.Id)
-            .ToArray();
+            var anchor = SelectRouteAnchor(rankedNodes, goal, concepts);
+            var ctx = await codeGraph.GetContextForEditingAsync(anchor.Id, cancellationToken)
+                ?? new EditingContext(null, [], [], []);
+            var impact = await codeGraph.FindImpactAsync(anchor.Id, depth: 2, cancellationToken) ?? [];
+            var downstream = await codeGraph.FindDownstreamAsync(anchor.Id, depth: 2, cancellationToken) ?? [];
+            var relatedTests = await codeGraph.FindRelatedTestsAsync(anchor.Id, anchor.ProjectContext ?? projectContext, cancellationToken) ?? [];
 
-        var steps = BuildEditRouteSteps(routeNodes, anchor, goal);
-        var routeConfidence = DescribeRouteConfidence(anchor, steps, ctx.Node is not null);
+            var routeNodes = rankedNodes
+                .Where(node => node.Id == anchor.Id || IsRouteCompanionCandidate(node, anchor, goal, concepts))
+                .Concat(ctx.Node is null ? [] : [ctx.Node])
+                .Concat(ctx.Interfaces)
+                .Concat(ctx.Callees)
+                .Concat(ctx.Callers)
+                .Concat(downstream.Select(d => d.Node))
+                .Concat(impact.Select(i => i.Node))
+                .Concat(relatedTests.Select(t => t.Node))
+                .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
+                .DistinctBy(n => n.Id)
+                .ToArray();
 
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Change Route - `{goal}`");
-        if (concepts.Length > 0)
-            sb.AppendLine($"**Concepts:** {string.Join(", ", concepts.Select(c => $"`{c}`"))}");
-        sb.AppendLine($"**Anchor:** `{anchor.Name}` ({anchor.Type}) - `{anchor.FilePath}`");
-        sb.AppendLine($"**Route confidence:** {routeConfidence}");
-        sb.AppendLine();
-        sb.AppendLine("| Step | Edit route | Why this comes here | Primary targets |");
-        sb.AppendLine("|---:|---|---|---|");
+            var steps = BuildEditRouteSteps(routeNodes, anchor, goal);
+            var routeConfidence = DescribeRouteConfidence(anchor, steps, ctx.Node is not null);
 
-        var stepNumber = 1;
-        foreach (var step in steps)
-        {
-            var targets = step.Nodes.Count == 0
-                ? "No graph target found"
-                : string.Join("<br>", step.Nodes.Take(4).Select(FormatRouteNode));
-            sb.AppendLine($"| {stepNumber++} | {step.Title} | {step.Reason} | {targets} |");
-        }
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Change Route - `{goal}`");
+            if (concepts.Length > 0)
+                sb.AppendLine($"**Concepts:** {string.Join(", ", concepts.Select(c => $"`{c}`"))}");
+            sb.AppendLine($"**Anchor:** `{anchor.Name}` ({anchor.Type}) - `{anchor.FilePath}`");
+            sb.AppendLine($"**Route confidence:** {routeConfidence}");
+            sb.AppendLine();
+            sb.AppendLine("| Step | Edit route | Why this comes here | Primary targets |");
+            sb.AppendLine("|---:|---|---|---|");
 
-        sb.AppendLine();
-        sb.AppendLine("### Graph signals");
-        sb.AppendLine($"- Implementation candidates: {rankedNodes.Length}");
-        sb.AppendLine($"- Direct callers: {ctx.Callers.Count}");
-        sb.AppendLine($"- Direct callees: {ctx.Callees.Count}");
-        sb.AppendLine($"- Interfaces/contracts: {ctx.Interfaces.Count}");
-        sb.AppendLine($"- Near impact nodes: {impact.Count}");
-        sb.AppendLine($"- Near downstream nodes: {downstream.Count}");
-        sb.AppendLine($"- Related tests: {relatedTests.Count}");
-        sb.AppendLine();
-        sb.AppendLine("> Use this as the edit itinerary. Run `build_minimal_context` on exact route targets before changing code.");
+            var stepNumber = 1;
+            foreach (var step in steps)
+            {
+                var targets = step.Nodes.Count == 0
+                    ? "No graph target found"
+                    : string.Join("<br>", step.Nodes.Take(4).Select(FormatRouteNode));
+                sb.AppendLine($"| {stepNumber++} | {step.Title} | {step.Reason} | {targets} |");
+            }
 
-        return sb.ToString();
+            sb.AppendLine();
+            sb.AppendLine("### Graph signals");
+            sb.AppendLine($"- Implementation candidates: {rankedNodes.Length}");
+            sb.AppendLine($"- Direct callers: {ctx.Callers.Count}");
+            sb.AppendLine($"- Direct callees: {ctx.Callees.Count}");
+            sb.AppendLine($"- Interfaces/contracts: {ctx.Interfaces.Count}");
+            sb.AppendLine($"- Near impact nodes: {impact.Count}");
+            sb.AppendLine($"- Near downstream nodes: {downstream.Count}");
+            sb.AppendLine($"- Related tests: {relatedTests.Count}");
+            sb.AppendLine();
+            sb.AppendLine("> Use this as the edit itinerary. Run `build_minimal_context` on exact route targets before changing code.");
+
+            return sb.ToString();
+        });
     }
 
     public async Task<string> ResolveExactSymbolAsync(

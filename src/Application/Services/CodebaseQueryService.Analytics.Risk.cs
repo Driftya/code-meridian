@@ -18,10 +18,10 @@ public partial class CodebaseQueryService
 
         if (filteredResults.Length == 0)
             return $"No god classes found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "Either all classes are well-sized, or line count data is missing — re-index to populate it.";
+                   "Either all classes are well-sized, or line count data is missing â€” re-index to populate it.";
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## God Classes{(projectContext is not null ? $" — {projectContext}" : "")}");
+        sb.AppendLine($"## God Classes{(projectContext is not null ? $" â€” {projectContext}" : "")}");
         sb.AppendLine("Classes that are **large** (SRP violation) **and** heavily depended upon (high fan-in):\n");
         sb.AppendLine("| Risk | Lines | Fan-in | Name | File |");
         sb.AppendLine("|------|-------|--------|------|------|");
@@ -34,12 +34,12 @@ public partial class CodebaseQueryService
                 > 200 => "High",
                 _ => "Medium"
             };
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
+            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "â€”";
             sb.AppendLine($"| {risk} | {lineCount} | {fanIn} | `{node.Name}` | {file} |");
         }
 
         sb.AppendLine();
-        sb.AppendLine("> Use get_context_for_editing before refactoring — high fan-in means all callers need updating too.");
+        sb.AppendLine("> Use get_context_for_editing before refactoring â€” high fan-in means all callers need updating too.");
 
         return sb.ToString();
     }
@@ -49,157 +49,160 @@ public partial class CodebaseQueryService
         int limit = 25,
         CancellationToken cancellationToken = default)
     {
-        var documents = await vectorStore.ListAsync(projectContext, limit: 250, cancellationToken);
-        var externalConcepts = await codeGraph.QueryNodesAsync(
-            new CodeGraphQuery
-            {
-                ProjectContext = projectContext,
-                TypeFilter = CodeNodeType.ExternalConcept,
-                Limit = 200
-            },
-            cancellationToken);
-        var unreferenced = await codeGraph.FindUnreferencedAsync(projectContext, cancellationToken);
-        var mostRecentCodeUpdate = await codeGraph.GetMostRecentCodeUpdateAsync(projectContext, cancellationToken);
-
-        var unresolvedDocMentions = new List<(KnowledgeDocument Document, string Mention, string Reason)>();
-        var staleNotes = new List<(KnowledgeDocument Document, string Reason)>();
-        var orphanedConcepts = new List<CodeNode>();
-
-        foreach (var doc in documents)
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
-            var explicitMentions = ExtractMentionIds(doc.Metadata);
-            if (explicitMentions.Count > 0)
-            {
-                foreach (var mention in explicitMentions)
+            var documents = await vectorStore.ListAsync(projectContext, limit: 250, cancellationToken);
+            var externalConcepts = await codeGraph.QueryNodesAsync(
+                new CodeGraphQuery
                 {
-                    var ctx = await codeGraph.GetContextForEditingAsync(mention, cancellationToken);
-                    if (ctx.Node is null)
+                    ProjectContext = projectContext,
+                    TypeFilter = CodeNodeType.ExternalConcept,
+                    Limit = 200
+                },
+                cancellationToken);
+            var unreferenced = await codeGraph.FindUnreferencedAsync(projectContext, cancellationToken);
+            var mostRecentCodeUpdate = await codeGraph.GetMostRecentCodeUpdateAsync(projectContext, cancellationToken);
+
+            var unresolvedDocMentions = new List<(KnowledgeDocument Document, string Mention, string Reason)>();
+            var staleNotes = new List<(KnowledgeDocument Document, string Reason)>();
+            var orphanedConcepts = new List<CodeNode>();
+
+            foreach (var doc in documents)
+            {
+                var explicitMentions = ExtractMentionIds(doc.Metadata);
+                if (explicitMentions.Count > 0)
+                {
+                    foreach (var mention in explicitMentions)
                     {
-                        unresolvedDocMentions.Add((doc, mention, "explicit metadata reference does not resolve to a current code node"));
-                        continue;
+                        var ctx = await codeGraph.GetContextForEditingAsync(mention, cancellationToken);
+                        if (ctx.Node is null)
+                        {
+                            unresolvedDocMentions.Add((doc, mention, "explicit metadata reference does not resolve to a current code node"));
+                            continue;
+                        }
+
+                        if (mostRecentCodeUpdate.HasValue
+                            && doc.UpdatedAt.HasValue
+                            && doc.UpdatedAt.Value < mostRecentCodeUpdate.Value
+                            && IsLikelyNote(doc))
+                        {
+                            staleNotes.Add((doc, "note is older than the latest code reindex"));
+                        }
                     }
 
-                    if (mostRecentCodeUpdate.HasValue
-                        && doc.UpdatedAt.HasValue
-                        && doc.UpdatedAt.Value < mostRecentCodeUpdate.Value
-                        && IsLikelyNote(doc))
+                    continue;
+                }
+
+                if (!ShouldScanHeuristicMentions(doc))
+                    continue;
+
+                foreach (var mention in ExtractSymbolMentions(doc.Content).Take(8))
+                {
+                    var matches = await codeGraph.QueryNodesAsync(
+                        new CodeGraphQuery
+                        {
+                            ProjectContext = doc.ProjectContext ?? projectContext,
+                            SemanticQuery = mention,
+                            Limit = 5
+                        },
+                        cancellationToken);
+
+                    if (matches.Count == 0 || !matches.Any(IsLikelyMatch))
                     {
-                        staleNotes.Add((doc, "note is older than the latest code reindex"));
+                        unresolvedDocMentions.Add((doc, mention, "documentation mentions code that no longer resolves cleanly"));
                     }
                 }
 
-                continue;
-            }
-
-            if (!ShouldScanHeuristicMentions(doc))
-                continue;
-
-            foreach (var mention in ExtractSymbolMentions(doc.Content).Take(8))
-            {
-                var matches = await codeGraph.QueryNodesAsync(
-                    new CodeGraphQuery
-                    {
-                        ProjectContext = doc.ProjectContext ?? projectContext,
-                        SemanticQuery = mention,
-                        Limit = 5
-                    },
-                    cancellationToken);
-
-                if (matches.Count == 0 || !matches.Any(IsLikelyMatch))
+                if (mostRecentCodeUpdate.HasValue
+                    && doc.UpdatedAt.HasValue
+                    && doc.UpdatedAt.Value < mostRecentCodeUpdate.Value
+                    && IsLikelyNote(doc))
                 {
-                    unresolvedDocMentions.Add((doc, mention, "documentation mentions code that no longer resolves cleanly"));
+                    staleNotes.Add((doc, "note is older than the latest code reindex"));
                 }
             }
 
-            if (mostRecentCodeUpdate.HasValue
-                && doc.UpdatedAt.HasValue
-                && doc.UpdatedAt.Value < mostRecentCodeUpdate.Value
-                && IsLikelyNote(doc))
+            foreach (var concept in externalConcepts)
             {
-                staleNotes.Add((doc, "note is older than the latest code reindex"));
+                var edges = await codeGraph.QueryEdgesAsync(concept.Id, depth: 1, cancellationToken);
+                if (edges.Count == 0)
+                    orphanedConcepts.Add(concept);
             }
-        }
 
-        foreach (var concept in externalConcepts)
-        {
-            var edges = await codeGraph.QueryEdgesAsync(concept.Id, depth: 1, cancellationToken);
-            if (edges.Count == 0)
-                orphanedConcepts.Add(concept);
-        }
+            var staleOrphans = unreferenced
+                .Where(node => node.Type is CodeNodeType.Method or CodeNodeType.Class)
+                .Take(limit)
+                .ToArray();
+            var distinctUnresolvedDocMentions = unresolvedDocMentions
+                .DistinctBy(finding => $"{finding.Document.Source ?? finding.Document.Id}|{finding.Mention}|{finding.Reason}", StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var distinctStaleNotes = staleNotes
+                .DistinctBy(finding => $"{finding.Document.Source ?? finding.Document.Id}|{finding.Reason}", StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var distinctOrphanedConcepts = orphanedConcepts
+                .DistinctBy(node => node.Id, StringComparer.Ordinal)
+                .ToArray();
+            var distinctStaleOrphans = staleOrphans
+                .DistinctBy(node => node.Id, StringComparer.Ordinal)
+                .ToArray();
 
-        var staleOrphans = unreferenced
-            .Where(node => node.Type is CodeNodeType.Method or CodeNodeType.Class)
-            .Take(limit)
-            .ToArray();
-        var distinctUnresolvedDocMentions = unresolvedDocMentions
-            .DistinctBy(finding => $"{finding.Document.Source ?? finding.Document.Id}|{finding.Mention}|{finding.Reason}", StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var distinctStaleNotes = staleNotes
-            .DistinctBy(finding => $"{finding.Document.Source ?? finding.Document.Id}|{finding.Reason}", StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var distinctOrphanedConcepts = orphanedConcepts
-            .DistinctBy(node => node.Id, StringComparer.Ordinal)
-            .ToArray();
-        var distinctStaleOrphans = staleOrphans
-            .DistinctBy(node => node.Id, StringComparer.Ordinal)
-            .ToArray();
-
-        if (distinctUnresolvedDocMentions.Length == 0
-            && distinctStaleNotes.Length == 0
-            && distinctOrphanedConcepts.Length == 0
-            && distinctStaleOrphans.Length < 10)
-        {
-            return $"No obvious stale knowledge found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "Knowledge docs, external concepts, and code graph references appear consistent.";
-        }
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Stale Knowledge{(projectContext is not null ? $" - {projectContext}" : "")}");
-        sb.AppendLine("Possibly stale knowledge found in documents, external concepts, and orphaned code references:\n");
-
-        if (distinctUnresolvedDocMentions.Length > 0)
-        {
-            sb.AppendLine($"### Unresolved documentation references ({Math.Min(distinctUnresolvedDocMentions.Length, limit)})");
-            foreach (var finding in distinctUnresolvedDocMentions.Take(limit))
+            if (distinctUnresolvedDocMentions.Length == 0
+                && distinctStaleNotes.Length == 0
+                && distinctOrphanedConcepts.Length == 0
+                && distinctStaleOrphans.Length < 10)
             {
-                sb.AppendLine($"- `{finding.Document.Source ?? finding.Document.Id}` mentions `{finding.Mention}` - {finding.Reason}");
+                return $"No obvious stale knowledge found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                       "Knowledge docs, external concepts, and code graph references appear consistent.";
             }
-            sb.AppendLine();
-        }
 
-        if (distinctOrphanedConcepts.Length > 0)
-        {
-            sb.AppendLine($"### Orphaned external concepts ({Math.Min(distinctOrphanedConcepts.Length, limit)})");
-            foreach (var concept in distinctOrphanedConcepts.Take(limit))
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Stale Knowledge{(projectContext is not null ? $" - {projectContext}" : "")}");
+            sb.AppendLine("Possibly stale knowledge found in documents, external concepts, and orphaned code references:\n");
+
+            if (distinctUnresolvedDocMentions.Length > 0)
             {
-                sb.AppendLine($"- `{concept.Name}` (`{concept.Id}`) has no live code links");
+                sb.AppendLine($"### Unresolved documentation references ({Math.Min(distinctUnresolvedDocMentions.Length, limit)})");
+                foreach (var finding in distinctUnresolvedDocMentions.Take(limit))
+                {
+                    sb.AppendLine($"- `{finding.Document.Source ?? finding.Document.Id}` mentions `{finding.Mention}` - {finding.Reason}");
+                }
+                sb.AppendLine();
             }
-            sb.AppendLine();
-        }
 
-        if (distinctStaleNotes.Length > 0)
-        {
-            sb.AppendLine($"### Old notes ({Math.Min(distinctStaleNotes.Length, limit)})");
-            foreach (var finding in distinctStaleNotes.Take(limit))
+            if (distinctOrphanedConcepts.Length > 0)
             {
-                var source = finding.Document.Source ?? finding.Document.Id;
-                sb.AppendLine($"- `{source}` - {finding.Reason}");
+                sb.AppendLine($"### Orphaned external concepts ({Math.Min(distinctOrphanedConcepts.Length, limit)})");
+                foreach (var concept in distinctOrphanedConcepts.Take(limit))
+                {
+                    sb.AppendLine($"- `{concept.Name}` (`{concept.Id}`) has no live code links");
+                }
+                sb.AppendLine();
             }
-            sb.AppendLine();
-        }
 
-        if (distinctStaleOrphans.Length >= 10)
-        {
-            sb.AppendLine($"### Orphaned code nodes ({distinctStaleOrphans.Length})");
-            foreach (var node in distinctStaleOrphans.Take(limit))
-                sb.AppendLine($"- `{node.Name}` - `{node.FilePath ?? "-"}`");
-            sb.AppendLine();
-        }
+            if (distinctStaleNotes.Length > 0)
+            {
+                sb.AppendLine($"### Old notes ({Math.Min(distinctStaleNotes.Length, limit)})");
+                foreach (var finding in distinctStaleNotes.Take(limit))
+                {
+                    var source = finding.Document.Source ?? finding.Document.Id;
+                    sb.AppendLine($"- `{source}` - {finding.Reason}");
+                }
+                sb.AppendLine();
+            }
 
-        sb.AppendLine("> Weak `Mentions` / `References` relationships from knowledge to code are preferred for explicit links. " +
-                      "When those are absent, CodeMeridian falls back to text-based detection and reports likely stale references instead of silently rewriting them.");
+            if (distinctStaleOrphans.Length >= 10)
+            {
+                sb.AppendLine($"### Orphaned code nodes ({distinctStaleOrphans.Length})");
+                foreach (var node in distinctStaleOrphans.Take(limit))
+                    sb.AppendLine($"- `{node.Name}` - `{node.FilePath ?? "-"}`");
+                sb.AppendLine();
+            }
 
-        return sb.ToString();
+            sb.AppendLine("> Weak `Mentions` / `References` relationships from knowledge to code are preferred for explicit links. When those are absent, CodeMeridian falls back to text-based detection and reports likely stale references instead of silently rewriting them.");
+
+            return sb.ToString();
+        });
     }
 
     public async Task<string> FindDownstreamAsync(
@@ -209,56 +212,60 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         nodeId = await ResolveCanonicalNodeIdAsync(nodeId, cancellationToken: cancellationToken);
-        var results = await codeGraph.FindDownstreamAsync(nodeId, depth, cancellationToken);
-
-        if (results.Count == 0)
-            return $"No downstream dependencies found for `{nodeId}` within {depth} hops. " +
-                   "The node may not exist or has no outbound dependency edges.";
-
-        if (detailLevel == ContextDetailLevel.Summary)
-            return $"Downstream summary for `{nodeId}`: {results.Count} dependencies within {depth} hops. " +
-                   $"Nearest distance: {results.Min(r => r.Distance)}. Farthest distance: {results.Max(r => r.Distance)}.";
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Downstream Blast Radius — `{nodeId}`");
-        sb.AppendLine($"**{results.Count}** elements that this node transitively calls or depends on (up to {depth} hops):\n");
-
-        var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.Distance)));
-        AppendActionabilitySection(
-            sb,
-            "Production dependencies",
-            sections.ProductionCandidates,
-            "Distance",
-            distance => distance.ToString(CultureInfo.InvariantCulture));
-
-        if (ShouldShowBroaderHeuristicMatchesInline())
+        var projectContext = await ResolveAnalysisProjectContextForNodeAsync(nodeId, fallbackProjectContext: null, cancellationToken);
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
+            var results = await codeGraph.FindDownstreamAsync(nodeId, depth, cancellationToken);
+
+            if (results.Count == 0)
+                return $"No downstream dependencies found for `{nodeId}` within {depth} hops. " +
+                       "The node may not exist or has no outbound dependency edges.";
+
+            if (detailLevel == ContextDetailLevel.Summary)
+                return $"Downstream summary for `{nodeId}`: {results.Count} dependencies within {depth} hops. " +
+                       $"Nearest distance: {results.Min(r => r.Distance)}. Farthest distance: {results.Max(r => r.Distance)}.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Downstream Blast Radius - `{nodeId}`");
+            sb.AppendLine($"**{results.Count}** elements that this node transitively calls or depends on (up to {depth} hops):\n");
+
+            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.Distance)));
             AppendActionabilitySection(
                 sb,
-                "Broader heuristic matches",
-                sections.BroaderHeuristicMatches,
+                "Production dependencies",
+                sections.ProductionCandidates,
                 "Distance",
                 distance => distance.ToString(CultureInfo.InvariantCulture));
-        }
 
-        if (analysisOptions.DependencyNoise.IncludeTestDependenciesByDefault || ShouldShowSuppressedNoiseInline())
-        {
-            AppendActionabilitySection(
-                sb,
-                "Suppressed test/config noise",
-                sections.SuppressedNoise,
-                "Distance",
-                distance => distance.ToString(CultureInfo.InvariantCulture));
-        }
-        else
-        {
-            AppendSuppressedActionabilitySummary(sb, sections);
-        }
+            if (ShouldShowBroaderHeuristicMatchesInline())
+            {
+                AppendActionabilitySection(
+                    sb,
+                    "Broader heuristic matches",
+                    sections.BroaderHeuristicMatches,
+                    "Distance",
+                    distance => distance.ToString(CultureInfo.InvariantCulture));
+            }
 
-        sb.AppendLine();
-        sb.AppendLine("> Combined with find_impact (backward), this gives the full change surface.");
+            if (analysisOptions.DependencyNoise.IncludeTestDependenciesByDefault || ShouldShowSuppressedNoiseInline())
+            {
+                AppendActionabilitySection(
+                    sb,
+                    "Suppressed test/config noise",
+                    sections.SuppressedNoise,
+                    "Distance",
+                    distance => distance.ToString(CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                AppendSuppressedActionabilitySummary(sb, sections);
+            }
 
-        return sb.ToString();
+            sb.AppendLine();
+            sb.AppendLine("> Combined with find_impact (backward), this gives the full change surface.");
+
+            return sb.ToString();
+        });
     }
 
     public async Task<string> FindCyclesAsync(
@@ -270,10 +277,10 @@ public partial class CodebaseQueryService
         if (results.Count == 0)
             return $"No namespace-level circular dependencies found" +
                    $"{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "Clean architecture — no bidirectional namespace coupling detected.";
+                   "Clean architecture â€” no bidirectional namespace coupling detected.";
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Circular Dependencies{(projectContext is not null ? $" — {projectContext}" : "")}");
+        sb.AppendLine($"## Circular Dependencies{(projectContext is not null ? $" â€” {projectContext}" : "")}");
         sb.AppendLine($"**{results.Count}** namespace pairs have bidirectional dependencies (A?B AND B?A):\n");
         sb.AppendLine("| Namespace A | ? | Namespace B |");
         sb.AppendLine("|------------|---|------------|");
@@ -357,14 +364,14 @@ public partial class CodebaseQueryService
                    "Configured architecture layers have no illegal outbound dependencies.";
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Architecture Violations{(projectContext is not null ? $" — {projectContext}" : "")}");
+        sb.AppendLine($"## Architecture Violations{(projectContext is not null ? $" â€” {projectContext}" : "")}");
         sb.AppendLine($"**{results.Count}** edges break configured architecture layer rules:\n");
         sb.AppendLine("| Violation Rule | Source | Target | Source File |");
         sb.AppendLine("|---------------|--------|--------|-------------|");
 
         foreach (var (source, target, violation) in results)
         {
-            var file = source.FilePath is not null ? $"`{source.FilePath}`" : "—";
+            var file = source.FilePath is not null ? $"`{source.FilePath}`" : "â€”";
             sb.AppendLine($"| {violation} | `{source.Name}` | `{target.Name}` | {file} |");
         }
 
@@ -380,51 +387,55 @@ public partial class CodebaseQueryService
         int threshold = 3,
         CancellationToken cancellationToken = default)
     {
-        var results = await codeGraph.FindHighChurnAsync(projectContext, threshold, cancellationToken);
-
-        if (results.Count == 0)
-            return $"No high-churn nodes found (threshold: {threshold} re-indexes)" +
-                   $"{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "Either the codebase is stable or nodes haven't been indexed multiple times yet.";
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"## High-Churn Nodes{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{results.Count}** nodes re-indexed ={threshold} times (frequently changed). Production candidates are prioritized by default:\n");
-
-        var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.ChangeCount)));
-        AppendActionabilitySection(
-            sb,
-            "Production candidates",
-            sections.ProductionCandidates,
-            "Churn",
-            changeCount => $"{changeCount}×");
-
-        if (ShouldShowBroaderHeuristicMatchesInline())
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
+            var results = await codeGraph.FindHighChurnAsync(projectContext, threshold, cancellationToken);
+
+            if (results.Count == 0)
+                return $"No high-churn nodes found (threshold: {threshold} re-indexes)" +
+                       $"{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                       "Either the codebase is stable or nodes haven't been indexed multiple times yet.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"## High-Churn Nodes{(projectContext is not null ? $" - {projectContext}" : "")}");
+            sb.AppendLine($"**{results.Count}** nodes re-indexed >={threshold} times (frequently changed). Production candidates are prioritized by default:\n");
+
+            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.ChangeCount)));
             AppendActionabilitySection(
                 sb,
-                "Broader heuristic matches",
-                sections.BroaderHeuristicMatches,
+                "Production candidates",
+                sections.ProductionCandidates,
                 "Churn",
-                changeCount => $"{changeCount}×");
-        }
+                changeCount => $"{changeCount}x");
 
-        if (ShouldShowSuppressedNoiseInline())
-        {
-            AppendActionabilitySection(
-                sb,
-                "Suppressed noise",
-                sections.SuppressedNoise,
-                "Churn",
-                changeCount => $"{changeCount}×");
-        }
+            if (ShouldShowBroaderHeuristicMatchesInline())
+            {
+                AppendActionabilitySection(
+                    sb,
+                    "Broader heuristic matches",
+                    sections.BroaderHeuristicMatches,
+                    "Churn",
+                    changeCount => $"{changeCount}x");
+            }
 
-        AppendSuppressedActionabilitySummary(sb, sections);
+            if (ShouldShowSuppressedNoiseInline())
+            {
+                AppendActionabilitySection(
+                    sb,
+                    "Suppressed noise",
+                    sections.SuppressedNoise,
+                    "Churn",
+                    changeCount => $"{changeCount}x");
+            }
 
-        sb.AppendLine();
-        sb.AppendLine("> High churn + high fan-in = maximum technical debt risk. Cross-reference with find_hotspots.");
+            AppendSuppressedActionabilitySummary(sb, sections);
 
-        return sb.ToString();
+            sb.AppendLine();
+            sb.AppendLine("> High churn + high fan-in = maximum technical debt risk. Cross-reference with find_hotspots.");
+
+            return sb.ToString();
+        });
     }
 
     public async Task<string> FindSmellPathsAsync(
@@ -439,7 +450,7 @@ public partial class CodebaseQueryService
                    "No forbidden layer-to-layer paths were detected within the configured search depth.";
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Dependency Smell Paths{(projectContext is not null ? $" — {projectContext}" : "")}");
+        sb.AppendLine($"## Dependency Smell Paths{(projectContext is not null ? $" â€” {projectContext}" : "")}");
         sb.AppendLine($"**{results.Count}** shortest forbidden dependency paths found (max depth {Math.Clamp(maxDepth, 1, 6)}):\n");
         sb.AppendLine("| Rule | Hops | Source | Target | Path |");
         sb.AppendLine("|------|------|--------|--------|------|");
@@ -593,7 +604,7 @@ public partial class CodebaseQueryService
         foreach (var node in nodes.Take(detailLevel == ContextDetailLevel.Full ? 50 : 10))
         {
             var loc = node.FilePath is not null
-                ? $" — `{node.FilePath}`{(node.LineNumber.HasValue ? $":{node.LineNumber}" : "")}"
+                ? $" â€” `{node.FilePath}`{(node.LineNumber.HasValue ? $":{node.LineNumber}" : "")}"
                 : string.Empty;
             sb.AppendLine($"- **{node.Type}** `{node.Name}`{loc}");
         }
@@ -626,7 +637,7 @@ public partial class CodebaseQueryService
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Impact Analysis — `{nodeId}`");
+        sb.AppendLine($"## Impact Analysis â€” `{nodeId}`");
         sb.AppendLine($"**{impactPaths.Count}** code elements would be affected by changing this (up to {depth} hops):");
         sb.AppendLine($"**Impact confidence:** {report.OverallConfidence}");
         sb.AppendLine($"**Trust summary:** {report.Proven.Count} proven callers, {report.Heuristic.Count} heuristic callers, {report.Unknown.Count} unknown-risk nodes");
@@ -667,7 +678,7 @@ public partial class CodebaseQueryService
 
         foreach (var (node, distance) in nodes.Take(detailLevel == ContextDetailLevel.Full ? 50 : 10))
         {
-            var loc = node.FilePath is not null ? $" — `{node.FilePath}`" : string.Empty;
+            var loc = node.FilePath is not null ? $" â€” `{node.FilePath}`" : string.Empty;
             sb.AppendLine($"- d{distance}: **{node.Type}** `{node.Name}`{loc}");
         }
 
@@ -724,7 +735,7 @@ public partial class CodebaseQueryService
 
             sb.AppendLine($"{category}:");
             foreach (var item in bucket)
-                sb.AppendLine($"- **{item.TestNode.Type}** `{item.TestNode.Name}`{FormatLocation(item.TestNode)} — {item.Reason}");
+                sb.AppendLine($"- **{item.TestNode.Type}** `{item.TestNode.Name}`{FormatLocation(item.TestNode)} â€” {item.Reason}");
         }
 
         sb.AppendLine($"Suggested command: {(suggestedTestCommand is null ? "none" : $"`{suggestedTestCommand}`")}");
@@ -812,8 +823,8 @@ public partial class CodebaseQueryService
                      .ThenBy(finding => finding.Node.Type)
                      .ThenBy(finding => finding.Node.Name, StringComparer.OrdinalIgnoreCase))
         {
-            var file = finding.Node.FilePath is not null ? $"`{finding.Node.FilePath}`" : "—";
-            var note = string.IsNullOrWhiteSpace(finding.Note) ? "—" : finding.Note;
+            var file = finding.Node.FilePath is not null ? $"`{finding.Node.FilePath}`" : "â€”";
+            var note = string.IsNullOrWhiteSpace(finding.Note) ? "â€”" : finding.Note;
             sb.AppendLine(
                 $"| {finding.Distance} | {finding.Node.Type} | `{finding.Node.Name}` | {file} | {EscapeTableCell(note)} | {EscapeTableCell(finding.Path)} |");
         }
@@ -912,7 +923,7 @@ public partial class CodebaseQueryService
             if (file.NearbyTests.Length > 0)
                 details.Add($"nearby tests: {string.Join(", ", file.NearbyTests.Select(name => $"`{name}`"))}");
 
-            sb.AppendLine($"- `{file.FilePath}` — {string.Join("; ", details)}");
+            sb.AppendLine($"- `{file.FilePath}` â€” {string.Join("; ", details)}");
         }
 
         sb.AppendLine();
@@ -921,7 +932,7 @@ public partial class CodebaseQueryService
     private static string FormatPathSteps(IReadOnlyList<GraphPathStep> steps)
     {
         if (steps.Count == 0)
-            return "—";
+            return "â€”";
 
         var parts = new List<string>(steps.Count * 2);
         for (var i = 0; i < steps.Count; i++)
@@ -943,7 +954,7 @@ public partial class CodebaseQueryService
     private static string FormatConnectionPath(IReadOnlyList<(CodeNode Node, string? ViaRelationship)> path)
     {
         if (path.Count == 0)
-            return "—";
+            return "â€”";
 
         var parts = new List<string>(path.Count * 2);
         for (var i = 0; i < path.Count; i++)
@@ -983,7 +994,7 @@ public partial class CodebaseQueryService
 
     private static string FormatLocation(CodeNode node) =>
         node.FilePath is not null
-            ? $" — `{node.FilePath}`{(node.LineNumber.HasValue ? $":{node.LineNumber}" : "")}"
+            ? $" â€” `{node.FilePath}`{(node.LineNumber.HasValue ? $":{node.LineNumber}" : "")}"
             : string.Empty;
 
     private static DateTimeOffset? RelevantSignalDate(params CodeNode[] nodes)
@@ -1282,4 +1293,6 @@ public partial class CodebaseQueryService
         int EstimatedTokens,
         bool Truncated);
 }
+
+
 
