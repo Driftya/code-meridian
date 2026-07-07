@@ -4319,6 +4319,104 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task PlanEditRouteAsync_NonConfigurationGoal_ExcludesConfigurationCandidatesWhenSourceTargetsExist()
+    {
+        var (sut, graph) = Build();
+        var service = Node("s1", "PaymentService", CodeNodeType.Class, "src/Application/Payments/PaymentService.cs", 12, "Shop", fileRole: IndexedFileRole.Source);
+        var configKey = Node("cfg1", "analysis:routePlanning:preferContractAnchors", CodeNodeType.ConfigurationKey, "meridian.json", 18, "Shop", fileRole: IndexedFileRole.Configuration);
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([configKey, service]);
+        graph
+            .GetContextForEditingAsync(service.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(service, [], [], []));
+        graph
+            .FindImpactAsync(service.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindDownstreamAsync(service.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindRelatedTestsAsync(service.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.PlanEditRouteAsync(
+            "stabilize payment service orchestration",
+            "payments,service",
+            "Shop");
+
+        result.Should().Contain("**Anchor:** `PaymentService` (Class) - `src/Application/Payments/PaymentService.cs`");
+        result.Should().Contain("Implementation candidates: 1");
+        result.Should().NotContain("analysis:routePlanning:preferContractAnchors");
+        result.Should().NotContain("`meridian.json`");
+    }
+
+    [Fact]
+    public async Task PlanEditRouteAsync_ConfigurationGoal_AllowsConfigurationCandidates()
+    {
+        var (sut, graph) = Build();
+        var configKey = Node("cfg1", "analysis:routePlanning:preferContractAnchors", CodeNodeType.ConfigurationKey, "meridian.json", 18, "Shop", fileRole: IndexedFileRole.Configuration);
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([configKey]);
+        graph
+            .GetContextForEditingAsync(configKey.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(configKey, [], [], []));
+        graph
+            .FindImpactAsync(configKey.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindDownstreamAsync(configKey.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindRelatedTestsAsync(configKey.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.PlanEditRouteAsync(
+            "update meridian.json configuration for preferred route anchors",
+            "configuration,meridian.json,route",
+            "Shop");
+
+        result.Should().Contain("**Anchor:** `analysis:routePlanning:preferContractAnchors` (ConfigurationKey) - `meridian.json`");
+        result.Should().Contain("Implementation candidates: 1");
+        result.Should().NotContain("No edit route found");
+    }
+
+    [Fact]
+    public async Task PlanEditRouteAsync_WhenFilteringRemovesAllCandidates_FallsBackToBroaderMatches()
+    {
+        var (sut, graph) = Build();
+        var configKey = Node("cfg1", "analysis:routePlanning:preferContractAnchors", CodeNodeType.ConfigurationKey, "meridian.json", 18, "Shop", fileRole: IndexedFileRole.Configuration);
+
+        graph
+            .QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([configKey]);
+        graph
+            .GetContextForEditingAsync(configKey.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(configKey, [], [], []));
+        graph
+            .FindImpactAsync(configKey.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindDownstreamAsync(configKey.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph
+            .FindRelatedTestsAsync(configKey.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.PlanEditRouteAsync(
+            "stabilize payment route ranking",
+            "payments,ranking",
+            "Shop");
+
+        result.Should().Contain("**Anchor:** `analysis:routePlanning:preferContractAnchors` (ConfigurationKey) - `meridian.json`");
+        result.Should().Contain("Implementation candidates: 1");
+        result.Should().NotContain("No edit route found");
+    }
+
+    [Fact]
     public async Task PlanEditRouteAsync_WhenNoMatches_ReturnsGuidance()
     {
         var (sut, graph) = Build();
