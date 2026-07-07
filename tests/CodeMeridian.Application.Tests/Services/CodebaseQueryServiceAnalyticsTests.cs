@@ -31,6 +31,25 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         return (new CodebaseQueryService(graph, vector, Options.Create(options)), graph);
     }
 
+    private static (CodebaseQueryService Sut, ICodeGraphRepository Graph, IProjectAnalysisOptionsResolver Resolver) Build(
+        CodebaseAnalysisOptions defaultOptions,
+        IProjectAnalysisOptionsResolver resolver)
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        return (
+            new CodebaseQueryService(
+                graph,
+                vector,
+                new NoOpEmbeddingProvider(),
+                Options.Create(defaultOptions),
+                Options.Create(new CodebaseIndexingOptions()),
+                new DefaultAnalysisProfilePolicy(),
+                resolver),
+            graph,
+            resolver);
+    }
+
     private static (CodebaseQueryService Sut, ICodeGraphRepository Graph, IEmbeddingProvider Embeddings) BuildWithEmbeddings()
     {
         var graph = Substitute.For<ICodeGraphRepository>();
@@ -2116,6 +2135,58 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindNaturalModulesAsync_ProjectScopedAnalysisOptions_DoNotLeakAcrossCalls()
+    {
+        var defaultOptions = new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                ProductionOnlyByDefault = false
+            }
+        };
+        var resolver = Substitute.For<IProjectAnalysisOptionsResolver>();
+        resolver.ResolveAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<ResolvedProjectAnalysisOptions>(new ResolvedProjectAnalysisOptions(
+                new CodebaseAnalysisOptions
+                {
+                    Ranking = new RankingOptions
+                    {
+                        ProductionOnlyByDefault = true
+                    }
+                },
+                new AnalysisOptionsResolutionMetadata(false, true, []))));
+        resolver.ResolveAsync("Docs", Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<ResolvedProjectAnalysisOptions>(new ResolvedProjectAnalysisOptions(
+                new CodebaseAnalysisOptions
+                {
+                    Ranking = new RankingOptions
+                    {
+                        ProductionOnlyByDefault = false
+                    }
+                },
+                new AnalysisOptionsResolutionMetadata(false, true, []))));
+
+        var (sut, graph, _) = Build(defaultOptions, resolver);
+        var communityResults = new[]
+        {
+            (Node("a1", "ServiceA", CodeNodeType.Class, "src/A.cs", fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments"), 1L),
+            (Node("a2", "ServiceB", CodeNodeType.Class, "src/B.cs", fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments"), 1L),
+            (Node("b1", "HelperX", CodeNodeType.Class, "src/X.cs", fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications"), 2L)
+        };
+        graph.FindNaturalModulesAsync("Shop", Arg.Any<CancellationToken>()).Returns(communityResults);
+        graph.FindNaturalModulesAsync("Docs", Arg.Any<CancellationToken>()).Returns(communityResults);
+
+        var shopResult = await sut.FindNaturalModulesAsync("Shop");
+        var docsResult = await sut.FindNaturalModulesAsync("Docs");
+
+        shopResult.Should().Contain("Hidden by default: 2 broader heuristic communities");
+        shopResult.Should().NotContain("Community 1 (2 nodes)");
+        docsResult.Should().Contain("### Broader heuristic matches (2)");
+        docsResult.Should().Contain("Community 1 (2 nodes)");
+        docsResult.Should().Contain("HelperX");
+    }
+
+    [Fact]
     public async Task SuggestExtractionsAsync_WhenGdsFails_ReturnsInstallGuidance()
     {
         var (sut, graph) = Build();
@@ -2294,6 +2365,84 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("### Weaker heuristic candidates (1)");
         result.Should().Contain("EmailTemplateBuilder");
+    }
+
+    [Fact]
+    public async Task SuggestExtractionsAsync_ProjectScopedAnalysisOptions_DoNotLeakAcrossCalls()
+    {
+        var defaultOptions = new CodebaseAnalysisOptions
+        {
+            Ranking = new RankingOptions
+            {
+                ProductionOnlyByDefault = false
+            }
+        };
+        var resolver = Substitute.For<IProjectAnalysisOptionsResolver>();
+        resolver.ResolveAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<ResolvedProjectAnalysisOptions>(new ResolvedProjectAnalysisOptions(
+                new CodebaseAnalysisOptions
+                {
+                    Ranking = new RankingOptions
+                    {
+                        ProductionOnlyByDefault = true
+                    }
+                },
+                new AnalysisOptionsResolutionMetadata(false, true, []))));
+        resolver.ResolveAsync("Docs", Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<ResolvedProjectAnalysisOptions>(new ResolvedProjectAnalysisOptions(
+                new CodebaseAnalysisOptions
+                {
+                    Ranking = new RankingOptions
+                    {
+                        ProductionOnlyByDefault = false
+                    }
+                },
+                new AnalysisOptionsResolutionMetadata(false, true, []))));
+
+        var (sut, graph, _) = Build(defaultOptions, resolver);
+        var strongA = Node("a1", "PaymentFacade", CodeNodeType.Class, "src/Application/Payments/PaymentFacade.cs", project: "Shop", lineCount: 340, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments");
+        var strongB = Node("a2", "RetryPolicyBuilder", CodeNodeType.Class, "src/Application/Payments/RetryPolicyBuilder.cs", project: "Shop", lineCount: 90, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments");
+        var strongC = Node("a3", "PaymentMapper", CodeNodeType.Method, "src/Application/Payments/PaymentMapper.cs", project: "Shop", lineCount: 30, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Payments");
+        var weakA = Node("b1", "EmailTemplateBuilder", CodeNodeType.Class, "src/Application/Notifications/EmailTemplateBuilder.cs", project: "Shop", lineCount: 40, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications");
+        var weakB = Node("b2", "EmailFormatter", CodeNodeType.Method, "src/Application/Notifications/EmailFormatter.cs", project: "Shop", lineCount: 20, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications");
+        var weakC = Node("b3", "EmailPreviewBuilder", CodeNodeType.Method, "src/Application/Notifications/EmailPreviewBuilder.cs", project: "Shop", lineCount: 18, fileRole: IndexedFileRole.Source, @namespace: "Shop.Application.Notifications");
+        var strongTest = Node("t1", "PaymentFacadeTests", CodeNodeType.Class, "tests/Payments/PaymentFacadeTests.cs", project: "Shop", fileRole: IndexedFileRole.Test);
+
+        graph.FindNaturalModulesAsync("Shop", Arg.Any<CancellationToken>())
+            .Returns([
+                (strongA, 1L),
+                (strongB, 1L),
+                (strongC, 1L),
+                (weakA, 2L),
+                (weakB, 2L),
+                (weakC, 2L)
+            ]);
+        graph.FindNaturalModulesAsync("Docs", Arg.Any<CancellationToken>())
+            .Returns([
+                (strongA, 1L),
+                (strongB, 1L),
+                (strongC, 1L),
+                (weakA, 2L),
+                (weakB, 2L),
+                (weakC, 2L)
+            ]);
+        graph.FindHotspotsAsync(Arg.Any<string?>(), 50, Arg.Any<CancellationToken>()).Returns([(strongA, 6)]);
+        graph.FindGodClassesAsync(Arg.Any<string?>(), 300, 3, Arg.Any<CancellationToken>()).Returns([(strongA, 340, 6)]);
+        graph.FindCoverageGapsAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns([strongC]);
+        graph.FindRelatedTestsAsync(strongA.Id, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns([(strongTest, "direct")]);
+        graph.FindRelatedTestsAsync(strongB.Id, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(strongC.Id, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(weakA.Id, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(weakB.Id, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(weakC.Id, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns([]);
+
+        var shopResult = await sut.SuggestExtractionsAsync("Shop", limit: 5);
+        var docsResult = await sut.SuggestExtractionsAsync("Docs", limit: 5);
+
+        shopResult.Should().Contain("Hidden by default: 1 weaker heuristic candidate.");
+        shopResult.Should().NotContain("### Weaker heuristic candidates");
+        docsResult.Should().Contain("### Weaker heuristic candidates (1)");
+        docsResult.Should().Contain("EmailTemplateBuilder");
     }
 
     // ── FindSimilarToNodeAsync ────────────────────────────────────────────────

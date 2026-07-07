@@ -356,6 +356,29 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task StartClassifyKeywordsAsync_SendsProjectContextBody()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var result = await sut.StartClassifyKeywordsAsync("CodeMeridian", leaseTtlSeconds: 600);
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Post);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/keywords/classify");
+
+        var body = await handler.ReadBodyAsync();
+        body.GetProperty("projectContext").GetString().Should().Be("CodeMeridian");
+        body.GetProperty("leaseTtlSeconds").GetInt32().Should().Be(600);
+        result.Should().NotBeNull();
+        result!.Accepted.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task GetKeywordGraphJobStatusAsync_SendsJobRequest()
     {
         var handler = new CapturingHandler();
