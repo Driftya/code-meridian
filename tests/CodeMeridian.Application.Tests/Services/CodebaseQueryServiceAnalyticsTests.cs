@@ -149,6 +149,63 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("—"); // missing FilePath rendered as dash
     }
 
+    [Fact]
+    public async Task FindImpactAsync_ForClassTarget_WithExpandedEvidence_RendersCallerBuckets()
+    {
+        var (sut, graph) = Build();
+        const string target = "CodeMeridian::Class::Shop.OrderWorkflow";
+        var directCaller = Node("class-1", "OrdersController", CodeNodeType.Class, "src/Api/OrdersController.cs") with
+        {
+            Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["impactEvidenceBucket"] = "direct-class"
+            }
+        };
+        var memberCaller = Node("method-1", "CheckoutOrchestrator.Run", CodeNodeType.Method, "src/App/CheckoutOrchestrator.cs") with
+        {
+            Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["impactEvidenceBucket"] = "member"
+            }
+        };
+        var dependencyCaller = Node("class-2", "OrderWorkflowFactory", CodeNodeType.Class, "src/App/OrderWorkflowFactory.cs") with
+        {
+            Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["impactEvidenceBucket"] = "dependency"
+            }
+        };
+        var workflowCaller = Node("api-1", "POST /api/orders", CodeNodeType.ApiEndpoint, "src/Api/OrdersEndpoints.cs") with
+        {
+            Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["impactEvidenceBucket"] = "workflow"
+            }
+        };
+
+        graph.FindImpactAsync(target, 5, Arg.Any<CancellationToken>())
+             .Returns([
+                 (directCaller, 1),
+                 (memberCaller, 2),
+                 (dependencyCaller, 1),
+                 (workflowCaller, 2)
+             ]);
+
+        var result = await sut.FindImpactAsync(target);
+
+        result.Should().Contain("## Impact Analysis");
+        result.Should().Contain("Caller evidence");
+        result.Should().Contain("### Direct class callers (1)");
+        result.Should().Contain("### Member callers (1)");
+        result.Should().Contain("### Dependency/composition callers (1)");
+        result.Should().Contain("### Workflow-adjacent callers (1)");
+        result.Should().Contain("OrdersController");
+        result.Should().Contain("CheckoutOrchestrator.Run");
+        result.Should().Contain("OrderWorkflowFactory");
+        result.Should().Contain("POST /api/orders");
+        result.Should().NotContain("No callers found");
+    }
+
     // ── FindHotspotsAsync ─────────────────────────────────────────────────────
 
     [Fact]
@@ -1099,6 +1156,48 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("40");
         result.Should().Contain("`MegaService`");
         result.Should().Contain("get_context_for_editing");
+    }
+
+    [Fact]
+    public async Task FindGodClassesAsync_RendersCallerEvidenceBreakdownAndIndirectWarning()
+    {
+        var (sut, graph) = Build();
+        var directHeavy = NodeWithLineCount("g1", "OrderWorkflow", CodeNodeType.Class, "src/OrderWorkflow.cs", lineCount: 360) with
+        {
+            Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["godClassDirectCallerCount"] = "2",
+                ["godClassMemberCallerCount"] = "3",
+                ["godClassDependencyCallerCount"] = "1",
+                ["godClassHeuristicCallerCount"] = "0",
+                ["godClassQualityScore"] = "95"
+            }
+        };
+        var indirectHeavy = NodeWithLineCount("g2", "BroadCoordinator", CodeNodeType.Class, "src/BroadCoordinator.cs", lineCount: 420) with
+        {
+            Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["godClassDirectCallerCount"] = "0",
+                ["godClassMemberCallerCount"] = "0",
+                ["godClassDependencyCallerCount"] = "1",
+                ["godClassHeuristicCallerCount"] = "4",
+                ["godClassQualityScore"] = "34"
+            }
+        };
+
+        graph.FindGodClassesAsync(null, Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+             .Returns([
+                 (directHeavy, 360, 6),
+                 (indirectHeavy, 420, 5)
+             ]);
+
+        var result = await sut.FindGodClassesAsync();
+
+        result.Should().Contain("Caller evidence");
+        result.Should().Contain("2 direct, 3 member, 1 dependency, 0 heuristic");
+        result.Should().Contain("mostly indirect");
+        result.Should().Contain("0 direct, 0 member, 1 dependency, 4 heuristic");
+        result.Should().Contain("ranked by caller quality and size");
     }
 
     [Fact]
@@ -2275,7 +2374,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("## Hybrid Semantic Graph Search - `retry policy`");
         result.Should().Contain("| 82.0% | Class | `RetryPolicy` | - |");
-        result.Should().NotContain("Ã¢");
+        result.Should().NotContain("\u00C3\u00A2");
     }
 
     // ── FindDuplicateCandidatesAsync ─────────────────────────────────────────
@@ -3180,7 +3279,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("PaymentGateway.ChargeAsync");
         result.Should().Contain("Orphaned external concepts");
         result.Should().Contain("orders table");
-        result.Should().NotContain("â");
+        result.Should().NotContain("\u00E2");
     }
 
     [Fact]

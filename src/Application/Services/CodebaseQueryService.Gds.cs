@@ -4,7 +4,7 @@ using CodeMeridian.Core.CodeGraph;
 
 namespace CodeMeridian.Application.Services;
 
-// â”€â”€ GDS (Graph Data Science) algorithm formatters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- GDS (Graph Data Science) algorithm formatters -----------------------------
 // SRP: this file formats results from Neo4j GDS plugin algorithms only.
 // Structural analytics live in CodebaseQueryService.Analytics.cs.
 // Core CRUD methods live in CodebaseQueryService.cs.
@@ -93,8 +93,8 @@ public partial class CodebaseQueryService
                    "The graph may have no edges yet.";
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Betweenness Centrality â€” Bridge Nodes{(projectContext is not null ? $" â€” {projectContext}" : "")}");
-        sb.AppendLine("Nodes that sit **between subsystems** â€” the connective tissue of your codebase:\n");
+        sb.AppendLine($"## Betweenness Centrality - Bridge Nodes{(projectContext is not null ? $" - {projectContext}" : "")}");
+        sb.AppendLine("Nodes that sit **between subsystems** - the connective tissue of your codebase:\n");
         sb.AppendLine("| Rank | Score | Type | Name | File |");
         sb.AppendLine("|------|-------|------|------|------|");
 
@@ -103,7 +103,7 @@ public partial class CodebaseQueryService
                      .OrderBy(item => NodeDisplayRank(item.Node))
                      .ThenByDescending(item => item.Score))
         {
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "â€”";
+            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "-";
             sb.AppendLine($"| {rank++} | {score.ToString("F0", CultureInfo.InvariantCulture)} | {node.Type} | `{node.Name}` | {file} |");
         }
 
@@ -135,7 +135,7 @@ public partial class CodebaseQueryService
         var ranked = results.OrderByDescending(item => item.Score).ToArray();
         var topScore = ranked[0].Score;
         var sb = new StringBuilder();
-        sb.AppendLine($"## Bridge Nodes{(projectContext is not null ? $" â€” {projectContext}" : "")}");
+        sb.AppendLine($"## Bridge Nodes{(projectContext is not null ? $" - {projectContext}" : "")}");
         sb.AppendLine("Small but structurally important nodes that appear to connect otherwise separate parts of the system:\n");
         sb.AppendLine("| Rank | Score | Type | Name | Connects | Risk note | Confidence | File |");
         sb.AppendLine("|------|-------|------|------|----------|-----------|------------|------|");
@@ -146,7 +146,7 @@ public partial class CodebaseQueryService
             var context = await codeGraph.GetContextForEditingAsync(node.Id, cancellationToken);
             var freshness = BuildFreshness(node);
             var layers = GetConnectedLayers(node, context);
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "â€”";
+            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "-";
             var connects = layers.Count > 0 ? string.Join(", ", layers.Take(4)) : "unknown";
             var risk = DescribeBridgeRisk(score, topScore, layers.Count, freshness.Confidence);
             sb.AppendLine($"| {rank++} | {score.ToString("F0", CultureInfo.InvariantCulture)} | {node.Type} | `{node.Name}` | {connects} | {risk} | {freshness.Confidence} | {file} |");
@@ -480,7 +480,7 @@ public partial class CodebaseQueryService
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"## Hybrid Semantic Graph Search Ã¢â‚¬â€ `{query}`");
+        sb.AppendLine($"## Hybrid Semantic Graph Search - `{query}`");
         sb.AppendLine($"**{results.Count}** results ranked by embedding similarity and graph proximity.");
         if (!string.IsNullOrWhiteSpace(nearNodeId))
             sb.AppendLine($"Anchored near `{nearNodeId}` within {Math.Clamp(maxHops, 1, 8)} hops.");
@@ -497,11 +497,7 @@ public partial class CodebaseQueryService
         sb.AppendLine();
         sb.AppendLine("> Hybrid search uses embeddings for relevance and graph distance for scope. Tests are excluded by default.");
 
-        return sb.ToString()
-            .Replace("## Hybrid Semantic Graph Search ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â", "## Hybrid Semantic Graph Search -", StringComparison.Ordinal)
-            .Replace("## Hybrid Semantic Graph Search Ã¢â‚¬â€", "## Hybrid Semantic Graph Search -", StringComparison.Ordinal)
-            .Replace("ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â", "-", StringComparison.Ordinal)
-            .Replace("Ã¢â‚¬â€", "-", StringComparison.Ordinal);
+        return sb.ToString();
     }
 
     public async Task<string> FindDuplicateCandidatesAsync(
@@ -1238,7 +1234,7 @@ public partial class CodebaseQueryService
         foreach (var candidate in candidates)
         {
             var tests = candidate.NearbyTests.Count == 0
-                ? "Ã¢â‚¬â€"
+                ? "-"
                 : string.Join("<br>", candidate.NearbyTests.Take(3).Select(test => $"`{test.Name}`"));
             sb.AppendLine(
                 $"| {rank++} | `{candidate.Location}` | {candidate.Confidence} | `{candidate.Anchor.Name}` | {(candidate.ProductionRatio * 100).ToString("F0", CultureInfo.InvariantCulture)}% | {tests} | {candidate.CoverageGapCount} | {EscapeTableCell(candidate.Reason)} |");

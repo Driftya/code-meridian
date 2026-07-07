@@ -13,6 +13,7 @@ public sealed partial class Neo4jCodeGraphRepository
     private const string StructuralDependencyRelationships = "Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable|Reads|Writes|PublishesTo|SubscribesTo";
     private const string StructuralTraversalRelationships = StructuralDependencyRelationships + "|Implements|Inherits";
     private const string ConnectionRelationships = StructuralTraversalRelationships + "|Contains";
+    private const string WorkflowAdjacentTypeList = "['ApiEndpoint','File','ExternalConcept','MessageTopic','ExternalService','Diagnostic','ConfigurationFile','ConfigurationKey','ConfigurationEntry']";
 
     public async Task<IReadOnlyList<(CodeNode Source, CodeNode Target, string RelationshipType)>> FindCrossProjectDependenciesAsync(
         string? projectContext = null,
@@ -222,30 +223,10 @@ public sealed partial class Neo4jCodeGraphRepository
         int depth = 5,
         CancellationToken cancellationToken = default)
     {
-        await using var session = _driver.AsyncSession();
-
-        var cypher = $$"""
-            MATCH (target:CodeNode {id: $nodeId})
-            OPTIONAL MATCH (target)-[:Contains*0..2]->(targetMember:CodeNode)
-            WITH collect(DISTINCT target) + collect(DISTINCT targetMember) AS targets
-            UNWIND targets AS targetNode
-            WITH DISTINCT targetNode, targets
-            WHERE targetNode IS NOT NULL
-            MATCH path = (caller:CodeNode)-[:{{StructuralTraversalRelationships}}*1..{{depth}}]->(targetNode)
-            WHERE none(target IN targets WHERE target = caller)
-            WITH caller, min(length(path)) AS dist
-            RETURN caller, dist
-            ORDER BY dist ASC
-            LIMIT 50
-            """;
-
-        var cursor = await session.RunAsync(cypher, new { nodeId });
-        var results = new List<(CodeNode, int)>();
-
-        await foreach (var record in cursor.WithCancellation(cancellationToken))
-            results.Add((MapToCodeNode(record["caller"].As<INode>()), record["dist"].As<int>()));
-
-        return results;
+        var paths = await FindImpactPathsAsync(nodeId, depth, cancellationToken);
+        return paths
+            .Select(path => (path.Node, path.Distance))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<ImpactPath>> FindImpactPathsAsync(
@@ -255,67 +236,181 @@ public sealed partial class Neo4jCodeGraphRepository
     {
         await using var session = _driver.AsyncSession();
 
+        var maxDepth = Math.Clamp(depth, 1, 8);
         var cypher = $$"""
             MATCH (target:CodeNode {id: $nodeId})
-            OPTIONAL MATCH (target)-[:Contains*0..2]->(targetMember:CodeNode)
-            WITH collect(DISTINCT target) + collect(DISTINCT targetMember) AS targets
-            UNWIND targets AS targetNode
-            WITH DISTINCT targetNode, targets
-            WHERE targetNode IS NOT NULL
-            MATCH path = (caller:CodeNode)-[:{{StructuralTraversalRelationships}}*1..{{depth}}]->(targetNode)
-            WHERE none(target IN targets WHERE target = caller)
-            WITH caller, path, length(path) AS dist
-            ORDER BY caller.id, dist ASC
-            WITH caller, collect(path)[0] AS shortestPath, min(dist) AS dist
+            WITH target, target.type AS targetType
+            CALL {
+                WITH target
+                OPTIONAL MATCH (target)-[:Contains*0..2]->(targetMember:CodeNode)
+                WITH target, collect(DISTINCT target) + collect(DISTINCT targetMember) AS targets
+                UNWIND targets AS targetNode
+                WITH DISTINCT target, targetNode, targets
+                WHERE targetNode IS NOT NULL
+                MATCH path = (caller:CodeNode)-[:{{StructuralTraversalRelationships}}*1..8]->(targetNode)
+                WHERE none(candidate IN targets WHERE candidate = caller)
+                WITH target,
+                     targetNode,
+                     caller,
+                     path,
+                     length(path) AS rawDist,
+                     [n IN nodes(path) | n] AS pathNodes,
+                     [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                ORDER BY caller.id, rawDist ASC
+                WITH target,
+                     targetNode,
+                     caller,
+                     collect({
+                         rawDist: rawDist,
+                         pathNodes: pathNodes,
+                         pathRelationships: pathRelationships
+                     })[0] AS best
+                WITH target,
+                     targetNode,
+                     caller,
+                     best.rawDist AS rawDist,
+                     best.pathNodes AS pathNodes,
+                     best.pathRelationships AS pathRelationships
+                RETURN caller,
+                       rawDist + CASE WHEN targetNode = target THEN 0 ELSE 1 END AS dist,
+                       CASE
+                           WHEN targetNode <> target AND caller.type IN {{WorkflowAdjacentTypeList}} THEN 'workflow'
+                           WHEN targetNode <> target AND last(pathRelationships).type = 'DependsOn' THEN 'dependency'
+                           WHEN targetNode <> target THEN 'member'
+                           WHEN caller.type IN {{WorkflowAdjacentTypeList}} THEN 'workflow'
+                           WHEN last(pathRelationships).type IN ['DependsOn', 'Implements', 'Inherits'] THEN 'dependency'
+                           ELSE 'direct-class'
+                       END AS bucket,
+                       CASE
+                           WHEN targetNode <> target AND caller.type IN {{WorkflowAdjacentTypeList}} THEN 4
+                           WHEN targetNode <> target AND last(pathRelationships).type = 'DependsOn' THEN 3
+                           WHEN targetNode <> target THEN 2
+                           WHEN caller.type IN {{WorkflowAdjacentTypeList}} THEN 4
+                           WHEN last(pathRelationships).type IN ['DependsOn', 'Implements', 'Inherits'] THEN 3
+                           ELSE 1
+                       END AS bucketRank,
+                       CASE
+                           WHEN targetNode = target THEN pathNodes
+                           ELSE pathNodes + [target]
+                       END AS pathNodes,
+                       CASE
+                           WHEN targetNode = target THEN pathRelationships
+                           ELSE pathRelationships + [{ type: 'Contains', confidence: 1.0 }]
+                       END AS pathRelationships
+
+                UNION
+
+                WITH target, targetType
+                WITH target, targetType
+                WHERE targetType = 'Interface'
+                MATCH (implementer:CodeNode)-[implementationRel:Implements|Inherits]->(target)
+                MATCH path = (caller:CodeNode)-[:{{StructuralTraversalRelationships}}*1..8]->(implementer)
+                WHERE caller <> target AND caller <> implementer
+                WITH target,
+                     implementationRel,
+                     caller,
+                     path,
+                     length(path) AS rawDist,
+                     [n IN nodes(path) | n] AS pathNodes,
+                     [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                ORDER BY caller.id, rawDist ASC
+                WITH target,
+                     implementationRel,
+                     caller,
+                     collect({
+                         rawDist: rawDist,
+                         pathNodes: pathNodes,
+                         pathRelationships: pathRelationships
+                     })[0] AS best
+                RETURN caller,
+                       best.rawDist + 1 AS dist,
+                       CASE
+                           WHEN caller.type IN {{WorkflowAdjacentTypeList}} THEN 'workflow'
+                           ELSE 'dependency'
+                       END AS bucket,
+                       CASE
+                           WHEN caller.type IN {{WorkflowAdjacentTypeList}} THEN 4
+                           ELSE 3
+                       END AS bucketRank,
+                       best.pathNodes + [target] AS pathNodes,
+                       best.pathRelationships + [{ type: type(implementationRel), confidence: implementationRel.confidence }] AS pathRelationships
+
+                UNION
+
+                WITH target, targetType
+                WITH target, targetType
+                WHERE targetType = 'Interface'
+                MATCH (implementer:CodeNode)-[implementationRel:Implements|Inherits]->(target)
+                MATCH (implementer)-[:Contains*1..2]->(implementerMember:CodeNode)
+                MATCH path = (caller:CodeNode)-[:{{StructuralTraversalRelationships}}*1..8]->(implementerMember)
+                WHERE caller <> target
+                  AND caller <> implementer
+                  AND caller <> implementerMember
+                WITH target,
+                     implementer,
+                     implementationRel,
+                     caller,
+                     path,
+                     length(path) AS rawDist,
+                     [n IN nodes(path) | n] AS pathNodes,
+                     [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                ORDER BY caller.id, rawDist ASC
+                WITH target,
+                     implementer,
+                     implementationRel,
+                     caller,
+                     collect({
+                         rawDist: rawDist,
+                         pathNodes: pathNodes,
+                         pathRelationships: pathRelationships
+                     })[0] AS best
+                RETURN caller,
+                       best.rawDist + 2 AS dist,
+                       CASE
+                           WHEN caller.type IN {{WorkflowAdjacentTypeList}} THEN 'workflow'
+                           WHEN last(best.pathRelationships).type = 'DependsOn' THEN 'dependency'
+                           ELSE 'member'
+                       END AS bucket,
+                       CASE
+                           WHEN caller.type IN {{WorkflowAdjacentTypeList}} THEN 4
+                           WHEN last(best.pathRelationships).type = 'DependsOn' THEN 3
+                           ELSE 2
+                       END AS bucketRank,
+                       best.pathNodes + [implementer, target] AS pathNodes,
+                       best.pathRelationships + [{ type: 'Contains', confidence: 1.0 }, { type: type(implementationRel), confidence: implementationRel.confidence }] AS pathRelationships
+            }
+            WITH caller, dist, bucket, bucketRank, pathNodes, pathRelationships
+            WHERE dist <= $depth
+            ORDER BY caller.id, bucketRank ASC, dist ASC
+            WITH caller, collect({
+                dist: dist,
+                bucket: bucket,
+                bucketRank: bucketRank,
+                pathNodes: pathNodes,
+                pathRelationships: pathRelationships
+            })[0] AS best
             RETURN caller,
-                   dist,
-                   [n IN nodes(shortestPath) | n] AS pathNodes,
-                   [r IN relationships(shortestPath) | { type: type(r), confidence: r.confidence }] AS pathRelationships
-            ORDER BY dist ASC, caller.name
+                   best.dist AS dist,
+                   best.bucket AS bucket,
+                   best.bucketRank AS bucketRank,
+                   best.pathNodes AS pathNodes,
+                   best.pathRelationships AS pathRelationships
+            ORDER BY dist ASC, bucketRank ASC, caller.name
             LIMIT 50
             """;
 
-        var cursor = await session.RunAsync(cypher, new { nodeId });
+        var cursor = await session.RunAsync(cypher, new { nodeId, depth = maxDepth });
         var results = new List<ImpactPath>();
 
         await foreach (var record in cursor.WithCancellation(cancellationToken))
         {
-            var caller = MapToCodeNode(record["caller"].As<INode>());
+            var caller = AnnotateImpactEvidenceNode(
+                MapToCodeNode(record["caller"].As<INode>()),
+                record["bucket"].As<string>());
             var dist = record["dist"].As<int>();
             var pathNodes = record["pathNodes"].As<List<INode>>();
             var pathRelationships = record["pathRelationships"].As<List<object>>();
-            var steps = new List<GraphPathStep>(pathNodes.Count);
-
-            for (var i = 0; i < pathNodes.Count; i++)
-            {
-                string? relationshipType = null;
-                double? relationshipConfidence = null;
-
-                if (i < pathRelationships.Count && pathRelationships[i] is IDictionary<string, object> rel)
-                {
-                    relationshipType = rel.TryGetValue("type", out var typeValue)
-                        ? typeValue?.ToString()
-                        : null;
-
-                    if (rel.TryGetValue("confidence", out var confidenceValue) && confidenceValue is not null)
-                    {
-                        relationshipConfidence = confidenceValue switch
-                        {
-                            double d => d,
-                            float f => f,
-                            long l => l,
-                            int n => n,
-                            _ when double.TryParse(confidenceValue.ToString(), out var parsed) => parsed,
-                            _ => null
-                        };
-                    }
-                }
-
-                steps.Add(new GraphPathStep(
-                    MapToCodeNode(pathNodes[i]),
-                    relationshipType,
-                    relationshipConfidence));
-            }
+            var steps = MapImpactPathSteps(pathNodes, pathRelationships, caller);
 
             results.Add(new ImpactPath(caller, dist, steps));
         }
@@ -540,18 +635,66 @@ public sealed partial class Neo4jCodeGraphRepository
               AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND n.lineCount > $lineThreshold
               AND {fileRole} IN ['Source', 'Unknown']
-            OPTIONAL MATCH (directCaller:CodeNode)-[:Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable|Implements|Inherits]->(n)
-            WITH n, n.lineCount AS lineCount, collect(DISTINCT directCaller) AS directCallers
-            OPTIONAL MATCH (n)-[:Contains*1..2]->(member:CodeNode)<-[:Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable]-(memberCaller:CodeNode)
-            WITH n, lineCount, directCallers, collect(DISTINCT memberCaller) AS memberCallers
-            WITH n, lineCount, CASE WHEN size(directCallers + memberCallers) = 0 THEN [NULL] ELSE directCallers + memberCallers END AS callers
-            UNWIND callers AS caller
-            WITH n, lineCount, caller
-            WHERE caller IS NULL OR caller <> n
-            WITH n, lineCount, count(DISTINCT caller) AS fanIn
+            CALL {{
+                WITH n
+                MATCH (caller:CodeNode)-[rel:{StructuralTraversalRelationships}]->(n)
+                WHERE caller <> n
+                RETURN caller,
+                       CASE
+                           WHEN caller.type IN {WorkflowAdjacentTypeList} THEN 'workflow'
+                           WHEN type(rel) IN ['DependsOn', 'Implements', 'Inherits'] THEN 'dependency'
+                           ELSE 'direct-class'
+                       END AS bucket,
+                       CASE
+                           WHEN caller.type IN {WorkflowAdjacentTypeList} THEN 4
+                           WHEN type(rel) IN ['DependsOn', 'Implements', 'Inherits'] THEN 3
+                           ELSE 1
+                       END AS bucketRank
+                UNION
+                WITH n
+                MATCH (n)-[:Contains*1..2]->(member:CodeNode)<-[rel:{StructuralDependencyRelationships}]-(caller:CodeNode)
+                WHERE caller <> n AND caller <> member
+                RETURN caller,
+                       CASE
+                           WHEN caller.type IN {WorkflowAdjacentTypeList} THEN 'workflow'
+                           WHEN type(rel) = 'DependsOn' THEN 'dependency'
+                           ELSE 'member'
+                       END AS bucket,
+                       CASE
+                           WHEN caller.type IN {WorkflowAdjacentTypeList} THEN 4
+                           WHEN type(rel) = 'DependsOn' THEN 3
+                           ELSE 2
+                       END AS bucketRank
+            }}
+            WITH n, n.lineCount AS lineCount, caller, bucket, bucketRank
+            WHERE caller IS NOT NULL
+            ORDER BY caller.id, bucketRank ASC
+            WITH n, lineCount, caller, collect({{ bucket: bucket, bucketRank: bucketRank }})[0] AS best
+            WITH n,
+                 lineCount,
+                 count(DISTINCT caller) AS fanIn,
+                 count(DISTINCT CASE WHEN best.bucket = 'direct-class' THEN caller END) AS directCallerCount,
+                 count(DISTINCT CASE WHEN best.bucket = 'member' THEN caller END) AS memberCallerCount,
+                 count(DISTINCT CASE WHEN best.bucket = 'dependency' THEN caller END) AS dependencyCallerCount,
+                 count(DISTINCT CASE WHEN best.bucket = 'workflow' THEN caller END) AS heuristicCallerCount
             WHERE fanIn > $fanInThreshold
-            RETURN n, lineCount, fanIn
-            ORDER BY (fanIn * 10 + lineCount) DESC
+            WITH n,
+                 lineCount,
+                 fanIn,
+                 directCallerCount,
+                 memberCallerCount,
+                 dependencyCallerCount,
+                 heuristicCallerCount,
+                 (directCallerCount * 4 + memberCallerCount * 3 + dependencyCallerCount * 2 + heuristicCallerCount) AS qualityScore
+            RETURN n,
+                   lineCount,
+                   fanIn,
+                   directCallerCount,
+                   memberCallerCount,
+                   dependencyCallerCount,
+                   heuristicCallerCount,
+                   qualityScore
+            ORDER BY qualityScore DESC, lineCount DESC, fanIn DESC, n.name
             LIMIT 20
             ";
 
@@ -565,13 +708,95 @@ public sealed partial class Neo4jCodeGraphRepository
         var results = new List<(CodeNode, int, int)>();
         await foreach (var record in cursor.WithCancellation(cancellationToken))
         {
-            results.Add((
+            var node = AnnotateGodClassNode(
                 MapToCodeNode(record["n"].As<INode>()),
+                record["directCallerCount"].As<int>(),
+                record["memberCallerCount"].As<int>(),
+                record["dependencyCallerCount"].As<int>(),
+                record["heuristicCallerCount"].As<int>(),
+                record["qualityScore"].As<int>());
+            results.Add((
+                node,
                 record["lineCount"].As<int>(),
                 record["fanIn"].As<int>()));
         }
 
         return results;
+    }
+
+    private static CodeNode AnnotateImpactEvidenceNode(CodeNode node, string bucket)
+    {
+        var properties = new Dictionary<string, string>(node.Properties, StringComparer.Ordinal)
+        {
+            ["impactEvidenceBucket"] = bucket
+        };
+
+        return node with { Properties = properties };
+    }
+
+    private static List<GraphPathStep> MapImpactPathSteps(
+        List<INode> pathNodes,
+        List<object> pathRelationships,
+        CodeNode? annotatedCaller = null)
+    {
+        var steps = new List<GraphPathStep>(pathNodes.Count);
+
+        for (var i = 0; i < pathNodes.Count; i++)
+        {
+            string? relationshipType = null;
+            double? relationshipConfidence = null;
+
+            if (i < pathRelationships.Count && pathRelationships[i] is IDictionary<string, object> rel)
+            {
+                relationshipType = rel.TryGetValue("type", out var typeValue)
+                    ? typeValue?.ToString()
+                    : null;
+
+                if (rel.TryGetValue("confidence", out var confidenceValue) && confidenceValue is not null)
+                {
+                    relationshipConfidence = confidenceValue switch
+                    {
+                        double d => d,
+                        float f => f,
+                        long l => l,
+                        int n => n,
+                        _ when double.TryParse(confidenceValue.ToString(), out var parsed) => parsed,
+                        _ => null
+                    };
+                }
+            }
+
+            var node = i == 0 && annotatedCaller is not null
+                ? annotatedCaller
+                : MapToCodeNode(pathNodes[i]);
+
+            steps.Add(new GraphPathStep(
+                node,
+                relationshipType,
+                relationshipConfidence));
+        }
+
+        return steps;
+    }
+
+    private static CodeNode AnnotateGodClassNode(
+        CodeNode node,
+        int directCallerCount,
+        int memberCallerCount,
+        int dependencyCallerCount,
+        int heuristicCallerCount,
+        int qualityScore)
+    {
+        var properties = new Dictionary<string, string>(node.Properties, StringComparer.Ordinal)
+        {
+            ["godClassDirectCallerCount"] = directCallerCount.ToString(),
+            ["godClassMemberCallerCount"] = memberCallerCount.ToString(),
+            ["godClassDependencyCallerCount"] = dependencyCallerCount.ToString(),
+            ["godClassHeuristicCallerCount"] = heuristicCallerCount.ToString(),
+            ["godClassQualityScore"] = qualityScore.ToString()
+        };
+
+        return node with { Properties = properties };
     }
 
     public async Task<IReadOnlyList<(string FromNamespace, string ToNamespace)>> FindCyclesAsync(

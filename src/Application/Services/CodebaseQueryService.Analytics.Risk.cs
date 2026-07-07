@@ -22,20 +22,16 @@ public partial class CodebaseQueryService
 
         var sb = new StringBuilder();
         sb.AppendLine($"## God Classes{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine("Classes that are **large** (SRP violation) **and** heavily depended upon (high fan-in):\n");
-        sb.AppendLine("| Risk | Lines | Fan-in | Name | File |");
-        sb.AppendLine("|------|-------|--------|------|------|");
+        sb.AppendLine("Classes that are **large** (SRP violation) and heavily depended upon, ranked by caller quality and size.\n");
+        sb.AppendLine("| Risk | Lines | Fan-in | Caller evidence | Name | File |");
+        sb.AppendLine("|------|-------|--------|-----------------|------|------|");
 
         foreach (var (node, lineCount, fanIn) in filteredResults)
         {
-            var risk = (fanIn * 10 + lineCount) switch
-            {
-                > 500 => "Critical",
-                > 200 => "High",
-                _ => "Medium"
-            };
+            var risk = ClassifyGodClassRisk(node, lineCount, fanIn);
+            var evidence = DescribeGodClassEvidence(node, fanIn);
             var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
-            sb.AppendLine($"| {risk} | {lineCount} | {fanIn} | `{node.Name}` | {file} |");
+            sb.AppendLine($"| {risk} | {lineCount} | {fanIn} | {evidence} | `{node.Name}` | {file} |");
         }
 
         sb.AppendLine();
@@ -291,6 +287,7 @@ public partial class CodebaseQueryService
         sb.AppendLine();
         sb.AppendLine("> Circular dependencies prevent clean layering. Introduce an abstraction (interface) to break the cycle.");
 
+        sb.AppendLine("> Caller evidence separates direct class callers, contained-member callers, dependency/composition callers, and weaker workflow-adjacent callers.");
         return sb.ToString();
     }
 
@@ -774,12 +771,17 @@ public partial class CodebaseQueryService
                 noteParts.Add(freshness.Reason);
             if (path.Distance == 1 && !usesAbstraction && !usesInferredEdge && !crossesSpecialNode)
                 noteParts.Add("direct structural path");
+            if (relationships.Any(type => string.Equals(type, nameof(CodeEdgeType.Contains), StringComparison.OrdinalIgnoreCase)))
+                noteParts.Add("class-expanded member path");
             if (usesAbstraction)
                 noteParts.Add("path crosses abstraction edges");
             if (crossesSpecialNode)
                 noteParts.Add("path crosses route or knowledge nodes");
             if (usesInferredEdge)
                 noteParts.Add($"path includes inferred edge confidence {lowConfidenceEdge:F2}");
+            if (path.Node.Properties.TryGetValue("impactEvidenceBucket", out var bucket)
+                && string.Equals(bucket, "dependency", StringComparison.OrdinalIgnoreCase))
+                noteParts.Add("dependency/composition caller");
 
             var finding = new ImpactConfidenceFinding(
                 path.Node,
@@ -831,6 +833,48 @@ public partial class CodebaseQueryService
 
         sb.AppendLine();
     }
+
+    private static string ClassifyGodClassRisk(CodeNode node, int lineCount, int fanIn)
+    {
+        var qualityScore = ReadIntProperty(node, "godClassQualityScore");
+        var riskScore = qualityScore.HasValue
+            ? lineCount + (qualityScore.Value * 20)
+            : (fanIn * 10 + lineCount);
+
+        return riskScore switch
+        {
+            > 500 => "Critical",
+            > 200 => "High",
+            _ => "Medium"
+        };
+    }
+
+    private static string DescribeGodClassEvidence(CodeNode node, int fanIn)
+    {
+        var direct = ReadIntProperty(node, "godClassDirectCallerCount");
+        var member = ReadIntProperty(node, "godClassMemberCallerCount");
+        var dependency = ReadIntProperty(node, "godClassDependencyCallerCount");
+        var heuristic = ReadIntProperty(node, "godClassHeuristicCallerCount");
+
+        if (!direct.HasValue && !member.HasValue && !dependency.HasValue && !heuristic.HasValue)
+            return $"{fanIn} total callers";
+
+        var directCount = direct ?? 0;
+        var memberCount = member ?? 0;
+        var dependencyCount = dependency ?? 0;
+        var heuristicCount = heuristic ?? 0;
+        var evidence = $"{directCount} direct, {memberCount} member, {dependencyCount} dependency, {heuristicCount} heuristic";
+
+        return directCount + memberCount == 0 && dependencyCount + heuristicCount > 0
+            ? $"mostly indirect: {evidence}"
+            : evidence;
+    }
+
+    private static int? ReadIntProperty(CodeNode node, string key) =>
+        node.Properties.TryGetValue(key, out var raw)
+        && int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
 
     private async Task<IReadOnlyList<ExplainedFile>> BuildExplainedFilesAsync(
         CodeNode target,

@@ -511,6 +511,85 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FindImpactAsync_ForInterfaceTarget_IncludesImplementerConsumers()
+    {
+        var projectContext = $"Integration.Impact.Interface.{Guid.NewGuid():N}";
+        var contract = CreateNode(
+            id: $"{projectContext}.IOrderWorkflow",
+            name: "IOrderWorkflow",
+            type: CodeNodeType.Interface,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/IOrderWorkflow.cs");
+        var contractMember = CreateNode(
+            id: $"{projectContext}.IOrderWorkflow.Run",
+            name: "IOrderWorkflow.Run",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/IOrderWorkflow.cs");
+        var implementation = CreateNode(
+            id: $"{projectContext}.OrderWorkflow",
+            name: "OrderWorkflow",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrderWorkflow.cs");
+        var implementationMember = CreateNode(
+            id: $"{projectContext}.OrderWorkflow.Run",
+            name: "OrderWorkflow.Run",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrderWorkflow.cs");
+        var consumer = CreateNode(
+            id: $"{projectContext}.CheckoutCoordinator.Run",
+            name: "CheckoutCoordinator.Run",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CheckoutCoordinator.cs");
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(contract);
+            await _repository.UpsertNodeAsync(contractMember);
+            await _repository.UpsertNodeAsync(implementation);
+            await _repository.UpsertNodeAsync(implementationMember);
+            await _repository.UpsertNodeAsync(consumer);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = contract.Id,
+                TargetId = contractMember.Id,
+                Type = CodeEdgeType.Contains
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = implementation.Id,
+                TargetId = implementationMember.Id,
+                Type = CodeEdgeType.Contains
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = implementation.Id,
+                TargetId = contract.Id,
+                Type = CodeEdgeType.Implements
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = consumer.Id,
+                TargetId = implementationMember.Id,
+                Type = CodeEdgeType.Calls
+            });
+
+            var impact = await _repository.FindImpactAsync(contract.Id, depth: 3);
+
+            impact.Should().Contain(item => item.Node.Id == implementation.Id && item.Distance == 1);
+            impact.Should().Contain(item => item.Node.Id == consumer.Id && item.Distance >= 2);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
     public async Task GetContextForEditingAsync_ForKnownNode_ReturnsTheNode()
     {
         var target = await FindAnyTargetAsync();
@@ -1327,6 +1406,137 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
             results.Should().Contain(item =>
                 item.Node.Id == secondary.Id &&
                 item.FanIn == 1);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
+    public async Task FindGodClassesAsync_PrefersDirectAndMemberCallerQualityOverHeuristicVolume()
+    {
+        var projectContext = $"Integration.GodClasses.Quality.{Guid.NewGuid():N}";
+        var directHeavy = CreateNode(
+            id: $"{projectContext}.OrderWorkflow",
+            name: "OrderWorkflow",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrderWorkflow.cs")
+        with
+        {
+            LineCount = 360
+        };
+        var directHeavyMember = CreateNode(
+            id: $"{projectContext}.OrderWorkflow.Run",
+            name: "OrderWorkflow.Run",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrderWorkflow.cs");
+        var weakBroad = CreateNode(
+            id: $"{projectContext}.BroadCoordinator",
+            name: "BroadCoordinator",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/BroadCoordinator.cs")
+        with
+        {
+            LineCount = 420
+        };
+        var weakBroadMember = CreateNode(
+            id: $"{projectContext}.BroadCoordinator.Run",
+            name: "BroadCoordinator.Run",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/BroadCoordinator.cs");
+        var directCaller = CreateNode(
+            id: $"{projectContext}.OrderController",
+            name: "OrderController",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrderController.cs");
+        var memberCaller = CreateNode(
+            id: $"{projectContext}.Checkout.Run",
+            name: "Checkout.Run",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Checkout.cs");
+        var dependencyCaller = CreateNode(
+            id: $"{projectContext}.OrderWorkflowFactory",
+            name: "OrderWorkflowFactory",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrderWorkflowFactory.cs");
+        var heuristicCallers = Enumerable.Range(1, 4)
+            .Select(index => CreateNode(
+                id: $"{projectContext}.Endpoint{index}",
+                name: $"POST /api/orders/{index}",
+                type: CodeNodeType.ApiEndpoint,
+                projectContext: projectContext,
+                filePath: $"src/{projectContext}/OrdersEndpoint{index}.cs"))
+            .ToArray();
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(directHeavy);
+            await _repository.UpsertNodeAsync(directHeavyMember);
+            await _repository.UpsertNodeAsync(weakBroad);
+            await _repository.UpsertNodeAsync(weakBroadMember);
+            await _repository.UpsertNodeAsync(directCaller);
+            await _repository.UpsertNodeAsync(memberCaller);
+            await _repository.UpsertNodeAsync(dependencyCaller);
+            foreach (var heuristicCaller in heuristicCallers)
+                await _repository.UpsertNodeAsync(heuristicCaller);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = directHeavy.Id,
+                TargetId = directHeavyMember.Id,
+                Type = CodeEdgeType.Contains
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = weakBroad.Id,
+                TargetId = weakBroadMember.Id,
+                Type = CodeEdgeType.Contains
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = directCaller.Id,
+                TargetId = directHeavy.Id,
+                Type = CodeEdgeType.Uses
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = memberCaller.Id,
+                TargetId = directHeavyMember.Id,
+                Type = CodeEdgeType.Calls
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = dependencyCaller.Id,
+                TargetId = directHeavy.Id,
+                Type = CodeEdgeType.DependsOn
+            });
+            foreach (var heuristicCaller in heuristicCallers)
+            {
+                await _repository.UpsertEdgeAsync(new CodeEdge
+                {
+                    SourceId = heuristicCaller.Id,
+                    TargetId = weakBroad.Id,
+                    Type = CodeEdgeType.Uses
+                });
+            }
+
+            var results = await _repository.FindGodClassesAsync(projectContext, lineThreshold: 300, fanInThreshold: 0);
+
+            results.Should().NotBeEmpty();
+            results[0].Node.Id.Should().Be(directHeavy.Id);
+            results[0].Node.Properties.Should().ContainKey("godClassDirectCallerCount");
+            results[0].Node.Properties["godClassDirectCallerCount"].Should().Be("1");
+            results[0].Node.Properties["godClassMemberCallerCount"].Should().Be("1");
+            results[0].Node.Properties["godClassDependencyCallerCount"].Should().Be("1");
+            results[0].Node.Properties["godClassHeuristicCallerCount"].Should().Be("0");
         }
         finally
         {

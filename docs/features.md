@@ -163,6 +163,13 @@ Find docs and diagnostics related to this node through the keyword graph.
 
 Backward blast-radius analysis. Traverses callers and transitive dependents of a method or class up to the requested depth.
 
+For class and interface targets, the result now separates bounded caller evidence into:
+
+- Direct class callers
+- Member callers through contained methods or members
+- Dependency/composition callers
+- Workflow-adjacent callers
+
 When `includeConfidence` is enabled, the result also separates:
 
 - Proven callers: structural paths without stale metadata or inferred edges.
@@ -307,7 +314,7 @@ Expansion risk: Low - 2 affected nodes, 3 downstream dependencies, 1 related tes
 
 ### `find_god_classes`
 
-Finds classes that are both large and heavily depended upon, ranked by size and coupling risk.
+Finds classes that are both large and heavily depended upon, ranked by caller quality and size. Output includes caller evidence buckets for direct class callers, contained-member callers, dependency/composition callers, and weaker workflow-adjacent callers.
 
 ```text
 What are the god classes in MyApi?

@@ -34,6 +34,9 @@ public partial class CodebaseQueryService
             return $"Impact summary for `{nodeId}`: {results.Count} affected graph elements within {depth} hops. " +
                    $"Nearest distance: {results.Min(r => r.Distance)}. Farthest distance: {results.Max(r => r.Distance)}.";
 
+        if (IsClassLikeNodeId(nodeId) && HasImpactEvidenceBuckets(results))
+            return FormatClassLikeImpactAnalysis(nodeId, depth, detailLevel, results);
+
         var sb = new StringBuilder();
         sb.AppendLine($"## Impact Analysis — `{nodeId}`");
         sb.AppendLine($"**{results.Count}** code elements would be affected by changing this (up to {depth} hops):\n");
@@ -45,6 +48,38 @@ public partial class CodebaseQueryService
             var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
             sb.AppendLine($"| {dist} | {node.Type} | `{node.Name}` | {file} |");
         }
+
+        return sb.ToString();
+    }
+
+    private static string FormatClassLikeImpactAnalysis(
+        string nodeId,
+        int depth,
+        ContextDetailLevel detailLevel,
+        IReadOnlyCollection<(CodeNode Node, int Distance)> results)
+    {
+        var findings = results
+            .Select(item => new ImpactEvidenceFinding(
+                item.Node,
+                item.Distance,
+                ReadImpactEvidenceBucket(item.Node)))
+            .ToArray();
+        var grouped = new ImpactEvidenceGroups(
+            findings.Where(finding => finding.Bucket == "direct-class").OrderBy(finding => finding.Distance).ThenBy(finding => finding.Node.Name, StringComparer.OrdinalIgnoreCase).ToArray(),
+            findings.Where(finding => finding.Bucket == "member").OrderBy(finding => finding.Distance).ThenBy(finding => finding.Node.Name, StringComparer.OrdinalIgnoreCase).ToArray(),
+            findings.Where(finding => finding.Bucket == "dependency").OrderBy(finding => finding.Distance).ThenBy(finding => finding.Node.Name, StringComparer.OrdinalIgnoreCase).ToArray(),
+            findings.Where(finding => finding.Bucket == "workflow").OrderBy(finding => finding.Distance).ThenBy(finding => finding.Node.Name, StringComparer.OrdinalIgnoreCase).ToArray());
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Impact Analysis — `{nodeId}`");
+        sb.AppendLine($"**{results.Count}** code elements would be affected by changing this class or interface target (up to {depth} hops):");
+        sb.AppendLine($"**Caller evidence:** {grouped.DirectClassCallers.Count} direct class callers, {grouped.MemberCallers.Count} member callers, {grouped.DependencyCallers.Count} dependency/composition callers, {grouped.WorkflowCallers.Count} workflow-adjacent callers");
+        sb.AppendLine();
+
+        AppendImpactEvidenceSection(sb, "Direct class callers", grouped.DirectClassCallers, detailLevel, "direct class-level usage edge");
+        AppendImpactEvidenceSection(sb, "Member callers", grouped.MemberCallers, detailLevel, "caller reaches a contained member on the path to this type");
+        AppendImpactEvidenceSection(sb, "Dependency/composition callers", grouped.DependencyCallers, detailLevel, "dependency/composition or abstraction edge near the target type");
+        AppendImpactEvidenceSection(sb, "Workflow-adjacent callers", grouped.WorkflowCallers, detailLevel, "workflow or metadata-adjacent caller evidence");
 
         return sb.ToString();
     }
@@ -684,6 +719,46 @@ public partial class CodebaseQueryService
         };
     }
 
+    private static bool IsClassLikeNodeId(string nodeId) =>
+        nodeId.Contains("::Class::", StringComparison.Ordinal)
+        || nodeId.Contains("::Interface::", StringComparison.Ordinal);
+
+    private static bool HasImpactEvidenceBuckets(IEnumerable<(CodeNode Node, int Distance)> results) =>
+        results.Any(item => item.Node.Properties.ContainsKey("impactEvidenceBucket"));
+
+    private static string ReadImpactEvidenceBucket(CodeNode node) =>
+        node.Properties.TryGetValue("impactEvidenceBucket", out var bucket) && !string.IsNullOrWhiteSpace(bucket)
+            ? bucket
+            : "direct-class";
+
+    private static void AppendImpactEvidenceSection(
+        StringBuilder sb,
+        string title,
+        IReadOnlyCollection<ImpactEvidenceFinding> findings,
+        ContextDetailLevel detailLevel,
+        string reason)
+    {
+        sb.AppendLine($"### {title} ({findings.Count})");
+        if (findings.Count == 0)
+        {
+            sb.AppendLine("- none");
+            sb.AppendLine();
+            return;
+        }
+
+        foreach (var finding in findings.Take(detailLevel == ContextDetailLevel.Full ? 50 : 10))
+        {
+            sb.Append($"- d{finding.Distance}: **{finding.Node.Type}** `{finding.Node.Name}`{FormatLocation(finding.Node)}");
+            sb.Append($" — {reason}");
+            sb.AppendLine();
+        }
+
+        if (detailLevel != ContextDetailLevel.Full && findings.Count > 10)
+            sb.AppendLine($"- ...{findings.Count - 10} more");
+
+        sb.AppendLine();
+    }
+
     private sealed record ShieldEntry(
         CodeNode TestNode,
         string Reason,
@@ -700,6 +775,14 @@ public partial class CodebaseQueryService
         int Score);
 
     private sealed record CallerFinding(CodeNode Node, string Reason);
+
+    private sealed record ImpactEvidenceFinding(CodeNode Node, int Distance, string Bucket);
+
+    private sealed record ImpactEvidenceGroups(
+        IReadOnlyCollection<ImpactEvidenceFinding> DirectClassCallers,
+        IReadOnlyCollection<ImpactEvidenceFinding> MemberCallers,
+        IReadOnlyCollection<ImpactEvidenceFinding> DependencyCallers,
+        IReadOnlyCollection<ImpactEvidenceFinding> WorkflowCallers);
 
     private sealed record CallerGroups(
         IReadOnlyCollection<CallerFinding> DirectMethodCallers,
