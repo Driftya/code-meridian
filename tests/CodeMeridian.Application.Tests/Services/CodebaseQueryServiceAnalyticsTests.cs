@@ -586,6 +586,36 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task TraceEndpointAsync_Summary_IgnoresSingleNodePathsAndCountsTerminalGroups()
+    {
+        var (sut, graph) = Build();
+        var endpoint = Node("endpoint", "POST /api/orders", CodeNodeType.ApiEndpoint, project: "Shop.Api");
+        var handler = Node("handler", "CreateOrder", CodeNodeType.Method, "src/Api/OrdersEndpoint.cs", 22, "Shop.Api");
+        var table = Node("table", "Orders", CodeNodeType.DatabaseTable, project: "Shop.Api");
+        var topic = Node("topic", "order-created", CodeNodeType.MessageTopic, project: "Shop.Api");
+
+        graph.FindEndpointTracesAsync("POST /api/orders", "Shop.Api", 10, Arg.Any<CancellationToken>())
+            .Returns([
+                new EndpointTracePath([
+                    new GraphPathStep(endpoint, null, null)
+                ]),
+                new EndpointTracePath([
+                    new GraphPathStep(endpoint, "Uses", null),
+                    new GraphPathStep(handler, "Writes", null),
+                    new GraphPathStep(table, null, null)
+                ]),
+                new EndpointTracePath([
+                    new GraphPathStep(endpoint, "Uses", null),
+                    new GraphPathStep(topic, null, null)
+                ])
+            ]);
+
+        var result = await sut.TraceEndpointAsync("POST /api/orders", "Shop.Api", ContextDetailLevel.Summary);
+
+        result.Should().Be("Endpoint trace summary for `POST /api/orders`: 1 database path(s), 1 event path(s), 2 total graph path(s).");
+    }
+
+    [Fact]
     public async Task FindUnreferencedAsync_WithResults_GroupsByTypeAndIncludesDisclaimer()
     {
         var (sut, graph) = Build();
@@ -726,6 +756,21 @@ public sealed class CodebaseQueryServiceAnalyticsTests
 
         result.Should().Contain("LegacyService");
         result.Should().NotContain("GeneratedMapper");
+    }
+
+    [Fact]
+    public async Task FindCoverageGapsAsync_Summary_ReturnsHighAndLowPriorityCounts()
+    {
+        var (sut, graph) = Build();
+        graph.FindCoverageGapsAsync("MyApi", Arg.Any<CancellationToken>())
+             .Returns([
+                 Node("u1", "UntouchedService", CodeNodeType.Class, "src/Untouched.cs", project: "MyApi", lineCount: 20, fileRole: IndexedFileRole.Source),
+                 Node("u2", "CheckoutResponse", CodeNodeType.Class, "src/CheckoutResponse.cs", 10, "MyApi", lineCount: 4, fileRole: IndexedFileRole.Source)
+             ]);
+
+        var result = await sut.FindCoverageGapsAsync("MyApi", ContextDetailLevel.Summary);
+
+        result.Should().Be("Coverage gap summary for 'MyApi': 1 high-priority, 1 low-priority.");
     }
 
     // ── FindRecentlyChangedAsync ──────────────────────────────────────────────
@@ -4712,6 +4757,42 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         result.Should().Contain("Untested methods/classes");
         result.Should().Contain("Low-confidence freshness nodes");
         result.Should().Contain("CheckoutFacade");
+    }
+
+    [Fact]
+    public async Task GetArchitectureWeatherReportAsync_WhenGraphEmpty_ReturnsIndexerGuidanceAndProjectHint()
+    {
+        var (sut, graph) = Build();
+        graph.CountCodeNodesAsync("Shpo", Arg.Any<CancellationToken>()).Returns(0);
+        graph.GetProjectContextsAsync("Shpo", Arg.Any<CancellationToken>()).Returns(["Shop"]);
+
+        var result = await sut.GetArchitectureWeatherReportAsync("Shpo");
+
+        result.Should().Contain("No graph nodes found in 'Shpo'.");
+        result.Should().Contain("Available projects: 'Shop'.");
+        result.Should().Contain("Run the indexer before generating an architecture report.");
+    }
+
+    [Fact]
+    public async Task GetArchitectureWeatherReportAsync_WhenBetweennessFails_ReportsBridgeUnavailable()
+    {
+        var (sut, graph) = Build();
+        graph.CountCodeNodesAsync("Shop", Arg.Any<CancellationToken>()).Returns(12);
+        graph.CountCallEdgesAsync("Shop", Arg.Any<CancellationToken>()).Returns(24);
+        graph.FindCyclesAsync("Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindArchitectureViolationsAsync("Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindCoverageGapsAsync("Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                Node("fresh", "Fresh", CodeNodeType.Class, "src/Fresh.cs", 1, "Shop", updatedAt: DateTimeOffset.UtcNow, lineCount: 12, sourceHash: "abc")
+            ]);
+        graph.GetBetweennessAsync("Shop", 10, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("No such procedure: gds.betweenness.stream"));
+
+        var result = await sut.GetArchitectureWeatherReportAsync("Shop");
+
+        result.Should().Contain("# Architecture Weather Report - Shop");
+        result.Should().Contain("Bridge nodes: unavailable (No such procedure: gds.betweenness.stream)");
     }
 
     [Fact]
