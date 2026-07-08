@@ -32,6 +32,7 @@ This file is the quick reference for what the TypeScript indexer currently parse
 - Arrow functions assigned to top-level variables
 - Function expressions assigned to top-level variables
 - Cross-file imported function-call resolution for named, aliased, namespace, default, and barrel re-export cases
+- Interface-typed member calls that resolve to local interface member nodes
 - Type-only imports for resolvable local types
 - Class inheritance and interface implementation
 - Source snippets and source hashes for indexed code nodes

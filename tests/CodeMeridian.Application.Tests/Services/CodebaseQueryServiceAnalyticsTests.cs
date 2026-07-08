@@ -58,6 +58,66 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         return (new CodebaseQueryService(graph, vector, embeddings), graph, embeddings);
     }
 
+    private static CodebaseAnalysisOptions WithDotNetTestCommands(CodebaseAnalysisOptions? options = null)
+    {
+        options ??= new CodebaseAnalysisOptions();
+        options.TestCommands = new TestCommandOptions
+        {
+            Strategies =
+            [
+                new TestCommandStrategyOptions
+                {
+                    MatchFilePathContains = [".cs", "/tests/"],
+                    BaseCommand = "dotnet test",
+                    SingleTestTemplate = "--filter FullyQualifiedName~{value}",
+                    SameDirectoryTemplate = "--filter FullyQualifiedName~{value}"
+                }
+            ]
+        };
+
+        return options;
+    }
+
+    private static CodebaseAnalysisOptions WithMixedLanguageTestCommands(CodebaseAnalysisOptions? options = null)
+    {
+        options ??= new CodebaseAnalysisOptions();
+        options.TestCommands = new TestCommandOptions
+        {
+            Strategies =
+            [
+                new TestCommandStrategyOptions
+                {
+                    MatchFilePathContains = [".cs", "/tests/"],
+                    BaseCommand = "dotnet test",
+                    SingleTestTemplate = "--filter FullyQualifiedName~{value}",
+                    SameDirectoryTemplate = "--filter FullyQualifiedName~{value}"
+                },
+                new TestCommandStrategyOptions
+                {
+                    MatchFilePathContains = [".ts", ".tsx", ".spec.", ".test."],
+                    BaseCommand = "vitest run",
+                    SingleTestTemplate = "{value}",
+                    SameDirectoryTemplate = "{value}"
+                }
+            ]
+        };
+
+        return options;
+    }
+
+    private static CodebaseAnalysisOptions WithLegacyDotNetTestCommands(CodebaseAnalysisOptions? options = null)
+    {
+        options ??= new CodebaseAnalysisOptions();
+        options.TestCommands = new TestCommandOptions
+        {
+            BaseCommand = "dotnet test",
+            SingleTestTemplate = "--filter FullyQualifiedName~{value}",
+            SameDirectoryTemplate = "--filter FullyQualifiedName~{value}"
+        };
+
+        return options;
+    }
+
     private static CodeNode Node(
         string id,
         string name,
@@ -906,7 +966,106 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     }
 
     [Fact]
+    public async Task FindTestShieldAsync_DemotesSupportAndContainerNodes_WhenExecutableTestCaseExists()
+    {
+        var (sut, graph) = Build();
+        var target = Node("m1", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 42, "Shop");
+        var testClass = Node("t1", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 5, "Shop");
+        var testCase = Node("t2", "PlaceOrder_ShouldPersist", CodeNodeType.Method, "tests/Orders/OrderServiceTests.cs", 18, "Shop");
+        var helper = Node("t3", "OrderTestBuilder.Build", CodeNodeType.Method, "tests/Orders/OrderServiceTests.cs", 10, "Shop");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([(testClass, "direct"), (testCase, "direct"), (helper, "heuristic")]);
+
+        var result = await sut.FindTestShieldAsync(target.Id, depth: 2);
+
+        result.Should().Contain("### Direct test shield (1)");
+        result.Should().Contain("PlaceOrder_ShouldPersist");
+        result.Should().NotContain("### Direct test shield (2)");
+        result.Should().Contain("### Focused verification plan (1)");
+        result.Should().Contain("### Secondary shield awareness (2)");
+        result.Should().Contain("OrderServiceTests");
+        result.Should().Contain("OrderTestBuilder.Build");
+        result.Should().Contain("support/container test node");
+    }
+
+    [Fact]
     public async Task FindTestShieldAsync_WithSinglePrimaryCandidate_SuggestsFocusedCommand()
+    {
+        var (sut, graph) = Build(WithDotNetTestCommands());
+        var target = Node("m1", "SaveAsync", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop");
+        var endpoint = Node("e1", "POST /api/orders", CodeNodeType.ApiEndpoint, project: "Shop");
+        var repository = Node("repo1", "IOrderRepository", CodeNodeType.Interface, "src/Orders/IOrderRepository.cs", 4, "Shop");
+        var routeShield = Node("t2", "OrdersEndpointTests", CodeNodeType.Class, "tests/Api/OrdersEndpointTests.cs", 8, "Shop");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [endpoint], [], [repository]));
+        graph.GetContextForEditingAsync(endpoint.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(endpoint, [], [repository], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(endpoint, 1)]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindRelatedTestsAsync(endpoint.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([(routeShield, "direct")]);
+
+        var result = await sut.FindTestShieldAsync(target.Id, depth: 2);
+
+        result.Should().Contain("### Suggested test command");
+        result.Should().Contain("`dotnet test --filter FullyQualifiedName~OrdersEndpointTests`");
+    }
+
+    [Fact]
+    public async Task FindTestShieldAsync_WithLegacyFlatTestCommandConfig_StillSuggestsCommand()
+    {
+        var (sut, graph) = Build(WithLegacyDotNetTestCommands());
+        var target = Node("m1", "SaveAsync", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop");
+        var endpoint = Node("e1", "POST /api/orders", CodeNodeType.ApiEndpoint, project: "Shop");
+        var repository = Node("repo1", "IOrderRepository", CodeNodeType.Interface, "src/Orders/IOrderRepository.cs", 4, "Shop");
+        var routeShield = Node("t2", "OrdersEndpointTests", CodeNodeType.Class, "tests/Api/OrdersEndpointTests.cs", 8, "Shop");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [endpoint], [], [repository]));
+        graph.GetContextForEditingAsync(endpoint.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(endpoint, [], [repository], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([(endpoint, 1)]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindRelatedTestsAsync(endpoint.Id, "Shop", Arg.Any<CancellationToken>())
+            .Returns([(routeShield, "direct")]);
+
+        var result = await sut.FindTestShieldAsync(target.Id, depth: 2);
+
+        result.Should().Contain("`dotnet test --filter FullyQualifiedName~OrdersEndpointTests`");
+    }
+
+    [Fact]
+    public async Task FindTestShieldAsync_WithTypeScriptStrategy_PrefersVitestCommand()
+    {
+        var (sut, graph) = Build(WithMixedLanguageTestCommands());
+        var target = Node("m1", "submitOrder", CodeNodeType.Method, "src/orders.ts", 12, "Shop.Web");
+        var directTest = Node("t1", "OrdersSpec", CodeNodeType.Method, "src/orders.spec.ts", 18, "Shop.Web");
+
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [], [], []));
+        graph.FindImpactAsync(target.Id, 2, Arg.Any<CancellationToken>())
+            .Returns([]);
+        graph.FindRelatedTestsAsync(target.Id, "Shop.Web", Arg.Any<CancellationToken>())
+            .Returns([(directTest, "direct")]);
+
+        var result = await sut.FindTestShieldAsync(target.Id, projectContext: "Shop.Web", depth: 2);
+
+        result.Should().Contain("### Suggested test command");
+        result.Should().Contain("`vitest run OrdersSpec`");
+    }
+
+    [Fact]
+    public async Task FindTestShieldAsync_WithoutConfiguredTestCommandStrategy_LeavesSuggestedCommandEmpty()
     {
         var (sut, graph) = Build();
         var target = Node("m1", "SaveAsync", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop");
@@ -928,7 +1087,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
         var result = await sut.FindTestShieldAsync(target.Id, depth: 2);
 
         result.Should().Contain("### Suggested test command");
-        result.Should().Contain("`dotnet test --filter FullyQualifiedName~OrdersEndpointTests`");
+        result.Should().Contain("- none");
     }
 
     [Fact]
@@ -1640,7 +1799,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     {
         var graph = Substitute.For<ICodeGraphRepository>();
         var vector = Substitute.For<IVectorRepository>();
-        var sut = new CodebaseQueryService(graph, vector);
+        var sut = new CodebaseQueryService(graph, vector, Options.Create(WithDotNetTestCommands()));
         var backendNode = Node(
             "method:invite",
             "InviteService.AcceptAsync",
@@ -2899,7 +3058,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     [Fact]
     public async Task BuildMinimalContextAsync_WithRelatedTests_RendersDirectAndHeuristicSections()
     {
-        var (sut, graph) = Build();
+        var (sut, graph) = Build(WithDotNetTestCommands());
         var target = Node("m1", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24);
         var directTest = Node("t1", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 20, "Shop");
         var heuristicTest = Node("t2", "PlaceOrderTests", CodeNodeType.Class, "tests/Orders/PlaceOrderTests.cs", 8, "Shop");
@@ -2978,7 +3137,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     [Fact]
     public async Task BuildMinimalContextAsync_UsesSameFocusedVerificationTestSetAsFindTestShield()
     {
-        var (sut, graph) = Build();
+        var (sut, graph) = Build(WithDotNetTestCommands());
         var target = Node("e1", "POST /api/orders", CodeNodeType.ApiEndpoint, "src/Api/OrdersEndpoint.cs", 12, "Shop", lineCount: 24);
         var directTest = Node("t1", "OrdersEndpointTests", CodeNodeType.Class, "tests/Api/OrdersEndpointTests.cs", 5, "Shop");
         var heuristicTest = Node("t2", "OrdersEndpointWorkflowTests", CodeNodeType.Class, "tests/Api/OrdersEndpointWorkflowTests.cs", 11, "Shop");
@@ -3012,7 +3171,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     [Fact]
     public async Task BuildMinimalContextAsync_PreservesFindTestShieldVerificationStoryForMethodTargets()
     {
-        var (sut, graph) = Build();
+        var (sut, graph) = Build(WithDotNetTestCommands());
         var target = Node("m1", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24);
         var directTest = Node("t1", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 20, "Shop");
         var heuristicTest = Node("t2", "PlaceOrderTests", CodeNodeType.Class, "tests/Orders/PlaceOrderTests.cs", 8, "Shop");
@@ -3357,7 +3516,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     [Fact]
     public async Task BuildMinimalContextAsync_WhenImpactLookupFails_ReturnsPartialPackAndListsFailure()
     {
-        var (sut, graph) = Build();
+        var (sut, graph) = Build(WithDotNetTestCommands());
         var target = Node("target", "PlaceOrder", CodeNodeType.Method, "src/Orders/OrderService.cs", 12, "Shop", lineCount: 24, fileRole: IndexedFileRole.Source);
         var caller = Node("caller", "OrdersController.Post", CodeNodeType.Method, "src/Api/OrdersController.cs", 18, "Shop", fileRole: IndexedFileRole.Source);
         var directTest = Node("test", "OrderServiceTests", CodeNodeType.Class, "tests/Orders/OrderServiceTests.cs", 7, "Shop", fileRole: IndexedFileRole.Test);
@@ -3895,7 +4054,7 @@ public sealed class CodebaseQueryServiceAnalyticsTests
     {
         var graph = Substitute.For<ICodeGraphRepository>();
         var vector = Substitute.For<IVectorRepository>();
-        var sut = new CodebaseQueryService(graph, vector);
+        var sut = new CodebaseQueryService(graph, vector, Options.Create(WithDotNetTestCommands()));
         var service = Node(
             "s1",
             "KeywordGraphJobService",

@@ -469,6 +469,55 @@ export class Editor extends BaseEditor implements EditorPort {
     });
   });
 
+  it('resolves interface-typed method calls to interface member nodes', () => {
+    project.writeFile(
+      'contracts.ts',
+      `export interface OrderWorkflow {
+  run(): string;
+}
+`,
+    );
+    project.writeFile(
+      'workflow.ts',
+      `import type { OrderWorkflow } from './contracts';
+
+export class CheckoutWorkflow implements OrderWorkflow {
+  run() {
+    return 'ok';
+  }
+}
+`,
+    );
+    project.writeFile(
+      'consumer.ts',
+      `import type { OrderWorkflow } from './contracts';
+import { CheckoutWorkflow } from './workflow';
+
+export function dispatch(workflow: OrderWorkflow = new CheckoutWorkflow()) {
+  return workflow.run();
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Class:workflow.ts:CheckoutWorkflow',
+      targetId: 'Proj:Interface:contracts.ts:OrderWorkflow',
+      type: 'Implements',
+    });
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Interface:contracts.ts:OrderWorkflow',
+      targetId: 'Proj:Method:contracts.ts:OrderWorkflow.run',
+      type: 'Contains',
+    });
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:consumer.ts:dispatch',
+      targetId: 'Proj:Method:contracts.ts:OrderWorkflow.run',
+      type: 'Calls',
+    });
+  });
+
   it('emits depends-on edges for local imports', () => {
     project.writeFile('state.ts', 'export class State {}\n');
     project.writeFile('consumer.ts', "import { State } from './state';\nexport const state = new State();\n");

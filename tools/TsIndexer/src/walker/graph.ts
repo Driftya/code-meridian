@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { CallExpression, Node, SourceFile, Symbol as TsSymbol, TypeReferenceNode, VariableDeclaration } from 'ts-morph';
+import type { CallExpression, Node, PropertyAccessExpression, SourceFile, Symbol as TsSymbol, TypeReferenceNode, VariableDeclaration } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import type { CodeEdgeDto, CodeNodeDto } from '../types.js';
 import { addNode, fileId, getNamespaceForPath, hashText, isTestFilePath, nodeId, sourceHash, sourceSnippet } from './common.js';
@@ -424,6 +424,9 @@ function resolveCallTargetId(
   const direct = resolveSymbolTargetId(projectName, rootPath, symbol, fallbackName, knownIds);
   if (direct) return direct;
 
+  const memberTarget = resolvePropertyAccessCallTargetId(projectName, rootPath, expression, fallbackName, knownIds);
+  if (memberTarget) return memberTarget;
+
   if (expression.getKind() === SyntaxKind.Identifier) {
     const identifier = expression.asKindOrThrow(SyntaxKind.Identifier);
     for (const definition of identifier.getDefinitionNodes()) {
@@ -437,6 +440,67 @@ function resolveCallTargetId(
         if (importedTarget) return importedTarget;
       }
     }
+  }
+
+  return undefined;
+}
+
+function resolvePropertyAccessCallTargetId(
+  projectName: string,
+  rootPath: string,
+  expression: Node,
+  memberName: string,
+  knownIds: Set<string>,
+): string | undefined {
+  if (expression.getKind() !== SyntaxKind.PropertyAccessExpression) {
+    return undefined;
+  }
+
+  const propertyAccess = expression.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+  const owner = propertyAccess.getExpression();
+  const candidates = new Set<string>();
+
+  for (const declaration of owner.getType().getSymbol()?.getDeclarations() ?? []) {
+    const targetId = resolveTypeMemberTargetId(projectName, rootPath, declaration, memberName, knownIds);
+    if (targetId) {
+      candidates.add(targetId);
+    }
+  }
+
+  if (candidates.size === 1) {
+    return [...candidates][0];
+  }
+
+  return undefined;
+}
+
+function resolveTypeMemberTargetId(
+  projectName: string,
+  rootPath: string,
+  declaration: Node,
+  memberName: string,
+  knownIds: Set<string>,
+): string | undefined {
+  const sourceFile = declaration.getSourceFile();
+  const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
+
+  if (declaration.getKind() === SyntaxKind.ClassDeclaration) {
+    const className = declaration.asKindOrThrow(SyntaxKind.ClassDeclaration).getName();
+    if (!className) return undefined;
+    const targetId = nodeId(projectName, relPath, `${className}.${memberName}`, 'Method');
+    return knownIds.has(targetId) ? targetId : undefined;
+  }
+
+  if (declaration.getKind() === SyntaxKind.InterfaceDeclaration) {
+    const interfaceName = declaration.asKindOrThrow(SyntaxKind.InterfaceDeclaration).getName();
+    const targetId = nodeId(projectName, relPath, `${interfaceName}.${memberName}`, 'Method');
+    return knownIds.has(targetId) ? targetId : undefined;
+  }
+
+  if (declaration.getKind() === SyntaxKind.TypeAliasDeclaration) {
+    const aliasName = declaration.asKindOrThrow(SyntaxKind.TypeAliasDeclaration).getName();
+    const targetId = nodeId(projectName, relPath, `${aliasName}.${memberName}`, 'Method');
+    return knownIds.has(targetId) ? targetId : undefined;
   }
 
   return undefined;
@@ -677,7 +741,7 @@ function resolveDeclarationTargetId(
         ? 'Enum'
         : kind === 'TypeAliasDeclaration'
           ? 'Interface'
-          : kind === 'FunctionDeclaration' || kind === 'MethodDeclaration' || kind === 'Constructor' || kind === 'VariableDeclaration'
+          : kind === 'FunctionDeclaration' || kind === 'MethodDeclaration' || kind === 'MethodSignature' || kind === 'Constructor' || kind === 'VariableDeclaration'
             ? 'Method'
             : undefined;
 
@@ -699,14 +763,24 @@ function buildMethodDeclarationName(declaration: Node): string {
     return variable.getName();
   }
 
-  if (declaration.getKindName() !== 'MethodDeclaration') {
+  if (declaration.getKindName() !== 'MethodDeclaration' && declaration.getKindName() !== 'MethodSignature') {
     return declaration.getSymbol()?.getName() ?? declaration.getText().split(/\s+/)[0];
   }
 
-  const method = declaration.asKindOrThrow(SyntaxKind.MethodDeclaration);
-  const classDecl = method.getFirstAncestorByKind(SyntaxKind.ClassDeclaration);
-  const className = classDecl?.getName();
-  return className ? `${className}.${method.getName()}` : method.getName();
+  const methodName = 'getName' in declaration && typeof declaration.getName === 'function'
+    ? declaration.getName()
+    : declaration.getSymbol()?.getName() ?? declaration.getText().split(/\s+/)[0];
+  const classDecl = declaration.getFirstAncestorByKind(SyntaxKind.ClassDeclaration);
+  if (classDecl?.getName()) {
+    return `${classDecl.getName()}.${methodName}`;
+  }
+
+  const interfaceDecl = declaration.getFirstAncestorByKind(SyntaxKind.InterfaceDeclaration);
+  if (interfaceDecl?.getName()) {
+    return `${interfaceDecl.getName()}.${methodName}`;
+  }
+
+  return methodName;
 }
 
 function getTopLevelFunctionVariables(sourceFile: SourceFile): VariableDeclaration[] {

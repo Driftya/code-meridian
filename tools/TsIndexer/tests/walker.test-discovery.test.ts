@@ -116,6 +116,49 @@ it.only('replaces an order', () => {
     });
   });
 
+  it('indexes test callbacks that call through interface-typed workflows', () => {
+    project.writeFile(
+      'src/contracts.ts',
+      `export interface OrderWorkflow {
+  run(): string;
+}
+`,
+    );
+    project.writeFile(
+      'src/orders.ts',
+      `import type { OrderWorkflow } from './contracts';
+
+export function submitOrder(workflow: OrderWorkflow) {
+  return workflow.run();
+}
+`,
+    );
+    project.writeFile(
+      'src/orders.spec.ts',
+      `import { submitOrder } from './orders';
+
+test('submits through the workflow contract', () => {
+  submitOrder({ run: () => 'ok' });
+});
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+    const testCaseNode = result.nodes.find(node => node.name === '__testcase__.test.submits through the workflow contract@L3');
+
+    expect(testCaseNode).toEqual(
+      expect.objectContaining({
+        type: 'Method',
+        filePath: 'src/orders.spec.ts',
+      }),
+    );
+    expect(result.edges).toContainEqual({
+      sourceId: testCaseNode!.id,
+      targetId: 'Proj:Method:src_orders.ts:submitOrder',
+      type: 'Calls',
+    });
+  });
+
   it('indexes test.skip callbacks so skipped test files still contribute discovery metadata', () => {
     project.writeFile(
       'src/orders.ts',

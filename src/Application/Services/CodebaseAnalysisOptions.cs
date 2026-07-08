@@ -12,6 +12,7 @@ public sealed class CodebaseAnalysisOptions
     public RoutePlanningOptions RoutePlanning { get; set; } = new();
     public ResponsibilitySliceOptions ResponsibilitySlices { get; set; } = new();
     public PrecisionFeedbackOptions PrecisionFeedback { get; set; } = new();
+    public TestCommandOptions TestCommands { get; set; } = new();
 }
 
 public sealed class StaleKnowledgeOptions
@@ -309,4 +310,26 @@ public sealed class PrecisionFeedbackOptions
     public int HeuristicPenalty { get; set; } = 1;
 
     public int StalePenalty { get; set; } = 2;
+}
+
+public sealed class TestCommandOptions
+{
+    public List<TestCommandStrategyOptions> Strategies { get; set; } = [];
+
+    public string? BaseCommand { get; set; }
+
+    public string? SingleTestTemplate { get; set; }
+
+    public string? SameDirectoryTemplate { get; set; }
+}
+
+public sealed class TestCommandStrategyOptions
+{
+    public List<string> MatchFilePathContains { get; set; } = [];
+
+    public string? BaseCommand { get; set; }
+
+    public string? SingleTestTemplate { get; set; }
+
+    public string? SameDirectoryTemplate { get; set; }
 }

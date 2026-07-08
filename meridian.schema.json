@@ -392,6 +392,51 @@
               "default": 2
             }
           }
+        },
+        "testCommands": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "strategies": {
+              "type": "array",
+              "description": "Ordered test command strategies. The first strongest strategy whose file-path hints match the focused test files is used.",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "matchFilePathContains": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Case-insensitive substrings matched against normalized candidate test file paths."
+                  },
+                  "baseCommand": {
+                    "type": "string",
+                    "description": "Base command used for high-confidence focused test suggestions."
+                  },
+                  "singleTestTemplate": {
+                    "type": "string",
+                    "description": "Template appended to the base command when one focused test node is suggested. Use {value} for the sanitized selector token."
+                  },
+                  "sameDirectoryTemplate": {
+                    "type": "string",
+                    "description": "Template appended to the base command when the focused test nodes collapse to one directory. Use {value} for the sanitized selector token."
+                  }
+                }
+              }
+            },
+            "baseCommand": {
+              "type": "string",
+              "description": "Legacy fallback base command used when no strategies are declared."
+            },
+            "singleTestTemplate": {
+              "type": "string",
+              "description": "Legacy fallback template appended to the base command when one focused test node is suggested. Use {value} for the sanitized selector token."
+            },
+            "sameDirectoryTemplate": {
+              "type": "string",
+              "description": "Legacy fallback template appended to the base command when the focused test nodes collapse to one directory. Use {value} for the sanitized selector token."
+            }
+          }
         }
       }
     }

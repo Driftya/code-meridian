@@ -13,7 +13,7 @@
 - A primary section for tests that directly protect the selected method, exact callers, or extracted responsibility slice.
 - A secondary section for indirect or heuristic shield tests that remain useful for awareness but are not mixed into the main recommendation.
 - Ranking that prefers mutation-adjacent tests when the target methods share the same repositories, contracts, or cache invalidation behavior.
-- A minimal suggested test command when the target tests resolve cleanly to one test project or collection.
+- A minimal suggested test command when the target tests resolve cleanly to one test project or collection and project analysis config declares a matching `analysis.testCommands.strategies[]` entry, or the legacy flat fallback.
 
 **Success criteria:**
 
@@ -25,4 +25,4 @@
 
 - `find_test_shield` now separates direct callers from a primary seam-aware verification list and a secondary awareness list.
 - Primary ranking prefers exact caller-path tests and nearby slice signals that share dependency or contract context with the target seam.
-- Weakly shielded paths now surface characterization seams through the unshielded section, and the tool emits a minimal `dotnet test` command when one focused candidate resolves cleanly.
+- Weakly shielded paths now surface characterization seams through the unshielded section, and the tool emits a minimal suggested test command when one focused candidate resolves cleanly and project analysis config declares a matching `analysis.testCommands.strategies[]` entry, or the legacy flat fallback.

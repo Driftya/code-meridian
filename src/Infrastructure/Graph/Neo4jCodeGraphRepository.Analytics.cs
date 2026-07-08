@@ -378,6 +378,86 @@ public sealed partial class Neo4jCodeGraphRepository
                        END AS bucketRank,
                        best.pathNodes + [implementer, target] AS pathNodes,
                        best.pathRelationships + [{ type: 'Contains', confidence: 1.0 }, { type: type(implementationRel), confidence: implementationRel.confidence }] AS pathRelationships
+
+                UNION
+
+                WITH target, targetType
+                WITH target, targetType
+                WHERE targetType = 'Class'
+                MATCH (target)-[implementationRel:Implements|Inherits]->(abstraction:CodeNode)
+                MATCH path = (caller:CodeNode)-[:{{StructuralTraversalRelationships}}*1..8]->(abstraction)
+                WHERE caller <> target
+                  AND caller <> abstraction
+                WITH target,
+                     implementationRel,
+                     caller,
+                     path,
+                     length(path) AS rawDist,
+                     [n IN nodes(path) | n] AS pathNodes,
+                     [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                ORDER BY caller.id, rawDist ASC
+                WITH target,
+                     implementationRel,
+                     caller,
+                     collect({
+                         rawDist: rawDist,
+                         pathNodes: pathNodes,
+                         pathRelationships: pathRelationships
+                     })[0] AS best
+                RETURN caller,
+                       best.rawDist + 1 AS dist,
+                       CASE
+                           WHEN caller.type IN {{WorkflowAdjacentTypeList}} THEN 'workflow'
+                           ELSE 'dependency'
+                       END AS bucket,
+                       CASE
+                           WHEN caller.type IN {{WorkflowAdjacentTypeList}} THEN 4
+                           ELSE 3
+                       END AS bucketRank,
+                       best.pathNodes + [target] AS pathNodes,
+                       best.pathRelationships + [{ type: type(implementationRel), confidence: implementationRel.confidence }] AS pathRelationships
+
+                UNION
+
+                WITH target, targetType
+                WITH target, targetType
+                WHERE targetType = 'Class'
+                MATCH (target)-[implementationRel:Implements|Inherits]->(abstraction:CodeNode)
+                MATCH (abstraction)-[:Contains*1..2]->(abstractionMember:CodeNode)
+                MATCH path = (caller:CodeNode)-[:{{StructuralTraversalRelationships}}*1..8]->(abstractionMember)
+                WHERE caller <> target
+                  AND caller <> abstraction
+                  AND caller <> abstractionMember
+                WITH target,
+                     abstraction,
+                     implementationRel,
+                     caller,
+                     path,
+                     length(path) AS rawDist,
+                     [n IN nodes(path) | n] AS pathNodes,
+                     [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                ORDER BY caller.id, rawDist ASC
+                WITH target,
+                     abstraction,
+                     implementationRel,
+                     caller,
+                     collect({
+                         rawDist: rawDist,
+                         pathNodes: pathNodes,
+                         pathRelationships: pathRelationships
+                     })[0] AS best
+                RETURN caller,
+                       best.rawDist + 2 AS dist,
+                       CASE
+                           WHEN caller.type IN {{WorkflowAdjacentTypeList}} THEN 'workflow'
+                           ELSE 'dependency'
+                       END AS bucket,
+                       CASE
+                           WHEN caller.type IN {{WorkflowAdjacentTypeList}} THEN 4
+                           ELSE 3
+                       END AS bucketRank,
+                       best.pathNodes + [abstraction, target] AS pathNodes,
+                       best.pathRelationships + [{ type: 'Contains', confidence: 1.0 }, { type: type(implementationRel), confidence: implementationRel.confidence }] AS pathRelationships
             }
             WITH caller, dist, bucket, bucketRank, pathNodes, pathRelationships
             WHERE dist <= $depth

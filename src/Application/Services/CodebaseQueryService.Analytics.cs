@@ -297,6 +297,11 @@ public partial class CodebaseQueryService
         var impact = await codeGraph.FindImpactAsync(ctx.Node.Id, Math.Clamp(depth, 1, 8), cancellationToken);
         var directAndHeuristicTargetTests = await codeGraph.FindRelatedTestsAsync(ctx.Node.Id, scope, cancellationToken);
         var targetDependencyKeys = BuildDependencyKeys(ctx.Callees.Concat(ctx.Interfaces));
+        var targetPeerTests = directAndHeuristicTargetTests
+            .Select(match => match.Node)
+            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
+            .DistinctBy(node => node.Id)
+            .ToArray();
 
         var pathNodes = new[] { ctx.Node }
             .Concat(ctx.Callers)
@@ -306,16 +311,30 @@ public partial class CodebaseQueryService
             .Take(Math.Clamp(limit * 2, 10, 100))
             .ToArray();
 
-        var directShield = directAndHeuristicTargetTests
+        var directShieldEntries = directAndHeuristicTargetTests
             .Where(match => match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
-            .Select(match => match.Node)
-            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
-            .DistinctBy(node => node.Id)
+            .Select(match => CreateShieldEntry(
+                match.Node,
+                ctx.Node,
+                match.MatchType,
+                targetDependencyKeys,
+                targetDependencyKeys,
+                isExactCallerPath: false,
+                peerTestNodes: targetPeerTests))
+            .Where(entry => AllowsProfile(entry.TestNode, AnalysisProfile.TestShield) && IsConfiguredTestNode(entry.TestNode))
+            .DistinctBy(entry => entry.TestNode.Id)
             .Take(Math.Clamp(limit, 1, 50))
+            .ToArray();
+        var directShield = directShieldEntries
+            .Where(entry => entry.IsPreferredTestCase)
+            .Select(entry => entry.TestNode)
             .ToArray();
 
         var primaryShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
         var secondaryShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
+        foreach (var entry in directShieldEntries.Where(entry => !entry.IsPreferredTestCase))
+            secondaryShield[entry.TestNode.Id] = entry;
+
         foreach (var match in directAndHeuristicTargetTests.Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase)))
         {
             if (!AllowsProfile(match.Node, AnalysisProfile.TestShield) || !IsConfiguredTestNode(match.Node))
@@ -327,7 +346,8 @@ public partial class CodebaseQueryService
                 "heuristic",
                 targetDependencyKeys,
                 targetDependencyKeys,
-                isExactCallerPath: false);
+                isExactCallerPath: false,
+                peerTestNodes: targetPeerTests);
         }
 
         var unshielded = new List<CodeNode>();
@@ -339,6 +359,11 @@ public partial class CodebaseQueryService
             var relatedTests = pathNode.Id == ctx.Node.Id
                 ? directAndHeuristicTargetTests
                 : await codeGraph.FindRelatedTestsAsync(pathNode.Id, scope, cancellationToken);
+            var relatedPeerTests = relatedTests
+                .Select(match => match.Node)
+                .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
+                .DistinctBy(node => node.Id)
+                .ToArray();
 
             var hasShield = false;
             foreach (var match in relatedTests)
@@ -359,7 +384,14 @@ public partial class CodebaseQueryService
                     match.MatchType,
                     targetDependencyKeys,
                     BuildDependencyKeys(pathContext.Callees.Concat(pathContext.Interfaces)),
-                    isExactCallerPath: pathNode.Id != ctx.Node.Id);
+                    isExactCallerPath: pathNode.Id != ctx.Node.Id,
+                    peerTestNodes: relatedPeerTests);
+                if (!shieldEntry.IsPreferredTestCase)
+                {
+                    secondaryShield[match.Node.Id] = shieldEntry;
+                    continue;
+                }
+
                 var targetBucket = IsPrimaryShieldCandidate(shieldEntry)
                     ? primaryShield
                     : secondaryShield;
@@ -766,7 +798,8 @@ public partial class CodebaseQueryService
         string MatchType,
         bool IsExactCallerPath,
         int SharedDependencyCount,
-        bool SharesLocation);
+        bool SharesLocation,
+        bool IsPreferredTestCase);
 
     private sealed record TestRecommendation(
         CodeNode TestNode,
@@ -797,10 +830,12 @@ public partial class CodebaseQueryService
         string matchType,
         ISet<string> targetDependencyKeys,
         ISet<string> protectedDependencyKeys,
-        bool isExactCallerPath)
+        bool isExactCallerPath,
+        IReadOnlyCollection<CodeNode> peerTestNodes)
     {
         var sharedDependencyCount = targetDependencyKeys.Intersect(protectedDependencyKeys, StringComparer.OrdinalIgnoreCase).Count();
         var sharesLocation = SameFile(testNode, protectedNode) || SameNamespace(testNode, protectedNode) || FileNameLooksRelated(testNode, protectedNode);
+        var isPreferredTestCase = IsPreferredTestCaseNode(testNode, peerTestNodes);
         var reasonParts = new List<string>();
 
         if (matchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
@@ -819,6 +854,9 @@ public partial class CodebaseQueryService
         if (sharesLocation)
             reasonParts.Add("same file/namespace test locality");
 
+        if (!isPreferredTestCase)
+            reasonParts.Add("support/container test node");
+
         return new ShieldEntry(
             testNode,
             string.Join("; ", reasonParts),
@@ -826,7 +864,8 @@ public partial class CodebaseQueryService
             matchType,
             isExactCallerPath,
             sharedDependencyCount,
-            sharesLocation);
+            sharesLocation,
+            isPreferredTestCase);
     }
 
     private static ISet<string> BuildDependencyKeys(IEnumerable<CodeNode> nodes) =>
@@ -839,6 +878,7 @@ public partial class CodebaseQueryService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     private bool IsPrimaryShieldCandidate(ShieldEntry entry) =>
+        entry.IsPreferredTestCase &&
         entry.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase) &&
         (entry.IsExactCallerPath || entry.SharedDependencyCount > 0 || entry.SharesLocation);
 
@@ -875,6 +915,9 @@ public partial class CodebaseQueryService
 
         foreach (var entry in primaryShield)
         {
+            if (!entry.IsPreferredTestCase)
+                continue;
+
             var recommendation = new TestRecommendation(
                 entry.TestNode,
                 ClassifyTestRecommendationCategory(entry),
@@ -887,6 +930,9 @@ public partial class CodebaseQueryService
 
         foreach (var entry in secondaryShield)
         {
+            if (!entry.IsPreferredTestCase)
+                continue;
+
             var recommendation = new TestRecommendation(
                 entry.TestNode,
                 "Heuristic shield tests",
@@ -937,6 +983,53 @@ public partial class CodebaseQueryService
             .ThenBy(CategoryRank)
             .ThenBy(item => item.TestNode.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private bool IsPreferredTestCaseNode(CodeNode testNode, IReadOnlyCollection<CodeNode> peerTestNodes)
+    {
+        if (!IsConfiguredTestNode(testNode))
+            return false;
+
+        if (testNode.Type == CodeNodeType.File)
+            return false;
+
+        if (LooksLikeSupportTestNode(testNode))
+            return false;
+
+        if (testNode.Type != CodeNodeType.Method && HasPreferredMethodPeerInSameFile(testNode, peerTestNodes))
+            return false;
+
+        return testNode.Type is CodeNodeType.Method or CodeNodeType.Class;
+    }
+
+    private bool HasPreferredMethodPeerInSameFile(CodeNode testNode, IReadOnlyCollection<CodeNode> peerTestNodes)
+    {
+        if (string.IsNullOrWhiteSpace(testNode.FilePath))
+            return false;
+
+        return peerTestNodes.Any(peer =>
+            peer.Id != testNode.Id
+            && peer.Type == CodeNodeType.Method
+            && SameFile(peer, testNode)
+            && !LooksLikeSupportTestNode(peer));
+    }
+
+    private static bool LooksLikeSupportTestNode(CodeNode testNode)
+    {
+        var haystack = $"{testNode.Name} {testNode.FilePath} {testNode.Namespace}";
+        return haystack.Contains("builder", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("fixture", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("helper", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("factory", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("setup", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("arrange", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("stub", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("mock", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("fake", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("spy", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("double", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("harness", StringComparison.OrdinalIgnoreCase)
+               || haystack.Contains("seed", StringComparison.OrdinalIgnoreCase);
     }
 
     private void AppendFocusedVerificationPlan(StringBuilder sb, IReadOnlyList<TestRecommendation> recommendations)
@@ -1007,7 +1100,7 @@ public partial class CodebaseQueryService
             _ => 4
         };
 
-    private static string? BuildSuggestedTestCommand(IEnumerable<CodeNode> directShield, IEnumerable<ShieldEntry> primaryShield)
+    private string? BuildSuggestedTestCommand(IEnumerable<CodeNode> directShield, IEnumerable<ShieldEntry> primaryShield)
     {
         var candidates = directShield
             .Concat(primaryShield.Select(entry => entry.TestNode))
@@ -1017,7 +1110,7 @@ public partial class CodebaseQueryService
         return BuildSuggestedTestCommand(candidates);
     }
 
-    private static string? BuildSuggestedTestCommand(IEnumerable<CodeNode> candidates)
+    private string? BuildSuggestedTestCommand(IEnumerable<CodeNode> candidates)
     {
         var candidateArray = candidates
             .DistinctBy(node => node.Id)
@@ -1026,8 +1119,15 @@ public partial class CodebaseQueryService
         if (candidateArray.Length == 0)
             return null;
 
+        var strategy = SelectTestCommandStrategy(candidateArray);
+        if (strategy is null)
+            return null;
+
         if (candidateArray.Length == 1)
-            return $"dotnet test --filter FullyQualifiedName~{SanitizeFilterValue(candidateArray[0].Name)}";
+            return BuildConfiguredTestCommand(
+                strategy.BaseCommand,
+                strategy.SingleTestTemplate,
+                SanitizeFilterValue(candidateArray[0].Name));
 
         var directory = candidateArray
             .Select(node => Path.GetDirectoryName(node.FilePath ?? string.Empty))
@@ -1036,9 +1136,102 @@ public partial class CodebaseQueryService
             .ToArray();
 
         if (directory.Length == 1)
-            return $"dotnet test --filter FullyQualifiedName~{SanitizeFilterValue(Path.GetFileName(directory[0]) ?? "Tests")}";
+            return BuildConfiguredTestCommand(
+                strategy.BaseCommand,
+                strategy.SameDirectoryTemplate,
+                SanitizeFilterValue(Path.GetFileName(directory[0]) ?? "Tests"));
 
         return null;
+    }
+
+    private TestCommandStrategyOptions? SelectTestCommandStrategy(IReadOnlyCollection<CodeNode> candidates)
+    {
+        var strategies = EnumerateAvailableTestCommandStrategies().ToArray();
+        if (strategies.Length == 0)
+            return null;
+
+        var candidatePaths = candidates
+            .Select(node => NormalizePathForMatching(node.FilePath))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Cast<string>()
+            .ToArray();
+
+        if (candidatePaths.Length == 0)
+            return strategies[0];
+
+        return strategies
+            .Select(strategy => new
+            {
+                Strategy = strategy,
+                Score = ScoreTestCommandStrategy(strategy, candidatePaths),
+            })
+            .Where(item => item.Score > 0)
+            .OrderByDescending(item => item.Score)
+            .ThenByDescending(item => item.Strategy.MatchFilePathContains.Count)
+            .Select(item => item.Strategy)
+            .FirstOrDefault();
+    }
+
+    private IEnumerable<TestCommandStrategyOptions> EnumerateAvailableTestCommandStrategies()
+    {
+        if (analysisOptions.TestCommands.Strategies.Count > 0)
+        {
+            foreach (var strategy in analysisOptions.TestCommands.Strategies)
+            {
+                if (string.IsNullOrWhiteSpace(strategy.BaseCommand))
+                    continue;
+
+                yield return strategy;
+            }
+
+            yield break;
+        }
+
+        if (string.IsNullOrWhiteSpace(analysisOptions.TestCommands.BaseCommand))
+            yield break;
+
+        yield return new TestCommandStrategyOptions
+        {
+            BaseCommand = analysisOptions.TestCommands.BaseCommand,
+            SingleTestTemplate = analysisOptions.TestCommands.SingleTestTemplate,
+            SameDirectoryTemplate = analysisOptions.TestCommands.SameDirectoryTemplate
+        };
+    }
+
+    private static int ScoreTestCommandStrategy(TestCommandStrategyOptions strategy, IReadOnlyCollection<string> candidatePaths)
+    {
+        if (strategy.MatchFilePathContains.Count == 0)
+            return 1;
+
+        var score = 0;
+        foreach (var path in candidatePaths)
+        {
+            var pathScore = strategy.MatchFilePathContains.Count(token =>
+                !string.IsNullOrWhiteSpace(token)
+                && path.Contains(NormalizePathForMatching(token), StringComparison.OrdinalIgnoreCase));
+            if (pathScore == 0)
+                return 0;
+
+            score += pathScore;
+        }
+
+        return score;
+    }
+
+    private static string? NormalizePathForMatching(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Replace('\\', '/');
+
+    private static string? BuildConfiguredTestCommand(string? baseCommand, string? template, string value)
+    {
+        if (string.IsNullOrWhiteSpace(baseCommand) || string.IsNullOrWhiteSpace(template))
+            return null;
+
+        if (!template.Contains("{value}", StringComparison.Ordinal))
+            return null;
+
+        return $"{baseCommand} {template.Replace("{value}", value, StringComparison.Ordinal)}".Trim();
     }
 
     private static string SanitizeFilterValue(string value)
@@ -1091,6 +1284,11 @@ public partial class CodebaseQueryService
                 Array.Empty<(CodeNode Node, string MatchType)>(),
                 degradations)
             : [];
+        var relatedTestPeers = relatedTests
+            .Select(match => match.Node)
+            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
+            .DistinctBy(node => node.Id)
+            .ToArray();
 
         var relatedCoverageGaps = coverageGaps
             .Where(n => SameFile(n, ctx.Node) || SameNamespace(n, ctx.Node) || n.Id == ctx.Node.Id)
@@ -1101,12 +1299,14 @@ public partial class CodebaseQueryService
             .Where(match => match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
             .Select(match => match.Node)
             .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
+            .Where(node => IsPreferredTestCaseNode(node, relatedTestPeers))
             .ToArray();
         var heuristicRelatedTests = relatedTests
             .Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
             .Select(match => match.Node)
             .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
             .Where(node => SameFile(node, ctx.Node) || SameNamespace(node, ctx.Node) || FileNameLooksRelated(node, ctx.Node) || NameLooksRelated(node.Name, ctx.Node.Name))
+            .Where(node => IsPreferredTestCaseNode(node, relatedTestPeers))
             .Take(10)
             .ToArray();
         var focusedTestRecommendations = includeTests

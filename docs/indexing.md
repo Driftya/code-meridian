@@ -398,6 +398,8 @@ Useful variables:
 | `analysis.responsibilitySlices.defaultServiceSuffix` | Default suffix for generated slice service names |
 | `analysis.responsibilitySlices.namespaceRootOverrides` / `folderRootOverrides` | Optional per-project root overrides for responsibility-slice namespace and folder plans |
 | `analysis.precisionFeedback.*` | Weights and storage path for acceptance/ignore feedback that nudges future target ranking |
+| `analysis.testCommands.strategies[]` | Ordered, language- or path-aware command strategies for focused test suggestions; the best matching strategy for the candidate test files is used |
+| `analysis.testCommands.baseCommand` / `singleTestTemplate` / `sameDirectoryTemplate` | Legacy flat fallback for focused test suggestions when no strategies are declared |
 
 If an analysis section is omitted, CodeMeridian uses built-in defaults. These settings affect MCP analysis output such as stale-knowledge, coverage-gap, high-churn, hotspot, PageRank, and betweenness ranking.
 

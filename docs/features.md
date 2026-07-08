@@ -170,6 +170,8 @@ For class and interface targets, the result now separates bounded caller evidenc
 - Dependency/composition callers
 - Workflow-adjacent callers
 
+For class targets, dependency/composition evidence also includes bounded callers that only reach the type through implemented interfaces or inherited abstractions, so abstraction-heavy seams do not collapse to an empty impact view.
+
 When `includeConfidence` is enabled, the result also separates:
 
 - Proven callers: structural paths without stale metadata or inferred edges.
@@ -247,6 +249,8 @@ The report separates:
 - Indirect shield: tests that protect callers/path nodes or only heuristic matches.
 - Unshielded path nodes: target-adjacent callers or route nodes with no obvious test protection.
 
+When both a broad test container and a more specific executable test case are available from the same test file, the focused sections prefer the executable test case and demote helper/container noise into secondary diagnostics.
+
 For TypeScript, direct shield detection now includes frontend test callback bodies in `.test.ts`, `.spec.ts`, and `tests` folders, so Jest and Vitest cases can protect application code even when the callback itself is anonymous.
 
 ```text
@@ -296,7 +300,7 @@ When `includeTests` is enabled, test context includes:
 - Focused verification categories derived from related tests:
   direct regression tests, contract/API forwarding tests, integration-level verification, and heuristic shield tests.
 - Relevant coverage gaps near the target by same file, namespace, or exact target.
-- A minimal suggested `dotnet test` command when the non-heuristic recommendations collapse to one narrow seam.
+- A minimal suggested test command only when `analysis.testCommands.strategies[]` or the legacy flat fallback declares a high-confidence command strategy and the non-heuristic recommendations collapse to one narrow seam.
 
 Heuristic matches are labeled explicitly so callers can distinguish them from proven call-graph relationships.
 

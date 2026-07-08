@@ -590,6 +590,88 @@ public sealed class Neo4jCodeGraphRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FindImpactAsync_ForClassTarget_IncludesAbstractionConsumers()
+    {
+        var projectContext = $"Integration.Impact.Class.{Guid.NewGuid():N}";
+        var contract = CreateNode(
+            id: $"{projectContext}.IOrderWorkflow",
+            name: "IOrderWorkflow",
+            type: CodeNodeType.Interface,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/IOrderWorkflow.cs");
+        var contractMember = CreateNode(
+            id: $"{projectContext}.IOrderWorkflow.Run",
+            name: "IOrderWorkflow.Run",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/IOrderWorkflow.cs");
+        var implementation = CreateNode(
+            id: $"{projectContext}.OrderWorkflow",
+            name: "OrderWorkflow",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrderWorkflow.cs");
+        var implementationMember = CreateNode(
+            id: $"{projectContext}.OrderWorkflow.Run",
+            name: "OrderWorkflow.Run",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/OrderWorkflow.cs");
+        var consumer = CreateNode(
+            id: $"{projectContext}.CheckoutCoordinator.Run",
+            name: "CheckoutCoordinator.Run",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/CheckoutCoordinator.cs");
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(contract);
+            await _repository.UpsertNodeAsync(contractMember);
+            await _repository.UpsertNodeAsync(implementation);
+            await _repository.UpsertNodeAsync(implementationMember);
+            await _repository.UpsertNodeAsync(consumer);
+
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = contract.Id,
+                TargetId = contractMember.Id,
+                Type = CodeEdgeType.Contains
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = implementation.Id,
+                TargetId = implementationMember.Id,
+                Type = CodeEdgeType.Contains
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = implementation.Id,
+                TargetId = contract.Id,
+                Type = CodeEdgeType.Implements
+            });
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = consumer.Id,
+                TargetId = contractMember.Id,
+                Type = CodeEdgeType.Calls
+            });
+
+            var impact = await _repository.FindImpactAsync(implementation.Id, depth: 3);
+
+            var consumerImpact = impact.Should().ContainSingle(item =>
+                item.Node.Id == consumer.Id
+                && item.Distance >= 2).Subject;
+            consumerImpact.Node.Properties.TryGetValue("impactEvidenceBucket", out var bucket).Should().BeTrue();
+            bucket.Should().Be("dependency");
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
     public async Task GetContextForEditingAsync_ForKnownNode_ReturnsTheNode()
     {
         var target = await FindAnyTargetAsync();

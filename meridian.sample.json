@@ -357,6 +357,30 @@
       "fileOnlyPenalty": 2,
       "heuristicPenalty": 1,
       "stalePenalty": 2
+    },
+    "testCommands": {
+      "strategies": [
+        {
+          "matchFilePathContains": [
+            ".cs",
+            "/tests/"
+          ],
+          "baseCommand": "dotnet test",
+          "singleTestTemplate": "--filter FullyQualifiedName~{value}",
+          "sameDirectoryTemplate": "--filter FullyQualifiedName~{value}"
+        },
+        {
+          "matchFilePathContains": [
+            ".ts",
+            ".tsx",
+            ".spec.",
+            ".test."
+          ],
+          "baseCommand": "vitest run",
+          "singleTestTemplate": "{value}",
+          "sameDirectoryTemplate": "{value}"
+        }
+      ]
     }
   }
 }
