@@ -152,6 +152,97 @@ public sealed class ConfigurationIndexerTests : IDisposable
         handler.Batches.Should().NotContain(batch => batch.Path == "/api/v1/knowledge/nodes/edges/bulk");
     }
 
+    [Fact]
+    public async Task RunAsync_WhenClearExistingConfiguration_IsEnabled_ClearsProjectConfigurationBeforeUpload()
+    {
+        WriteFile(
+            "appsettings.json",
+            """
+            {
+              "FeatureFlags": {
+                "NewDashboard": true
+              }
+            }
+            """);
+
+        var handler = new RecordingHandler();
+        var sut = new ConfigurationIndexer();
+
+        await sut.RunAsync(
+            new DirectoryInfo(_root),
+            "CodeMeridian",
+            "http://localhost",
+            apiKey: null,
+            fileRoleClassifier: new TestFileRoleClassifier(),
+            configurationFilePatterns: null,
+            architecturePath: null,
+            clearExistingConfiguration: true,
+            messageHandler: handler);
+
+        handler.RequestPaths.Should().ContainInOrder(
+        [
+            "/api/v1/knowledge/project/CodeMeridian/configuration",
+            "/api/v1/knowledge/nodes/bulk",
+            "/api/v1/knowledge/nodes/edges/bulk"
+        ]);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenChangedFilesAreProvided_IndexesOnlyMatchingConfigurationFiles()
+    {
+        WriteFile(
+            "appsettings.json",
+            """
+            {
+              "FeatureFlags": {
+                "Main": true
+              }
+            }
+            """);
+        WriteFile(
+            "appsettings.Development.json",
+            """
+            {
+              "FeatureFlags": {
+                "DevOnly": true
+              }
+            }
+            """);
+
+        using var listener = new HttpListener();
+        var prefix = $"http://127.0.0.1:{GetFreePort()}/";
+        listener.Prefixes.Add(prefix);
+        listener.Start();
+        var requestsTask = CaptureRequestsAsync(listener, expectedCount: 3);
+        var sut = new ConfigurationIndexer();
+
+        var output = await CaptureConsoleAsync(() => sut.RunAsync(
+            new DirectoryInfo(_root),
+            "CodeMeridian",
+            prefix.TrimEnd('/'),
+            apiKey: null,
+            fileRoleClassifier: new TestFileRoleClassifier(),
+            configurationFilePatterns: null,
+            architecturePath: null,
+            clearExistingConfiguration: false,
+            changedFiles: ["appsettings.Development.json"]));
+
+        output.Should().Contain("Batch size: 1 file(s)");
+        var requests = await requestsTask;
+        var indexedFilePaths = requests
+            .Where(request => request.Path == "/api/v1/knowledge/nodes/bulk")
+            .SelectMany(request => request.Items)
+            .Select(body => body.TryGetProperty("filePath", out var filePath) ? filePath.GetString() : null)
+            .Where(filePath => filePath is not null)
+            .ToArray();
+
+        requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/project/CodeMeridian/files/appsettings.Development.json"
+            && request.Method == "DELETE");
+        indexedFilePaths.Should().Contain("appsettings.Development.json");
+        indexedFilePaths.Should().NotContain("appsettings.json");
+    }
+
     private FileInfo WriteFile(string relativePath, string content)
     {
         var file = new FileInfo(Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
@@ -177,20 +268,63 @@ public sealed class ConfigurationIndexerTests : IDisposable
         }
     }
 
+    private static async Task<IReadOnlyList<CapturedRequest>> CaptureRequestsAsync(HttpListener listener, int expectedCount)
+    {
+        var requests = new List<CapturedRequest>();
+
+        for (var i = 0; i < expectedCount; i++)
+        {
+            var context = await listener.GetContextAsync();
+            var bodyText = context.Request.HasEntityBody
+                ? await new StreamReader(context.Request.InputStream).ReadToEndAsync()
+                : string.Empty;
+            var items = string.IsNullOrWhiteSpace(bodyText)
+                ? []
+                : ParseItems(bodyText);
+
+            requests.Add(new CapturedRequest(context.Request.HttpMethod, context.Request.RawUrl ?? string.Empty, items));
+            context.Response.StatusCode = 200;
+            context.Response.Close();
+        }
+
+        return requests;
+    }
+
+    private static JsonElement[] ParseItems(string bodyText)
+    {
+        using var doc = JsonDocument.Parse(bodyText);
+        return doc.RootElement.ValueKind == JsonValueKind.Array
+            ? doc.RootElement.EnumerateArray().Select(item => item.Clone()).ToArray()
+            : [doc.RootElement.Clone()];
+    }
+
+    private static int GetFreePort()
+    {
+        var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
             Directory.Delete(_root, recursive: true);
     }
 
+    private sealed record CapturedRequest(string Method, string Path, JsonElement[] Items);
+
     private sealed class RecordingHandler(string? failPath = null) : HttpMessageHandler
     {
         public List<(string Method, string Path, JsonElement Body)> FlattenedRequests { get; } = [];
         public List<(string Method, string Path, int ItemCount)> Batches { get; } = [];
+        public List<string> RequestPaths { get; } = [];
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath;
+            RequestPaths.Add(path);
             var body = request.Content is null ? "{}" : await request.Content.ReadAsStringAsync(cancellationToken);
             using var doc = JsonDocument.Parse(body);
 
