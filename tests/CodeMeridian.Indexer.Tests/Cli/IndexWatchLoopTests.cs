@@ -32,6 +32,9 @@ public sealed class IndexWatchLoopTests
         var loop = new IndexWatchLoop(workspace.Root, logger, TimeSpan.FromMilliseconds(10));
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var completion = new TaskCompletionSource<WatchDebounceBatch>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var docsDirectory = Directory.CreateDirectory(Path.Combine(workspace.Root.FullName, "docs"));
+        var guidePath = Path.Combine(docsDirectory.FullName, "guide.md");
+        File.WriteAllText(guidePath, "# guide");
 
         var runTask = loop.RunAsync(
             (batch, _) =>
@@ -43,10 +46,9 @@ public sealed class IndexWatchLoopTests
             },
             cts.Token);
 
-        var docsDirectory = Directory.CreateDirectory(Path.Combine(workspace.Root.FullName, "docs"));
         await WaitForAsync(() => logger.InformationMessages.Count > 0, cts.Token);
 
-        File.WriteAllText(Path.Combine(docsDirectory.FullName, "guide.md"), "# guide");
+        File.AppendAllText(guidePath, Environment.NewLine + "updated");
 
         var batch = await completion.Task.WaitAsync(cts.Token);
 
