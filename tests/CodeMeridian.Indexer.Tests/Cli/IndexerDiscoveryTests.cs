@@ -38,6 +38,27 @@ public sealed class IndexerDiscoveryTests : IDisposable
     }
 
     [Fact]
+    public void ResolveProjectName_FallsBackToSlnxBeforeWorkspace()
+    {
+        File.WriteAllText(Path.Combine(_root, "Payments.slnx"), "");
+        File.WriteAllText(Path.Combine(_root, "Payments.code-workspace"), "");
+
+        var result = _service.ResolveProjectName(new DirectoryInfo(_root));
+
+        result.Should().Be("Payments");
+    }
+
+    [Fact]
+    public void ResolveProjectName_FallsBackToWorkspaceName()
+    {
+        File.WriteAllText(Path.Combine(_root, "Payments.code-workspace"), "");
+
+        var result = _service.ResolveProjectName(new DirectoryInfo(_root));
+
+        result.Should().Be("Payments");
+    }
+
+    [Fact]
     public void ResolveProjectName_FallsBackToFolderName()
     {
         var result = _service.ResolveProjectName(new DirectoryInfo(_root));
@@ -119,6 +140,18 @@ public sealed class IndexerDiscoveryTests : IDisposable
     }
 
     [Fact]
+    public void FindTypeScriptRoots_IgnoresTsconfigDirectoriesWithoutRealTypeScriptFiles()
+    {
+        var app = Directory.CreateDirectory(Path.Combine(_root, "apps", "web"));
+        File.WriteAllText(Path.Combine(app.FullName, "tsconfig.json"), "{}");
+        File.WriteAllText(Path.Combine(app.FullName, "types.d.ts"), "export interface User {}");
+
+        var result = _service.FindTypeScriptRoots(new DirectoryInfo(_root));
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
     public void FindRepositoryRoot_WalksUpToSolutionFile()
     {
         File.WriteAllText(Path.Combine(_root, "CodeMeridian.sln"), "");
@@ -128,6 +161,16 @@ public sealed class IndexerDiscoveryTests : IDisposable
 
         result.Should().NotBeNull();
         result!.FullName.Should().Be(_root);
+    }
+
+    [Fact]
+    public void FindRepositoryRoot_ReturnsNullWhenSolutionFileIsMissing()
+    {
+        var child = Directory.CreateDirectory(Path.Combine(_root, "src", "app"));
+
+        var result = _service.FindRepositoryRoot(child);
+
+        result.Should().BeNull();
     }
 
     public void Dispose()

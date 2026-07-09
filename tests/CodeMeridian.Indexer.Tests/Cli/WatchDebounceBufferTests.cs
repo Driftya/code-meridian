@@ -119,6 +119,93 @@ public sealed class WatchDebounceBufferTests
         }
     }
 
+    [Fact]
+    public async Task ScheduleFullRescan_ProducesBatchWithFullRescanFlag()
+    {
+        using var workspace = TestWorkspace.Create();
+        var scheduler = new WatchBatchScheduler(workspace.Root, NullLogger.Instance, TimeSpan.FromMilliseconds(10));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var completion = new TaskCompletionSource<WatchDebounceBatch>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        scheduler.ScheduleFullRescan(
+            (batch, _) =>
+            {
+                completion.TrySetResult(batch);
+                return Task.CompletedTask;
+            },
+            cts.Token);
+
+        var batch = await completion.Task.WaitAsync(cts.Token);
+
+        batch.FullRescanRequested.Should().BeTrue();
+    }
+
+    [Fact]
+    public void CancelPendingDebounce_PreventsQueuedBatchFromRunning()
+    {
+        using var workspace = TestWorkspace.Create();
+        var scheduler = new WatchBatchScheduler(workspace.Root, NullLogger.Instance, TimeSpan.FromMilliseconds(100));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        var invocations = 0;
+
+        scheduler.ScheduleChange(
+            Path.Combine(workspace.Root.FullName, "src", "App.cs"),
+            deleted: false,
+            (_, _) =>
+            {
+                Interlocked.Increment(ref invocations);
+                return Task.CompletedTask;
+            },
+            cts.Token);
+
+        scheduler.CancelPendingDebounce();
+        Thread.Sleep(150);
+
+        invocations.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ScheduleChange_WhenBatchHandlerThrows_LogsAndProcessesLaterChanges()
+    {
+        using var workspace = TestWorkspace.Create();
+        var logger = new RecordingLogger();
+        var scheduler = new WatchBatchScheduler(workspace.Root, logger, TimeSpan.FromMilliseconds(10));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var firstAttempt = true;
+        var completion = new TaskCompletionSource<WatchDebounceBatch>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        scheduler.ScheduleChange(
+            Path.Combine(workspace.Root.FullName, "src", "First.cs"),
+            deleted: false,
+            OnBatchAsync,
+            cts.Token);
+
+        await Task.Delay(50, cts.Token);
+
+        scheduler.ScheduleChange(
+            Path.Combine(workspace.Root.FullName, "src", "Second.cs"),
+            deleted: false,
+            OnBatchAsync,
+            cts.Token);
+
+        var secondBatch = await completion.Task.WaitAsync(cts.Token);
+
+        logger.Errors.Should().ContainSingle();
+        secondBatch.ChangedFiles.Should().ContainSingle("src/Second.cs");
+
+        Task OnBatchAsync(WatchDebounceBatch batch, CancellationToken cancellationToken)
+        {
+            if (firstAttempt)
+            {
+                firstAttempt = false;
+                throw new InvalidOperationException("boom");
+            }
+
+            completion.TrySetResult(batch);
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         private TestWorkspace(DirectoryInfo root) => Root = root;
@@ -136,6 +223,35 @@ public sealed class WatchDebounceBufferTests
         {
             if (Root.Exists)
                 Root.Delete(recursive: true);
+        }
+    }
+
+    private sealed class RecordingLogger : ILogger
+    {
+        public List<Exception> Errors { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Error && exception is not null)
+                Errors.Add(exception);
+        }
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+
+            public void Dispose()
+            {
+            }
         }
     }
 }
