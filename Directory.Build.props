@@ -26,4 +26,11 @@
     <AssemblyMetadata Include="GraphContractVersion" Value="$(CodeMeridianGraphContractVersion)" />
     <AssemblyMetadata Include="CacheVersion" Value="$(CodeMeridianCacheVersion)" />
   </ItemGroup>
+
+  <ItemGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('.Tests'))">
+    <PackageReference Include="coverlet.collector" Version="6.*">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
 </Project>

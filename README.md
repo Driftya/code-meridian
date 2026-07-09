@@ -8,6 +8,8 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/CodeMeridian.Indexer.svg)](https://www.nuget.org/packages/CodeMeridian.Indexer)
 [![CI](https://github.com/Driftya/code-meridian/actions/workflows/ci.yml/badge.svg)](https://github.com/Driftya/code-meridian/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Driftya/code-meridian/gh-pages/badges/tests.json)](https://github.com/Driftya/code-meridian/actions/workflows/ci.yml)
+[![.NET Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Driftya/code-meridian/gh-pages/badges/dotnet-coverage.json)](https://github.com/Driftya/code-meridian/actions/workflows/ci.yml)
+[![TS Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Driftya/code-meridian/gh-pages/badges/typescript-coverage.json)](https://github.com/Driftya/code-meridian/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Driftya/code-meridian/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Driftya/code-meridian/actions/workflows/codeql.yml)
 [![Publish Indexer Tool](https://github.com/Driftya/code-meridian/actions/workflows/publish-indexer.yml/badge.svg)](https://github.com/Driftya/code-meridian/actions/workflows/publish-indexer.yml)
 [![Publish MCP Image](https://github.com/Driftya/code-meridian/actions/workflows/publish-mcp.yml/badge.svg)](https://github.com/Driftya/code-meridian/actions/workflows/publish-mcp.yml)
@@ -93,6 +95,8 @@ What is the smallest context needed for this edit?
 ```
 
 CodeMeridian does not make a small model magically perfect. It reduces the amount of guessing the model has to do.
+
+CI now publishes a GitHub Actions coverage summary plus separate `.NET` and TypeScript line-coverage badges from the default branch.
 
 
 ## What It Indexes

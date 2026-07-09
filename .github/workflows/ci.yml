@@ -51,6 +51,7 @@ jobs:
           --configuration Release
           --no-build
           --filter "FullyQualifiedName!~CodeMeridian.Infrastructure.Integration.Tests"
+          --collect:"XPlat Code Coverage"
           --logger "trx"
           --results-directory TestResults
 
@@ -69,6 +70,14 @@ jobs:
         with:
           name: dotnet-test-results
           path: TestResults/**/*.trx
+          if-no-files-found: warn
+
+      - name: Upload .NET coverage results
+        uses: actions/upload-artifact@v7
+        if: success() || failure()
+        with:
+          name: dotnet-coverage-results
+          path: TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
 
   node-tools:
@@ -112,6 +121,7 @@ jobs:
         working-directory: ${{ matrix.workspace.path }}
         run: >
           npx vitest run
+          --coverage.enabled=true
           --reporter=default
           --reporter=junit
           --outputFile=test-results/${{ matrix.workspace.name }}.junit.xml
@@ -124,14 +134,24 @@ jobs:
           path: ${{ matrix.workspace.path }}/test-results/*.junit.xml
           if-no-files-found: warn
 
-  publish-test-badge:
-    name: Publish combined test badge
+      - name: Upload workspace coverage results
+        uses: actions/upload-artifact@v7
+        if: success() || failure()
+        with:
+          name: ${{ matrix.workspace.name }}-coverage-results
+          path: |
+            ${{ matrix.workspace.path }}/coverage/cobertura-coverage.xml
+            ${{ matrix.workspace.path }}/coverage/lcov.info
+          if-no-files-found: warn
+
+  publish-reports-and-badges:
+    name: Publish test and coverage reports
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs:
       - dotnet
       - node-tools
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: success()
 
     steps:
       - name: Checkout repository
@@ -144,6 +164,21 @@ jobs:
           pattern: "*-test-results"
           merge-multiple: true
 
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts/coverage
+          pattern: "*-coverage-results"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install ReportGenerator
+        shell: pwsh
+        run: dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.*
+
       - name: Generate badge JSON
         shell: pwsh
         run: >
@@ -151,8 +186,51 @@ jobs:
           -ResultsRoot artifacts/test-results
           -OutputPath badge-output/badges/tests.json
 
-      - name: Publish badge to gh-pages
+      - name: Generate .NET coverage HTML report
+        shell: pwsh
+        run: >
+          reportgenerator
+          "-reports:artifacts/coverage/dotnet-coverage-results/**/coverage.cobertura.xml"
+          "-targetdir:coverage-output/dotnet"
+          "-reporttypes:HtmlInline;HtmlChart"
+
+      - name: Generate TypeScript coverage HTML report
+        shell: pwsh
+        run: >
+          reportgenerator
+          "-reports:artifacts/coverage/*-coverage-results/**/cobertura-coverage.xml"
+          "-targetdir:coverage-output/typescript"
+          "-reporttypes:HtmlInline;HtmlChart"
+
+      - name: Generate coverage summary and badges
+        shell: pwsh
+        run: >
+          ./.github/scripts/generate-coverage-summary.ps1
+          -CoverageRoot artifacts/coverage
+          -BadgeOutputRoot badge-output
+          -SummaryOutputPath coverage-output/coverage-summary.md
+
+      - name: Publish coverage summary
+        shell: pwsh
+        run: Get-Content -LiteralPath coverage-output/coverage-summary.md | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-reports
+          path: coverage-output
+          if-no-files-found: error
+
+      - name: Stage GitHub Pages assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path badge-output/coverage -Force | Out-Null
+          Copy-Item -Path coverage-output/dotnet -Destination badge-output/coverage/dotnet -Recurse -Force
+          Copy-Item -Path coverage-output/typescript -Destination badge-output/coverage/typescript -Recurse -Force
+
+      - name: Publish assets to gh-pages
         uses: peaceiris/actions-gh-pages@v4
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
