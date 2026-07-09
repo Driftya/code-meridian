@@ -1,5 +1,6 @@
 using CodeMeridian.Tooling.Watching;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CodeMeridian.Indexer.Tests.Cli;
@@ -137,7 +138,7 @@ public sealed class WatchDebounceBufferTests
 
         var batch = await completion.Task.WaitAsync(cts.Token);
 
-        batch.FullRescanRequested.Should().BeTrue();
+        batch.ForceFullRescan.Should().BeTrue();
     }
 
     [Fact]
