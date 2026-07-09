@@ -173,6 +173,7 @@ public sealed class WatchDebounceBufferTests
         var scheduler = new WatchBatchScheduler(workspace.Root, logger, TimeSpan.FromMilliseconds(10));
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var firstAttempt = true;
+        var firstAttemptStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var completion = new TaskCompletionSource<WatchDebounceBatch>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         scheduler.ScheduleChange(
@@ -181,7 +182,7 @@ public sealed class WatchDebounceBufferTests
             OnBatchAsync,
             cts.Token);
 
-        await Task.Delay(50, cts.Token);
+        await firstAttemptStarted.Task.WaitAsync(cts.Token);
 
         scheduler.ScheduleChange(
             Path.Combine(workspace.Root.FullName, "src", "Second.cs"),
@@ -199,6 +200,7 @@ public sealed class WatchDebounceBufferTests
             if (firstAttempt)
             {
                 firstAttempt = false;
+                firstAttemptStarted.TrySetResult();
                 throw new InvalidOperationException("boom");
             }
 

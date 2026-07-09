@@ -48,7 +48,7 @@ public sealed class IndexingExclusionPolicyTests : IDisposable
 
     [Theory]
     [InlineData("src/App.cs")]
-    [InlineData("docs/guide.generated.md")]
+    [InlineData("docs/guide.md")]
     [InlineData("src/AssemblyInformation.cs")]
     public void IsIgnoredRelativePath_LeavesSupportedPathsVisible(string relativePath)
     {

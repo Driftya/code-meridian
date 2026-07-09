@@ -213,6 +213,168 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
     }
 
     [Fact]
+    public void Create_UsesGlobalFallbacksForConfigurationFilesArchitectureAndFileRoles()
+    {
+        var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
+        Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", globalRoot.FullName);
+
+        File.WriteAllText(
+            Path.Combine(globalRoot.FullName, "meridian.json"),
+            """
+            {
+              "version": 1,
+              "project": "GlobalProject",
+              "codeMeridianUrl": "http://global:5100",
+              "configurationFiles": [".env", "appsettings.json"],
+              "architecture": {
+                "path": ".meridian/global-architecture.json"
+              },
+              "indexing": {
+                "fileRoles": {
+                  "generated": ["**/*.g.cs"],
+                  "configuration": ["appsettings.json"]
+                }
+              }
+            }
+            """);
+
+        File.WriteAllText(
+            Path.Combine(_root, "meridian.json"),
+            """
+            {
+              "version": 1,
+              "project": "LocalProject",
+              "codeMeridianUrl": "http://local:5100"
+            }
+            """);
+
+        var settings = CreateFactory().Create(CreateOptions());
+
+        settings.ConfigurationFiles.Should().BeEquivalentTo([".env", "appsettings.json"]);
+        settings.ArchitecturePath.Should().Be(".meridian/global-architecture.json");
+        settings.FileRoles.Should().NotBeNull();
+        settings.FileRoles!.Generated.Should().BeEquivalentTo(["**/*.g.cs"]);
+        settings.FileRoles.Configuration.Should().BeEquivalentTo(["appsettings.json"]);
+    }
+
+    [Fact]
+    public void Create_UsesLocalConfigurationFilesAndFileRolesAheadOfGlobal()
+    {
+        var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
+        Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", globalRoot.FullName);
+
+        File.WriteAllText(
+            Path.Combine(globalRoot.FullName, "meridian.json"),
+            """
+            {
+              "version": 1,
+              "project": "GlobalProject",
+              "codeMeridianUrl": "http://global:5100",
+              "configurationFiles": [".env"],
+              "indexing": {
+                "fileRoles": {
+                  "generated": ["**/*.g.cs"]
+                }
+              }
+            }
+            """);
+
+        File.WriteAllText(
+            Path.Combine(_root, "meridian.json"),
+            """
+            {
+              "version": 1,
+              "project": "LocalProject",
+              "codeMeridianUrl": "http://local:5100",
+              "configurationFiles": ["package.json"],
+              "indexing": {
+                "fileRoles": {
+                  "configuration": ["package.json"]
+                }
+              }
+            }
+            """);
+
+        var settings = CreateFactory().Create(CreateOptions());
+
+        settings.ConfigurationFiles.Should().BeEquivalentTo(["package.json"]);
+        settings.FileRoles.Should().NotBeNull();
+        settings.FileRoles!.Configuration.Should().BeEquivalentTo(["package.json"]);
+        settings.FileRoles.Generated.Should().BeNull();
+    }
+
+    [Fact]
+    public void Create_UsesDefaultArchitecturePathWhenNoConfigProvidesOne()
+    {
+        File.WriteAllText(
+            Path.Combine(_root, "meridian.json"),
+            """
+            {
+              "version": 1,
+              "project": "MyApi",
+              "codeMeridianUrl": "http://local:5100"
+            }
+            """);
+
+        var settings = CreateFactory().Create(CreateOptions());
+
+        settings.ArchitecturePath.Should().Be(CodeMeridianConfigFileStore.DefaultArchitecturePath);
+    }
+
+    [Fact]
+    public void Create_RespectsExplicitStorageOverride()
+    {
+        File.WriteAllText(
+            Path.Combine(_root, "meridian.json"),
+            """
+            {
+              "version": 1,
+              "project": "MyApi",
+              "codeMeridianUrl": "http://local:5100",
+              "useGlobalCache": false
+            }
+            """);
+
+        var settings = CreateFactory().Create(CreateOptions() with { Storage = IndexerStorageMode.Global });
+
+        settings.StorageMode.Should().Be(IndexerStorageMode.Global);
+    }
+
+    [Fact]
+    public void Create_UsesDefaultUrlWhenNothingElseProvidesOne()
+    {
+        var root = new DirectoryInfo(_root);
+        var context = new ToolConfigurationContext(
+            root,
+            LocalConfig: null,
+            GlobalConfig: null,
+            EnvironmentProject: null,
+            EnvironmentUrl: null,
+            ApiKey: null);
+        var configuration = new StubToolConfigurationService(
+            context,
+            resolvedProject: "Project",
+            resolvedCodeMeridianUrl: "http://localhost:5100");
+
+        var settings = new IndexCommandSettingsFactory(configuration).Create(CreateOptions());
+
+        settings.CodeMeridianUrl.Should().Be("http://localhost:5100");
+    }
+
+    [Fact]
+    public void Create_FallsBackToFolderNameWhenProjectCannotBeResolvedFromFilesOrConfig()
+    {
+        var rootWithoutNameHints = Directory.CreateDirectory(Path.Combine(_root, "blank"));
+
+        var settings = CreateFactory().Create(CreateOptions() with
+        {
+            Path = rootWithoutNameHints.FullName
+        });
+
+        settings.Project.Should().Be("blank");
+    }
+
+    [Fact]
     public void Create_PreservesExistingApiKeyWhenTargetRepoDotEnvDefinesAnotherValue()
     {
         var invocationRoot = Directory.CreateDirectory(Path.Combine(_root, "invocation"));
@@ -272,5 +434,43 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
             Options.Create(new ToolCliDefaults()));
 
         return new IndexCommandSettingsFactory(configuration);
+    }
+
+    private IndexCommandOptions CreateOptions() => new(
+        Path: _root,
+        Project: null,
+        CodeMeridianUrl: null,
+        Clear: false,
+        RebuildKeywords: false,
+        IncludeDocs: true,
+        Watch: false,
+        DryRun: false,
+        ListCapabilities: false,
+        SkipCSharp: false,
+        SkipTypeScript: false,
+        SkipConfiguration: false,
+        SkipDiagnostics: false,
+        AllowRepoScripts: false,
+        Incremental: true,
+        Storage: null);
+
+    private sealed class StubToolConfigurationService(
+        ToolConfigurationContext context,
+        string resolvedProject,
+        string resolvedCodeMeridianUrl,
+        bool allowRepoScripts = false) : IToolConfigurationService
+    {
+        public ToolConfigurationContext CreateContext(string? path) => context;
+
+        public string ResolveProject(ToolConfigurationContext context, string? overrideProject, bool includeFallback = true) =>
+            resolvedProject;
+
+        public string ResolveCodeMeridianUrl(ToolConfigurationContext context, string? overrideUrl) =>
+            resolvedCodeMeridianUrl;
+
+        public bool ResolveAllowRepoScripts(ToolConfigurationContext context, bool allowRepoScriptsOverride) =>
+            allowRepoScripts;
+
+        public DirectoryInfo ResolveRootPath(string? path) => context.RootPath;
     }
 }
