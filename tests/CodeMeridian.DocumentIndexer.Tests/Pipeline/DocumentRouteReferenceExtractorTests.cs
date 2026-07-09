@@ -24,4 +24,13 @@ public sealed class DocumentRouteReferenceExtractorTests
 
         result.Should().ContainSingle("CodeMeridian::ApiEndpoint::POST /api/orders/{param}");
     }
+
+    [Theory]
+    [InlineData("https://example.com/API//Orders/:id?expand=items", "/api/orders/{param}")]
+    [InlineData("/API/%257Bid%253Aint%257D#fragment", "/api/{param}")]
+    [InlineData("orders", "/orders")]
+    public void NormalizeRouteTemplate_HandlesAbsoluteEncodedAndColonSyntax(string route, string expected)
+    {
+        DocumentRouteReferenceExtractor.NormalizeRouteTemplate(route).Should().Be(expected);
+    }
 }

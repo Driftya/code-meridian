@@ -21,4 +21,23 @@ public sealed class DocumentCodeReferenceExtractorTests
             "DemoProject::File::src/Orders/OrderService.ts"
         ]);
     }
+
+    [Fact]
+    public void ExtractCodeFileReferences_SkipsInvalidInlinePatternsAndDeduplicatesMatches()
+    {
+        var content = """
+            `src/Orders/OrderService.ts`
+            `src/Orders/OrderService.ts`
+            `[src/Broken.ts]`
+            `(src/AlsoBroken.ts)`
+            `src/docs/readme.md`
+            """;
+
+        var result = DocumentCodeReferenceExtractor.ExtractCodeFileReferences(content, "DemoProject", "docs/architecture.md");
+
+        result.Should().BeEquivalentTo([
+            "DemoProject:File:src/Orders/OrderService.ts",
+            "DemoProject::File::src/Orders/OrderService.ts"
+        ]);
+    }
 }
