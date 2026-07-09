@@ -123,6 +123,57 @@ public sealed class ConfigurationFileParserTests : IDisposable
             entry.ValuePreview == "CodeMeridian.Features");
     }
 
+    [Fact]
+    public void ParseJson_EmitsArrayIndexesAndNullValueTypes()
+    {
+        var file = WriteFile(
+            "settings.json",
+            """
+            {
+              "features": [
+                "alpha",
+                null
+              ]
+            }
+            """);
+
+        var entries = ConfigurationFileParser.Parse(file, _root);
+
+        entries.Should().Contain(entry =>
+            entry.CanonicalKey == "features:0" &&
+            entry.ValuePreview == "alpha" &&
+            entry.ValueType == "string");
+        entries.Should().Contain(entry =>
+            entry.CanonicalKey == "features:1" &&
+            entry.ValuePreview == string.Empty &&
+            entry.ValueType == "null");
+    }
+
+    [Fact]
+    public void ParseYaml_ExtractsEnvironmentSequencesAsCanonicalKeys()
+    {
+        var file = WriteFile(
+            "docker-compose.sequence.yaml",
+            """
+            services:
+              api:
+                environment:
+                  - Neo4j__Uri=bolt://neo4j:7687
+                  - Logging__Level=Debug
+            """);
+
+        var entries = ConfigurationFileParser.Parse(file, _root);
+
+        entries.Should().Contain(entry =>
+            entry.CanonicalKey == "Neo4j:Uri" &&
+            entry.SourceKind == "yaml-environment" &&
+            entry.ValuePreview == "bolt://neo4j:7687");
+        entries.Should().Contain(entry =>
+            entry.CanonicalKey == "Logging:Level" &&
+            entry.SourceKind == "yaml-environment" &&
+            entry.ValuePreview == "Debug");
+    }
+
     private FileInfo WriteFile(string relativePath, string content)
     {
         var file = new FileInfo(Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
