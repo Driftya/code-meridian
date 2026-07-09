@@ -43,6 +43,28 @@ public sealed class IndexerStoragePathServiceTests : IDisposable
         key.Should().StartWith("my-project-");
     }
 
+    [Fact]
+    public void ResolveProjectKey_FallsBackToFolderNameWhenProjectNameIsBlankAndNoGitMetadataExists()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(_root, "My Fancy Root"));
+        var service = new IndexerStoragePathService();
+
+        var key = service.ResolveProjectKey(root, "   ");
+
+        key.Should().StartWith("my-fancy-root-");
+    }
+
+    [Fact]
+    public void ResolveProjectKey_NormalizesProjectNameSegments()
+    {
+        var service = new IndexerStoragePathService();
+
+        var key = service.ResolveProjectKey(new DirectoryInfo(_root), " My__Project !! Name ");
+
+        key.Should().StartWith("my-project-name-");
+        key.Should().NotContain("--");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
