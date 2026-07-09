@@ -6,7 +6,11 @@ param(
     [string]$BadgeOutputRoot,
 
     [Parameter(Mandatory = $true)]
-    [string]$SummaryOutputPath
+    [string]$SummaryOutputPath,
+
+    [string]$DotNetSummaryJsonPath,
+
+    [string]$TypeScriptSummaryJsonPath
 )
 
 Set-StrictMode -Version Latest
@@ -80,6 +84,38 @@ function Get-CoverageMetrics {
     }
 }
 
+function Get-ReportGeneratorMetrics {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Label,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SummaryJsonPath
+    )
+
+    if (-not (Test-Path -LiteralPath $SummaryJsonPath)) {
+        throw "ReportGenerator summary was not found for '$Label' at '$SummaryJsonPath'."
+    }
+
+    $json = Get-Content -LiteralPath $SummaryJsonPath -Raw | ConvertFrom-Json
+    if ($null -eq $json.summary) {
+        throw "ReportGenerator summary for '$Label' is missing the summary payload."
+    }
+
+    $covered = [int64]$json.summary.coveredlines
+    $valid = [int64]$json.summary.coverablelines
+    if ($valid -le 0) {
+        throw "ReportGenerator summary for '$Label' did not contain valid coverable lines."
+    }
+
+    return [pscustomobject]@{
+        Label = $Label
+        CoveredLines = $covered
+        TotalLines = $valid
+        Percent = [Math]::Round(($covered / $valid) * 100, 2)
+    }
+}
+
 function Format-Percent {
     param(
         [Parameter(Mandatory = $true)]
@@ -134,9 +170,24 @@ foreach ($file in $typescriptCoverageFiles) {
     $workspaceRows += Get-CoverageMetrics -Label $workspaceLabel -Paths @($file)
 }
 
-$dotnetMetrics = Get-CoverageMetrics -Label '.NET' -Paths $dotnetCoverageFiles
-$typescriptMetrics = Get-CoverageMetrics -Label 'TypeScript' -Paths $typescriptCoverageFiles
-$combinedMetrics = Get-CoverageMetrics -Label 'Combined' -Paths ($dotnetCoverageFiles + $typescriptCoverageFiles)
+$dotnetMetrics = if (-not [string]::IsNullOrWhiteSpace($DotNetSummaryJsonPath) -and (Test-Path -LiteralPath $DotNetSummaryJsonPath)) {
+    Get-ReportGeneratorMetrics -Label '.NET' -SummaryJsonPath $DotNetSummaryJsonPath
+} else {
+    Get-CoverageMetrics -Label '.NET' -Paths $dotnetCoverageFiles
+}
+
+$typescriptMetrics = if (-not [string]::IsNullOrWhiteSpace($TypeScriptSummaryJsonPath) -and (Test-Path -LiteralPath $TypeScriptSummaryJsonPath)) {
+    Get-ReportGeneratorMetrics -Label 'TypeScript' -SummaryJsonPath $TypeScriptSummaryJsonPath
+} else {
+    Get-CoverageMetrics -Label 'TypeScript' -Paths $typescriptCoverageFiles
+}
+
+$combinedMetrics = [pscustomobject]@{
+    Label = 'Combined'
+    CoveredLines = $dotnetMetrics.CoveredLines + $typescriptMetrics.CoveredLines
+    TotalLines = $dotnetMetrics.TotalLines + $typescriptMetrics.TotalLines
+    Percent = [Math]::Round((($dotnetMetrics.CoveredLines + $typescriptMetrics.CoveredLines) / ($dotnetMetrics.TotalLines + $typescriptMetrics.TotalLines)) * 100, 2)
+}
 
 $summaryLines = @(
     '## Coverage Report',

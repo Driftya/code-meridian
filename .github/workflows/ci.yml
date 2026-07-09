@@ -192,7 +192,7 @@ jobs:
           reportgenerator
           "-reports:artifacts/coverage/dotnet-coverage-results/**/coverage.cobertura.xml"
           "-targetdir:coverage-output/dotnet"
-          "-reporttypes:HtmlInline;HtmlChart"
+          "-reporttypes:HtmlInline;HtmlChart;JsonSummary"
 
       - name: Generate TypeScript coverage HTML report
         shell: pwsh
@@ -200,7 +200,7 @@ jobs:
           reportgenerator
           "-reports:artifacts/coverage/*-coverage-results/**/cobertura-coverage.xml"
           "-targetdir:coverage-output/typescript"
-          "-reporttypes:HtmlInline;HtmlChart"
+          "-reporttypes:HtmlInline;HtmlChart;JsonSummary"
 
       - name: Generate coverage summary and badges
         shell: pwsh
@@ -209,6 +209,8 @@ jobs:
           -CoverageRoot artifacts/coverage
           -BadgeOutputRoot badge-output
           -SummaryOutputPath coverage-output/coverage-summary.md
+          -DotNetSummaryJsonPath coverage-output/dotnet/Summary.json
+          -TypeScriptSummaryJsonPath coverage-output/typescript/Summary.json
 
       - name: Publish coverage summary
         shell: pwsh

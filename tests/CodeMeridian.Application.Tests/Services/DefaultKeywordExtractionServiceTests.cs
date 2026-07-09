@@ -107,6 +107,97 @@ public sealed class DefaultKeywordExtractionServiceTests
         keywords.Should().NotContain(["1234", "550e8400", "e29b", "41d4", "a716", "446655440000"]);
     }
 
+    [Fact]
+    public void Extract_WhenAllProjectedTextIsBlank_FallsBackToId()
+    {
+        var sut = Build();
+        var source = new KeywordSourceNode
+        {
+            Id = "CodeMeridian::Method::Orders.OrderService.PlaceOrderAsync()",
+            Kind = "CodeNode",
+            TextBySource = new Dictionary<string, string?>
+            {
+                ["name"] = " ",
+                ["summary"] = null
+            }
+        };
+
+        var result = sut.Extract(source);
+
+        result.Keywords.Select(static keyword => keyword.NormalizedValue).Should().Contain(["orders", "order", "service", "place"]);
+    }
+
+    [Fact]
+    public void Extract_UsesMaximumKeywordLimitAndPrioritizesHigherWeightedSources()
+    {
+        var sut = Build(new KeywordEnrichmentOptions
+        {
+            MaximumKeywordsPerNode = 2
+        });
+        var source = new KeywordSourceNode
+        {
+            Id = "doc-weights",
+            Kind = "KnowledgeDocument",
+            TextBySource = new Dictionary<string, string?>
+            {
+                ["title"] = "SubscriptionBadgeGuide",
+                ["content"] = "subscription badge webhook replay replay replay troubleshooting",
+                ["source"] = "docs/features/subscription-badge-guide.md"
+            }
+        };
+
+        var result = sut.Extract(source);
+
+        result.Keywords.Should().HaveCount(2);
+        result.Keywords[0].NormalizedValue.Should().Be("badge");
+        result.Keywords[1].NormalizedValue.Should().Be("subscription");
+        result.Keywords.Select(static keyword => keyword.NormalizedValue).Should().NotContain("replay");
+    }
+
+    [Fact]
+    public void Extract_UsesFallbackSourceWeightAndUnknownKindFallsBackToCodeNodeWeights()
+    {
+        var sut = Build();
+        var source = new KeywordSourceNode
+        {
+            Id = "external-1",
+            Kind = "CustomKind",
+            TextBySource = new Dictionary<string, string?>
+            {
+                ["name"] = "MeridianBridge",
+                ["custom"] = "meridian bridge"
+            }
+        };
+
+        var result = sut.Extract(source);
+        var meridian = result.Keywords.Single(keyword => keyword.NormalizedValue == "meridian");
+
+        meridian.Sources.Should().Equal("custom", "name");
+        meridian.Count.Should().Be(2);
+        meridian.Weight.Should().BeApproximately(1.5612d, 0.0001d);
+    }
+
+    [Fact]
+    public void Extract_RejectsHexBlobNoiseAndPreservesApostropheJoinedWords()
+    {
+        var sut = Build();
+        var source = new KeywordSourceNode
+        {
+            Id = "doc-hex",
+            Kind = "KnowledgeDocument",
+            TextBySource = new Dictionary<string, string?>
+            {
+                ["content"] = "Ship's telemetry abcdefabcdefabcdefabcdef should not drown useful queue alerts."
+            }
+        };
+
+        var result = sut.Extract(source);
+        var keywords = result.Keywords.Select(static keyword => keyword.NormalizedValue).ToArray();
+
+        keywords.Should().Contain(["ship", "telemetry", "drown", "useful", "queue", "alerts"]);
+        keywords.Should().NotContain("abcdefabcdefabcdefabcdef");
+    }
+
     private static DefaultKeywordExtractionService Build(KeywordEnrichmentOptions? options = null) =>
         new(Options.Create(options ?? new KeywordEnrichmentOptions()));
 }
