@@ -74,6 +74,50 @@ public sealed class IndexerConfigTests : IDisposable
     }
 
     [Fact]
+    public void Load_NormalizesWhitespaceAndDeduplicatesPatterns()
+    {
+        File.WriteAllText(
+            Path.Combine(_root, "meridian.json"),
+            """
+            {
+              "project": "  MyApi  ",
+              "codeMeridianUrl": "  http://localhost:5100  ",
+              "configurationFiles": [".env", " .env ", "appsettings.json", " "],
+              "architecture": {
+                "path": "  .meridian/custom-architecture.json  "
+              },
+              "indexing": {
+                "fileRoles": {
+                  "generated": ["**/*.g.cs", "**/*.g.cs", "  **/*.generated.cs  "],
+                  "configuration": ["appsettings.json", " appsettings.json "]
+                }
+              }
+            }
+            """);
+
+        var result = _store.LoadLocal(new DirectoryInfo(_root));
+
+        result.Should().NotBeNull();
+        result!.Project.Should().Be("MyApi");
+        result.CodeMeridianUrl.Should().Be("http://localhost:5100");
+        result.ConfigurationFiles.Should().BeEquivalentTo([".env", "appsettings.json"]);
+        result.ArchitecturePath.Should().Be(".meridian/custom-architecture.json");
+        result.FileRoles.Should().NotBeNull();
+        result.FileRoles!.Generated.Should().BeEquivalentTo(["**/*.g.cs", "**/*.generated.cs"]);
+        result.FileRoles.Configuration.Should().BeEquivalentTo(["appsettings.json"]);
+    }
+
+    [Fact]
+    public void Load_ReturnsNullWhenJsonIsInvalid()
+    {
+        File.WriteAllText(Path.Combine(_root, "meridian.json"), "{ invalid json");
+
+        var result = _store.LoadLocal(new DirectoryInfo(_root));
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
     public void LoadGlobal_UsesProjectAndUrlFromGlobalMeridianJson()
     {
         var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
@@ -99,6 +143,16 @@ public sealed class IndexerConfigTests : IDisposable
     }
 
     [Fact]
+    public void LoadGlobal_ReturnsNullWhenGlobalConfigIsMissing()
+    {
+        var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
+
+        var result = _store.LoadGlobal(globalRoot);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
     public void LoadLocal_ReadsNearestLocalConfig()
     {
         var child = Directory.CreateDirectory(Path.Combine(_root, "src", "app"));
@@ -115,6 +169,49 @@ public sealed class IndexerConfigTests : IDisposable
         result!.Project.Should().Be("LocalApi");
         result.CodeMeridianUrl.Should().Be("http://local:5100");
         result.Version.Should().Be(0);
+    }
+
+    [Fact]
+    public void GetArchitectureTemplateFileNames_ReturnsExpectedTemplates()
+    {
+        _store.GetArchitectureTemplateFileNames().Should().BeEquivalentTo(
+        [
+            "architecture.clean.template.json",
+            "architecture.onion.template.json",
+            "architecture.hexagonal.template.json",
+            "architecture.layered.template.json",
+            "architecture.vertical-slice.template.json"
+        ]);
+    }
+
+    [Fact]
+    public void GetGlobalConfigDirectory_UsesEnvironmentOverride()
+    {
+        var originalValue = Environment.GetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME");
+        var overrideRoot = Path.Combine(_root, "override-home");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", overrideRoot);
+
+            var result = _store.GetGlobalConfigDirectory();
+
+            result.FullName.Should().Be(overrideRoot);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", originalValue);
+        }
+    }
+
+    [Fact]
+    public void GetGlobalConfigFile_UsesProvidedDirectory()
+    {
+        var globalRoot = new DirectoryInfo(Path.Combine(_root, "global"));
+
+        var result = _store.GetGlobalConfigFile(globalRoot);
+
+        result.FullName.Should().Be(Path.Combine(globalRoot.FullName, "meridian.json"));
     }
 
     [Fact]
@@ -218,6 +315,24 @@ public sealed class IndexerConfigTests : IDisposable
     }
 
     [Fact]
+    public void WriteGlobal_WithOverwrite_ReplacesInvalidExistingConfig()
+    {
+        var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
+        var configPath = Path.Combine(globalRoot.FullName, "meridian.json");
+        File.WriteAllText(configPath, "{ invalid json");
+
+        var result = _store.WriteGlobal("http://global:5100", overwrite: true, globalRoot);
+
+        result.Created.Should().BeFalse();
+        result.Changed.Should().BeTrue();
+        result.PreviousVersion.Should().Be(0);
+        result.CurrentVersion.Should().Be(1);
+        result.BackupPath.Should().NotBeNull();
+        File.Exists(result.BackupPath!).Should().BeTrue();
+        File.ReadAllText(configPath).Should().Contain("\"codeMeridianUrl\": \"http://global:5100\"");
+    }
+
+    [Fact]
     public void Write_MergesMissingDefaultsIntoExistingLegacyConfigAndCreatesBackup()
     {
         var configPath = Path.Combine(_root, "meridian.json");
@@ -300,6 +415,33 @@ public sealed class IndexerConfigTests : IDisposable
         json.Should().Contain("\"version\": 1");
         json.Split("\"appsettings.json\"").Length.Should().Be(2);
         json.Split("\"DependencyInjection\"").Length.Should().Be(2);
+    }
+
+    [Fact]
+    public void Write_WithOverwrite_ReplacesExistingConfig()
+    {
+        var configPath = Path.Combine(_root, "meridian.json");
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "version": 1,
+              "project": "OldProject",
+              "codeMeridianUrl": "http://old:5100",
+              "customSetting": "remove-me"
+            }
+            """);
+
+        var result = _store.Write(new DirectoryInfo(_root), "MyApi", "http://localhost:5100", overwrite: true);
+
+        result.Created.Should().BeFalse();
+        result.Changed.Should().BeTrue();
+        result.BackupPath.Should().NotBeNull();
+
+        var json = File.ReadAllText(configPath);
+        json.Should().Contain("\"project\": \"MyApi\"");
+        json.Should().Contain("\"codeMeridianUrl\": \"http://localhost:5100\"");
+        json.Should().NotContain("remove-me");
     }
 
     [Fact]
