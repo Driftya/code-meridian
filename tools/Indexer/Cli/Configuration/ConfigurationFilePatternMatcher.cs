@@ -83,7 +83,7 @@ internal static class ConfigurationFilePatternMatcher
         if (file.Extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
             return 3;
 
-        if (file.Name.Equals(".env", StringComparison.OrdinalIgnoreCase))
+        if (name.Equals(".env", StringComparison.OrdinalIgnoreCase))
             return 4;
 
         return 5;
