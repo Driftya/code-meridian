@@ -227,6 +227,51 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task IngestDocumentsAsync_WhenCollectionIsEmpty_DoesNotSendRequest()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.IngestDocumentsAsync([]);
+
+        handler.Request.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task IngestCodeNodesAsync_WhenCollectionIsEmpty_DoesNotSendRequest()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.IngestCodeNodesAsync([]);
+
+        handler.Request.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task IngestRelationshipsAsync_WhenCollectionIsEmpty_DoesNotSendRequest()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.IngestRelationshipsAsync([]);
+
+        handler.Request.Should().BeNull();
+    }
+
+    [Fact]
     public async Task GetDoctorStatusAsync_SendsProjectContextQuery()
     {
         var handler = new CapturingHandler();
@@ -244,6 +289,21 @@ public sealed class CodeMeridianClientTests
         handler.Request.RequestUri.Query.Should().Contain("projectContext=My%20Project");
         status.Should().NotBeNull();
         status!.GraphDriftReport.Should().Be("Graph drift: low");
+    }
+
+    [Fact]
+    public async Task GetDoctorStatusAsync_ReturnsNullOnFailure()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.BadRequest);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var status = await sut.GetDoctorStatusAsync("My Project");
+
+        status.Should().BeNull();
     }
 
     [Fact]
@@ -266,6 +326,21 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task GetArchitectureReportAsync_ReturnsNullOnFailure()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.BadRequest);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var report = await sut.GetArchitectureReportAsync("My Project");
+
+        report.Should().BeNull();
+    }
+
+    [Fact]
     public async Task GetEndpointTraceAsync_SendsRouteAndDetailLevelQuery()
     {
         var handler = new CapturingHandler();
@@ -284,6 +359,21 @@ public sealed class CodeMeridianClientTests
         handler.Request.RequestUri.Query.Should().Contain("projectContext=My%20Project");
         handler.Request.RequestUri.Query.Should().Contain("detailLevel=Full");
         report.Should().Contain("## Endpoint Trace");
+    }
+
+    [Fact]
+    public async Task GetEndpointTraceAsync_ReturnsNullOnFailure()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.BadRequest);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var report = await sut.GetEndpointTraceAsync("POST /api/orders", "My Project");
+
+        report.Should().BeNull();
     }
 
     [Fact]
@@ -315,6 +405,21 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task BuildPrContextReportAsync_ReturnsNullOnFailure()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.BadRequest);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var report = await sut.BuildPrContextReportAsync(new PrContextReportRequest([], "My Project", null, null));
+
+        report.Should().BeNull();
+    }
+
+    [Fact]
     public async Task GetVersionAsync_SendsVersionRequest()
     {
         var handler = new CapturingHandler();
@@ -330,6 +435,88 @@ public sealed class CodeMeridianClientTests
         handler.Request!.Method.Should().Be(HttpMethod.Get);
         handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/status/version");
         version.Should().BeEquivalentTo(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2));
+    }
+
+    [Fact]
+    public async Task GetVersionAsync_ReturnsNullOnFailure()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.BadRequest);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var version = await sut.GetVersionAsync();
+
+        version.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GenerateEmbeddingAsync_SendsEmbeddingRequest()
+    {
+        var handler = new CapturingHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var embedding = await sut.GenerateEmbeddingAsync("hello");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Post);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/embeddings");
+        var body = await handler.ReadBodyAsync();
+        body.GetProperty("text").GetString().Should().Be("hello");
+        embedding.Should().Equal(1.5f, 2.5f, 3.5f);
+    }
+
+    [Fact]
+    public async Task GenerateEmbeddingAsync_ReturnsNullOnFailure()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.BadRequest);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var embedding = await sut.GenerateEmbeddingAsync("hello");
+
+        embedding.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task IsEmbeddingAvailableAsync_ReturnsSuccessStatus()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.OK);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var available = await sut.IsEmbeddingAvailableAsync();
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.RequestUri!.AbsolutePath.Should().Be("/api/v1/embeddings/availability");
+        available.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task IsEmbeddingAvailableAsync_ReturnsFalseOnFailure()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.BadRequest);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var available = await sut.IsEmbeddingAvailableAsync();
+
+        available.Should().BeFalse();
     }
 
     [Fact]
@@ -379,6 +566,22 @@ public sealed class CodeMeridianClientTests
     }
 
     [Fact]
+    public async Task StartRebuildKeywordGraphAsync_PropagatesHttpStatusCode()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.Accepted);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var result = await sut.StartRebuildKeywordGraphAsync("CodeMeridian");
+
+        result.Should().NotBeNull();
+        result!.StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
+    [Fact]
     public async Task GetKeywordGraphJobStatusAsync_SendsJobRequest()
     {
         var handler = new CapturingHandler();
@@ -398,6 +601,89 @@ public sealed class CodeMeridianClientTests
         status!.JobId.Should().Be(jobId);
     }
 
+    [Fact]
+    public async Task GetKeywordGraphJobStatusAsync_ReturnsNullWhenMissing()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.NotFound);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        var status = await sut.GetKeywordGraphJobStatusAsync(Guid.Parse("11111111-2222-3333-4444-555555555555"));
+
+        status.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ClearProjectKnowledgeAsync_SendsDeleteRequest()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.NoContent);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.ClearProjectKnowledgeAsync("My Project");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Delete);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/project/My%20Project");
+    }
+
+    [Fact]
+    public async Task ClearProjectDiagnosticsAsync_SendsDeleteRequest()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.NoContent);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.ClearProjectDiagnosticsAsync("My Project");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Delete);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/project/My%20Project/diagnostics");
+    }
+
+    [Fact]
+    public async Task ClearProjectConfigurationAsync_SendsDeleteRequest()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.NoContent);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.ClearProjectConfigurationAsync("My Project");
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Delete);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/project/My%20Project/configuration");
+    }
+
+    [Fact]
+    public async Task ClearCodeGraphAsync_SendsDeleteRequest()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.NoContent);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+        var sut = new CodeMeridianClient(client);
+
+        await sut.ClearCodeGraphAsync();
+
+        handler.Request.Should().NotBeNull();
+        handler.Request!.Method.Should().Be(HttpMethod.Delete);
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/code-graph");
+    }
+
         private sealed class CapturingHandler(HttpStatusCode statusCode = HttpStatusCode.Created) : HttpMessageHandler
         {
             public HttpRequestMessage? Request { get; private set; }
@@ -413,6 +699,13 @@ public sealed class CodeMeridianClientTests
                     StatusCode = statusCode,
                     Content = request.RequestUri!.AbsolutePath == "/api/v1/status/version"
                         ? JsonContent.Create(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2))
+                        : request.RequestUri!.AbsolutePath == "/api/v1/embeddings"
+                            ? JsonContent.Create(new
+                            {
+                                Embedding = new[] { 1.5f, 2.5f, 3.5f },
+                                ProviderName = "TestProvider",
+                                Dimensions = 3
+                            })
                         : request.RequestUri!.AbsolutePath == "/api/v1/status/report"
                             ? new StringContent("# Architecture Weather Report")
                         : request.RequestUri!.AbsolutePath == "/api/v1/status/trace-endpoint"
