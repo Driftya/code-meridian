@@ -18,6 +18,9 @@
       (or any MCP-compatible client) can call directly. No LLM API key needed.
     -->
     <PackageReference Include="HotChocolate.AspNetCore" Version="16.*" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.10.0" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.*" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.*" />
   </ItemGroup>
 </Project>

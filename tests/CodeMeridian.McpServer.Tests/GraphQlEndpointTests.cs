@@ -60,6 +60,32 @@ public sealed class GraphQlEndpointTests : IClassFixture<GraphQlWebApplicationFa
     }
 
     [Fact]
+    public async Task OpenApiEndpoint_WithoutApiKey_DocumentsRestApi()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/openapi/v1.json");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var paths = payload.GetProperty("paths");
+        paths.TryGetProperty("/api/v1/status/version", out _).Should().BeTrue();
+        paths.TryGetProperty("/api/v1/knowledge/nodes", out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SwaggerUi_WithoutApiKey_ReturnsHtml()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/index.html");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var html = await response.Content.ReadAsStringAsync();
+        html.Should().Contain("CodeMeridian API");
+    }
+
+    [Fact]
     public async Task GraphQlEndpoint_NodeQuery_ReturnsPropertiesAndRelationships()
     {
         var expectedFromNodeIds = new[] { "keyword:1" };

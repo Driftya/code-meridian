@@ -73,6 +73,7 @@ builder.Services
     });
 
 builder.Services.AddHealthChecks();
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
@@ -87,7 +88,9 @@ if (string.IsNullOrWhiteSpace(apiKey))
 
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/health"))
+    if (context.Request.Path.StartsWithSegments("/health")
+        || context.Request.Path.StartsWithSegments("/openapi")
+        || context.Request.Path.StartsWithSegments("/swagger"))
     {
         await next(context);
         return;
@@ -104,6 +107,13 @@ app.Use(async (context, next) =>
 });
 
 app.MapHealthChecks("/health");
+app.MapOpenApi();
+app.UseSwaggerUI(options =>
+{
+    options.DocumentTitle = "CodeMeridian API";
+    options.RoutePrefix = "swagger";
+    options.SwaggerEndpoint("/openapi/v1.json", "CodeMeridian API v1");
+});
 
 // REST API — used by the Indexer CLI and Sdk (not Copilot)
 app.MapKnowledgeApi();

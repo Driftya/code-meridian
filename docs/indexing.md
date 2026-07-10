@@ -15,6 +15,9 @@ This starts:
 - Neo4j browser: `http://localhost:47474`
 - Neo4j bolt: `bolt://localhost:47687`
 - MCP server: `http://localhost:5100/sse`
+- Swagger UI: `http://localhost:5100/swagger`
+- OpenAPI document: `http://localhost:5100/openapi/v1.json`
+- GraphQL endpoint: `http://localhost:5100/graphql`
 
 ## Install the Indexer Tool
 
@@ -422,6 +425,8 @@ When `CodeMeridian_Auth_ApiKey` is set, clients must send:
 ```http
 Authorization: Bearer <your-api-key>
 ```
+
+Swagger UI at `/swagger` and the raw OpenAPI document at `/openapi/v1.json` are available without authentication so the browser UI can load the document. Authenticated API calls still require the API key. OpenAPI documents the REST endpoints under `/api/v1/*`; the read-only GraphQL graph query surface is available separately at `/graphql` and also requires the API key.
 
 Important split:
 
