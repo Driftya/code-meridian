@@ -1,9 +1,11 @@
 using CodeMeridian.Application.GraphQueries;
 using CodeMeridian.Core.GraphQueries;
 using HotChocolate;
+using HotChocolate.Authorization;
 
 namespace CodeMeridian.McpServer.GraphQl;
 
+[Authorize]
 public sealed class GraphQueryType
 {
     public Task<IReadOnlyList<string>> GetLabels(

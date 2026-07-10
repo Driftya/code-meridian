@@ -18,6 +18,7 @@
       (or any MCP-compatible client) can call directly. No LLM API key needed.
     -->
     <PackageReference Include="HotChocolate.AspNetCore" Version="16.*" />
+    <PackageReference Include="HotChocolate.AspNetCore.Authorization" Version="16.*" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
     <PackageReference Include="Microsoft.OpenApi" Version="2.10.0" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.*" />

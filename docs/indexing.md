@@ -426,7 +426,7 @@ When `CodeMeridian_Auth_ApiKey` is set, clients must send:
 Authorization: Bearer <your-api-key>
 ```
 
-Swagger UI at `/swagger` and the raw OpenAPI document at `/openapi/v1.json` are available without authentication so the browser UI can load the document. Authenticated API calls still require the API key. OpenAPI documents the REST endpoints under `/api/v1/*`; the read-only GraphQL graph query surface is available separately at `/graphql` and also requires the API key.
+Swagger UI at `/swagger`, the raw OpenAPI document at `/openapi/v1.json`, and the GraphQL UI at `/graphql` are available without authentication so browser tooling can load. Authenticated REST API calls still require the API key. OpenAPI documents the REST endpoints under `/api/v1/*`; GraphQL query execution is available separately at `/graphql` and is protected by Hot Chocolate authorization using the same API key.
 
 Important split:
 

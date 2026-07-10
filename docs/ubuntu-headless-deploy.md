@@ -88,7 +88,7 @@ From another machine on the same network:
 curl http://192.168.10.70:5100/health
 ```
 
-If `CodeMeridian_Auth_ApiKey` is set, all non-health endpoints require auth:
+If `CodeMeridian_Auth_ApiKey` is set, API, MCP, and GraphQL query execution require auth. Browser documentation surfaces such as `/swagger`, `/openapi/v1.json`, and the `/graphql` UI can still load without a key.
 
 ```bash
 curl -H "Authorization: Bearer replace-with-a-long-random-token" \

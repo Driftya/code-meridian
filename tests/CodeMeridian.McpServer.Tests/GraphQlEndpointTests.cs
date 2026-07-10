@@ -25,7 +25,17 @@ public sealed class GraphQlEndpointTests : IClassFixture<GraphQlWebApplicationFa
     }
 
     [Fact]
-    public async Task GraphQlEndpoint_WithoutApiKey_ReturnsUnauthorized()
+    public async Task GraphQlEndpoint_GetWithoutApiKey_ReturnsGraphQlUi()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/graphql");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task GraphQlEndpoint_QueryWithoutApiKey_ReturnsGraphQlAuthorizationError()
     {
         using var client = _factory.CreateClient();
 
@@ -34,7 +44,31 @@ public sealed class GraphQlEndpointTests : IClassFixture<GraphQlWebApplicationFa
             query = "{ labels }"
         });
 
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+        payload.TryGetProperty("errors", out var errors).Should().BeTrue();
+        errors.GetArrayLength().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task RestApiEndpoint_WithoutApiKey_ReturnsUnauthorized()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/status/version");
+
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task RestApiEndpoint_WithBearerApiKey_ReturnsOk()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", GraphQlWebApplicationFactory.ApiKey);
+
+        var response = await client.GetAsync("/api/v1/status/version");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
