@@ -1,8 +1,10 @@
 using CodeMeridian.Application;
+using CodeMeridian.Application.GraphQueries;
 using CodeMeridian.Application.Services;
 using CodeMeridian.Infrastructure;
 using CodeMeridian.McpServer.Api;
 using CodeMeridian.McpServer.Configuration;
+using CodeMeridian.McpServer.GraphQl;
 using CodeMeridian.McpServer.Keywording;
 using CodeMeridian.McpServer.Tools;
 using CodeMeridian.Tooling.Configuration;
@@ -56,6 +58,20 @@ builder.Services.AddHttpClient("CodeMeridianExtension", client =>
     client.DefaultRequestHeaders.Add("Accept", "application/json");
 });
 
+builder.Services
+    .AddGraphQLServer()
+    .AddQueryType<GraphQueryType>()
+    .AddTypeExtension<GraphNodeTypeExtensions>()
+    .ModifyParserOptions(options =>
+    {
+        options.MaxAllowedFields = 256;
+        options.MaxAllowedRecursionDepth = 32;
+    })
+    .ModifyRequestOptions(options =>
+    {
+        options.ExecutionTimeout = TimeSpan.FromSeconds(10);
+    });
+
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
@@ -93,6 +109,7 @@ app.MapHealthChecks("/health");
 app.MapKnowledgeApi();
 app.MapEmbeddingApi();
 app.MapStatusApi();
+app.MapGraphQL("/graphql");
 
 // MCP SSE endpoint — VS Code connects to http://localhost:5100/sse
 app.MapMcp("/sse");
@@ -121,4 +138,8 @@ static bool FixedTimeEquals(string provided, string expected)
 
     return providedBytes.Length == expectedBytes.Length
         && CryptographicOperations.FixedTimeEquals(providedBytes, expectedBytes);
+}
+
+public partial class Program
+{
 }
