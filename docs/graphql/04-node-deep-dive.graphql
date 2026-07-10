@@ -1,0 +1,44 @@
+# Pull one node with a compact first page of incoming and outgoing edges.
+# Nitro variables:
+# {
+#   "nodeId": "keyword:1",
+#   "edgeLimit": 10
+# }
+query NodeDeepDive($nodeId: String!, $edgeLimit: Int = 10) {
+  node(id: $nodeId) {
+    id
+    name
+    type
+    filePath
+    projectContext
+    primaryLabel
+    labels
+    properties {
+      key
+      value
+      valueKind
+    }
+    outgoingRelationships(limit: $edgeLimit) {
+      id
+      type
+      fromNodeId
+      toNodeId
+      properties {
+        key
+        value
+        valueKind
+      }
+    }
+    incomingRelationships(limit: $edgeLimit) {
+      id
+      type
+      fromNodeId
+      toNodeId
+      properties {
+        key
+        value
+        valueKind
+      }
+    }
+  }
+}

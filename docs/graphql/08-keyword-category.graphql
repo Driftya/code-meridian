@@ -1,0 +1,22 @@
+# Slice keyword nodes by classification/category when the graph has that metadata.
+# Nitro variables:
+# {
+#   "category": "technology",
+#   "limit": 20
+# }
+query KeywordCategory($category: String!, $limit: Int = 20) {
+  nodes(
+    filter: { labels: ["Keyword"], keywordCategory: $category }
+    sort: { field: "name", direction: ASCENDING }
+    limit: $limit
+  ) {
+    id
+    name
+    projectContext
+    properties {
+      key
+      value
+      valueKind
+    }
+  }
+}

@@ -1,0 +1,23 @@
+# Search keyword nodes by their stored value or normalized value.
+# Nitro variables:
+# {
+#   "text": "graphql",
+#   "limit": 20
+# }
+query KeywordSearch($text: String!, $limit: Int = 20) {
+  nodes(
+    filter: { labels: ["Keyword"], keywordText: $text }
+    sort: { field: "name", direction: ASCENDING }
+    limit: $limit
+  ) {
+    id
+    name
+    projectContext
+    primaryLabel
+    properties {
+      key
+      value
+      valueKind
+    }
+  }
+}

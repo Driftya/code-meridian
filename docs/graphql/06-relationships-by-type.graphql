@@ -1,0 +1,31 @@
+# Inspect one relationship family across a project.
+# Nitro variables:
+# {
+#   "relationshipType": "Calls",
+#   "projectContext": "CodeMeridian",
+#   "limit": 30
+# }
+query RelationshipsByType(
+  $relationshipType: String!
+  $projectContext: String
+  $limit: Int = 30
+) {
+  relationships(
+    filter: {
+      relationshipTypes: [$relationshipType]
+      projectContext: $projectContext
+    }
+    sort: { field: "type", direction: ASCENDING }
+    limit: $limit
+  ) {
+    id
+    type
+    fromNodeId
+    toNodeId
+    properties {
+      key
+      value
+      valueKind
+    }
+  }
+}

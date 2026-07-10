@@ -1,0 +1,40 @@
+# Expand a bounded neighborhood around one seed node.
+# Depth is clamped server-side to 3.
+# Nitro variables:
+# {
+#   "nodeId": "keyword:1",
+#   "relationshipTypes": ["RELATED_TO"],
+#   "depth": 2,
+#   "limit": 25
+# }
+query NeighborhoodWalk(
+  $nodeId: String!
+  $relationshipTypes: [String!]
+  $depth: Int = 2
+  $limit: Int = 25
+) {
+  neighbors(
+    nodeId: $nodeId
+    relationshipTypes: $relationshipTypes
+    direction: BOTH
+    depth: $depth
+    limit: $limit
+  ) {
+    distance
+    relationship {
+      id
+      type
+      fromNodeId
+      toNodeId
+    }
+    node {
+      id
+      name
+      type
+      filePath
+      projectContext
+      primaryLabel
+      labels
+    }
+  }
+}

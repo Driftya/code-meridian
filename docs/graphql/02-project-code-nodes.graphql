@@ -1,0 +1,21 @@
+# Browse code nodes for a single indexed project.
+# Nitro variables:
+# {
+#   "projectContext": "CodeMeridian",
+#   "limit": 25
+# }
+query ProjectCodeNodes($projectContext: String!, $limit: Int = 25) {
+  nodes(
+    filter: { labels: ["CodeNode"], projectContext: $projectContext }
+    sort: { field: "name", direction: ASCENDING }
+    limit: $limit
+  ) {
+    id
+    name
+    type
+    filePath
+    projectContext
+    primaryLabel
+    labels
+  }
+}

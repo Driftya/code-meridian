@@ -1,0 +1,29 @@
+# Find nodes whose stored filePath contains a given fragment.
+# This is useful when you know the area of the repo but not the node id yet.
+# Nitro variables:
+# {
+#   "projectContext": "CodeMeridian",
+#   "pathFragment": "src/McpServer/GraphQl",
+#   "limit": 25
+# }
+query FilePathSearch(
+  $projectContext: String!
+  $pathFragment: String!
+  $limit: Int = 25
+) {
+  nodes(
+    filter: {
+      projectContext: $projectContext
+      propertyContains: [{ key: "filePath", value: $pathFragment }]
+    }
+    sort: { field: "filePath", direction: ASCENDING }
+    limit: $limit
+  ) {
+    id
+    name
+    type
+    filePath
+    projectContext
+    primaryLabel
+  }
+}

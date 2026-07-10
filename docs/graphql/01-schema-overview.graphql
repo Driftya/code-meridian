@@ -1,0 +1,5 @@
+# Inspect the current shape of the graph before drilling into specific nodes.
+query SchemaOverview {
+  labels
+  relationshipTypes
+}
