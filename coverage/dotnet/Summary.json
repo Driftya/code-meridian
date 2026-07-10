@@ -1,27 +1,27 @@
 {
   "summary": {
-    "generatedon": "2026-07-10T19:34:38Z",
-    "parser": "MultiReport (16x Cobertura)",
+    "generatedon": "2026-07-10T20:01:06Z",
+    "parser": "MultiReport (15x Cobertura)",
     "assemblies": 9,
-    "classes": 311,
+    "classes": 312,
     "files": 223,
-    "coveredlines": 16928,
+    "coveredlines": 16938,
     "uncoveredlines": 6062,
-    "coverablelines": 22990,
-    "totallines": 35410,
+    "coverablelines": 23000,
+    "totallines": 35448,
     "linecoverage": 73.6,
-    "coveredbranches": 6867,
-    "totalbranches": 10856,
+    "coveredbranches": 6871,
+    "totalbranches": 10862,
     "branchcoverage": 63.2,
-    "coveredmethods": 2653,
-    "fullcoveredmethods": 2166,
-    "totalmethods": 3169,
+    "coveredmethods": 2655,
+    "fullcoveredmethods": 2168,
+    "totalmethods": 3171,
     "methodcoverage": 83.7,
     "fullmethodcoverage": 68.3
  },
   "coverage": {
     "assemblies": [
-      { "name": "CodeMeridian.Application", "classes": 77, "coverage": 88.8, "coveredlines": 9765, "coverablelines": 10995, "totallines": 27558, "branchcoverage": 69.1, "coveredbranches": 4001, "totalbranches": 5788, "methodcoverage": 94.2, "fullmethodcoverage": 74, "coveredmethods": 1270, "fullcoveredmethods": 998, "totalmethods": 1347, "classesinassembly": [
+      { "name": "CodeMeridian.Application", "classes": 77, "coverage": 88.8, "coveredlines": 9765, "coverablelines": 10995, "totallines": 27558, "branchcoverage": 69.1, "coveredbranches": 4000, "totalbranches": 5788, "methodcoverage": 94.2, "fullmethodcoverage": 74, "coveredmethods": 1270, "fullcoveredmethods": 998, "totalmethods": 1347, "classesinassembly": [
         { "name": "CodeMeridian.Application.DependencyInjection", "coverage": 80.6, "coveredlines": 25, "coverablelines": 31, "totallines": 57, "branchcoverage": 50, "coveredbranches": 1, "totalbranches": 2, "methodcoverage": 50, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 2 },
         { "name": "CodeMeridian.Application.Extensions.ExtensionRegistry", "coverage": 100, "coveredlines": 19, "coverablelines": 19, "totallines": 46, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 6 },
         { "name": "CodeMeridian.Application.GraphQueries.GraphQueryService", "coverage": 56, "coveredlines": 70, "coverablelines": 125, "totallines": 206, "branchcoverage": 50, "coveredbranches": 13, "totalbranches": 26, "methodcoverage": 71.4, "fullmethodcoverage": 28.5, "coveredmethods": 10, "fullcoveredmethods": 4, "totalmethods": 14 },
@@ -58,7 +58,7 @@
         { "name": "CodeMeridian.Application.Services.KeywordClassificationOptions", "coverage": 100, "coveredlines": 69, "coverablelines": 69, "totallines": 81, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 10 },
         { "name": "CodeMeridian.Application.Services.KeywordEnrichmentOptions", "coverage": 100, "coveredlines": 21, "coverablelines": 21, "totallines": 30, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 11, "fullcoveredmethods": 11, "totalmethods": 11 },
         { "name": "CodeMeridian.Application.Services.KeywordExtractionResult", "coverage": 100, "coveredlines": 1, "coverablelines": 1, "totallines": 10, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
-        { "name": "CodeMeridian.Application.Services.KeywordGraphJobService", "coverage": 94.4, "coveredlines": 102, "coverablelines": 108, "totallines": 182, "branchcoverage": 73.5, "coveredbranches": 25, "totalbranches": 34, "methodcoverage": 95.4, "fullmethodcoverage": 77.2, "coveredmethods": 21, "fullcoveredmethods": 17, "totalmethods": 22 },
+        { "name": "CodeMeridian.Application.Services.KeywordGraphJobService", "coverage": 94.4, "coveredlines": 102, "coverablelines": 108, "totallines": 182, "branchcoverage": 70.5, "coveredbranches": 24, "totalbranches": 34, "methodcoverage": 95.4, "fullmethodcoverage": 77.2, "coveredmethods": 21, "fullcoveredmethods": 17, "totalmethods": 22 },
         { "name": "CodeMeridian.Application.Services.KeywordGraphJobStatus", "coverage": 60, "coveredlines": 6, "coverablelines": 10, "totallines": 17, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 60, "fullmethodcoverage": 60, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 10 },
         { "name": "CodeMeridian.Application.Services.KeywordGraphJobSubmissionResult", "coverage": 75, "coveredlines": 3, "coverablelines": 4, "totallines": 17, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 75, "fullmethodcoverage": 75, "coveredmethods": 3, "fullcoveredmethods": 3, "totalmethods": 4 },
         { "name": "CodeMeridian.Application.Services.KeywordGraphService", "coverage": 92.2, "coveredlines": 346, "coverablelines": 375, "totallines": 553, "branchcoverage": 66.4, "coveredbranches": 83, "totalbranches": 125, "methodcoverage": 100, "fullmethodcoverage": 67.6, "coveredmethods": 34, "fullcoveredmethods": 23, "totalmethods": 34 },
@@ -232,7 +232,8 @@
         { "name": "CodeMeridian.Infrastructure.Knowledge.OllamaEmbeddingProvider", "coverage": 0, "coveredlines": 0, "coverablelines": 69, "totallines": 134, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 28, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 9 },
         { "name": "CodeMeridian.Infrastructure.Knowledge.OpenAiEmbeddingProvider", "coverage": 0, "coveredlines": 0, "coverablelines": 62, "totallines": 121, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 16, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 11 },
         { "name": "CodeMeridian.Infrastructure.Neo4jInitializationService", "coverage": 0, "coveredlines": 0, "coverablelines": 13, "totallines": 32, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 2 } ] },
-      { "name": "CodeMeridian.McpServer", "classes": 33, "coverage": 58.3, "coveredlines": 628, "coverablelines": 1077, "totallines": 8800, "branchcoverage": 39.6, "coveredbranches": 171, "totalbranches": 431, "methodcoverage": 54.5, "fullmethodcoverage": 46.7, "coveredmethods": 119, "fullcoveredmethods": 102, "totalmethods": 218, "classesinassembly": [
+      { "name": "CodeMeridian.McpServer", "classes": 34, "coverage": 58.6, "coveredlines": 638, "coverablelines": 1087, "totallines": 9029, "branchcoverage": 40.2, "coveredbranches": 176, "totalbranches": 437, "methodcoverage": 55, "fullmethodcoverage": 47.2, "coveredmethods": 121, "fullcoveredmethods": 104, "totalmethods": 220, "classesinassembly": [
+        { "name": "ApiKeyAuthenticationHandler", "coverage": 96.4, "coveredlines": 27, "coverablelines": 28, "totallines": 191, "branchcoverage": 75, "coveredbranches": 9, "totalbranches": 12, "methodcoverage": 100, "fullmethodcoverage": 75, "coveredmethods": 4, "fullcoveredmethods": 3, "totalmethods": 4 },
         { "name": "CodeMeridian.McpServer.Api.BulkIngestResponse", "coverage": 100, "coveredlines": 1, "coverablelines": 1, "totallines": 469, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "CodeMeridian.McpServer.Api.ClassifyKeywordsRequest", "coverage": 100, "coveredlines": 1, "coverablelines": 1, "totallines": 469, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "CodeMeridian.McpServer.Api.DocumentIngestOutcome", "coverage": 100, "coveredlines": 1, "coverablelines": 1, "totallines": 469, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
@@ -252,7 +253,7 @@
         { "name": "CodeMeridian.McpServer.GraphQl.GraphNodeTypeExtensions", "coverage": 50, "coveredlines": 10, "coverablelines": 20, "totallines": 48, "branchcoverage": 50, "coveredbranches": 2, "totalbranches": 4, "methodcoverage": 50, "fullmethodcoverage": 50, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 2 },
         { "name": "CodeMeridian.McpServer.GraphQl.GraphPropertyFilterInput", "coverage": 0, "coveredlines": 0, "coverablelines": 2, "totallines": 7, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 2 },
         { "name": "CodeMeridian.McpServer.GraphQl.GraphQueryMappings", "coverage": 0, "coveredlines": 0, "coverablelines": 25, "totallines": 48, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 42, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 4 },
-        { "name": "CodeMeridian.McpServer.GraphQl.GraphQueryType", "coverage": 13.6, "coveredlines": 3, "coverablelines": 22, "totallines": 80, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 50, "fullmethodcoverage": 50, "coveredmethods": 3, "fullcoveredmethods": 3, "totalmethods": 6 },
+        { "name": "CodeMeridian.McpServer.GraphQl.GraphQueryType", "coverage": 13.6, "coveredlines": 3, "coverablelines": 22, "totallines": 82, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 50, "fullmethodcoverage": 50, "coveredmethods": 3, "fullcoveredmethods": 3, "totalmethods": 6 },
         { "name": "CodeMeridian.McpServer.GraphQl.GraphRelationshipFilterInput", "coverage": 0, "coveredlines": 0, "coverablelines": 6, "totallines": 11, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 6 },
         { "name": "CodeMeridian.McpServer.GraphQl.GraphSortInput", "coverage": 0, "coveredlines": 0, "coverablelines": 2, "totallines": 9, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 2 },
         { "name": "CodeMeridian.McpServer.Keywording.BackgroundKeywordRefreshQueue", "coverage": 0, "coveredlines": 0, "coverablelines": 13, "totallines": 42, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 2, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 3 },
@@ -264,7 +265,7 @@
         { "name": "CodeMeridian.McpServer.Tools.KeywordTools", "coverage": 0, "coveredlines": 0, "coverablelines": 10, "totallines": 53, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 4 },
         { "name": "CodeMeridian.McpServer.Tools.KnowledgeTools", "coverage": 82.3, "coveredlines": 56, "coverablelines": 68, "totallines": 189, "branchcoverage": 66.6, "coveredbranches": 12, "totalbranches": 18, "methodcoverage": 100, "fullmethodcoverage": 83.3, "coveredmethods": 6, "fullcoveredmethods": 5, "totalmethods": 6 },
         { "name": "Microsoft.AspNetCore.OpenApi.Generated", "coverage": 39.5, "coveredlines": 85, "coverablelines": 215, "totallines": 605, "branchcoverage": 34.9, "coveredbranches": 72, "totalbranches": 206, "methodcoverage": 41.6, "fullmethodcoverage": 12.5, "coveredmethods": 10, "fullcoveredmethods": 3, "totalmethods": 24 },
-        { "name": "Program", "coverage": 93.9, "coveredlines": 93, "coverablelines": 99, "totallines": 155, "branchcoverage": 60, "coveredbranches": 6, "totalbranches": 10, "methodcoverage": 100, "fullmethodcoverage": 33.3, "coveredmethods": 3, "fullcoveredmethods": 1, "totalmethods": 3 },
+        { "name": "Program", "coverage": 93.8, "coveredlines": 76, "coverablelines": 81, "totallines": 191, "branchcoverage": 50, "coveredbranches": 2, "totalbranches": 4, "methodcoverage": 100, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 1 },
         { "name": "System.Runtime.CompilerServices", "coverage": 0, "coveredlines": 0, "coverablelines": 2, "totallines": 23, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
       { "name": "CodeMeridian.RoslynIndexer", "classes": 32, "coverage": 81.9, "coveredlines": 1585, "coverablelines": 1935, "totallines": 5028, "branchcoverage": 70.3, "coveredbranches": 848, "totalbranches": 1206, "methodcoverage": 89.1, "fullmethodcoverage": 67.5, "coveredmethods": 231, "fullcoveredmethods": 175, "totalmethods": 259, "classesinassembly": [
         { "name": "CodeMeridian.RoslynIndexer.Pipeline.AspNetControllerRouteExtractor", "coverage": 85.7, "coveredlines": 72, "coverablelines": 84, "totallines": 182, "branchcoverage": 61.7, "coveredbranches": 42, "totalbranches": 68, "methodcoverage": 100, "fullmethodcoverage": 55.5, "coveredmethods": 9, "fullcoveredmethods": 5, "totalmethods": 9 },
