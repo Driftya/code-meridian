@@ -28,7 +28,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('.Tests'))">
-    <PackageReference Include="coverlet.collector" Version="6.*">
+    <PackageReference Include="coverlet.collector" Version="10.*">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
