@@ -1,6 +1,5 @@
 using CodeMeridian.Core.Knowledge;
 using CodeMeridian.Sdk;
-using CodeMeridian.Sdk.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;

@@ -63,10 +63,9 @@ public static class ContextWorkflowToolCatalog
         Tool("clear_project_knowledge", "Ingestion", "Clear all knowledge for a project.", readOnly: false, mutatesGraph: true, destructive: true),
         Tool("clear_code_graph", "Ingestion", "Clear all indexed code graph nodes.", readOnly: false, mutatesGraph: true, destructive: true),
 
-        Tool("register_project_agent", "ExtensionAgents", "Register an external project agent.", readOnly: false, mutatesGraph: true),
-        Tool("unregister_project_agent", "ExtensionAgents", "Remove an external project agent.", readOnly: false, mutatesGraph: true),
-        Tool("list_project_agents", "ExtensionAgents", "List registered project agents."),
-        Tool("call_project_agent", "ExtensionAgents", "Call a registered project agent.")
+        Tool("get_client_extension_contract", "ClientExtensions", "Return the canonical GraphQL-backed client extension contract."),
+        Tool("list_client_extension_examples", "ClientExtensions", "List curated GraphQL examples for client-owned extension behaviors."),
+        Tool("get_client_extension_example", "ClientExtensions", "Return one curated GraphQL example and its usage notes.")
     ];
 
     public static IReadOnlyDictionary<string, ContextWorkflowToolDescriptor> Tools { get; } =

@@ -18,7 +18,7 @@ public sealed partial class CodebaseTools
         string? target = null,
         [Description("Optional project name to scope the workflow.")]
         string? projectContext = null,
-        [Description("Optional workflow type. Supported examples: before_edit, feature_implementation, refactor_planning, responsibility_slice_planning, architecture_review, dependency_replacement, diagnostic_review, configuration_review, semantic_discovery, knowledge_health, documentation_ingestion, extension_agent_routing.")]
+        [Description("Optional workflow type. Supported examples: before_edit, feature_implementation, refactor_planning, responsibility_slice_planning, architecture_review, dependency_replacement, diagnostic_review, configuration_review, semantic_discovery, knowledge_health, documentation_ingestion, client_extension_discovery.")]
         string? workflowType = null,
         [Description("Maximum number of steps to return. Default 12.")]
         int maxSteps = 12,

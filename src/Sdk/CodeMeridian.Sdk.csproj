@@ -8,7 +8,7 @@
 
     <!-- NuGet metadata — publish this so any project can reference it -->
     <PackageId>CodeMeridian.Sdk</PackageId>
-    <Description>Client SDK for connecting your project agent to the CodeMeridian orchestration service.</Description>
+    <Description>Client SDK for connecting to CodeMeridian's authenticated REST and GraphQL surfaces.</Description>
   </PropertyGroup>
 
   <ItemGroup>

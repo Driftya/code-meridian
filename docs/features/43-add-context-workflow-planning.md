@@ -48,7 +48,7 @@ CodeMeridian has many useful tools across several categories:
 * refactor planning
 * graph freshness and stale knowledge
 * ingestion and external concept linking
-* project agents
+* client extension discovery
 * multi-language route linking
 
 An agent still has to decide which tools to call and in what order.
@@ -245,13 +245,12 @@ clear_project_knowledge
 clear_code_graph
 ```
 
-### Extension Agents
+### Client Extensions
 
 ```text
-register_project_agent
-unregister_project_agent
-list_project_agents
-call_project_agent
+get_client_extension_contract
+list_client_extension_examples
+get_client_extension_example
 ```
 
 ## Workflow Types
@@ -557,28 +556,27 @@ Rules:
 * Treat ingestion as graph mutation.
 * Require explicit confirmation for destructive tools such as `clear_project_knowledge` and `clear_code_graph`.
 
-### `extension_agent_routing`
+### `client_extension_discovery`
 
-Use when the user wants to list or call project agents registered with CodeMeridian.
+Use when the user wants to discover the GraphQL-backed client extension contract or load curated example queries for client-owned behavior.
 
 Recommended tool sequence:
 
 ```text
-list_project_agents
-call_project_agent
+get_client_extension_contract
+list_client_extension_examples
 ```
 
-Optional admin tools:
+Then load a concrete example when needed:
 
 ```text
-register_project_agent
-unregister_project_agent
+get_client_extension_example
 ```
 
 Rules:
 
-* `register_project_agent` and `unregister_project_agent` mutate configuration and should require explicit user intent.
-* `call_project_agent` should be used only when the selected agent is relevant to the user’s question.
+* Client behavior stays client-owned; CodeMeridian should expose facts, schema, auth, and bounded graph access only.
+* `get_client_extension_example` should be used after the client has selected a relevant example id.
 
 ## Tool Contract
 
@@ -753,7 +751,7 @@ Diagnostics
 ImplementationPlanning
 FreshnessAndKnowledge
 Ingestion
-ExtensionAgents
+ClientExtensions
 ```
 
 Each catalog entry should include:
@@ -910,7 +908,7 @@ Add a test or validation helper that compares the tool catalog with documented f
   * `cross_project_trace`
   * `semantic_discovery`
   * `documentation_ingestion`
-  * `extension_agent_routing`
+  * `client_extension_discovery`
 * The plan includes ordered steps, purpose, required/optional flag, expected output, and stop conditions.
 * The plan explains why each tool is included.
 * The plan avoids source edits and destructive graph actions.
@@ -920,3 +918,4 @@ Add a test or validation helper that compares the tool catalog with documented f
 * MCP handler remains thin.
 * Documentation is added to `docs/features.md`.
 * A todo entry links to this feature file.
+

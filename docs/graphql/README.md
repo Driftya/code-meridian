@@ -18,3 +18,15 @@ Notes:
 - Neighbor traversal depth is clamped server-side to `3`.
 - Supported node sort fields are `id`, `name`, `projectContext`, `primaryLabel`, `type`, and `filePath`.
 - Supported relationship sort fields are `id`, `type`, `fromNodeId`, and `toNodeId`.
+
+## Building Client Extensions
+
+CodeMeridian keeps GraphQL read-only and bounded. Client extensions own their own prompts, routing, UI, and behavior composition.
+
+Use the MCP discovery tools when you want the contract from chat:
+
+- `get_client_extension_contract`
+- `list_client_extension_examples`
+- `get_client_extension_example`
+
+Those MCP tools point back to the same checked-in `.graphql` examples in this folder.

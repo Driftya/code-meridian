@@ -1,7 +1,6 @@
-using CodeMeridian.Application.Extensions;
+using CodeMeridian.Application.ClientExtensions;
 using CodeMeridian.Application.GraphQueries;
 using CodeMeridian.Application.Services;
-using CodeMeridian.Core.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -38,7 +37,7 @@ public static class DependencyInjection
             services.AddOptions<DatabaseTracingOptions>();
         }
 
-        services.AddSingleton<IExtensionRegistry, ExtensionRegistry>();
+        services.AddSingleton<IClientExtensionService, ClientExtensionService>();
         services.AddSingleton<IIndexedFileRoleClassifier, ConfiguredIndexedFileRoleClassifier>();
         services.AddSingleton<IAnalysisProfilePolicy, DefaultAnalysisProfilePolicy>();
         services.AddSingleton<IGlobalAnalysisConfigurationSource, NullGlobalAnalysisConfigurationSource>();

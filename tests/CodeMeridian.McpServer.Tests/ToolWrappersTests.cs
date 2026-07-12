@@ -1,13 +1,9 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
-using CodeMeridian.Application.Extensions;
+using CodeMeridian.Application.ClientExtensions;
 using CodeMeridian.Application.Services;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
 using CodeMeridian.McpServer.Tools;
-using CodeMeridian.Sdk.Models;
 using FluentAssertions;
 using NSubstitute;
 
@@ -188,70 +184,43 @@ public sealed class ToolWrappersTests
     }
 
     [Fact]
-    public void ExtensionTools_ListRegisterAndUnregisterAgents_Works()
+    public void ClientExtensionTools_GetClientExtensionContract_ReturnsEndpointAuthLimitsAndExamples()
     {
-        var registry = new ExtensionRegistry();
-        var httpClientFactory = Substitute.For<IHttpClientFactory>();
-        var codeGraph = Substitute.For<ICodeGraphRepository>();
-        var sut = new ExtensionTools(registry, httpClientFactory, codeGraph);
+        var sut = new ClientExtensionTools(new ClientExtensionService());
 
-        sut.ListProjectAgents().Should().Contain("No project agents registered");
-        sut.RegisterProjectAgent("Payments", "Billing helper", "https://payments.example/ask", "payments, invoices")
-            .Should().Contain("Agent 'Payments' registered");
+        var result = sut.GetClientExtensionContract();
 
-        var listed = sut.ListProjectAgents();
-        listed.Should().Contain("Payments");
-        listed.Should().Contain("Billing helper");
-        listed.Should().Contain("payments, invoices");
-
-        sut.UnregisterProjectAgent("Payments").Should().Contain("unregistered");
-        sut.ListProjectAgents().Should().Contain("No project agents registered");
-        sut.RegisterProjectAgent("Broken", "Bad", "not-a-url", "oops").Should().Contain("Invalid endpoint URL");
+        result.Should().Contain("# Client Extension Contract");
+        result.Should().Contain("/graphql");
+        result.Should().Contain("Authorization");
+        result.Should().Contain("X-CodeMeridian-ApiKey");
+        result.Should().Contain("Max page size: 100");
+        result.Should().Contain("schema-overview");
     }
 
     [Fact]
-    public async Task ExtensionTools_CallProjectAgentAsync_HandlesSuccessFailureAndMissingAgent()
+    public void ClientExtensionTools_ListAndGetClientExtensionExample_ReturnCheckedInQueries()
     {
-        var registry = new ExtensionRegistry();
-        var codeGraph = Substitute.For<ICodeGraphRepository>();
-        using var successHandler = new StubHttpHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = JsonContent.Create(new AgentResponse { Content = "agent-result", AgentName = "Payments" })
-        });
-        var successFactory = Substitute.For<IHttpClientFactory>();
-        successFactory.CreateClient("CodeMeridianExtension").Returns(new HttpClient(successHandler));
+        var sut = new ClientExtensionTools(new ClientExtensionService());
 
-        var successTools = new ExtensionTools(registry, successFactory, codeGraph);
-        successTools.RegisterProjectAgent("Payments", "Billing helper", "https://payments.example/ask", "payments");
+        var listed = sut.ListClientExtensionExamples();
+        listed.Should().Contain("keyword-search");
+        listed.Should().Contain("docs/graphql/03-keyword-search.graphql");
 
-        (await successTools.CallProjectAgentAsync("Missing", "hello")).Should().Contain("not found");
-        (await successTools.CallProjectAgentAsync("Payments", "hello", "CodeMeridian")).Should().Be("agent-result");
+        var example = sut.GetClientExtensionExample("keyword-search");
+        example.Should().Contain("# Client Extension Example: keyword-search");
+        example.Should().Contain("KeywordSearch");
+        example.Should().Contain("\"text\": \"graphql\"");
+        example.Should().Contain("Expected result shape");
 
-        var request = successHandler.Requests.Should().ContainSingle().Subject;
-        request.Method.Should().Be(HttpMethod.Post);
-        request.Uri!.ToString().Should().Be("https://payments.example/ask");
-        using (var body = JsonDocument.Parse(request.Body!))
-        {
-            body.RootElement.GetProperty("query").GetString().Should().Be("hello");
-            body.RootElement.GetProperty("projectContext").GetString().Should().Be("CodeMeridian");
-        }
-
-        using var failingHandler = new StubHttpHandler(_ => throw new HttpRequestException("boom"));
-        var failingFactory = Substitute.For<IHttpClientFactory>();
-        failingFactory.CreateClient("CodeMeridianExtension").Returns(new HttpClient(failingHandler));
-        var failingTools = new ExtensionTools(registry, failingFactory, codeGraph);
-
-        (await failingTools.CallProjectAgentAsync("Payments", "hello")).Should().Contain("call failed: boom");
-        registry.Get("Payments")!.IsHealthy.Should().BeFalse();
+        sut.GetClientExtensionExample("missing-example").Should().Contain("Unknown client extension example");
     }
 
     [Fact]
     public async Task ExtensionTools_LinkExternalConceptAsync_UpsertsNodeAndDirectionalEdge()
     {
-        var registry = new ExtensionRegistry();
-        var httpClientFactory = Substitute.For<IHttpClientFactory>();
         var codeGraph = Substitute.For<ICodeGraphRepository>();
-        var sut = new ExtensionTools(registry, httpClientFactory, codeGraph);
+        var sut = new ExtensionTools(codeGraph);
 
         var result = await sut.LinkExternalConceptAsync(
             "Method:OrderService.SaveAsync",
@@ -276,18 +245,4 @@ public sealed class ToolWrappersTests
                 edge.Type == CodeEdgeType.Reads),
             Arg.Any<CancellationToken>());
     }
-
-    private sealed class StubHttpHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler, IDisposable
-    {
-        public List<CapturedRequest> Requests { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
-            Requests.Add(new CapturedRequest(request.Method, request.RequestUri, body));
-            return responder(request);
-        }
-    }
-
-    private sealed record CapturedRequest(HttpMethod Method, Uri? Uri, string? Body);
 }

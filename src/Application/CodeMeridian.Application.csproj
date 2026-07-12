@@ -15,4 +15,8 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.*" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\graphql\*.graphql" Link="ClientExtensions\Examples\%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

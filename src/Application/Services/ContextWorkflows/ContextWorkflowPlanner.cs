@@ -142,9 +142,8 @@ public sealed class ContextWorkflowPlanner
             case "ingest_document":
                 Add(hints, "source", request.Target);
                 break;
-            case "call_project_agent":
-                Add(hints, "query", request.Goal);
-                Add(hints, "name", request.Target);
+            case "get_client_extension_example":
+                Add(hints, "exampleId", request.Target);
                 break;
             default:
                 Add(hints, ContextWorkflowToolCatalog.Get(tool).RequiresExactTarget ? "nodeId" : "target", request.Target);
@@ -223,8 +222,8 @@ public sealed class ContextWorkflowPlanner
             return "semantic_discovery";
         if (ContainsAny(text, "ingest", "remember", "external concept", "record relationship", "add document"))
             return "documentation_ingestion";
-        if (ContainsAny(text, "project agent", "external agent", "register agent", "call agent", "list agents"))
-            return "extension_agent_routing";
+        if (ContainsAny(text, "client extension", "graphql extension", "custom client behavior", "project agent", "external agent", "register agent", "call agent", "list agents"))
+            return "client_extension_discovery";
         if (ContainsAny(text, "refactor", "split", "extract", "move", "rename", "reorganize", "reduce"))
             return "refactor_planning";
         if (ContainsAny(text, "implement", "feature", "add "))
@@ -472,17 +471,16 @@ public sealed class ContextWorkflowPlanner
             ["ingest", "remember", "external concept", "record"]),
 
         Recipe(
-            "extension_agent_routing",
-            "Plan listing and calling registered external project agents.",
+            "client_extension_discovery",
+            "Plan discovery of the GraphQL-backed client extension contract and curated examples.",
             "low",
             usuallyRequiresTarget: false,
             [
-                Step("list_project_agents", true, "List registered agents and their capabilities before routing.", "Agent list and health."),
-                Step("call_project_agent", true, "Call only the relevant selected agent with the user question.", "Agent response.", "Stop if no relevant healthy agent exists."),
-                Step("register_project_agent", false, "Register an agent only when the user explicitly asks to add one.", "Registered agent.", "Require explicit user intent before mutation."),
-                Step("unregister_project_agent", false, "Unregister an agent only when the user explicitly asks to remove one.", "Removed agent.", "Require explicit user intent before mutation.")
+                Step("get_client_extension_contract", true, "Read the canonical contract before composing client-owned behavior.", "GraphQL endpoint, auth, limits, and ownership guidance."),
+                Step("list_client_extension_examples", true, "List curated checked-in GraphQL examples.", "Example ids, paths, and intended use cases."),
+                Step("get_client_extension_example", false, "Load one example query when the client needs a concrete starting point.", "Example GraphQL document, variables template, and notes.")
             ],
-            ["agent", "project agent", "external agent"])
+            ["client extension", "graphql extension", "custom client behavior", "project agent", "external agent"])
     ];
 
     private static ContextWorkflowRecipe Recipe(

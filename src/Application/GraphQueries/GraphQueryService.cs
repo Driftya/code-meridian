@@ -4,26 +4,6 @@ namespace CodeMeridian.Application.GraphQueries;
 
 public sealed class GraphQueryService : IGraphQueryService
 {
-    private static readonly HashSet<string> AllowedNodeSortFields =
-    [
-        "id",
-        "name",
-        "projectContext",
-        "primaryLabel",
-        "type",
-        "filePath"
-    ];
-
-    private static readonly HashSet<string> AllowedRelationshipSortFields =
-    [
-        "id",
-        "type",
-        "fromNodeId",
-        "toNodeId"
-    ];
-
-    private const int MaxPageSize = 100;
-    private const int MaxTraversalDepth = 3;
     private readonly IGraphReadRepository _repository;
 
     public GraphQueryService(IGraphReadRepository repository)
@@ -67,13 +47,13 @@ public sealed class GraphQueryService : IGraphQueryService
         CancellationToken cancellationToken = default)
     {
         ValidatePagination(skip, limit);
-        ValidateSort(sort, AllowedNodeSortFields);
+        ValidateSort(sort, GraphQlReadContract.SupportedNodeSortFields);
 
         return _repository.QueryNodesAsync(
             Normalize(filter),
             sort,
             skip,
-            ClampLimit(limit),
+            Math.Min(limit, GraphQlReadContract.MaxPageSize),
             cancellationToken);
     }
 
@@ -85,13 +65,13 @@ public sealed class GraphQueryService : IGraphQueryService
         CancellationToken cancellationToken = default)
     {
         ValidatePagination(skip, limit);
-        ValidateSort(sort, AllowedRelationshipSortFields);
+        ValidateSort(sort, GraphQlReadContract.SupportedRelationshipSortFields);
 
         return _repository.QueryRelationshipsAsync(
             Normalize(filter),
             sort,
             skip,
-            ClampLimit(limit),
+            Math.Min(limit, GraphQlReadContract.MaxPageSize),
             cancellationToken);
     }
 
@@ -117,7 +97,7 @@ public sealed class GraphQueryService : IGraphQueryService
             ?? [],
             direction,
             ClampDepth(depth),
-            ClampLimit(limit),
+            Math.Min(limit, GraphQlReadContract.MaxPageSize),
             cancellationToken);
     }
 
@@ -130,7 +110,7 @@ public sealed class GraphQueryService : IGraphQueryService
             throw new ArgumentOutOfRangeException(nameof(limit), "Limit must be greater than zero.");
     }
 
-    private static void ValidateSort(GraphSort? sort, HashSet<string> allowedFields)
+    private static void ValidateSort(GraphSort? sort, IReadOnlyCollection<string> allowedFields)
     {
         if (sort is null)
             return;
@@ -144,14 +124,12 @@ public sealed class GraphQueryService : IGraphQueryService
         }
     }
 
-    private static int ClampLimit(int limit) => Math.Min(limit, MaxPageSize);
-
     private static int ClampDepth(int depth)
     {
         if (depth <= 0)
             throw new ArgumentOutOfRangeException(nameof(depth), "Depth must be greater than zero.");
 
-        return Math.Min(depth, MaxTraversalDepth);
+        return Math.Min(depth, GraphQlReadContract.MaxTraversalDepth);
     }
 
     private static GraphNodeFilter Normalize(GraphNodeFilter filter)

@@ -10,7 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Application\CodeMeridian.Application.csproj" />
     <ProjectReference Include="..\Infrastructure\CodeMeridian.Infrastructure.csproj" />
-    <ProjectReference Include="..\Sdk\CodeMeridian.Sdk.csproj" />
     <ProjectReference Include="..\Tooling\CodeMeridian.Tooling.csproj" />
 
     <!--

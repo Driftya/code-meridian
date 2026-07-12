@@ -23,7 +23,7 @@ public sealed class CodebaseQueryServiceContextWorkflowTests
     [InlineData("Trace frontend backend API route", null, "cross_project_trace")]
     [InlineData("Find duplicate similar patterns", null, "semantic_discovery")]
     [InlineData("Ingest this document so CodeMeridian remembers it", "docs/notes.md", "documentation_ingestion")]
-    [InlineData("List project agents and call relevant agent", null, "extension_agent_routing")]
+    [InlineData("List project agents and call relevant agent", null, "client_extension_discovery")]
     public async Task PlanContextWorkflowAsync_InfersNamedWorkflowTypes(string goal, string? target, string expectedWorkflow)
     {
         var sut = BuildService();

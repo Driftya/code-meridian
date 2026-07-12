@@ -670,15 +670,19 @@ Wipes all indexed code graph nodes and relationships across every project. Docum
 
 Use this after broad indexer ID/path changes or if the Neo4j graph contains stale code nodes from older indexer versions.
 
-## Extension Agents
+## Client Extensions
 
-### `register_project_agent` / `unregister_project_agent` / `list_project_agents`
+### `get_client_extension_contract`
 
-Manage external HTTP agents that CodeMeridian can route Copilot requests to.
+Returns the canonical GraphQL-backed client extension contract, including the endpoint path, auth headers, bounded query limits, supported sort fields, example ids, and the explicit rule that client behavior is client-owned rather than server-hosted.
 
-### `call_project_agent`
+### `list_client_extension_examples`
 
-Sends a question directly to a registered extension agent.
+Lists curated GraphQL example documents checked into `docs/graphql/` so client-side extensions can start from bounded, versioned query shapes instead of inventing ad hoc queries.
+
+### `get_client_extension_example`
+
+Returns one curated GraphQL example, including the checked-in document text, variables template, expected result shape, and usage notes for client-owned behavior.
 
 ## Multi-Language Support
 

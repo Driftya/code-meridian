@@ -182,7 +182,7 @@ public sealed partial class CodebaseQueryService
                 "find_stale_knowledge" => await FindStaleKnowledgeAsync(projectContext, cancellationToken: cancellationToken),
                 "knowledge_decay" => await FindStaleKnowledgeAsync(projectContext, cancellationToken: cancellationToken),
                 "find_related_knowledge" => await MissingTargetAsync(step),
-                "rebuild_keyword_graph" or "classify_keywords" or "list_project_agents" or "call_project_agent" => await UnsupportedAsync(step),
+                "rebuild_keyword_graph" or "classify_keywords" or "get_client_extension_contract" or "list_client_extension_examples" or "get_client_extension_example" => await UnsupportedAsync(step),
                 _ => await UnsupportedAsync(step)
             };
 

@@ -49,6 +49,7 @@ builder.Services
     .WithTools<CodebaseTools>()
     .WithTools<KeywordTools>()
     .WithTools<KnowledgeTools>()
+    .WithTools<ClientExtensionTools>()
     .WithTools<ExtensionTools>();
 
 // ── Kestrel — extend keep-alive so long-lived SSE connections aren't dropped ──
@@ -57,13 +58,7 @@ builder.WebHost.ConfigureKestrel(kestrel =>
     kestrel.Limits.KeepAliveTimeout = TimeSpan.FromHours(1);
 });
 
-// ── HTTP client — used by ExtensionTools to call registered project agents ───
-builder.Services.AddHttpClient("CodeMeridianExtension", client =>
-{
-    client.Timeout = TimeSpan.FromSeconds(60);
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
-});
-
+// ── GraphQL transport - shared bounded read surface for client extensions ───
 builder.Services
     .AddGraphQLServer()
     .AddQueryType<GraphQueryType>()
@@ -71,12 +66,12 @@ builder.Services
     .AddAuthorization()
     .ModifyParserOptions(options =>
     {
-        options.MaxAllowedFields = 256;
-        options.MaxAllowedRecursionDepth = 32;
+        options.MaxAllowedFields = GraphQlReadContract.MaxAllowedFields;
+        options.MaxAllowedRecursionDepth = GraphQlReadContract.MaxAllowedRecursionDepth;
     })
     .ModifyRequestOptions(options =>
     {
-        options.ExecutionTimeout = TimeSpan.FromSeconds(10);
+        options.ExecutionTimeout = GraphQlReadContract.ExecutionTimeout;
     });
 
 builder.Services.AddHealthChecks();
@@ -119,7 +114,7 @@ app.MapOpenApi().AllowAnonymous();
 app.MapKnowledgeApi();
 app.MapEmbeddingApi();
 app.MapStatusApi();
-app.MapGraphQL("/graphql").AllowAnonymous();
+app.MapGraphQL(GraphQlReadContract.EndpointPath).AllowAnonymous();
 
 // MCP SSE endpoint — VS Code connects to http://localhost:5100/sse
 app.MapMcp("/sse");
@@ -189,3 +184,4 @@ sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
 public partial class Program
 {
 }
+

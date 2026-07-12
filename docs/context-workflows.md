@@ -81,7 +81,7 @@ The planner supports these named workflow types:
 | `cross_project_trace` | Tracing projects, frontend/backend paths, APIs, routes, or modules |
 | `semantic_discovery` | Finding similar code, duplicate patterns, or examples |
 | `documentation_ingestion` | Explicitly adding docs, external concepts, routes, tables, topics, or relationships to the graph |
-| `extension_agent_routing` | Listing or calling registered project agents |
+| `client_extension_discovery` | Discovering the GraphQL-backed client extension contract and curated examples |
 
 If `workflowType` is omitted, CodeMeridian infers it from the goal and target. A `docs/features/*.md` target selects `feature_implementation`.
 

@@ -126,7 +126,7 @@ public sealed class ContextWorkflowPlannerTests
     [InlineData("Trace frontend backend route flow", null, "cross_project_trace", "find_cross_project_dependencies")]
     [InlineData("Find similar duplicate implementation shapes", null, "semantic_discovery", "find_similar_nodes")]
     [InlineData("Remember this external concept in the graph", null, "documentation_ingestion", "ingest_document")]
-    [InlineData("Call project agent for repository context", null, "extension_agent_routing", "list_project_agents")]
+    [InlineData("Call project agent for repository context", null, "client_extension_discovery", "get_client_extension_contract")]
     [InlineData("Refactor subscription sync flow", "SubscriptionService.SyncAsync", "refactor_planning", "resolve_exact_symbol")]
     [InlineData("Implement the endpoint trace feature", null, "feature_implementation", "analyze_feature_implementation_path")]
     [InlineData("Inspect this known method before editing", "SubscriptionService.SyncAsync", "before_edit", "resolve_exact_symbol")]
