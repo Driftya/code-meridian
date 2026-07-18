@@ -49,4 +49,43 @@ public sealed class ClientExtensionServiceTests
     {
         _sut.GetExample("missing-example").Should().BeNull();
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void GetExample_BlankId_ReturnsNull(string? exampleId)
+    {
+        _sut.GetExample(exampleId!).Should().BeNull();
+    }
+
+    [Fact]
+    public void GetExample_TrimsIdAndLoadsExpectedDocumentMetadata()
+    {
+        var example = _sut.GetExample("  KEYWORD-SEARCH  ");
+
+        example.Should().NotBeNull();
+        example!.Id.Should().Be("keyword-search");
+        example.Name.Should().Be("Keyword search");
+        example.GraphQlDocumentPath.Should().Be("docs/graphql/03-keyword-search.graphql");
+        example.GraphQlDocument.Should().Contain("query KeywordSearch");
+        example.VariablesTemplate.Should().NotBeNull();
+        example.VariablesTemplate!.ReplaceLineEndings("\n").Should().ContainAll(
+            "{",
+            "\"text\": \"graphql\"",
+            "\"limit\": 20",
+            "}");
+        example.ExpectedResultShape.Should().Contain("nodes[]");
+        example.Notes.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void GetExample_WhenDocumentHasNoNitroVariables_TemplateIsNull()
+    {
+        var example = _sut.GetExample("schema-overview");
+
+        example.Should().NotBeNull();
+        example!.VariablesTemplate.Should().BeNull();
+        example.GraphQlDocument.Should().Contain("query SchemaOverview");
+    }
 }

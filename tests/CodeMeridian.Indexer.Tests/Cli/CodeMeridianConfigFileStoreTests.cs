@@ -221,6 +221,55 @@ public sealed class CodeMeridianConfigFileStoreTests : IDisposable
         File.ReadAllText(targetPath).Should().Be(originalContent);
     }
 
+    [Fact]
+    public void LoadLocal_InvalidJson_ReturnsNull()
+    {
+        var child = Directory.CreateDirectory(Path.Combine(_root.FullName, "invalid", "src"));
+        File.WriteAllText(Path.Combine(_root.FullName, "invalid", "meridian.json"), "{ invalid json");
+
+        var result = new CodeMeridianConfigFileStore().LoadLocal(child);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void LoadGlobal_NonObjectJson_ReturnsNull()
+    {
+        var globalRoot = Directory.CreateDirectory(Path.Combine(_root.FullName, "global-invalid"));
+        File.WriteAllText(Path.Combine(globalRoot.FullName, "meridian.json"), """
+            [
+              {
+                "project": "invalid"
+              }
+            ]
+            """);
+
+        var result = new CodeMeridianConfigFileStore().LoadGlobal(globalRoot);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Write_WhenConfigAlreadyContainsCurrentDefaults_DoesNotCreateBackup()
+    {
+        var sut = new CodeMeridianConfigFileStore();
+        var original = sut.Write(_root, "CurrentProject", "http://current", useGlobalCache: true, overwrite: false);
+        original.Changed.Should().BeTrue();
+
+        var meridianJsonPath = Path.Combine(_root.FullName, "meridian.json");
+        var before = File.ReadAllText(meridianJsonPath);
+
+        var result = sut.Write(_root, "IgnoredProject", "http://ignored", useGlobalCache: false, overwrite: false);
+
+        result.Created.Should().BeFalse();
+        result.Changed.Should().BeFalse();
+        result.BackupPath.Should().BeNull();
+        result.PreviousVersion.Should().Be(CodeMeridianConfigFileStore.CurrentConfigVersion);
+        result.CurrentVersion.Should().Be(CodeMeridianConfigFileStore.CurrentConfigVersion);
+        result.AddedPaths.Should().BeEmpty();
+        File.ReadAllText(meridianJsonPath).Should().Be(before);
+    }
+
     public void Dispose()
     {
         if (!Directory.Exists(_root.FullName))
