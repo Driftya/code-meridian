@@ -1,23 +1,23 @@
 {
   "summary": {
-    "generatedon": "2026-07-18T21:16:06Z",
-    "parser": "MultiReport (17x Cobertura)",
+    "generatedon": "2026-07-18T21:37:02Z",
+    "parser": "MultiReport (16x Cobertura)",
     "assemblies": 9,
     "classes": 308,
     "files": 219,
-    "coveredlines": 17099,
-    "uncoveredlines": 5999,
+    "coveredlines": 17119,
+    "uncoveredlines": 5979,
     "coverablelines": 23098,
     "totallines": 35455,
-    "linecoverage": 74,
-    "coveredbranches": 6889,
+    "linecoverage": 74.1,
+    "coveredbranches": 6902,
     "totalbranches": 10884,
-    "branchcoverage": 63.2,
-    "coveredmethods": 2672,
-    "fullcoveredmethods": 2187,
+    "branchcoverage": 63.4,
+    "coveredmethods": 2673,
+    "fullcoveredmethods": 2188,
     "totalmethods": 3171,
     "methodcoverage": 84.2,
-    "fullmethodcoverage": 68.9
+    "fullmethodcoverage": 69
  },
   "coverage": {
     "assemblies": [
@@ -156,7 +156,7 @@
         { "name": "System.Text.RegularExpressions.Generated.\u003CRegexGenerator_g\u003EFB0BABC3DB0B4277A5675593A4D0BB963F8B5A8A6835F542D9EB19DCE8DE41BB7__PercentEncodedFragmentMarkerRegex_8", "coverage": 78.2, "coveredlines": 18, "coverablelines": 23, "totallines": 2002, "branchcoverage": 66.6, "coveredbranches": 4, "totalbranches": 6, "methodcoverage": 100, "fullmethodcoverage": 60, "coveredmethods": 5, "fullcoveredmethods": 3, "totalmethods": 5 },
         { "name": "System.Text.RegularExpressions.Generated.\u003CRegexGenerator_g\u003EFB0BABC3DB0B4277A5675593A4D0BB963F8B5A8A6835F542D9EB19DCE8DE41BB7__PercentEncodedQueryMarkerRegex_7", "coverage": 57.1, "coveredlines": 20, "coverablelines": 35, "totallines": 1933, "branchcoverage": 43.7, "coveredbranches": 7, "totalbranches": 16, "methodcoverage": 83.3, "fullmethodcoverage": 50, "coveredmethods": 5, "fullcoveredmethods": 3, "totalmethods": 6 },
         { "name": "System.Text.RegularExpressions.Generated.\u003CRegexGenerator_g\u003EFB0BABC3DB0B4277A5675593A4D0BB963F8B5A8A6835F542D9EB19DCE8DE41BB7__RoutePlaceholderRegex_6", "coverage": 83.7, "coveredlines": 36, "coverablelines": 43, "totallines": 1838, "branchcoverage": 62.5, "coveredbranches": 15, "totalbranches": 24, "methodcoverage": 100, "fullmethodcoverage": 66.6, "coveredmethods": 6, "fullcoveredmethods": 4, "totalmethods": 6 } ] },
-      { "name": "CodeMeridian.Indexer", "classes": 59, "coverage": 72.4, "coveredlines": 2303, "coverablelines": 3178, "totallines": 7995, "branchcoverage": 60.2, "coveredbranches": 787, "totalbranches": 1306, "methodcoverage": 84.1, "fullmethodcoverage": 70.2, "coveredmethods": 405, "fullcoveredmethods": 338, "totalmethods": 481, "classesinassembly": [
+      { "name": "CodeMeridian.Indexer", "classes": 59, "coverage": 73, "coveredlines": 2323, "coverablelines": 3178, "totallines": 7995, "branchcoverage": 61.2, "coveredbranches": 800, "totalbranches": 1306, "methodcoverage": 84.4, "fullmethodcoverage": 70.4, "coveredmethods": 406, "fullcoveredmethods": 339, "totalmethods": 481, "classesinassembly": [
         { "name": "CodeMeridian.Indexer.Cli.Commands.CheckDriftCommandOptions", "coverage": 0, "coveredlines": 0, "coverablelines": 5, "totallines": 75, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 5 },
         { "name": "CodeMeridian.Indexer.Cli.Commands.ClearCommand", "coverage": 3.8, "coveredlines": 1, "coverablelines": 26, "totallines": 45, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 8, "methodcoverage": 50, "fullmethodcoverage": 50, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 2 },
         { "name": "CodeMeridian.Indexer.Cli.Commands.ClearCommandOptions", "coverage": 0, "coveredlines": 0, "coverablelines": 4, "totallines": 75, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 4 },
@@ -202,7 +202,7 @@
         { "name": "CodeMeridian.Indexer.Cli.ServeApplyResult", "coverage": 100, "coveredlines": 1, "coverablelines": 1, "totallines": 491, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "CodeMeridian.Indexer.Cli.ServeFileChange", "coverage": 100, "coveredlines": 1, "coverablelines": 1, "totallines": 491, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "CodeMeridian.Indexer.Cli.ServeOptions", "coverage": 50, "coveredlines": 10, "coverablelines": 20, "totallines": 32, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 90.9, "fullmethodcoverage": 90.9, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 11 },
-        { "name": "CodeMeridian.Indexer.Cli.ServeWriter", "coverage": 82.3, "coveredlines": 205, "coverablelines": 249, "totallines": 491, "branchcoverage": 71.9, "coveredbranches": 82, "totalbranches": 114, "methodcoverage": 87.5, "fullmethodcoverage": 59.3, "coveredmethods": 28, "fullcoveredmethods": 19, "totalmethods": 32 },
+        { "name": "CodeMeridian.Indexer.Cli.ServeWriter", "coverage": 90.3, "coveredlines": 225, "coverablelines": 249, "totallines": 491, "branchcoverage": 83.3, "coveredbranches": 95, "totalbranches": 114, "methodcoverage": 90.6, "fullmethodcoverage": 62.5, "coveredmethods": 29, "fullcoveredmethods": 20, "totalmethods": 32 },
         { "name": "CodeMeridian.Indexer.Cli.SessionEvaluation.GitSessionChangeSource", "coverage": 46.6, "coveredlines": 21, "coverablelines": 45, "totallines": 82, "branchcoverage": 69.2, "coveredbranches": 18, "totalbranches": 26, "methodcoverage": 33.3, "fullmethodcoverage": 33.3, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 3 },
         { "name": "CodeMeridian.Indexer.Cli.SessionEvaluation.PathPrecisionFeedback", "coverage": 100, "coveredlines": 7, "coverablelines": 7, "totallines": 74, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 7, "fullcoveredmethods": 7, "totalmethods": 7 },
         { "name": "CodeMeridian.Indexer.Cli.SessionEvaluation.SessionChangeSet", "coverage": 100, "coveredlines": 3, "coverablelines": 3, "totallines": 74, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 3, "fullcoveredmethods": 3, "totalmethods": 3 },
