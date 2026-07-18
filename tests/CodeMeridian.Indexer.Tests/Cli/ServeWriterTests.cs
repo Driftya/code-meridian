@@ -137,6 +137,30 @@ public sealed class ServeWriterTests : IDisposable
     }
 
     [Fact]
+    public void Apply_ForceOverwritesEnvDefaultsAndCreatesBackup()
+    {
+        var envPath = Path.Combine(_root, ".env");
+        File.WriteAllText(
+            envPath,
+            """
+            # keep this comment
+            CODEMERIDIAN_PORT=4000
+            NEO4J_PASSWORD=OldPassword
+            CustomKey=CustomValue
+            """);
+
+        Apply(port: 5200, force: true);
+
+        var env = File.ReadAllText(envPath);
+        env.Should().Contain("# keep this comment");
+        env.Should().Contain("CODEMERIDIAN_PORT=5200");
+        env.Should().Contain("NEO4J_PASSWORD=CodeMeridian");
+        env.Should().Contain("CustomKey=CustomValue");
+        env.Should().Contain("CodeMeridian_Auth_ApiKey=");
+        Directory.GetFiles(_root, ".env.*.bak").Should().ContainSingle();
+    }
+
+    [Fact]
     public void Apply_ForceOverwritesComposeAndCreatesBackup()
     {
         var composePath = Path.Combine(_root, "docker-compose.codemeridian.yml");
@@ -158,6 +182,23 @@ public sealed class ServeWriterTests : IDisposable
         File.Exists(Path.Combine(_root, ".env")).Should().BeFalse();
         File.Exists(Path.Combine(_root, "docker-compose.codemeridian.yml")).Should().BeFalse();
         result.Should().OnlyContain(change => change.Status == "created");
+    }
+
+    [Fact]
+    public void ApplyClientConfig_WithSelectedTarget_CreatesOnlyThatClientFile()
+    {
+        var result = new ServeWriter().ApplyClientConfig(
+            new DirectoryInfo(_root),
+            "http://localhost:5100",
+            force: false,
+            selectedTargets: [".codex/config.toml"]);
+
+        File.Exists(Path.Combine(_root, ".codex", "config.toml")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, ".vscode", "mcp.json")).Should().BeFalse();
+        File.Exists(Path.Combine(_root, ".continue", "mcpServers", "code-meridian.yaml")).Should().BeFalse();
+        result.Should().ContainSingle(change =>
+            change.Path.EndsWith(Path.Combine(".codex", "config.toml"), StringComparison.Ordinal)
+            && change.Status == "created");
     }
 
     [Fact]
