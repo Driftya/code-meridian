@@ -1,7 +1,7 @@
 {
   "summary": {
-    "generatedon": "2026-07-22T11:01:00Z",
-    "parser": "MultiReport (18x Cobertura)",
+    "generatedon": "2026-07-22T11:06:26Z",
+    "parser": "MultiReport (17x Cobertura)",
     "assemblies": 9,
     "classes": 308,
     "files": 219,
