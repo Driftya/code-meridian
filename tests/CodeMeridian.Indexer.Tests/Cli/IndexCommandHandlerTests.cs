@@ -12,6 +12,170 @@ namespace CodeMeridian.Indexer.Tests.Cli;
 public sealed class IndexCommandHandlerTests
 {
     [Fact]
+    public async Task RunAsync_WhenCapabilitiesAreRequested_PrintsCapabilitiesWithoutNeedingAProjectRoot()
+    {
+        var settings = CreateSettings(new DirectoryInfo(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))), clear: false, incremental: true, listCapabilities: true);
+        var handler = CreateHandler(settings);
+
+        using var output = new StringWriter();
+        var originalOut = Console.Out;
+        try
+        {
+            Console.SetOut(output);
+            var exitCode = await handler.RunAsync();
+
+            exitCode.Should().Be(0);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+
+        output.ToString().Should().Contain("CodeMeridian indexer capabilities");
+        output.ToString().Should().Contain("Commands:");
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenRootDoesNotExist_ReturnsError()
+    {
+        var root = new DirectoryInfo(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
+        var handler = CreateHandler(CreateSettings(root, clear: false, incremental: true));
+
+        using var errors = new StringWriter();
+        var originalError = Console.Error;
+        try
+        {
+            Console.SetError(errors);
+            var exitCode = await handler.RunAsync();
+
+            exitCode.Should().Be(1);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+
+        errors.ToString().Should().Contain("directory not found");
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenNoIndexersMatch_ReturnsSuccessfullyWithGuidance()
+    {
+        using var workspace = TestWorkspace.Create();
+        var settings = CreateSettings(workspace.Root, clear: false, incremental: true, skipTypeScript: true, skipCSharp: true, skipConfiguration: true);
+        var handler = CreateHandler(settings);
+
+        using var output = new StringWriter();
+        var originalOut = Console.Out;
+        try
+        {
+            Console.SetOut(output);
+            var exitCode = await handler.RunAsync();
+
+            exitCode.Should().Be(0);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+
+        output.ToString().Should().Contain("No enabled indexers found matching this project.");
+        output.ToString().Should().Contain("--list-capabilities");
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenDryRunIsEnabled_PrintsSelectedIndexerDetails()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.WriteFile("tsconfig.json", "{}");
+        workspace.WriteFile("src/app.ts", "export const value = 1;\n");
+        var settings = CreateSettings(workspace.Root, clear: false, incremental: true, dryRun: true);
+        var handler = CreateHandler(settings);
+
+        using var output = new StringWriter();
+        var originalOut = Console.Out;
+        try
+        {
+            Console.SetOut(output);
+            var exitCode = await handler.RunAsync();
+
+            exitCode.Should().Be(0);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+
+        output.ToString().Should().Contain("Dry run:");
+        output.ToString().Should().Contain("TypeScript roots");
+        output.ToString().Should().Contain("TypeScript roots  : 1");
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenIncrementalCacheHasNoChanges_SkipsTheIndexPass()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.WriteFile("tsconfig.json", "{}");
+        workspace.WriteFile("src/app.ts", "export const value = 1;\n");
+        var settings = CreateSettings(workspace.Root, clear: false, incremental: true);
+        var storagePathService = new IndexerStoragePathService();
+        var cacheDirectory = storagePathService.ResolveCacheDirectory(workspace.Root, settings.Project, settings.StorageMode);
+        var cache = IncrementalIndexCache.Load(cacheDirectory, settings.Project);
+        var indexableFiles = IndexExecutionPlanBuilder.EnumerateIndexableFiles(
+            workspace.Root,
+            includeCSharp: false,
+            includeTypeScript: true,
+            includeDocs: false,
+            includeConfiguration: false);
+        cache.Save(IndexExecutionPlanBuilder.BuildPlan(cache, workspace.Root, indexableFiles, forceFull: true));
+        var handler = CreateHandler(settings);
+        using var output = new StringWriter();
+        var originalOut = Console.Out;
+        try
+        {
+            Console.SetOut(output);
+            var exitCode = await handler.RunAsync();
+
+            exitCode.Should().Be(0);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+
+        output.ToString().Should().Contain("No file changes detected since the last successful index run.");
+    }
+
+    [Fact]
+    public void FileSelectionMethods_KeepOnlyFilesBelongingToEachLanguageRoot()
+    {
+        using var workspace = TestWorkspace.Create();
+        var sourceRoot = Directory.CreateDirectory(Path.Combine(workspace.Root.FullName, "src"));
+        var tsFile = workspace.WriteFile("src/app.ts", "export const value = 1;\n");
+        var cssFile = workspace.WriteFile("src/app.css", ".app {}\n");
+        var outsideFile = workspace.WriteFile("other/app.ts", "export const value = 2;\n");
+        var handler = CreateHandler(CreateSettings(workspace.Root, clear: false, incremental: true));
+
+        var filterTypeScriptFiles = typeof(IndexCommandHandler).GetMethod(
+            "FilterTypeScriptFiles",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        var selectHtmlCssFiles = typeof(IndexCommandHandler).GetMethod(
+            "SelectHtmlCssFilesForRoot",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        filterTypeScriptFiles.Should().NotBeNull();
+        selectHtmlCssFiles.Should().NotBeNull();
+
+        var filtered = (IEnumerable<string>)filterTypeScriptFiles!.Invoke(
+            handler,
+            new object[] { new[] { tsFile.FullName, cssFile.FullName, outsideFile.FullName }, sourceRoot })!;
+        var selected = (IEnumerable<string>)selectHtmlCssFiles!.Invoke(handler, new object?[] { null, sourceRoot })!;
+
+        filtered.Should().ContainSingle().Which.Should().Be(tsFile.FullName);
+        selected.Should().ContainSingle().Which.Should().Be(cssFile.FullName);
+    }
+
+    [Fact]
     public void BuildExecutionContext_WhenWatchReentryDisablesClear_ComputesIncrementalChanges()
     {
         using var workspace = TestWorkspace.Create();
@@ -166,7 +330,12 @@ public sealed class IndexCommandHandlerTests
         DirectoryInfo root,
         bool clear,
         bool incremental,
-        string? apiKey = null)
+        string? apiKey = null,
+        bool listCapabilities = false,
+        bool dryRun = false,
+        bool skipTypeScript = false,
+        bool skipCSharp = true,
+        bool skipConfiguration = true)
         => new()
         {
             RootPath = root,
@@ -177,11 +346,11 @@ public sealed class IndexCommandHandlerTests
             RebuildKeywords = false,
             IncludeDocs = false,
             Watch = false,
-            DryRun = false,
-            ListCapabilities = false,
-            SkipCSharp = true,
-            SkipTypeScript = false,
-            SkipConfiguration = true,
+            DryRun = dryRun,
+            ListCapabilities = listCapabilities,
+            SkipCSharp = skipCSharp,
+            SkipTypeScript = skipTypeScript,
+            SkipConfiguration = skipConfiguration,
             ConfigurationFiles = null,
             FileRoles = null,
             SkipDiagnostics = true,
