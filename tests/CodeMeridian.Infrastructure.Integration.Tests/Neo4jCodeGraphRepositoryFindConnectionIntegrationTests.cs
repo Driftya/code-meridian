@@ -77,8 +77,8 @@ public sealed class Neo4jCodeGraphRepositoryFindConnectionIntegrationTests : Neo
     {
         var projectContext = $"Integration.Connection.Siblings.{Guid.NewGuid():N}";
         var container = CreateNode($"{projectContext}.Container", "Fixture", CodeNodeType.Class, projectContext, $"tests/{projectContext}/Fixture.cs");
-        var first = CreateNode($"{projectContext}.First", "FirstTest", CodeNodeType.Method, projectContext, container.FilePath);
-        var second = CreateNode($"{projectContext}.Second", "SecondTest", CodeNodeType.Method, projectContext, container.FilePath);
+        var first = CreateNode($"{projectContext}.First", "FirstTest", CodeNodeType.Method, projectContext, container.FilePath!);
+        var second = CreateNode($"{projectContext}.Second", "SecondTest", CodeNodeType.Method, projectContext, container.FilePath!);
 
         try
         {

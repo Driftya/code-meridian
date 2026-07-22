@@ -14,7 +14,7 @@ public sealed class Neo4jCodeGraphRepositoryFindRecentlyChangedIntegrationTests 
     public async Task FindRecentlyChangedAsync_ForRepo_ReturnsRecentNodes()
     {
         var results = await _repository!.FindRecentlyChangedAsync(
-            projectContext: null,
+            projectContext: BaselineProjectContext,
             window: TimeSpan.FromDays(3650));
 
         results.Should().NotBeEmpty();

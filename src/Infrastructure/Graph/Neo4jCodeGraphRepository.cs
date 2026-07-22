@@ -454,6 +454,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             MATCH (n:CodeNode)
             WHERE n.projectContextNormalized = $projectContextNormalized
               AND n.type = 'Diagnostic'
+              AND coalesce(n.externalKind, '') <> 'IndexRun'
             DETACH DELETE n
             """;
 

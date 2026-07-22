@@ -13,7 +13,7 @@ public sealed class Neo4jCodeGraphRepositoryGetMostRecentCodeUpdateIntegrationTe
     [Fact]
     public async Task GetMostRecentCodeUpdateAsync_ForRepo_ReturnsTimestamp()
     {
-        var updatedAt = await _repository!.GetMostRecentCodeUpdateAsync();
+        var updatedAt = await _repository!.GetMostRecentCodeUpdateAsync(BaselineProjectContext);
 
         updatedAt.Should().NotBeNull();
         updatedAt!.Value.Should().BeAfter(DateTimeOffset.UnixEpoch);

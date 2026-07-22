@@ -33,23 +33,53 @@ public sealed class Neo4jVectorRepositoryIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task SearchByTextAsync_UsesIndexedDocsFromTheRepo()
     {
-        var results = await _repository!.SearchByTextAsync("CodeMeridian", projectContext: null, topK: 20);
+        var projectContext = $"Integration.Documents.Search.{Guid.NewGuid():N}";
+        var document = new KnowledgeDocument
+        {
+            Id = $"{projectContext}.Doc",
+            Content = "CodeMeridian isolated full-text integration fixture.",
+            Source = "docs/search-fixture.md",
+            ProjectContext = projectContext
+        };
 
-        results.Should().NotBeEmpty();
-        var hasExpectedDoc = results.Any(doc =>
-            doc.Content.Contains("CodeMeridian", StringComparison.OrdinalIgnoreCase)
-            || (doc.Source is not null && doc.Source.Contains("README", StringComparison.OrdinalIgnoreCase))
-            || (doc.Source is not null && doc.Source.Contains("TODO", StringComparison.OrdinalIgnoreCase)));
+        try
+        {
+            await _repository!.UpsertAsync(document);
 
-        hasExpectedDoc.Should().BeTrue();
+            var results = await _repository.SearchByTextAsync("CodeMeridian", projectContext, topK: 20);
+
+            results.Should().ContainSingle(doc => doc.Id == document.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
     }
 
     [Fact]
     public async Task ListAsync_ReturnsProjectDocuments()
     {
-        var results = await _repository!.ListAsync(projectContext: null, limit: 50);
+        var projectContext = $"Integration.Documents.List.{Guid.NewGuid():N}";
+        var document = new KnowledgeDocument
+        {
+            Id = $"{projectContext}.Doc",
+            Content = "Isolated integration document for list coverage.",
+            Source = "docs/list-fixture.md",
+            ProjectContext = projectContext
+        };
 
-        results.Should().NotBeEmpty();
+        try
+        {
+            await _repository!.UpsertAsync(document);
+
+            var results = await _repository.ListAsync(projectContext, limit: 50);
+
+            results.Should().ContainSingle(doc => doc.Id == document.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
     }
 
     [Fact]

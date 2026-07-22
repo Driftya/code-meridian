@@ -14,7 +14,7 @@ public sealed class Neo4jCodeGraphRepositoryGetSubgraphSummaryIntegrationTests :
     public async Task GetSubgraphSummaryAsync_ForKnownNode_ReturnsReadableSummary()
     {
         var target = await FindNodeWithRelationshipsAsync();
-        target.Should().NotBeNull("the CodeMeridian graph should already contain indexed nodes with relationships");
+        target.Should().NotBeNull("the test seeds an isolated baseline graph with relationships");
 
         var summary = await _repository!.GetSubgraphSummaryAsync(target!.Id);
 

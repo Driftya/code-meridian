@@ -17,6 +17,10 @@ public abstract class Neo4jCodeGraphRepositoryIntegrationTestBase : IAsyncLifeti
 {
     protected readonly Neo4jOptions _options;
     protected Neo4jCodeGraphRepository? _repository;
+    protected string BaselineProjectContext { get; } = $"Integration.Baseline.{Guid.NewGuid():N}";
+    protected CodeNode BaselineContainer { get; private set; } = null!;
+    protected CodeNode BaselineMethod { get; private set; } = null!;
+    protected CodeNode BaselineDependency { get; private set; } = null!;
 
     public Neo4jCodeGraphRepositoryIntegrationTestBase()
     {
@@ -28,12 +32,22 @@ public abstract class Neo4jCodeGraphRepositoryIntegrationTestBase : IAsyncLifeti
     {
         _repository = new Neo4jCodeGraphRepository(Options.Create(_options), NullLogger<Neo4jCodeGraphRepository>.Instance);
         await _repository.InitializeAsync();
+        await SeedBaselineGraphAsync();
     }
 
     public async Task DisposeAsync()
     {
-        if (_repository is not null)
+        if (_repository is null)
+            return;
+
+        try
+        {
+            await _repository.DeleteProjectAsync(BaselineProjectContext);
+        }
+        finally
+        {
             await _repository.DisposeAsync();
+        }
     }
 
     protected async Task<CodeNode?> FindAnyTargetAsync()
@@ -41,7 +55,7 @@ public abstract class Neo4jCodeGraphRepositoryIntegrationTestBase : IAsyncLifeti
         var matches = await _repository!.QueryNodesAsync(
             new CodeGraphQuery
             {
-                ProjectContext = null,
+                ProjectContext = BaselineProjectContext,
                 Limit = 50
             });
 
@@ -55,7 +69,7 @@ public abstract class Neo4jCodeGraphRepositoryIntegrationTestBase : IAsyncLifeti
         var matches = await _repository!.QueryNodesAsync(
             new CodeGraphQuery
             {
-                ProjectContext = null,
+                ProjectContext = BaselineProjectContext,
                 Limit = 100
             });
 
@@ -67,6 +81,53 @@ public abstract class Neo4jCodeGraphRepositoryIntegrationTestBase : IAsyncLifeti
         }
 
         return null;
+    }
+
+    private async Task SeedBaselineGraphAsync()
+    {
+        BaselineContainer = CreateNode(
+            id: $"{BaselineProjectContext}.FixtureService",
+            name: "FixtureService",
+            type: CodeNodeType.Class,
+            projectContext: BaselineProjectContext,
+            filePath: $"src/{BaselineProjectContext}/FixtureService.cs",
+            namespaceName: $"{BaselineProjectContext}.Services",
+            lineNumber: 1,
+            sourceHash: "baseline-container");
+        BaselineMethod = CreateNode(
+            id: $"{BaselineProjectContext}.FixtureService.ExecuteAsync",
+            name: "ExecuteAsync",
+            type: CodeNodeType.Method,
+            projectContext: BaselineProjectContext,
+            filePath: BaselineContainer.FilePath!,
+            namespaceName: BaselineContainer.Namespace,
+            lineNumber: 5,
+            sourceHash: "baseline-method");
+        BaselineDependency = CreateNode(
+            id: $"{BaselineProjectContext}.IFixtureDependency",
+            name: "IFixtureDependency",
+            type: CodeNodeType.Interface,
+            projectContext: BaselineProjectContext,
+            filePath: $"src/{BaselineProjectContext}/IFixtureDependency.cs",
+            namespaceName: BaselineContainer.Namespace,
+            lineNumber: 1,
+            sourceHash: "baseline-dependency");
+
+        await _repository!.UpsertNodeAsync(BaselineContainer);
+        await _repository.UpsertNodeAsync(BaselineMethod);
+        await _repository.UpsertNodeAsync(BaselineDependency);
+        await _repository.UpsertEdgeAsync(new CodeEdge
+        {
+            SourceId = BaselineContainer.Id,
+            TargetId = BaselineMethod.Id,
+            Type = CodeEdgeType.Contains
+        });
+        await _repository.UpsertEdgeAsync(new CodeEdge
+        {
+            SourceId = BaselineMethod.Id,
+            TargetId = BaselineDependency.Id,
+            Type = CodeEdgeType.Calls
+        });
     }
 
     protected static CodeNode CreateNode(

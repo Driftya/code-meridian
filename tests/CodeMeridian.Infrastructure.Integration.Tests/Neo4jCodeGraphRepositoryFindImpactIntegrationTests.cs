@@ -14,7 +14,7 @@ public sealed class Neo4jCodeGraphRepositoryFindImpactIntegrationTests : Neo4jCo
     public async Task FindImpactAsync_ForKnownNode_ReturnsAtLeastOneCallerOrGuidance()
     {
         var target = await FindAnyTargetAsync();
-        target.Should().NotBeNull("the CodeMeridian graph should already contain indexed nodes");
+        target.Should().NotBeNull("the test seeds an isolated baseline graph");
 
         var impact = await _repository!.FindImpactAsync(target!.Id, depth: 2);
 

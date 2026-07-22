@@ -11,23 +11,24 @@ namespace CodeMeridian.Infrastructure.Integration.Tests;
 public sealed class Neo4jCodeGraphRepositoryQueryNodesIntegrationTests : Neo4jCodeGraphRepositoryIntegrationTestBase
 {
     [Fact]
-    public async Task QueryNodesAsync_ForCodeMeridian_ReturnsKnownSurfaces()
+    public async Task QueryNodesAsync_WithBaselineFixture_ReturnsKnownSurfaces()
     {
         var results = await _repository!.QueryNodesAsync(
             new CodeGraphQuery
             {
-                ProjectContext = null,
+                ProjectContext = BaselineProjectContext,
                 Limit = 25
             });
 
         results.Should().NotBeEmpty();
+        results.Should().Contain(node => node.Id == BaselineMethod.Id);
     }
 
     [Fact]
     public async Task QueryNodesAsync_WithFilePathFilter_ReturnsNodesFromMatchingFile()
     {
         var target = await FindAnyTargetAsync();
-        target.Should().NotBeNull("the CodeMeridian graph should already contain indexed nodes");
+        target.Should().NotBeNull("the test seeds an isolated baseline graph");
         target!.FilePath.Should().NotBeNullOrWhiteSpace("exact symbol resolution depends on indexed file paths");
 
         var results = await _repository!.QueryNodesAsync(

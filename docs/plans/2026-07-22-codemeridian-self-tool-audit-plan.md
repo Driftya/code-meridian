@@ -44,7 +44,7 @@ All findings and definition-of-done items are complete. The implementation remai
 
 Final verification:
 
-- .NET: 885 passed, 0 failed, including 56 isolated/live Neo4j integration tests
+- .NET: 888 passed, 0 failed, including 57 isolated/live Neo4j integration tests
 - Node/Vitest: 73 passed, 0 failed
 - Node builds: all three workspaces passed
 - NuGet vulnerability audit: no vulnerable direct or transitive packages
@@ -142,6 +142,8 @@ Production-file splitting should be tied to the behavioral fixes below rather th
 | CM-AUDIT-012 | P2 | Integration coverage is excluded from normal CI and core analytics tests are concentrated in oversized fixtures | confirmed test-system gap | Done |
 | CM-AUDIT-013 | P0 | Disabling an indexer can make its cached files look deleted and can erase unrelated graph surfaces | confirmed incremental-orchestration bug | Done |
 | CM-AUDIT-014 | P1 | Documentation-only repositories are rejected as having no enabled indexer | confirmed orchestration bug | Done |
+| CM-AUDIT-015 | P1 | Isolated CI integration tests assumed a pre-indexed graph, and natural-module GDS projection required relationship types absent from sparse fixtures | confirmed test-isolation and GDS projection bug | Done |
+| CM-AUDIT-016 | P1 | Diagnostics cleanup deletes backward-compatible index-run metadata, leaving relationship completeness permanently unknown after a normal index | confirmed metadata-lifecycle bug | Done |
 
 ## Phase 0: Add Characterization And Regression Tests First — Done
 
@@ -361,6 +363,16 @@ When relationship confidence is unknown or low, these tools should render a warn
 
 In particular, never render `Callers — none (safe to change signature)` when relationship completeness is unknown.
 
+### 3.4 Preserve relationship metadata during diagnostics refresh
+
+The C# indexer emits index-run statistics as a `Diagnostic` node with `externalKind = IndexRun` so it remains compatible with older servers. The diagnostics phase runs after C# indexing and previously removed every `Diagnostic` node in the project, including this metadata.
+
+Completed remediation:
+
+- diagnostic cleanup excludes compatibility nodes whose `externalKind` is `IndexRun`
+- ordinary compiler and linter diagnostics are still removed before refresh
+- an isolated Neo4j integration regression proves both behaviors in the same project
+
 ## Phase 4: Fix Deterministic Analysis And Formatting — Done
 
 ### 4.1 Preserve metric ordering within actionability buckets
@@ -570,6 +582,7 @@ Dogfood acceptance matrix:
 - [x] Unresolved relationship counts and reasons are observable.
 - [x] Freshness distinguishes node freshness from relationship completeness.
 - [x] Dependent tools warn when relationship completeness is unknown.
+- [x] Diagnostics refresh preserves persisted index-run relationship statistics.
 - [x] Hotspot, PageRank, churn, and distance-based reports preserve their documented metric order.
 - [x] Test helpers under `tests/` are classified as tests across supported languages.
 - [x] `FindTestShieldAsync` honors project-scoped analysis and test-command configuration without leakage.

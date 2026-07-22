@@ -199,20 +199,25 @@ public sealed partial class Neo4jCodeGraphRepository
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
-        if (nodeIds.Count == 0)
+        var requestedIds = nodeIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (requestedIds.Length == 0)
             return [];
 
         await using var session = _driver.AsyncSession();
         var graphName = $"cm_lva_{Guid.NewGuid():N}";
+        var relationshipProjection = await BuildRelationshipProjectionAsync(
+            session,
+            ["Calls", "Uses", "UsesClass", "DependsOn", "Contains"],
+            undirected: true,
+            cancellationToken);
+        if (relationshipProjection is null)
+            return [];
 
-        const string projectCypher = """
-            CALL gds.graph.project($graphName, 'CodeNode', {
-              Calls: {orientation: 'UNDIRECTED'},
-              Uses: {orientation: 'UNDIRECTED'},
-              UsesClass: {orientation: 'UNDIRECTED'},
-              DependsOn: {orientation: 'UNDIRECTED'},
-              Contains: {orientation: 'UNDIRECTED'}
-            })
+        var projectCypher = $"""
+            CALL gds.graph.project($graphName, 'CodeNode', {relationshipProjection})
             YIELD graphName, nodeCount, relationshipCount
             """;
 
@@ -225,13 +230,6 @@ public sealed partial class Neo4jCodeGraphRepository
             RETURN n, communityId
             ORDER BY communityId, n.name
             """;
-
-        var requestedIds = nodeIds
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        if (requestedIds.Length == 0)
-            return [];
 
         return await RunGdsStreamAsync(session, graphName, projectCypher, streamCypher,
             new { graphName, projectContextNormalized = (object?)Normalize(projectContext), nodeIds = requestedIds },
@@ -599,10 +597,18 @@ public sealed partial class Neo4jCodeGraphRepository
         await foreach (var record in cursor.WithCancellation(cancellationToken))
             available = record["relationshipTypes"].As<List<string>>();
 
-        if (available is null || available.Count == 0)
+        return BuildRelationshipProjection(preferredTypes, available ?? [], undirected);
+    }
+
+    internal static string? BuildRelationshipProjection(
+        IReadOnlyCollection<string> preferredTypes,
+        IReadOnlyCollection<string> availableTypes,
+        bool undirected)
+    {
+        if (availableTypes.Count == 0)
             return null;
 
-        var availableLookup = available.ToHashSet(StringComparer.Ordinal);
+        var availableLookup = availableTypes.ToHashSet(StringComparer.Ordinal);
         var relationshipTypes = preferredTypes
             .Where(availableLookup.Contains)
             .Distinct(StringComparer.Ordinal)
