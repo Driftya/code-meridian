@@ -200,7 +200,7 @@ jobs:
         if: success() || failure()
         with:
           name: graph-integration-test-results
-          path: TestResults/Integration/**/*.trx
+          path: TestResults/Integration/*.trx
           if-no-files-found: error
 
   publish-reports-and-badges:
