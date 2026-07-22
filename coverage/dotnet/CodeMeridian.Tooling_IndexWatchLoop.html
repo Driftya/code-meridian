@@ -876,16 +876,16 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Line coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar12">88%</div>
+<div class="large cardpercentagebar cardpercentagebar14">85%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered lines:</th>
-<td class="limit-width right" title="37">37</td>
+<td class="limit-width right" title="36">36</td>
 </tr>
 <tr>
 <th>Uncovered lines:</th>
-<td class="limit-width right" title="5">5</td>
+<td class="limit-width right" title="6">6</td>
 </tr>
 <tr>
 <th>Coverable lines:</th>
@@ -897,7 +897,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Line coverage:</th>
-<td class="limit-width right" title="37 of 42">88%</td>
+<td class="limit-width right" title="36 of 42">85.7%</td>
 </tr>
 </table>
 </div>
@@ -906,12 +906,12 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Branch coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar17">83%</div>
+<div class="large cardpercentagebar cardpercentagebar50">50%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered branches:</th>
-<td class="limit-width right" title="5">5</td>
+<td class="limit-width right" title="3">3</td>
 </tr>
 <tr>
 <th>Total branches:</th>
@@ -919,7 +919,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Branch coverage:</th>
-<td class="limit-width right" title="5 of 6">83.3%</td>
+<td class="limit-width right" title="3 of 6">50%</td>
 </tr>
 </table>
 </div>
@@ -949,7 +949,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tbody>
 <tr><td title=".ctor(System.IO.DirectoryInfo,Microsoft.Extensions.Logging.ILogger,System.Nullable`1&lt;System.TimeSpan&gt;,System.Func`2&lt;System.String,System.Boolean&gt;)"><a href="#file0_line5" class="navigatetohash">.ctor(...)</a></td><td>50%</td><td>2</td><td>2</td><td>100%</td></tr>
 <tr><td title="RunAsync()"><a href="#file0_line20" class="navigatetohash">RunAsync()</a></td><td>100%</td><td>1</td><td>1</td><td>95%</td></tr>
-<tr><td title="ScheduleChange(System.String,System.Boolean,System.Func`3&lt;CodeMeridian.Tooling.Watching.WatchDebounceBatch,System.Threading.CancellationToken,System.Threading.Tasks.Task&gt;,System.Threading.CancellationToken)"><a href="#file0_line63" class="navigatetohash">ScheduleChange(...)</a></td><td>100%</td><td>4</td><td>4</td><td>100%</td></tr>
+<tr><td title="ScheduleChange(System.String,System.Boolean,System.Func`3&lt;CodeMeridian.Tooling.Watching.WatchDebounceBatch,System.Threading.CancellationToken,System.Threading.Tasks.Task&gt;,System.Threading.CancellationToken)"><a href="#file0_line63" class="navigatetohash">ScheduleChange(...)</a></td><td>50%</td><td>4</td><td>4</td><td>75%</td></tr>
 </tbody>
 </table>
 </div>
@@ -989,8 +989,8 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr class="coverableline" title="Covered (6 visits)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line28"></a><code>28</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;EnableRaisingEvents&nbsp;=&nbsp;true,</code></td></tr>
 <tr class="coverableline" title="Covered (6 visits)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line29"></a><code>29</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;};</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line30"></a><code>30</code></td><td></td><td class="lightgray"><code></code></td></tr>
-<tr class="coverableline" title="Covered (10 visits)" data-coverage="{'AllTestMethods': {'VC': '10', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">10</td><td class="rightmargin right"><a id="file0_line31"></a><code>31</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;watcher.Changed&nbsp;+=&nbsp;(_,&nbsp;e)&nbsp;=&gt;&nbsp;ScheduleChange(e.FullPath,&nbsp;deleted:&nbsp;false,&nbsp;onBatchAsync,&nbsp;cancellationToken);</code></td></tr>
-<tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line32"></a><code>32</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;watcher.Created&nbsp;+=&nbsp;(_,&nbsp;e)&nbsp;=&gt;&nbsp;ScheduleChange(e.FullPath,&nbsp;deleted:&nbsp;false,&nbsp;onBatchAsync,&nbsp;cancellationToken);</code></td></tr>
+<tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line31"></a><code>31</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;watcher.Changed&nbsp;+=&nbsp;(_,&nbsp;e)&nbsp;=&gt;&nbsp;ScheduleChange(e.FullPath,&nbsp;deleted:&nbsp;false,&nbsp;onBatchAsync,&nbsp;cancellationToken);</code></td></tr>
+<tr class="coverableline" title="Covered (6 visits)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line32"></a><code>32</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;watcher.Created&nbsp;+=&nbsp;(_,&nbsp;e)&nbsp;=&gt;&nbsp;ScheduleChange(e.FullPath,&nbsp;deleted:&nbsp;false,&nbsp;onBatchAsync,&nbsp;cancellationToken);</code></td></tr>
 <tr class="coverableline" title="Covered (6 visits)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line33"></a><code>33</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;watcher.Deleted&nbsp;+=&nbsp;(_,&nbsp;e)&nbsp;=&gt;&nbsp;ScheduleChange(e.FullPath,&nbsp;deleted:&nbsp;true,&nbsp;onBatchAsync,&nbsp;cancellationToken);</code></td></tr>
 <tr class="coverableline" title="Covered (6 visits)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line34"></a><code>34</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;watcher.Renamed&nbsp;+=&nbsp;(_,&nbsp;e)&nbsp;=&gt;</code></td></tr>
 <tr class="coverableline" title="Covered (6 visits)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line35"></a><code>35</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
@@ -1021,8 +1021,8 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line60"></a><code>60</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Func&lt;WatchDebounceBatch,&nbsp;CancellationToken,&nbsp;Task&gt;&nbsp;onBatchAsync,</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line61"></a><code>61</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CancellationToken&nbsp;cancellationToken)</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line62"></a><code>62</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
-<tr class="coverableline" title="Covered (6 visits, 4 of 4 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line63"></a><code>63</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(includePath&nbsp;is&nbsp;not&nbsp;null&nbsp;&amp;&amp;&nbsp;!includePath(fullPath))</code></td></tr>
-<tr class="coverableline" title="Covered (4 visits)" data-coverage="{'AllTestMethods': {'VC': '4', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">4</td><td class="rightmargin right"><a id="file0_line64"></a><code>64</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return;</code></td></tr>
+<tr class="coverableline" title="Partially covered (2 visits, 2 of 4 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line63"></a><code>63</code></td><td class="percentagebar percentagebar50"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(includePath&nbsp;is&nbsp;not&nbsp;null&nbsp;&amp;&amp;&nbsp;!includePath(fullPath))</code></td></tr>
+<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line64"></a><code>64</code></td><td></td><td class="lightred"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return;</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line65"></a><code>65</code></td><td></td><td class="lightgray"><code></code></td></tr>
 <tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line66"></a><code>66</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_scheduler.ScheduleChange(fullPath,&nbsp;deleted,&nbsp;onBatchAsync,&nbsp;cancellationToken);</code></td></tr>
 <tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line67"></a><code>67</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
@@ -1030,13 +1030,13 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/22/2026 - 10:58:06<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/22/2026 - 11:01:00<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>
 <a href="#file0_line5" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - .ctor(System.IO.DirectoryInfo,Microsoft.Extensions.Logging.ILogger,System.Nullable`1&lt;System.TimeSpan&gt;,System.Func`2&lt;System.String,System.Boolean&gt;)"><i class="icon-cube"></i>.ctor(System.IO.DirectoryInfo,Microsoft.Extensions.Logging.ILogger,System.Nullable`1&lt;System.TimeSpan&gt;,System.Func`2&lt;System.String,System.Boolean&gt;)</a><br />
 <a href="#file0_line20" class="navigatetohash percentagebar percentagebar80" title="Line coverage: 82.7% - RunAsync()"><i class="icon-cube"></i>RunAsync()</a><br />
-<a href="#file0_line63" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - ScheduleChange(System.String,System.Boolean,System.Func`3&lt;CodeMeridian.Tooling.Watching.WatchDebounceBatch,System.Threading.CancellationToken,System.Threading.Tasks.Task&gt;,System.Threading.CancellationToken)"><i class="icon-cube"></i>ScheduleChange(System.String,System.Boolean,System.Func`3&lt;CodeMeridian.Tooling.Watching.WatchDebounceBatch,System.Threading.CancellationToken,System.Threading.Tasks.Task&gt;,System.Threading.CancellationToken)</a><br />
+<a href="#file0_line63" class="navigatetohash percentagebar percentagebar70" title="Line coverage: 75% - ScheduleChange(System.String,System.Boolean,System.Func`3&lt;CodeMeridian.Tooling.Watching.WatchDebounceBatch,System.Threading.CancellationToken,System.Threading.Tasks.Task&gt;,System.Threading.CancellationToken)"><i class="icon-cube"></i>ScheduleChange(System.String,System.Boolean,System.Func`3&lt;CodeMeridian.Tooling.Watching.WatchDebounceBatch,System.Threading.CancellationToken,System.Threading.Tasks.Task&gt;,System.Threading.CancellationToken)</a><br />
 <br/></div>
 </div></div>
 <script type="text/javascript">/* <![CDATA[ */ /* Chartist.js 0.11.4
