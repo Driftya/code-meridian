@@ -19,6 +19,8 @@
     <PackageReference Include="HotChocolate.AspNetCore" Version="16.*" />
     <PackageReference Include="HotChocolate.AspNetCore.Authorization" Version="16.*" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
+    <!-- Temporary direct floor until Microsoft.AspNetCore.OpenApi carries a patched 2.x transitive version. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.*" />
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.*" />
   </ItemGroup>

@@ -225,7 +225,7 @@ public partial class CodebaseQueryService
             sb.AppendLine($"## Downstream Blast Radius - `{nodeId}`");
             sb.AppendLine($"**{results.Count}** elements that this node transitively calls or depends on (up to {depth} hops):\n");
 
-            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.Distance)));
+            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.Distance)), value => value, descending: false);
             AppendActionabilitySection(
                 sb,
                 "Production dependencies",
@@ -398,7 +398,7 @@ public partial class CodebaseQueryService
             sb.AppendLine($"## High-Churn Nodes{(projectContext is not null ? $" - {projectContext}" : "")}");
             sb.AppendLine($"**{results.Count}** nodes re-indexed >={threshold} times (frequently changed). Production candidates are prioritized by default:\n");
 
-            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.ChangeCount)));
+            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.ChangeCount)), value => value, descending: true);
             AppendActionabilitySection(
                 sb,
                 "Production candidates",
@@ -616,13 +616,15 @@ public partial class CodebaseQueryService
         string nodeId,
         int depth,
         ContextDetailLevel detailLevel,
+        RelationshipTrust relationshipTrust,
         CancellationToken cancellationToken)
     {
         var impactPaths = await codeGraph.FindImpactPathsAsync(nodeId, depth, cancellationToken);
 
         if (impactPaths.Count == 0)
             return $"No callers found for `{nodeId}` within {depth} hops. " +
-                   "The node may not exist in the graph or has no inbound dependencies.";
+                   "The node may not exist in the graph or has no inbound dependencies." +
+                   RelationshipTrustWarning(relationshipTrust);
 
         var report = ClassifyImpactPaths(impactPaths);
 
@@ -634,6 +636,7 @@ public partial class CodebaseQueryService
         }
 
         var sb = new StringBuilder();
+        AppendRelationshipTrustWarning(sb, relationshipTrust);
         sb.AppendLine($"## Impact Analysis — `{nodeId}`");
         sb.AppendLine($"**{impactPaths.Count}** code elements would be affected by changing this (up to {depth} hops):");
         sb.AppendLine($"**Impact confidence:** {report.OverallConfidence}");

@@ -43,7 +43,8 @@ public sealed class CodebaseQueryServiceToolDependencyImpactTests
         result.Should().Contain("`find_test_shield`");
         result.Should().Contain("### Downstream Consumers");
         result.Should().Contain("`evaluate_session`");
-        result.Should().Contain("`tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs`");
+        result.Should().Contain("`tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceBuildMinimalContextTests.cs`");
+        result.Should().Contain("`tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceFindTestShieldTests.cs`");
         result.Should().NotContain("No tracked dependencies.");
     }
 

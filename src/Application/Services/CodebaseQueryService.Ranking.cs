@@ -47,13 +47,19 @@ public sealed partial class CodebaseQueryService
             .ThenBy(item => item.Node.Name, StringComparer.OrdinalIgnoreCase)
             .Select(item => (item.Node, item.Value));
 
-    private RankedNodeSections<T> PartitionScoredNodesForDisplay<T>(IEnumerable<(CodeNode Node, T Value)> nodes)
+    private RankedNodeSections<T> PartitionScoredNodesForDisplay<T>(
+        IEnumerable<(CodeNode Node, T Value)> nodes,
+        Func<T, double> metricSelector,
+        bool descending)
     {
-        var ranked = nodes.Select(item => new ScoredNodeDisplayItem<T>(item.Node, item.Value, AssessActionability(item.Node)))
-            .OrderBy(item => item.Assessment.Bucket)
+        var items = nodes.Select(item => new ScoredNodeDisplayItem<T>(item.Node, item.Value, AssessActionability(item.Node)));
+        var bucketed = items.OrderBy(item => item.Assessment.Bucket);
+        var metricOrdered = descending
+            ? bucketed.ThenByDescending(item => metricSelector(item.Value))
+            : bucketed.ThenBy(item => metricSelector(item.Value));
+        var ranked = metricOrdered
             .ThenBy(item => item.Assessment.RankPenalty)
-            .ThenByDescending(item => item.Node.ChangeCount ?? 0)
-            .ThenByDescending(item => item.Node.LineCount ?? 0)
+            .ThenBy(item => item.Node.FilePath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Node.Type.ToString(), StringComparer.Ordinal)
             .ThenBy(item => item.Node.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();

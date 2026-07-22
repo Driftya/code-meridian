@@ -4,6 +4,11 @@ internal static class CSharpReferenceEdgeResolver
 {
     public static List<IngestEdgeRequest> Resolve(
         IReadOnlyList<IngestNodeRequest> nodes,
+        IReadOnlyList<IngestEdgeRequest> edges) =>
+        ResolveWithDiagnostics(nodes, edges).Edges;
+
+    public static EdgeResolutionResult ResolveWithDiagnostics(
+        IReadOnlyList<IngestNodeRequest> nodes,
         IReadOnlyList<IngestEdgeRequest> edges)
     {
         var nodesById = nodes
@@ -21,6 +26,8 @@ internal static class CSharpReferenceEdgeResolver
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
 
         var resolved = new List<IngestEdgeRequest>(edges.Count);
+        var diagnostics = new EdgeResolutionDiagnostics();
+        var attempted = 0;
         foreach (var edge in edges)
         {
             if (edge.RelationshipType is not ("Uses" or "Implements" or "Inherits"))
@@ -29,31 +36,49 @@ internal static class CSharpReferenceEdgeResolver
                 continue;
             }
 
+            attempted++;
+
             if (nodesById.ContainsKey(edge.TargetId))
             {
                 resolved.Add(edge);
                 continue;
             }
 
-            if (!nodesById.TryGetValue(edge.SourceId, out var source) || edge.TargetName is null || edge.TargetType is null)
+            if (!nodesById.TryGetValue(edge.SourceId, out var source))
+            {
+                diagnostics.Add("missing_source");
                 continue;
+            }
+
+            if (edge.TargetName is null || edge.TargetType is null)
+            {
+                diagnostics.Add("missing_target_metadata");
+                continue;
+            }
 
             if (!typeCandidates.TryGetValue((edge.TargetType, edge.TargetName), out var candidates) &&
                 !typeCandidatesByName.TryGetValue(edge.TargetName, out candidates))
+            {
+                diagnostics.Add("missing_target");
                 continue;
+            }
 
             var selected = SelectBestTypeCandidate(source, candidates);
             if (selected is not null)
                 resolved.Add(edge with { TargetId = selected.Id });
+            else
+                diagnostics.Add("ambiguous_target");
         }
 
         var memberImplementationEdges = BuildMemberImplementationEdges(nodes, resolved);
         resolved.AddRange(memberImplementationEdges);
 
-        return resolved
+        var distinct = resolved
             .Where(edge => !string.IsNullOrWhiteSpace(edge.TargetId))
             .DistinctBy(BuildEdgeIdentity, StringComparer.Ordinal)
             .ToList();
+        var resolvedCount = distinct.Count(edge => edge.RelationshipType is "Uses" or "Implements" or "Inherits");
+        return new EdgeResolutionResult(distinct, attempted, resolvedCount, diagnostics.Snapshot());
     }
 
     private static string BuildEdgeIdentity(IngestEdgeRequest edge) =>

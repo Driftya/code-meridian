@@ -48,6 +48,7 @@ public enum CodeNodeType
     MessageTopic,
     ExternalService,
     Diagnostic,
+    IndexRun,
     ConfigurationFile,
     ConfigurationKey,
     ConfigurationEntry

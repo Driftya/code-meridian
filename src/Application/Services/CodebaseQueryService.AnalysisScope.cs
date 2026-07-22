@@ -7,16 +7,9 @@ public sealed partial class CodebaseQueryService
         CancellationToken cancellationToken,
         Func<Task<TResult>> action)
     {
-        using var _ = await BeginAnalysisOptionsScopeAsync(projectContext, cancellationToken);
-        return await action();
-    }
-
-    private async Task<AnalysisOptionsScope> BeginAnalysisOptionsScopeAsync(
-        string? projectContext,
-        CancellationToken cancellationToken)
-    {
         var resolution = await analysisOptionsResolver.ResolveAsync(projectContext, cancellationToken);
-        return new AnalysisOptionsScope(this, resolution);
+        using var _ = new AnalysisOptionsScope(this, resolution);
+        return await action();
     }
 
     private async Task<string?> ResolveAnalysisProjectContextForNodeAsync(
@@ -42,8 +35,8 @@ public sealed partial class CodebaseQueryService
             ResolvedProjectAnalysisOptions current)
         {
             this.owner = owner;
-            previous = owner.currentAnalysisResolution;
-            owner.currentAnalysisResolution = current;
+            previous = owner.currentAnalysisResolution.Value;
+            owner.currentAnalysisResolution.Value = current;
         }
 
         public void Dispose()
@@ -51,7 +44,7 @@ public sealed partial class CodebaseQueryService
             if (disposed)
                 return;
 
-            owner.currentAnalysisResolution = previous;
+            owner.currentAnalysisResolution.Value = previous;
             disposed = true;
         }
     }

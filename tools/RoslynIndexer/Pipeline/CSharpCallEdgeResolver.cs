@@ -4,6 +4,11 @@ internal static class CSharpCallEdgeResolver
 {
     public static List<IngestEdgeRequest> Resolve(
         IReadOnlyList<IngestNodeRequest> nodes,
+        IReadOnlyList<IngestEdgeRequest> edges) =>
+        ResolveWithDiagnostics(nodes, edges).Edges;
+
+    public static EdgeResolutionResult ResolveWithDiagnostics(
+        IReadOnlyList<IngestNodeRequest> nodes,
         IReadOnlyList<IngestEdgeRequest> edges)
     {
         var nodesById = nodes
@@ -23,6 +28,8 @@ internal static class CSharpCallEdgeResolver
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
 
         var resolved = new List<IngestEdgeRequest>(edges.Count);
+        var diagnostics = new EdgeResolutionDiagnostics();
+        var attempted = 0;
         foreach (var edge in edges)
         {
             if (edge.RelationshipType != "Calls" || edge.CallName is null)
@@ -31,30 +38,50 @@ internal static class CSharpCallEdgeResolver
                 continue;
             }
 
+            attempted++;
+
             if (!nodesById.TryGetValue(edge.SourceId, out var source))
+            {
+                diagnostics.Add("missing_source");
                 continue;
+            }
 
             if (edge.ParamCount is null)
+            {
+                diagnostics.Add("missing_parameter_metadata");
                 continue;
+            }
 
             if (!methodCandidates.TryGetValue(edge.CallName, out var candidates))
+            {
+                diagnostics.Add("missing_target");
                 continue;
+            }
 
             var compatibleCandidates = candidates
                 .Where(candidate => candidate.RequiredParameterCount <= edge.ParamCount.Value
                     && edge.ParamCount.Value <= candidate.TotalParameterCount)
                 .ToArray();
             if (compatibleCandidates.Length == 0)
+            {
+                diagnostics.Add("missing_target");
                 continue;
+            }
 
             var selected = SelectBestCandidate(source, compatibleCandidates, ReadProperty(edge, "receiverTypeHint"));
             if (selected is not null)
                 resolved.Add(edge with { TargetId = selected.Id });
+            else
+                diagnostics.Add(string.IsNullOrWhiteSpace(ReadProperty(edge, "receiverTypeHint"))
+                    ? "missing_receiver_hint"
+                    : "ambiguous_target");
         }
 
-        return resolved
+        var distinct = resolved
             .DistinctBy(BuildEdgeIdentity, StringComparer.Ordinal)
             .ToList();
+        var resolvedCount = distinct.Count(edge => edge.RelationshipType == "Calls");
+        return new EdgeResolutionResult(distinct, attempted, resolvedCount, diagnostics.Snapshot());
     }
 
     private static string BuildEdgeIdentity(IngestEdgeRequest edge) =>
@@ -91,11 +118,59 @@ internal static class CSharpCallEdgeResolver
         if (sameFile.Length == 1)
             return sameFile[0];
 
+        var testSubjectMatch = SelectTestSubjectMatch(source, candidates);
+        if (testSubjectMatch is not null)
+            return testSubjectMatch;
+
         var sameNamespace = candidates
             .Where(candidate => string.Equals(candidate.Namespace, source.Namespace, StringComparison.Ordinal))
             .ToArray();
         return sameNamespace.Length == 1 ? sameNamespace[0] : null;
     }
+
+    private static MethodCandidate? SelectTestSubjectMatch(
+        IngestNodeRequest source,
+        IReadOnlyList<MethodCandidate> candidates)
+    {
+        var declaringType = ReadProperty(source.Properties, "declaringTypeShortName");
+        var subjectName = RemoveTestTypeSuffix(declaringType);
+        if (subjectName is null)
+            return null;
+
+        var matches = candidates
+            .Where(candidate => candidate.DeclaringTypeShortName is { Length: > 0 } candidateType
+                && IsTypeNamePrefix(subjectName, candidateType))
+            .ToArray();
+        if (matches.Length == 0)
+            return null;
+
+        var longestTypeName = matches.Max(candidate => candidate.DeclaringTypeShortName!.Length);
+        var strongestMatches = matches
+            .Where(candidate => candidate.DeclaringTypeShortName!.Length == longestTypeName)
+            .ToArray();
+        return strongestMatches.Length == 1 ? strongestMatches[0] : null;
+    }
+
+    private static string? RemoveTestTypeSuffix(string? typeName)
+    {
+        if (string.IsNullOrWhiteSpace(typeName))
+            return null;
+
+        foreach (var suffix in new[] { "Tests", "Specs", "Test", "Spec" })
+        {
+            if (typeName.EndsWith(suffix, StringComparison.Ordinal) && typeName.Length > suffix.Length)
+                return typeName[..^suffix.Length];
+        }
+
+        return null;
+    }
+
+    private static bool IsTypeNamePrefix(string subjectName, string candidateType) =>
+        subjectName.StartsWith(candidateType, StringComparison.Ordinal)
+        && (subjectName.Length == candidateType.Length
+            || char.IsUpper(subjectName[candidateType.Length])
+            || char.IsDigit(subjectName[candidateType.Length])
+            || subjectName[candidateType.Length] == '_');
 
     private static string MethodName(string signature)
     {

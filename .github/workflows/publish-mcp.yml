@@ -50,6 +50,9 @@ jobs:
       - name: Restore
         run: dotnet restore CodeMeridian.sln
 
+      - name: Audit transitive .NET dependencies
+        run: dotnet list CodeMeridian.sln package --vulnerable --include-transitive
+
       - name: Build
         run: dotnet build CodeMeridian.sln -c Release --no-restore /p:Version=${{ steps.version.outputs.version }}
 
@@ -61,18 +64,18 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: tools/TsIndexer/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Restore TsIndexer
-        working-directory: tools/TsIndexer
+      - name: Restore Node indexer workspaces
         run: npm install --include=optional
 
-      - name: Build TsIndexer
-        working-directory: tools/TsIndexer
+      - name: Audit Node indexer workspaces
+        run: npm audit --audit-level=high
+
+      - name: Build Node indexer workspaces
         run: npm run build
 
-      - name: Test TsIndexer
-        working-directory: tools/TsIndexer
+      - name: Test Node indexer workspaces
         run: npm test
 
       - name: Set image name

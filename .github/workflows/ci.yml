@@ -42,6 +42,9 @@ jobs:
       - name: Restore
         run: dotnet restore CodeMeridian.sln
 
+      - name: Audit transitive .NET dependencies
+        run: dotnet list CodeMeridian.sln package --vulnerable --include-transitive
+
       - name: Build
         run: dotnet build CodeMeridian.sln --configuration Release --no-restore
 
@@ -113,6 +116,10 @@ jobs:
         working-directory: ${{ matrix.workspace.path }}
         run: npm install --include=optional
 
+      - name: Audit workspace dependencies
+        working-directory: ${{ matrix.workspace.path }}
+        run: npm audit --audit-level=high --workspaces=false
+
       - name: Build workspace
         working-directory: ${{ matrix.workspace.path }}
         run: npm run build
@@ -144,6 +151,58 @@ jobs:
             ${{ matrix.workspace.path }}/coverage/lcov.info
           if-no-files-found: warn
 
+  graph-integration:
+    name: Neo4j and GDS integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      Neo4j__Uri: bolt://localhost:7687
+      Neo4j__Username: neo4j
+      Neo4j__Password: CodeMeridianCi
+    services:
+      neo4j:
+        image: neo4j:2026.06.0
+        env:
+          NEO4J_AUTH: neo4j/CodeMeridianCi
+          NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "wget -q -O /dev/null http://localhost:7474 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 18
+          --health-start-period 30s
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore integration tests
+        run: dotnet restore tests/CodeMeridian.Infrastructure.Integration.Tests/CodeMeridian.Infrastructure.Integration.Tests.csproj
+
+      - name: Run graph integration tests
+        run: >
+          dotnet test tests/CodeMeridian.Infrastructure.Integration.Tests/CodeMeridian.Infrastructure.Integration.Tests.csproj
+          --configuration Release
+          --no-restore
+          --logger "trx"
+          --results-directory TestResults/Integration
+
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v7
+        if: success() || failure()
+        with:
+          name: graph-integration-test-results
+          path: TestResults/Integration/**/*.trx
+          if-no-files-found: error
+
   publish-reports-and-badges:
     name: Publish test and coverage reports
     runs-on: ubuntu-latest
@@ -151,6 +210,7 @@ jobs:
     needs:
       - dotnet
       - node-tools
+      - graph-integration
     if: success()
 
     steps:

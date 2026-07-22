@@ -12,7 +12,8 @@ public sealed partial class Neo4jCodeGraphRepository
 {
     private const string StructuralDependencyRelationships = "Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable|Reads|Writes|PublishesTo|SubscribesTo";
     private const string StructuralTraversalRelationships = StructuralDependencyRelationships + "|Implements|Inherits";
-    private const string ConnectionRelationships = StructuralTraversalRelationships + "|Contains";
+    private const string ConnectionRelationships = StructuralTraversalRelationships;
+    private const string BroadConnectionRelationships = StructuralTraversalRelationships + "|Contains";
     private const string WorkflowAdjacentTypeList = "['ApiEndpoint','File','ExternalConcept','MessageTopic','ExternalService','Diagnostic','ConfigurationFile','ConfigurationKey','ConfigurationEntry']";
 
     public async Task<IReadOnlyList<(CodeNode Source, CodeNode Target, string RelationshipType)>> FindCrossProjectDependenciesAsync(

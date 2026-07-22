@@ -186,6 +186,8 @@ By default, the unified indexer stores a language-neutral file snapshot in `.mer
 
 Changed and deleted files are removed from the project graph before re-indexing, which prevents old symbols from lingering when a file is edited or removed. Use `--clear` after major renames, project moves, or indexer ID changes. Use `--no-incremental` or `--force-full` when you want a full scan without clearing existing knowledge.
 
+For C#, node ingestion and relationship resolution have separate scopes. Only changed files own and upsert their file-backed nodes, but every current C# file participates in the resolution catalog. `Contains` and declaration edges are owned by their source file. Cross-file `Calls`, `Uses`, `Implements`, and inheritance edges are reconstructed from the surviving source declarations, so deleting or changing a target cannot permanently erase an incoming edge from an unchanged source. Synthetic targets without a file are ingested only when a changed source reaches them. Each full or incremental pass records scanned/ingested counts and resolved/unresolved relationship diagnostics in project-scoped index-run metadata.
+
 ## C# Indexing
 
 The C# indexer uses Roslyn syntax trees. It does not require a successful project build.

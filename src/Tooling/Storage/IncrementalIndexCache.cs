@@ -35,10 +35,22 @@ public sealed class IncrementalIndexCache
         }
     }
 
-    public IncrementalIndexPlan BuildPlan(DirectoryInfo root, IReadOnlyCollection<FileInfo> files, bool forceFull)
+    public IncrementalIndexPlan BuildPlan(
+        DirectoryInfo root,
+        IReadOnlyCollection<FileInfo> files,
+        bool forceFull,
+        Func<string, bool>? isPathInScope = null)
     {
         var current = files
             .Select(file => CacheEntry.FromFile(root, file))
+            .OrderBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var retained = isPathInScope is null
+            ? []
+            : _state.Files.Where(entry => !isPathInScope(entry.Path)).ToArray();
+        var nextState = current
+            .Concat(retained)
+            .DistinctBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
             .OrderBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -47,10 +59,12 @@ public sealed class IncrementalIndexCache
             return new IncrementalIndexPlan(
                 [.. current.Select(entry => entry.Path)],
                 [],
-                current);
+                nextState);
         }
 
-        var previous = _state.Files.ToDictionary(entry => entry.Path, StringComparer.OrdinalIgnoreCase);
+        var previous = _state.Files
+            .Where(entry => isPathInScope is null || isPathInScope(entry.Path))
+            .ToDictionary(entry => entry.Path, StringComparer.OrdinalIgnoreCase);
         var currentByPath = current.ToDictionary(entry => entry.Path, StringComparer.OrdinalIgnoreCase);
 
         var changed = current
@@ -63,7 +77,7 @@ public sealed class IncrementalIndexCache
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        return new IncrementalIndexPlan(changed, deleted, current);
+        return new IncrementalIndexPlan(changed, deleted, nextState);
     }
 
     public void Save(IncrementalIndexPlan plan)

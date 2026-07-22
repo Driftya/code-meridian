@@ -21,14 +21,17 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         nodeId = await ResolveCanonicalNodeIdAsync(nodeId, cancellationToken: cancellationToken);
+        var impactContext = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
+        var relationshipTrust = await GetRelationshipTrustAsync(impactContext?.Node?.ProjectContext, cancellationToken);
         if (includeConfidence)
-            return await FindImpactWithConfidenceAsync(nodeId, depth, detailLevel, cancellationToken);
+            return await FindImpactWithConfidenceAsync(nodeId, depth, detailLevel, relationshipTrust, cancellationToken);
 
         var results = await codeGraph.FindImpactAsync(nodeId, depth, cancellationToken);
 
         if (results.Count == 0)
             return $"No callers found for `{nodeId}` within {depth} hops. " +
-                   "The node may not exist in the graph or has no inbound dependencies.";
+                   "The node may not exist in the graph or has no inbound dependencies." +
+                   RelationshipTrustWarning(relationshipTrust);
 
         if (detailLevel == ContextDetailLevel.Summary)
             return $"Impact summary for `{nodeId}`: {results.Count} affected graph elements within {depth} hops. " +
@@ -38,6 +41,7 @@ public partial class CodebaseQueryService
             return FormatClassLikeImpactAnalysis(nodeId, depth, detailLevel, results);
 
         var sb = new StringBuilder();
+        AppendRelationshipTrustWarning(sb, relationshipTrust);
         sb.AppendLine($"## Impact Analysis — `{nodeId}`");
         sb.AppendLine($"**{results.Count}** code elements would be affected by changing this (up to {depth} hops):\n");
         sb.AppendLine("| Distance | Type | Name | File |");
@@ -93,16 +97,19 @@ public partial class CodebaseQueryService
         return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
             var results = await codeGraph.FindHotspotsAsync(projectContext, limit: 15, cancellationToken);
+            var relationshipTrust = await GetRelationshipTrustAsync(projectContext, cancellationToken);
 
             if (results.Count == 0)
                 return $"No hotspots found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                       "Ensure the codebase has been indexed with relationship data.";
+                       "Ensure the codebase has been indexed with relationship data." +
+                       RelationshipTrustWarning(relationshipTrust);
 
             var sb = new StringBuilder();
+            AppendRelationshipTrustWarning(sb, relationshipTrust);
             sb.AppendLine($"## Coupling Hotspots{(projectContext is not null ? $" — {projectContext}" : "")}");
             sb.AppendLine("Nodes with the most incoming dependencies — highest risk to change. Production candidates are prioritized by default.\n");
 
-            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.FanIn)));
+            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.FanIn)), value => value, descending: true);
             AppendActionabilitySection(
                 sb,
                 "Production candidates",
@@ -193,7 +200,7 @@ public partial class CodebaseQueryService
 
         foreach (var group in grouped)
         {
-            sb.AppendLine($"### {group.Key}s ({group.Count()})");
+            sb.AppendLine($"### {PluralizeNodeType(group.Key)} ({group.Count()})");
             foreach (var node in group)
             {
                 var loc = node.FilePath is not null
@@ -242,11 +249,13 @@ public partial class CodebaseQueryService
         return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
             var results = await codeGraph.FindCoverageGapsAsync(projectContext, cancellationToken);
+            var relationshipTrust = await GetRelationshipTrustAsync(projectContext, cancellationToken);
             var filteredResults = FilterNodesByProfile(results, AnalysisProfile.CoverageGaps);
 
             if (filteredResults.Count == 0)
                 return $"No coverage gaps found{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                       "All production classes and methods appear to be called from test namespaces.";
+                       "All production classes and methods appear to be called from test namespaces." +
+                       RelationshipTrustWarning(relationshipTrust);
 
             var rankedResults = RankNodesForDisplay(filteredResults).ToArray();
             var highPriority = rankedResults.Where(IsHighPriorityCoverageGap).ToArray();
@@ -257,6 +266,7 @@ public partial class CodebaseQueryService
                        $"{highPriority.Length} high-priority, {lowPriority.Length} low-priority.";
 
             var sb = new StringBuilder();
+            AppendRelationshipTrustWarning(sb, relationshipTrust);
             sb.AppendLine($"## Test Coverage Gaps{(projectContext is not null ? $" — {projectContext}" : "")}");
             sb.AppendLine($"**{rankedResults.Length}** production types/methods with no test calling them, ranked by likely risk:\n");
 
@@ -288,6 +298,8 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
+        {
         nodeId = await ResolveCanonicalNodeIdAsync(nodeId, projectContext, cancellationToken);
         var ctx = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
         if (ctx.Node is null)
@@ -419,8 +431,10 @@ public partial class CodebaseQueryService
             .Take(Math.Clamp(limit, 1, 12))
             .ToArray();
         var suggestedCommand = BuildSuggestedTestCommand(directShield, rankedPrimaryShield);
+        var relationshipTrust = await GetRelationshipTrustAsync(scope, cancellationToken);
 
         var sb = new StringBuilder();
+        AppendRelationshipTrustWarning(sb, relationshipTrust);
         sb.AppendLine($"## Test Shield Map - `{ctx.Node.Name}`");
         sb.AppendLine($"**Target:** {ctx.Node.Type} `{ctx.Node.Name}`");
         sb.AppendLine($"**File:** `{ctx.Node.FilePath ?? "—"}`{(ctx.Node.LineNumber.HasValue ? $":{ctx.Node.LineNumber}" : "")}");
@@ -487,6 +501,7 @@ public partial class CodebaseQueryService
         sb.AppendLine("> Direct shield means a test directly calls the target. The focused verification plan separates direct regression tests, contract/API forwarding checks, integration-level verification, and heuristic shield tests so the first run stays small. Secondary shield awareness keeps broader matches visible without mixing them into the first-run verification set. Unshielded path nodes are the best seams for new characterization tests before changing behavior.");
 
         return sb.ToString();
+        });
     }
 
     public async Task<string> FindRecentlyChangedAsync(
@@ -550,7 +565,7 @@ public partial class CodebaseQueryService
 
         foreach (var group in grouped)
         {
-            sb.AppendLine($"### {group.Key}s ({group.Count()})");
+            sb.AppendLine($"### {PluralizeNodeType(group.Key)} ({group.Count()})");
             sb.AppendLine("| Lines | Name | File |");
             sb.AppendLine("|-------|------|------|");
             foreach (var node in group.OrderByDescending(n => n.LineCount))
@@ -579,12 +594,15 @@ public partial class CodebaseQueryService
         if (ctx.Node is null)
             return $"Node `{nodeId}` not found in the graph. Run query_codebase to find the correct ID.";
 
+        var relationshipTrust = await GetRelationshipTrustAsync(ctx.Node.ProjectContext, cancellationToken);
+
         if (detailLevel == ContextDetailLevel.Summary)
             return $"Edit context summary for `{ctx.Node.Name}`: " +
                    $"{ctx.Callers.Count} direct callers, {ctx.Callees.Count} direct callees, {ctx.Interfaces.Count} interfaces. " +
                    $"File: `{ctx.Node.FilePath ?? "—"}`.";
 
         var sb = new StringBuilder();
+        AppendRelationshipTrustWarning(sb, relationshipTrust);
         var sizeHint = ctx.Node.LineCount.HasValue ? $" ({ctx.Node.LineCount} lines)" : string.Empty;
         sb.AppendLine($"## Edit Context — `{ctx.Node.Name}`");
         sb.AppendLine($"**Type:** {ctx.Node.Type} | **File:** `{ctx.Node.FilePath ?? "—"}`{(ctx.Node.LineNumber.HasValue ? $":{ctx.Node.LineNumber}" : "")}{sizeHint}\n");
@@ -624,7 +642,7 @@ public partial class CodebaseQueryService
     {
         if (callers.Count == 0)
         {
-            sb.AppendLine("### Callers — none (safe to change signature)\n");
+            sb.AppendLine("### Callers — none observed\n");
             return;
         }
 
@@ -1207,8 +1225,11 @@ public partial class CodebaseQueryService
         foreach (var path in candidatePaths)
         {
             var pathScore = strategy.MatchFilePathContains.Count(token =>
-                !string.IsNullOrWhiteSpace(token)
-                && path.Contains(NormalizePathForMatching(token), StringComparison.OrdinalIgnoreCase));
+            {
+                var normalizedToken = NormalizePathForMatching(token);
+                return normalizedToken is not null
+                       && path.Contains(normalizedToken, StringComparison.OrdinalIgnoreCase);
+            });
             if (pathScore == 0)
                 return 0;
 
@@ -1258,7 +1279,9 @@ public partial class CodebaseQueryService
         if (ctx.Node is null)
             return $"Target `{target}` not found in the graph. Run query_codebase first to find the correct node ID.";
 
-        using var _ = await BeginAnalysisOptionsScopeAsync(ctx.Node.ProjectContext, cancellationToken);
+        var analysisResolution = await analysisOptionsResolver.ResolveAsync(ctx.Node.ProjectContext, cancellationToken);
+        using var _ = new AnalysisOptionsScope(this, analysisResolution);
+        var relationshipTrust = await GetRelationshipTrustAsync(ctx.Node.ProjectContext, cancellationToken);
 
         var impact = await TryContextStepAsync(
             "impact_analysis",
@@ -1359,6 +1382,7 @@ public partial class CodebaseQueryService
         var filteredImpact = FilterNodePairsByProfile(impact, AnalysisProfile.AgentContext);
         var filteredDownstream = FilterNodePairsByProfile(downstream, AnalysisProfile.AgentContext);
         var sb = new StringBuilder();
+        AppendRelationshipTrustWarning(sb, relationshipTrust);
         var snippetBudget = includeSourceSnippets
             ? Math.Max(0, maxTokens - contextCost.EstimatedTokens + contextCost.SourceSnippetTokens)
             : 0;
@@ -1539,7 +1563,7 @@ public partial class CodebaseQueryService
         var grouped = nodes.GroupBy(n => n.Type).OrderBy(g => g.Key.ToString(), StringComparer.Ordinal).ToArray();
         foreach (var group in grouped)
         {
-            sb.AppendLine($"#### {group.Key}s ({group.Count()})");
+            sb.AppendLine($"#### {PluralizeNodeType(group.Key)} ({group.Count()})");
             foreach (var node in group)
             {
                 var loc = node.FilePath is not null
@@ -1551,6 +1575,13 @@ public partial class CodebaseQueryService
 
         sb.AppendLine();
     }
+
+    private static string PluralizeNodeType(CodeNodeType type) => type switch
+    {
+        CodeNodeType.Class => "Classes",
+        CodeNodeType.Property => "Properties",
+        _ => $"{type}s"
+    };
 
     private bool IsHighPriorityCoverageGap(CodeNode node)
     {

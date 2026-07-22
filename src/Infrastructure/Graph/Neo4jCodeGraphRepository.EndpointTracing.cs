@@ -30,7 +30,7 @@ public sealed partial class Neo4jCodeGraphRepository
                     target.type IN ['DatabaseTable', 'MessageTopic']
                  OR (target.type = 'ExternalConcept' AND target.externalKind = 'DatabaseTable')
               )
-            MATCH path = shortestPath((endpoint)-[:{{ConnectionRelationships}}*1..{{clampedDepth}}]-(target))
+            MATCH path = shortestPath((endpoint)-[:{{BroadConnectionRelationships}}*1..{{clampedDepth}}]-(target))
             RETURN [n IN nodes(path) | n] AS pathNodes,
                    [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
             ORDER BY length(path) ASC, target.name

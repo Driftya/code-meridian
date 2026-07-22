@@ -36,7 +36,7 @@ public partial class CodebaseQueryService
             var sb = new StringBuilder();
             sb.AppendLine($"## PageRank - Architectural Influence{(projectContext is not null ? $" - {projectContext}" : "")}");
             sb.AppendLine("Nodes ranked by **transitive call-graph influence** (not just direct fan-in). Production candidates are prioritized by default.\n");
-            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.Score)));
+            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.Score)), value => value, descending: true);
             AppendActionabilitySection(
                 sb,
                 "Production candidates",
@@ -665,10 +665,12 @@ public partial class CodebaseQueryService
             }
 
             var combinedFanIn = candidate.SourceFanIn + candidate.CandidateFanIn;
+            var sizeRatio = CalculateSizeRatio(candidate.Source.LineCount, candidate.Candidate.LineCount);
             var sameLayer = !analysisOptions.DuplicateNoise.PreferSameLayer
                             || string.Equals(InferLayer(candidate.Source), InferLayer(candidate.Candidate), StringComparison.OrdinalIgnoreCase);
             var primary = candidate.Score >= analysisOptions.DuplicateNoise.MinimumPrimarySimilarity
                           && combinedFanIn <= analysisOptions.DuplicateNoise.MaximumPrimaryCombinedFanIn
+                          && sizeRatio >= analysisOptions.DuplicateNoise.MinimumPrimarySizeRatio
                           && sameLayer
                           && sourceAssessment.Bucket == ActionabilityBucket.ProductionCandidate
                           && duplicateAssessment.Bucket == ActionabilityBucket.ProductionCandidate;
@@ -679,11 +681,12 @@ public partial class CodebaseQueryService
                 : "Medium";
             var penalty = Math.Max(sourceAssessment.RankPenalty, duplicateAssessment.RankPenalty)
                           + Math.Max(0, combinedFanIn - analysisOptions.DuplicateNoise.MaximumPrimaryCombinedFanIn) * 5
+                          + (sizeRatio >= analysisOptions.DuplicateNoise.MinimumPrimarySizeRatio ? 0 : 15)
                           + (sameLayer ? 0 : 10)
                           + Math.Max(0, (int)Math.Round((analysisOptions.DuplicateNoise.MinimumPrimarySimilarity - candidate.Score) * 100, MidpointRounding.AwayFromZero));
             var reason = primary
                 ? "same-layer duplicate family with low refactor risk"
-                : BuildDuplicateReason(candidate, combinedFanIn, sameLayer, analysisOptions.DuplicateNoise.MinimumPrimarySimilarity, analysisOptions.DuplicateNoise.MaximumPrimaryCombinedFanIn);
+                : BuildDuplicateReason(candidate, combinedFanIn, sameLayer, sizeRatio, analysisOptions.DuplicateNoise.MinimumPrimarySimilarity, analysisOptions.DuplicateNoise.MaximumPrimaryCombinedFanIn, analysisOptions.DuplicateNoise.MinimumPrimarySizeRatio);
 
             ranked.Add(new ScoredNodeDisplayItem<DuplicateCandidate>(
                 candidate.Source,
@@ -729,8 +732,8 @@ public partial class CodebaseQueryService
             sb.AppendLine($"- Source: {FormatDuplicateNode(source)}");
             sb.AppendLine($"- Family size: {group.Count()} candidate{(group.Count() == 1 ? string.Empty : "s")}");
             sb.AppendLine();
-            sb.AppendLine("| Similarity | Candidate | Size | Refactor Risk | Coverage | Confidence |");
-            sb.AppendLine("|-----------|-----------|------|---------------|----------|------------|");
+            sb.AppendLine("| Similarity | Candidate | Size | Refactor Risk | Coverage | Confidence | Why review |");
+            sb.AppendLine("|-----------|-----------|------|---------------|----------|------------|------------|");
 
             foreach (var item in group.OrderByDescending(entry => entry.Value.Score).ThenBy(entry => entry.Value.Candidate.Name, StringComparer.OrdinalIgnoreCase))
             {
@@ -740,7 +743,7 @@ public partial class CodebaseQueryService
                 var risk = FormatDuplicateRisk(candidate.SourceFanIn + candidate.CandidateFanIn);
                 var coverage = FormatCoverage(candidate.SourceHasTestCoverage, candidate.CandidateHasTestCoverage);
                 sb.AppendLine(
-                    $"| {(candidate.Score * 100).ToString("F1", CultureInfo.InvariantCulture)}% | {duplicate} | {size} | {risk} | {coverage} | {item.Assessment.Confidence} |");
+                    $"| {(candidate.Score * 100).ToString("F1", CultureInfo.InvariantCulture)}% | {duplicate} | {size} | {risk} | {coverage} | {item.Assessment.Confidence} | {item.Assessment.Reason} |");
             }
 
             sb.AppendLine();
@@ -866,8 +869,10 @@ public partial class CodebaseQueryService
         DuplicateCandidate candidate,
         int combinedFanIn,
         bool sameLayer,
+        double sizeRatio,
         double minimumPrimarySimilarity,
-        int maximumPrimaryCombinedFanIn)
+        int maximumPrimaryCombinedFanIn,
+        double minimumPrimarySizeRatio)
     {
         var parts = new List<string>();
         if (candidate.Score < minimumPrimarySimilarity)
@@ -876,8 +881,18 @@ public partial class CodebaseQueryService
             parts.Add("higher caller count");
         if (!sameLayer)
             parts.Add("cross-layer pair");
+        if (sizeRatio < minimumPrimarySizeRatio)
+            parts.Add($"line-count ratio {sizeRatio.ToString("F2", CultureInfo.InvariantCulture)} is below {minimumPrimarySizeRatio.ToString("F2", CultureInfo.InvariantCulture)}");
 
         return parts.Count == 0 ? "broader duplicate candidate" : string.Join(", ", parts);
+    }
+
+    private static double CalculateSizeRatio(int? left, int? right)
+    {
+        if (left is null || right is null || left <= 0 || right <= 0)
+            return 0d;
+
+        return (double)Math.Min(left.Value, right.Value) / Math.Max(left.Value, right.Value);
     }
     private static bool ContainsSegment(string value, string segment)
     {

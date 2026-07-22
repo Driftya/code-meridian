@@ -341,7 +341,7 @@ public partial class CodebaseQueryService
 
         foreach (var candidate in ranked)
         {
-            var exclusionReason = GetPrimaryExclusionReason(candidate, primary.Count > 0);
+            var exclusionReason = GetPrimaryExclusionReason(candidate, primary);
             if (exclusionReason is null)
             {
                 primary.Add(candidate);
@@ -525,13 +525,22 @@ public partial class CodebaseQueryService
             return "stale";
 
         var exactNode = nodes.Any(node =>
-            node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.ExternalConcept
-            && (TextMatches(goal, node.Name)
-                || concepts.Any(concept => TextMatches(node.Name, concept))
-                || goalTerms.Any(term =>
-                    TextMatches(node.Name, term)
-                    || TextMatches(node.Summary, term)
-                    || TextMatches(node.FilePath, term))));
+        {
+            if (node.Type is not (CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.ExternalConcept))
+                return false;
+
+            var identifier = ExtractRelevantIdentifier(node.Name);
+            var fileStem = Path.GetFileNameWithoutExtension(node.FilePath ?? string.Empty);
+            var explicitIdentifier = TextMatches(goal, identifier)
+                                     || concepts.Any(concept =>
+                                         string.Equals(concept, identifier, StringComparison.OrdinalIgnoreCase)
+                                         || string.Equals(concept, fileStem, StringComparison.OrdinalIgnoreCase));
+            var evidenceTerms = goalTerms.Count(term =>
+                TextMatches(node.Name, term)
+                || TextMatches(node.FilePath, term)
+                || TextMatches(node.Namespace, term));
+            return explicitIdentifier || evidenceTerms >= 2;
+        });
 
         if (exactNode)
             return "exact";
@@ -545,7 +554,9 @@ public partial class CodebaseQueryService
         return "heuristic";
     }
 
-    private string? GetPrimaryExclusionReason(SurfaceCandidate candidate, bool exactOrHeuristicPrimaryExists)
+    private string? GetPrimaryExclusionReason(
+        SurfaceCandidate candidate,
+        IReadOnlyCollection<SurfaceCandidate> existingPrimaryTargets)
     {
         var role = ResolveCandidateRole(candidate);
 
@@ -561,7 +572,7 @@ public partial class CodebaseQueryService
         if (role is IndexedFileRole.Generated or IndexedFileRole.BuildArtifact or IndexedFileRole.Snapshot or IndexedFileRole.Migration)
             return $"{role.ToString().ToLowerInvariant()} file should not be the primary edit surface";
 
-        if (role == IndexedFileRole.Configuration)
+        if (role == IndexedFileRole.Configuration && candidate.TargetConfidence != "exact")
             return "configuration file is supporting context unless the goal is explicitly config-only";
 
         if (candidate.Nodes.All(IsContractNode))
@@ -570,7 +581,12 @@ public partial class CodebaseQueryService
         if (candidate.TargetConfidence == "file-only" && !HasEditReadySymbol(candidate))
             return "broad file match without an edit-ready symbol anchor";
 
-        if (candidate.TargetConfidence == "file-only" && exactOrHeuristicPrimaryExists)
+        if (candidate.TargetConfidence == "file-only" && existingPrimaryTargets.Count > 0
+            && !existingPrimaryTargets.Any(primary =>
+                string.Equals(
+                    Path.GetDirectoryName(primary.FilePath),
+                    Path.GetDirectoryName(candidate.FilePath),
+                    StringComparison.OrdinalIgnoreCase)))
             return "broader file-only match was pruned behind stronger symbol-level targets";
 
         return null;

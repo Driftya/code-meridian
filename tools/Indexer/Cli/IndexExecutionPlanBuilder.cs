@@ -9,8 +9,9 @@ internal static class IndexExecutionPlanBuilder
         IncrementalIndexCache cache,
         DirectoryInfo rootPath,
         IReadOnlyList<FileInfo> indexableFiles,
-        bool forceFull) =>
-        cache.BuildPlan(rootPath, indexableFiles, forceFull);
+        bool forceFull,
+        Func<string, bool>? isPathInScope = null) =>
+        cache.BuildPlan(rootPath, indexableFiles, forceFull, isPathInScope);
 
     public static IReadOnlyCollection<string> GetChangedFiles(
         IncrementalIndexPlan incrementalPlan,
@@ -29,19 +30,34 @@ internal static class IndexExecutionPlanBuilder
         bool includeCSharp,
         bool includeTypeScript,
         bool includeDocs,
-        bool includeConfiguration = false)
+        bool includeConfiguration = false,
+        IReadOnlyList<string>? configurationFilePatterns = null)
     {
         return rootPath
             .EnumerateFiles("*.*", SearchOption.AllDirectories)
             .Where(file => !IsIgnoredPath(rootPath, file))
-            .Where(file =>
-                (includeCSharp && IsCSharpSourceFile(file)) ||
-                (includeTypeScript && IsTypeScriptSourceFile(file)) ||
-                (includeTypeScript && IsHtmlCssSourceFile(file)) ||
-                (includeDocs && IsDocumentationFile(file)) ||
-                (includeConfiguration && IsConfigurationFile(file)))
+            .Where(file => IsIndexableFile(
+                file,
+                includeCSharp,
+                includeTypeScript,
+                includeDocs,
+                includeConfiguration,
+                configurationFilePatterns))
             .ToArray();
     }
+
+    public static bool IsIndexableFile(
+        FileInfo file,
+        bool includeCSharp,
+        bool includeTypeScript,
+        bool includeDocs,
+        bool includeConfiguration,
+        IReadOnlyList<string>? configurationFilePatterns = null) =>
+        (includeCSharp && IsCSharpSourceFile(file)) ||
+        (includeTypeScript && IsTypeScriptSourceFile(file)) ||
+        (includeTypeScript && IsHtmlCssSourceFile(file)) ||
+        (includeDocs && IsDocumentationFile(file)) ||
+        (includeConfiguration && Configuration.ConfigurationFilePatternMatcher.IsConfigurationFile(file, configurationFilePatterns));
 
     public static bool IsCSharpSourceFile(FileInfo file) =>
         file.Extension.Equals(".cs", StringComparison.OrdinalIgnoreCase);

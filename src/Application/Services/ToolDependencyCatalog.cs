@@ -13,7 +13,7 @@ internal static class ToolDependencyCatalog
             "awareness",
             "Workflow recipes recommend suggest_extractions as one comparison signal for refactor planning, so planner guidance should stay aligned with extraction confidence and location semantics.",
             [
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceSuggestExtractionsTests.cs",
                 "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceContextWorkflowTests.cs"
             ],
             [
@@ -44,7 +44,8 @@ internal static class ToolDependencyCatalog
             "hard",
             "Context packs reuse the same focused verification story, so shield ranking and context-pack test guidance must stay aligned.",
             [
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceFindTestShieldTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceBuildMinimalContextTests.cs"
             ],
             [
                 "docs/features/46-add-slice-aware-test-shield-ranking.md",
@@ -58,7 +59,7 @@ internal static class ToolDependencyCatalog
             "PR review summaries surface missing-test risk, so major shielding changes can shift what reviewers should verify even without a direct method call dependency.",
             [
                 "tests/CodeMeridian.Application.Tests/Services/PrContextReportServiceTests.cs",
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceFindTestShieldTests.cs"
             ],
             [
                 "docs/features/21-add-ci-friendly-context-reports.md"
@@ -71,7 +72,7 @@ internal static class ToolDependencyCatalog
             "Workflow recipes use find_test_shield as the verification-planning step, so ranking and section changes should stay aligned with before-edit and refactor guidance.",
             [
                 "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceContextWorkflowTests.cs",
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceFindTestShieldTests.cs"
             ],
             [
                 "docs/features/43-add-context-workflow-planning.md",
@@ -115,7 +116,7 @@ internal static class ToolDependencyCatalog
             "Semantic-discovery workflows now use structural pattern search as a reusable-example step, so planner guidance should stay aligned with structural evidence and confidence semantics.",
             [
                 "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceContextWorkflowTests.cs",
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceFindImplementationPatternsTests.cs"
             ],
             [
                 "docs/context-workflows.md",
@@ -130,7 +131,8 @@ internal static class ToolDependencyCatalog
             "awareness",
             "Change-route planning starts from the same vague-goal targeting problem, so confidence labels, pruning, and candidate ranking changes should stay aligned with route anchor selection.",
             [
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceFindImplementationSurfaceTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServicePlanEditRouteTests.cs"
             ],
             [
                 "docs/features/11-find-implementation-surface.md",
@@ -144,7 +146,8 @@ internal static class ToolDependencyCatalog
             "awareness",
             "Implementation-surface results advertise canonical IDs and target confidence, and workflow guidance expects resolve_exact_symbol to follow when the selected surface is not exact.",
             [
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceFindImplementationSurfaceTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceResolveExactSymbolTests.cs",
                 "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceContextWorkflowTests.cs"
             ],
             [
@@ -159,7 +162,8 @@ internal static class ToolDependencyCatalog
             "awareness",
             "Change-route output explicitly tells callers to run build_minimal_context on exact route targets, so route guidance should stay aligned with the bounded context step that follows planning.",
             [
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceBuildMinimalContextTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServicePlanEditRouteTests.cs"
             ],
             [
                 "docs/features/01-add-build-minimal-context.md",
@@ -173,7 +177,7 @@ internal static class ToolDependencyCatalog
             "hard",
             "Session evaluation counts full, degraded, and failed context-pack outcomes from build_minimal_context tool-result events.",
             [
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs",
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceBuildMinimalContextTests.cs",
                 "tests/CodeMeridian.Indexer.Tests/Cli/SessionUsefulnessEvaluatorTests.cs"
             ],
             [
@@ -202,7 +206,7 @@ internal static class ToolDependencyCatalog
             "Implementation-surface ranking reads .meridian/precision-feedback.json written by evaluate-session to explain direct, derived, and ignored target history.",
             [
                 "tests/CodeMeridian.Indexer.Tests/Cli/SessionUsefulnessEvaluatorTests.cs",
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceFindImplementationSurfaceTests.cs"
             ],
             [
                 "docs/evaluate.md",
@@ -217,7 +221,7 @@ internal static class ToolDependencyCatalog
             "Feature-path analysis also reads evaluate-session precision feedback to explain why certain surfaces were accepted directly, accepted by derivation, or ignored before.",
             [
                 "tests/CodeMeridian.Indexer.Tests/Cli/SessionUsefulnessEvaluatorTests.cs",
-                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyticsTests.cs"
+                "tests/CodeMeridian.Application.Tests/Services/CodebaseQueryServiceAnalyzeFeatureImplementationPathTests.cs"
             ],
             [
                 "docs/evaluate.md",

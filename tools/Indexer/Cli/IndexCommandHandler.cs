@@ -53,7 +53,7 @@ internal sealed class IndexCommandHandler(
             Console.WriteLine($"warning: run `codemeridian init .` to merge version {_settings.CurrentConfigVersion} defaults into the existing file.");
         }
 
-        if (!context.HasCSharp && !context.HasTypeScript && !context.HasHtmlCss && !context.HasConfiguration)
+        if (!context.HasCSharp && !context.HasTypeScript && !context.HasHtmlCss && !context.HasConfiguration && !_settings.IncludeDocs)
         {
             Console.WriteLine("No enabled indexers found matching this project.");
             Console.WriteLine("Use --list-capabilities to inspect available indexers.");
@@ -288,8 +288,28 @@ internal sealed class IndexCommandHandler(
 
         var cacheDirectory = storagePathService.ResolveCacheDirectory(_settings.RootPath, _settings.Project, _settings.StorageMode);
         var cache = IncrementalIndexCache.Load(cacheDirectory, _settings.Project);
-        var indexableFiles = IndexExecutionPlanBuilder.EnumerateIndexableFiles(_settings.RootPath, hasCSharp, hasTypeScript, _settings.IncludeDocs, hasConfiguration);
-        var incrementalPlan = IndexExecutionPlanBuilder.BuildPlan(cache, _settings.RootPath, indexableFiles, forceFull: clear || !_settings.Incremental);
+        var indexableFiles = IndexExecutionPlanBuilder.EnumerateIndexableFiles(
+            _settings.RootPath,
+            hasCSharp,
+            hasTypeScript,
+            _settings.IncludeDocs,
+            hasConfiguration,
+            configurationFilePatterns);
+        Func<string, bool>? isPathInScope = clear
+            ? null
+            : path => IndexExecutionPlanBuilder.IsIndexableFile(
+                new FileInfo(Path.Combine(_settings.RootPath.FullName, path.Replace('/', Path.DirectorySeparatorChar))),
+                hasCSharp,
+                hasTypeScript,
+                _settings.IncludeDocs,
+                hasConfiguration,
+                configurationFilePatterns);
+        var incrementalPlan = IndexExecutionPlanBuilder.BuildPlan(
+            cache,
+            _settings.RootPath,
+            indexableFiles,
+            forceFull: clear || !_settings.Incremental,
+            isPathInScope);
         var changedFiles = _settings.Incremental && !clear ? incrementalPlan.ChangedFiles : null;
         var deletedFiles = IndexExecutionPlanBuilder.GetDeletedFiles(incrementalPlan, _settings.Incremental, clear);
 

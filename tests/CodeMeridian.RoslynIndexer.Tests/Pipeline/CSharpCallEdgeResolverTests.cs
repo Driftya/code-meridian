@@ -72,4 +72,30 @@ public sealed class CSharpCallEdgeResolverTests
             edge.SourceId == "Project::Method::Demo.Service::Caller()"
             && edge.TargetId == "Project::Method::Demo.Service::Target(string)");
     }
+
+    [Fact]
+    public void Resolve_UsesConventionalTestClassSubjectWhenReceiverTypeIsUnavailable()
+    {
+        var nodes = new List<IngestNodeRequest>
+        {
+            new("Project::Method::Demo.Tests.CodebaseQueryServiceFindCoverageGapsTests::ReportsGap()", "ReportsGap()", "Method", "Demo.Tests", "tests/CodebaseQueryServiceFindCoverageGapsTests.cs", 10, null, Properties: new() { ["declaringTypeShortName"] = "CodebaseQueryServiceFindCoverageGapsTests" }),
+            new("Project::Method::Demo.Services.CodebaseQueryService::FindCoverageGapsAsync(string)", "FindCoverageGapsAsync(string)", "Method", "Demo.Services", "src/CodebaseQueryService.cs", 20, null, Properties: new() { ["declaringTypeShortName"] = "CodebaseQueryService" }),
+            new("Project::Method::Demo.Contracts.ICodebaseQueryService::FindCoverageGapsAsync(string)", "FindCoverageGapsAsync(string)", "Method", "Demo.Contracts", "src/ICodebaseQueryService.cs", 5, null, Properties: new() { ["declaringTypeShortName"] = "ICodebaseQueryService" }),
+            new("Project::Method::Demo.Tools.CodebaseTools::FindCoverageGapsAsync(string)", "FindCoverageGapsAsync(string)", "Method", "Demo.Tools", "src/CodebaseTools.cs", 5, null, Properties: new() { ["declaringTypeShortName"] = "CodebaseTools" })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(
+                "Project::Method::Demo.Tests.CodebaseQueryServiceFindCoverageGapsTests::ReportsGap()",
+                string.Empty,
+                "Calls",
+                CallName: "FindCoverageGapsAsync",
+                ParamCount: 1)
+        };
+
+        var result = CSharpCallEdgeResolver.Resolve(nodes, edges);
+
+        result.Should().ContainSingle(edge =>
+            edge.TargetId == "Project::Method::Demo.Services.CodebaseQueryService::FindCoverageGapsAsync(string)");
+    }
 }

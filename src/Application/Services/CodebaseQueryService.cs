@@ -19,10 +19,10 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
     private readonly IProjectAnalysisOptionsResolver analysisOptionsResolver;
     private readonly IIndexedFileRoleClassifier fileRoleClassifier;
     private readonly IAnalysisProfilePolicy analysisProfilePolicy;
-    private ResolvedProjectAnalysisOptions? currentAnalysisResolution;
+    private readonly AsyncLocal<ResolvedProjectAnalysisOptions?> currentAnalysisResolution = new();
 
     private CodebaseAnalysisOptions analysisOptions =>
-        currentAnalysisResolution?.Options ?? defaultAnalysisOptions;
+        currentAnalysisResolution.Value?.Options ?? defaultAnalysisOptions;
 
     public CodebaseQueryService(
         ICodeGraphRepository codeGraph,
@@ -109,6 +109,10 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
+        var structuralResult = await TryQueryStructuralIntentAsync(query, projectContext, cancellationToken);
+        if (structuralResult is not null)
+            return structuralResult;
+
         var nodes = await codeGraph.QueryNodesAsync(
             new CodeGraphQuery
             {

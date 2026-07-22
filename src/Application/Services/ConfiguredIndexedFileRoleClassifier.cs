@@ -56,8 +56,10 @@ public sealed class ConfiguredIndexedFileRoleClassifier(IOptions<CodebaseIndexin
             }
 
             var regex = "^" + Regex.Escape(normalizedPattern)
+                .Replace(@"\*\*/", "<<<OPTIONALDIRECTORIES>>>")
                 .Replace(@"\*\*", "<<<DOUBLESTAR>>>")
                 .Replace(@"\*", @"[^/]*")
+                .Replace("<<<OPTIONALDIRECTORIES>>>", "(?:.*/)?")
                 .Replace("<<<DOUBLESTAR>>>", ".*") + "$";
 
             return Regex.IsMatch(path, regex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);

@@ -50,6 +50,14 @@ public sealed class FileRolePatternOptions
 
     private static readonly string[] TypeScriptTestPatterns =
     [
+        "tests/**/*.ts",
+        "tests/**/*.tsx",
+        "tests/**/*.js",
+        "tests/**/*.jsx",
+        "test/**/*.ts",
+        "test/**/*.tsx",
+        "test/**/*.js",
+        "test/**/*.jsx",
         "**/*.test.ts",
         "**/*.spec.ts",
         "**/*.test.tsx",

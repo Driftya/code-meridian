@@ -238,6 +238,8 @@ public sealed class DuplicateNoiseOptions
 
     public int MaximumPrimaryCombinedFanIn { get; set; } = 4;
 
+    public double MinimumPrimarySizeRatio { get; set; } = 0.5d;
+
     public bool PreferSameLayer { get; set; } = true;
 }
 

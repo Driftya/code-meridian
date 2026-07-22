@@ -4,6 +4,8 @@ using CodeMeridian.Core.CodeGraph;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Globalization;
+using System.Text.Json;
 
 namespace CodeMeridian.RoslynIndexer.Pipeline;
 
@@ -31,14 +33,18 @@ public sealed class CSharpIndexer(
         FileInfo[] files,
         string projectContext,
         string rootPath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        FileInfo[]? resolutionFiles = null,
+        bool isIncremental = false)
     {
+        var usedFullResolutionCatalog = !isIncremental || resolutionFiles is not null;
+        resolutionFiles ??= files;
         var nodes = new List<IngestNodeRequest>();
         var edges = new List<IngestEdgeRequest>();
-        var configurationConstants = CSharpConfigurationConstantRegistry.Build(files);
+        var configurationConstants = CSharpConfigurationConstantRegistry.Build(resolutionFiles);
         LogClassificationSummary(files, rootPath, projectContext, fileRoleClassifier, logger);
 
-        foreach (var file in files)
+        foreach (var file in resolutionFiles)
         {
             try
             {
@@ -52,31 +58,119 @@ public sealed class CSharpIndexer(
 
         ApplyFileRoles(nodes, fileRoleClassifier);
 
-        var attemptedCallEdges = edges.Count(e => e.RelationshipType == "Calls");
-        var attemptedReferenceEdges = edges.Count(e => e.RelationshipType is "Uses" or "Implements" or "Inherits");
-        edges = CSharpCallEdgeResolver.Resolve(nodes, edges);
-        edges = CSharpReferenceEdgeResolver.Resolve(nodes, edges);
-        var resolvedCallEdges = edges.Count(e => e.RelationshipType == "Calls");
-        var resolvedReferenceEdges = edges.Count(e => e.RelationshipType is "Uses" or "Implements" or "Inherits");
-        if (attemptedCallEdges > 0)
-        {
-            logger.LogInformation(
-                "  Resolved {Resolved}/{Attempted} local call edge(s).",
-                resolvedCallEdges,
-                attemptedCallEdges);
-        }
-        if (attemptedReferenceEdges > 0)
-        {
-            logger.LogInformation(
-                "  Resolved {Resolved}/{Attempted} local type reference edge(s).",
-                resolvedReferenceEdges,
-                attemptedReferenceEdges);
-        }
+        var callResolution = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+        var referenceResolution = CSharpReferenceEdgeResolver.ResolveWithDiagnostics(nodes, callResolution.Edges);
+        edges = referenceResolution.Edges;
+        LogResolutionSummary("call", callResolution, logger);
+        LogResolutionSummary("type reference", referenceResolution, logger);
 
-        await CSharpBatchIngestionWriter.BatchIngestNodesAsync(client, logger, nodes, projectContext, cancellationToken);
+        var ingestPaths = files
+            .Select(file => Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/'))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var nodesToIngest = SelectNodesToIngest(nodes, edges, ingestPaths);
+
+        await CSharpBatchIngestionWriter.BatchIngestNodesAsync(client, logger, nodesToIngest, projectContext, cancellationToken);
         await CSharpBatchIngestionWriter.BatchIngestEdgesAsync(client, logger, edges, cancellationToken);
 
-        return new IndexStats(nodes.Count, edges.Count);
+        var unresolved = callResolution.UnresolvedByReason
+            .Concat(referenceResolution.UnresolvedByReason)
+            .GroupBy(item => item.Key, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Value), StringComparer.Ordinal);
+        var mode = isIncremental ? "incremental" : "full";
+        var stats = new IndexStats(
+            nodesToIngest.Count,
+            edges.Count,
+            resolutionFiles.Length,
+            files.Length,
+            callResolution.Attempted,
+            callResolution.Resolved,
+            referenceResolution.Attempted,
+            referenceResolution.Resolved,
+            unresolved,
+            mode,
+            usedFullResolutionCatalog);
+        await PersistIndexRunAsync(client, logger, projectContext, stats, cancellationToken);
+        return stats;
+    }
+
+    private static Task PersistIndexRunAsync(
+        CodeMeridianClient client,
+        ILogger logger,
+        string projectContext,
+        IndexStats stats,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var properties = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["externalKind"] = "IndexRun",
+            ["mode"] = stats.Mode,
+            ["completedAt"] = now.ToString("O", CultureInfo.InvariantCulture),
+            ["scannedFileCount"] = stats.ScannedFiles.ToString(CultureInfo.InvariantCulture),
+            ["ingestedFileCount"] = stats.IngestedFiles.ToString(CultureInfo.InvariantCulture),
+            ["attemptedCallEdges"] = stats.AttemptedCallEdges.ToString(CultureInfo.InvariantCulture),
+            ["resolvedCallEdges"] = stats.ResolvedCallEdges.ToString(CultureInfo.InvariantCulture),
+            ["attemptedReferenceEdges"] = stats.AttemptedReferenceEdges.ToString(CultureInfo.InvariantCulture),
+            ["resolvedReferenceEdges"] = stats.ResolvedReferenceEdges.ToString(CultureInfo.InvariantCulture),
+            ["unresolvedEdgesByReason"] = JsonSerializer.Serialize(stats.UnresolvedEdgesByReason),
+            ["usedFullResolutionCatalog"] = stats.UsedFullResolutionCatalog.ToString(CultureInfo.InvariantCulture)
+        };
+        var run = new IngestNodeRequest(
+            $"{projectContext}::IndexRun::{stats.Mode}",
+            $"{stats.Mode} C# index run",
+            "Diagnostic",
+            null,
+            null,
+            null,
+            $"Scanned {stats.ScannedFiles} file(s), ingested {stats.IngestedFiles}, and resolved {stats.ResolvedCallEdges + stats.ResolvedReferenceEdges} relationship(s).",
+            Properties: properties);
+
+        logger.LogInformation(
+            "Recording {Mode} index-run metadata with {ScannedFiles} scanned and {IngestedFiles} ingested file(s).",
+            stats.Mode,
+            stats.ScannedFiles,
+            stats.IngestedFiles);
+        return CSharpBatchIngestionWriter.BatchIngestNodesAsync(client, logger, [run], projectContext, cancellationToken);
+    }
+
+    private static List<IngestNodeRequest> SelectNodesToIngest(
+        IReadOnlyCollection<IngestNodeRequest> nodes,
+        IReadOnlyCollection<IngestEdgeRequest> edges,
+        IReadOnlySet<string> ingestPaths)
+    {
+        var selectedIds = nodes
+            .Where(node => node.FilePath is not null && ingestPaths.Contains(node.FilePath))
+            .Select(node => node.Id)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var changed = true;
+        while (changed)
+        {
+            changed = false;
+            foreach (var edge in edges.Where(edge => selectedIds.Contains(edge.SourceId)))
+            {
+                var target = nodes.FirstOrDefault(node => node.Id == edge.TargetId);
+                if (target is not null && target.FilePath is null && selectedIds.Add(target.Id))
+                    changed = true;
+            }
+        }
+
+        return nodes.Where(node => selectedIds.Contains(node.Id)).ToList();
+    }
+
+    private static void LogResolutionSummary(string edgeKind, EdgeResolutionResult result, ILogger logger)
+    {
+        if (result.Attempted == 0)
+            return;
+
+        logger.LogInformation(
+            "Resolved {Resolved}/{Attempted} local {EdgeKind} edge(s). Unresolved: {UnresolvedByReason}",
+            result.Resolved,
+            result.Attempted,
+            edgeKind,
+            result.UnresolvedByReason.Count == 0
+                ? "none"
+                : string.Join(", ", result.UnresolvedByReason.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}")));
     }
 
     private static void ApplyFileRoles(List<IngestNodeRequest> nodes, IIndexedFileRoleClassifier fileRoleClassifier)

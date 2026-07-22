@@ -94,6 +94,36 @@ public sealed class IncrementalIndexCacheTests
         plan.ChangedFiles.Should().ContainSingle("src/App.cs");
     }
 
+    [Fact]
+    public void BuildPlan_WhenAnIndexerIsDisabled_PreservesItsCacheEntriesUntilItIsEnabledAgain()
+    {
+        using var workspace = TestWorkspace.Create();
+        var source = workspace.WriteFile("src/App.cs", "class App {}");
+        var documentation = workspace.WriteFile("docs/guide.md", "# first");
+        var cacheDirectory = workspace.GetRepoCacheDirectory();
+        var initial = IncrementalIndexCache.Load(cacheDirectory, "Project");
+        initial.Save(initial.BuildPlan(workspace.Root, [source, documentation], forceFull: true));
+
+        documentation = workspace.WriteFile("docs/guide.md", "# changed while docs are disabled");
+        var sourceOnly = IncrementalIndexCache.Load(cacheDirectory, "Project");
+        var sourcePlan = sourceOnly.BuildPlan(
+            workspace.Root,
+            [source],
+            forceFull: false,
+            path => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase));
+
+        sourcePlan.ChangedFiles.Should().BeEmpty();
+        sourcePlan.DeletedFiles.Should().BeEmpty();
+        sourcePlan.NextState.Select(entry => entry.Path).Should().BeEquivalentTo("src/App.cs", "docs/guide.md");
+        sourceOnly.Save(sourcePlan);
+
+        var allIndexers = IncrementalIndexCache.Load(cacheDirectory, "Project");
+        var resumedPlan = allIndexers.BuildPlan(workspace.Root, [source, documentation], forceFull: false);
+
+        resumedPlan.ChangedFiles.Should().ContainSingle("docs/guide.md");
+        resumedPlan.DeletedFiles.Should().BeEmpty();
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         private TestWorkspace(DirectoryInfo root)

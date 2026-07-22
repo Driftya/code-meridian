@@ -75,6 +75,24 @@ public sealed class IndexExecutionPlanBuilderTests
         IndexExecutionPlanBuilder.IsDocumentationFile(file).Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("src/App.cs", true)]
+    [InlineData("docs/guide.md", false)]
+    [InlineData("src/app.ts", false)]
+    public void IsIndexableFile_WhenOnlyCSharpIsEnabled_MatchesOnlyCSharpFiles(string path, bool expected)
+    {
+        var file = new FileInfo(Path.Combine("C:", "repo", path.Replace('/', Path.DirectorySeparatorChar)));
+
+        var result = IndexExecutionPlanBuilder.IsIndexableFile(
+            file,
+            includeCSharp: true,
+            includeTypeScript: false,
+            includeDocs: false,
+            includeConfiguration: false);
+
+        result.Should().Be(expected);
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         private TestWorkspace(DirectoryInfo root) => Root = root;

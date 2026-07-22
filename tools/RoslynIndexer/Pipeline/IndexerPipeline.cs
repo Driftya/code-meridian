@@ -39,20 +39,26 @@ public sealed class IndexerPipeline(
             logger.LogInformation("Cleared.");
         }
 
-        foreach (var filePath in deletedFiles ?? [])
+        foreach (var filePath in (deletedFiles ?? []).Where(IsCSharpSourcePath))
         {
             logger.LogInformation("Removing stale graph data for {File}...", filePath);
             await client.DeleteProjectFileAsync(projectContext, filePath, cancellationToken);
         }
 
         // -- Phase 1: C# code graph --------------------------------------------
-        var csFiles = root
+        var allCsFiles = root
             .EnumerateFiles("*.cs", SearchOption.AllDirectories)
             .Where(f => !IsGenerated(f.FullName))
+            .ToArray();
+        var csFiles = allCsFiles
             .Where(f => changedFiles is null || changedFiles.Contains(RelativePath(root, f), StringComparer.OrdinalIgnoreCase))
             .ToArray();
 
-        logger.LogInformation("Found {Count} C# files to index.", csFiles.Length);
+        logger.LogInformation(
+            "Scanning {ScannedCount} C# files and ingesting {IngestedCount} file(s) in {Mode} mode.",
+            allCsFiles.Length,
+            csFiles.Length,
+            changedFiles is null ? "full" : "incremental");
 
         if (changedFiles is not null)
         {
@@ -64,11 +70,20 @@ public sealed class IndexerPipeline(
             }
         }
 
-        var stats = await csharpIndexer.IndexAsync(csFiles, projectContext, root.FullName, cancellationToken);
+        var stats = await csharpIndexer.IndexAsync(
+            csFiles,
+            projectContext,
+            root.FullName,
+            cancellationToken,
+            allCsFiles,
+            changedFiles is not null);
 
         logger.LogInformation(
-            "Code graph: {Nodes} nodes, {Edges} edges ingested.",
-            stats.Nodes, stats.Edges);
+            "Code graph: {Nodes} nodes and {Edges} edges ingested from {IngestedFiles} changed file(s) using {ScannedFiles} scan file(s).",
+            stats.Nodes,
+            stats.Edges,
+            stats.IngestedFiles,
+            stats.ScannedFiles);
 
         logger.LogInformation("=== Indexing complete for '{Project}' ===", projectContext);
     }
@@ -78,6 +93,9 @@ public sealed class IndexerPipeline(
         path.Contains(".generated.", StringComparison.OrdinalIgnoreCase) ||
         path.Contains("AssemblyInfo.cs", StringComparison.OrdinalIgnoreCase) ||
         path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase);
+
+    internal static bool IsCSharpSourcePath(string path) =>
+        Path.GetExtension(path).Equals(".cs", StringComparison.OrdinalIgnoreCase);
 
     private static bool HasIgnoredSegment(string path)
     {

@@ -269,6 +269,12 @@
               "minimum": 0,
               "default": 4
             },
+            "minimumPrimarySizeRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.5
+            },
             "preferSameLayer": {
               "type": "boolean",
               "default": true

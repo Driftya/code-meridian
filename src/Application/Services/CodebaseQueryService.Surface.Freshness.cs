@@ -12,7 +12,7 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
-        var nodes = await codeGraph.QueryNodesAsync(
+        var queriedNodes = await codeGraph.QueryNodesAsync(
             new CodeGraphQuery
             {
                 SemanticQuery = string.IsNullOrWhiteSpace(query) ? null : query,
@@ -20,14 +20,16 @@ public partial class CodebaseQueryService
                 Limit = Math.Clamp(limit, 1, 200)
             },
             cancellationToken);
+        var nodes = queriedNodes.Where(node => !IsRelationshipIndexRun(node)).ToArray();
 
-        if (nodes.Count == 0)
+        if (nodes.Length == 0)
         {
             var projectHint = await BuildProjectContextHintAsync(projectContext, cancellationToken);
             return $"No graph nodes found{(projectContext is not null ? $" in '{projectContext}'" : "")}{(query is not null ? $" for `{query}`" : "")}.{projectHint}";
         }
 
         var checks = nodes.Select(BuildFreshness).ToArray();
+        var relationshipTrust = await GetRelationshipTrustAsync(projectContext, cancellationToken);
         var high = checks.Count(c => c.Confidence == "High");
         var medium = checks.Count(c => c.Confidence == "Medium");
         var low = checks.Count(c => c.Confidence == "Low");
@@ -36,7 +38,10 @@ public partial class CodebaseQueryService
         sb.AppendLine($"## Graph Freshness{(projectContext is not null ? $" - {projectContext}" : "")}");
         if (!string.IsNullOrWhiteSpace(query))
             sb.AppendLine($"**Query:** `{query}`");
-        sb.AppendLine($"**Trust summary:** {high} High, {medium} Medium, {low} Low confidence\n");
+        sb.AppendLine($"**Trust summary (node metadata):** {high} High, {medium} Medium, {low} Low confidence");
+        sb.AppendLine($"**Relationship completeness:** {relationshipTrust.Confidence} — {relationshipTrust.Reason}");
+        sb.AppendLine($"**Last full index:** {relationshipTrust.LastFullIndex?.ToString("u") ?? "unknown"}");
+        sb.AppendLine($"**Last incremental index:** {relationshipTrust.LastIncrementalIndex?.ToString("u") ?? "none recorded"}\n");
         sb.AppendLine("| Confidence | Node | Source verification | Line metadata | Last indexed / content updated | Reason |");
         sb.AppendLine("|---|---|---|---|---|---|");
 
@@ -56,29 +61,31 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
-        var nodes = await codeGraph.QueryNodesAsync(
+        var queriedNodes = await codeGraph.QueryNodesAsync(
             new CodeGraphQuery
             {
                 ProjectContext = projectContext,
                 Limit = 1000
             },
             cancellationToken);
+        var nodes = queriedNodes.Where(node => !IsRelationshipIndexRun(node)).ToArray();
 
-        if (nodes.Count == 0)
+        if (nodes.Length == 0)
         {
             var projectHint = await BuildProjectContextHintAsync(projectContext, cancellationToken);
             return $"No graph nodes found{(projectContext is not null ? $" in '{projectContext}'" : "")}.{projectHint} Run the indexer before checking drift.";
         }
 
         var checks = nodes.Select(BuildFreshness).ToArray();
+        var relationshipTrust = await GetRelationshipTrustAsync(projectContext, cancellationToken);
         var missingFileMetadata = checks.Where(c => c.ExpectsFilePath && !c.HasFilePath).ToArray();
         var incompleteLines = checks.Where(c => c.ExpectsLineMetadata && !c.HasLineMetadata).ToArray();
         var missingTimestamps = checks.Where(c => !c.HasTimestamp).ToArray();
         var missingSourceHashes = checks.Where(c => c.ExpectsSourceHash && c.HasFilePath && !c.HasSourceHash).ToArray();
         var lowConfidence = checks.Count(c => c.Confidence == "Low");
 
-        if (missingFileMetadata.Length == 0 && incompleteLines.Length == 0 && missingTimestamps.Length == 0 && missingSourceHashes.Length == 0)
-            return $"Graph drift: low{(projectContext is not null ? $" for '{projectContext}'" : "")}. Indexed file metadata, line metadata, source hashes, and update timestamps look consistent. Source files are not read by the MCP server.";
+        if (missingFileMetadata.Length == 0 && incompleteLines.Length == 0 && missingTimestamps.Length == 0 && missingSourceHashes.Length == 0 && relationshipTrust.Confidence == "High")
+            return $"Graph drift: low{(projectContext is not null ? $" for '{projectContext}'" : "")}. Indexed file metadata, line metadata, source hashes, update timestamps, and relationship-run statistics look consistent. Source files are not read by the MCP server.";
 
         var severity = lowConfidence > 25 || missingFileMetadata.Length > 50 || incompleteLines.Length > 100 ? "high"
             : lowConfidence > 5 || missingFileMetadata.Length > 10 || incompleteLines.Length > 25 ? "moderate"
@@ -88,6 +95,7 @@ public partial class CodebaseQueryService
         sb.AppendLine($"## Graph Drift{(projectContext is not null ? $" - {projectContext}" : "")}");
         sb.AppendLine($"**Drift:** {severity}");
         sb.AppendLine($"**Signals:** {missingFileMetadata.Length} nodes lack file paths, {incompleteLines.Length} have incomplete line metadata, {missingSourceHashes.Length} lack source hashes, {missingTimestamps.Length} lack update timestamps.");
+        sb.AppendLine($"**Relationship completeness:** {relationshipTrust.Confidence} — {relationshipTrust.Reason}");
         sb.AppendLine("**Source verification:** source hashes are checked for presence; source files are not read by the MCP server because indexed projects may live on a different machine.\n");
 
         AppendDriftSection(sb, "Missing file metadata", missingFileMetadata, limit);

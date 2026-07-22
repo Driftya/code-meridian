@@ -84,6 +84,41 @@ public sealed class IndexCommandHandlerTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenOnlyDocumentationIsEnabled_RecognizesTheDocumentationIndexer()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.WriteFile("README.md", "# docs only\n");
+        var settings = CreateSettings(
+            workspace.Root,
+            clear: false,
+            incremental: true,
+            dryRun: true,
+            skipTypeScript: true,
+            skipCSharp: true,
+            skipConfiguration: true,
+            includeDocs: true);
+        var handler = CreateHandler(settings);
+
+        using var output = new StringWriter();
+        var originalOut = Console.Out;
+        try
+        {
+            Console.SetOut(output);
+            var exitCode = await handler.RunAsync();
+
+            exitCode.Should().Be(0);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+
+        output.ToString().Should().Contain("Dry run:");
+        output.ToString().Should().Contain("Include docs      : True");
+        output.ToString().Should().NotContain("No enabled indexers found");
+    }
+
+    [Fact]
     public async Task RunAsync_WhenDryRunIsEnabled_PrintsSelectedIndexerDetails()
     {
         using var workspace = TestWorkspace.Create();
@@ -214,6 +249,39 @@ public sealed class IndexCommandHandlerTests
     }
 
     [Fact]
+    public void BuildExecutionContext_WhenDocsAreDisabled_PreservesTheirCachedStateWithoutDeletingThem()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.WriteFile("tsconfig.json", "{}");
+        var sourceFile = workspace.WriteFile("src/app.ts", "export const value = 1;\n");
+        var documentation = workspace.WriteFile("docs/guide.md", "# first\n");
+        var settings = CreateSettings(workspace.Root, clear: false, incremental: true);
+        var storagePathService = new IndexerStoragePathService();
+        var cacheDirectory = storagePathService.ResolveCacheDirectory(workspace.Root, settings.Project, settings.StorageMode);
+        var cache = IncrementalIndexCache.Load(cacheDirectory, settings.Project);
+        cache.Save(cache.BuildPlan(workspace.Root, [sourceFile, documentation], forceFull: true));
+        workspace.WriteFile("docs/guide.md", "# changed while docs are disabled\n");
+
+        var handler = CreateHandler(settings);
+        var buildExecutionContext = typeof(IndexCommandHandler).GetMethod(
+            "BuildExecutionContext",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        var context = buildExecutionContext!.Invoke(handler, [false]);
+        var contextType = context!.GetType();
+        var plan = (IncrementalIndexPlan)contextType
+            .GetProperty("IncrementalPlan", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .GetValue(context)!;
+        var deletedFiles = (IReadOnlyCollection<string>)contextType
+            .GetProperty("DeletedFiles", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .GetValue(context)!;
+
+        plan.ChangedFiles.Should().BeEmpty();
+        deletedFiles.Should().BeEmpty();
+        plan.NextState.Select(entry => entry.Path).Should().Contain("docs/guide.md");
+    }
+
+    [Fact]
     public void WriteTypeScriptBatchFile_WritesRelativePathsAndClassifiedRoles()
     {
         using var workspace = TestWorkspace.Create();
@@ -335,7 +403,8 @@ public sealed class IndexCommandHandlerTests
         bool dryRun = false,
         bool skipTypeScript = false,
         bool skipCSharp = true,
-        bool skipConfiguration = true)
+        bool skipConfiguration = true,
+        bool includeDocs = false)
         => new()
         {
             RootPath = root,
@@ -344,7 +413,7 @@ public sealed class IndexCommandHandlerTests
             ApiKey = apiKey,
             Clear = clear,
             RebuildKeywords = false,
-            IncludeDocs = false,
+            IncludeDocs = includeDocs,
             Watch = false,
             DryRun = dryRun,
             ListCapabilities = listCapabilities,
