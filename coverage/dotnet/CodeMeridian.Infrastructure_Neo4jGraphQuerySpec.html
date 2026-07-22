@@ -876,16 +876,16 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Line coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar100">0%</div>
+<div class="large cardpercentagebar cardpercentagebar0">100%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered lines:</th>
-<td class="limit-width right" title="0">0</td>
+<td class="limit-width right" title="3">3</td>
 </tr>
 <tr>
 <th>Uncovered lines:</th>
-<td class="limit-width right" title="3">3</td>
+<td class="limit-width right" title="0">0</td>
 </tr>
 <tr>
 <th>Coverable lines:</th>
@@ -897,7 +897,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Line coverage:</th>
-<td class="limit-width right" title="0 of 3">0%</td>
+<td class="limit-width right" title="3 of 3">100%</td>
 </tr>
 </table>
 </div>
@@ -947,9 +947,9 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </colgroup>
 <thead><tr><th>Method</th><th>Branch coverage <a href="https://en.wikipedia.org/wiki/Code_coverage" target="_blank"><i class="icon-info-circled"></i></a></th><th>Crap Score <a href="https://googletesting.blogspot.de/2011/02/this-code-is-crap.html" target="_blank"><i class="icon-info-circled"></i></a></th><th>Cyclomatic complexity <a href="https://en.wikipedia.org/wiki/Cyclomatic_complexity" target="_blank"><i class="icon-info-circled"></i></a></th><th>Line coverage <a href="https://en.wikipedia.org/wiki/Code_coverage" target="_blank"><i class="icon-info-circled"></i></a></th></tr></thead>
 <tbody>
-<tr><td title=".ctor(System.String,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.Object&gt;)"><a href="#file0_line3" class="navigatetohash">.ctor(...)</a></td><td>100%</td><td>2</td><td>1</td><td>0%</td></tr>
-<tr><td title="get_Cypher()"><a href="#file0_line4" class="navigatetohash">get_Cypher()</a></td><td>100%</td><td>2</td><td>1</td><td>0%</td></tr>
-<tr><td title="get_Parameters()"><a href="#file0_line5" class="navigatetohash">get_Parameters()</a></td><td>100%</td><td>2</td><td>1</td><td>0%</td></tr>
+<tr><td title=".ctor(System.String,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.Object&gt;)"><a href="#file0_line3" class="navigatetohash">.ctor(...)</a></td><td>100%</td><td>1</td><td>1</td><td>100%</td></tr>
+<tr><td title="get_Cypher()"><a href="#file0_line4" class="navigatetohash">get_Cypher()</a></td><td>100%</td><td>1</td><td>1</td><td>100%</td></tr>
+<tr><td title="get_Parameters()"><a href="#file0_line5" class="navigatetohash">get_Parameters()</a></td><td>100%</td><td>1</td><td>1</td><td>100%</td></tr>
 </tbody>
 </table>
 </div>
@@ -961,19 +961,19 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tbody>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line1"></a><code>1</code></td><td></td><td class="lightgray"><code>namespace&nbsp;CodeMeridian.Infrastructure.GraphQueries;</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line2"></a><code>2</code></td><td></td><td class="lightgray"><code></code></td></tr>
-<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line3"></a><code>3</code></td><td></td><td class="lightred"><code>internal&nbsp;sealed&nbsp;record&nbsp;Neo4jGraphQuerySpec(</code></td></tr>
-<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line4"></a><code>4</code></td><td></td><td class="lightred"><code>&nbsp;&nbsp;&nbsp;&nbsp;string&nbsp;Cypher,</code></td></tr>
-<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line5"></a><code>5</code></td><td></td><td class="lightred"><code>&nbsp;&nbsp;&nbsp;&nbsp;IReadOnlyDictionary&lt;string,&nbsp;object?&gt;&nbsp;Parameters);</code></td></tr>
+<tr class="coverableline" title="Covered (6 visits)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line3"></a><code>3</code></td><td></td><td class="lightgreen"><code>internal&nbsp;sealed&nbsp;record&nbsp;Neo4jGraphQuerySpec(</code></td></tr>
+<tr class="coverableline" title="Covered (6 visits)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line4"></a><code>4</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;string&nbsp;Cypher,</code></td></tr>
+<tr class="coverableline" title="Covered (24 visits)" data-coverage="{'AllTestMethods': {'VC': '24', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">24</td><td class="rightmargin right"><a id="file0_line5"></a><code>5</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;IReadOnlyDictionary&lt;string,&nbsp;object?&gt;&nbsp;Parameters);</code></td></tr>
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/18/2026 - 21:37:01<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/22/2026 - 10:58:06<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>
-<a href="#file0_line3" class="navigatetohash percentagebar percentagebar0" title="Line coverage: 0% - .ctor(System.String,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.Object&gt;)"><i class="icon-cube"></i>.ctor(System.String,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.Object&gt;)</a><br />
-<a href="#file0_line4" class="navigatetohash percentagebar percentagebar0" title="Line coverage: 0% - get_Cypher()"><i class="icon-wrench"></i>get_Cypher()</a><br />
-<a href="#file0_line5" class="navigatetohash percentagebar percentagebar0" title="Line coverage: 0% - get_Parameters()"><i class="icon-wrench"></i>get_Parameters()</a><br />
+<a href="#file0_line3" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - .ctor(System.String,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.Object&gt;)"><i class="icon-cube"></i>.ctor(System.String,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.Object&gt;)</a><br />
+<a href="#file0_line4" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - get_Cypher()"><i class="icon-wrench"></i>get_Cypher()</a><br />
+<a href="#file0_line5" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - get_Parameters()"><i class="icon-wrench"></i>get_Parameters()</a><br />
 <br/></div>
 </div></div>
 <script type="text/javascript">/* <![CDATA[ */ /* Chartist.js 0.11.4

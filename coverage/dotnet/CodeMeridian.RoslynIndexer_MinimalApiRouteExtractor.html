@@ -906,12 +906,12 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Branch coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar14">85%</div>
+<div class="large cardpercentagebar cardpercentagebar17">83%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered branches:</th>
-<td class="limit-width right" title="36">36</td>
+<td class="limit-width right" title="35">35</td>
 </tr>
 <tr>
 <th>Total branches:</th>
@@ -919,7 +919,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Branch coverage:</th>
-<td class="limit-width right" title="36 of 42">85.7%</td>
+<td class="limit-width right" title="35 of 42">83.3%</td>
 </tr>
 </table>
 </div>
@@ -948,7 +948,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <thead><tr><th>Method</th><th>Branch coverage <a href="https://en.wikipedia.org/wiki/Code_coverage" target="_blank"><i class="icon-info-circled"></i></a></th><th>Crap Score <a href="https://googletesting.blogspot.de/2011/02/this-code-is-crap.html" target="_blank"><i class="icon-info-circled"></i></a></th><th>Cyclomatic complexity <a href="https://en.wikipedia.org/wiki/Cyclomatic_complexity" target="_blank"><i class="icon-info-circled"></i></a></th><th>Line coverage <a href="https://en.wikipedia.org/wiki/Code_coverage" target="_blank"><i class="icon-info-circled"></i></a></th></tr></thead>
 <tbody>
 <tr><td title="Extract(Microsoft.CodeAnalysis.CSharp.Syntax.CompilationUnitSyntax,System.String,System.String,System.Collections.Generic.List`1&lt;CodeMeridian.RoslynIndexer.Pipeline.IngestNodeRequest&gt;,System.Collections.Generic.List`1&lt;CodeMeridian.RoslynIndexer.Pipeline.IngestEdgeRequest&gt;,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.String&gt;)"><a href="#file0_line16" class="navigatetohash">Extract(...)</a></td><td>100%</td><td>12</td><td>12</td><td>100%</td></tr>
-<tr><td title="AddEndpoint(System.Collections.Generic.List`1&lt;CodeMeridian.RoslynIndexer.Pipeline.IngestNodeRequest&gt;,System.Collections.Generic.List`1&lt;CodeMeridian.RoslynIndexer.Pipeline.IngestEdgeRequest&gt;,System.String,System.String,System.String,System.String,System.String,System.Double,System.String,System.Int32)"><a href="#file0_line52" class="navigatetohash">AddEndpoint(...)</a></td><td>100%</td><td>2</td><td>2</td><td>100%</td></tr>
+<tr><td title="AddEndpoint(System.Collections.Generic.List`1&lt;CodeMeridian.RoslynIndexer.Pipeline.IngestNodeRequest&gt;,System.Collections.Generic.List`1&lt;CodeMeridian.RoslynIndexer.Pipeline.IngestEdgeRequest&gt;,System.String,System.String,System.String,System.String,System.String,System.Double,System.String,System.Int32)"><a href="#file0_line52" class="navigatetohash">AddEndpoint(...)</a></td><td>50%</td><td>2</td><td>2</td><td>100%</td></tr>
 <tr><td title="CombineRoutes(System.String,System.String)"><a href="#file0_line79" class="navigatetohash">CombineRoutes(...)</a></td><td>71.42%</td><td>15</td><td>14</td><td>85.71%</td></tr>
 <tr><td title="ResolveMapGroupPrefix(Microsoft.CodeAnalysis.SyntaxNode,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.String&gt;)"><a href="#file0_line95" class="navigatetohash">ResolveMapGroupPrefix(...)</a></td><td>90%</td><td>10</td><td>10</td><td>100%</td></tr>
 <tr><td title="TryGetInvokedName(Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax,System.String&amp;)"><a href="#file0_line110" class="navigatetohash">TryGetInvokedName(...)</a></td><td>75%</td><td>4</td><td>4</td><td>85.71%</td></tr>
@@ -1014,7 +1014,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line51"></a><code>51</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
 <tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line52"></a><code>52</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;var&nbsp;normalizedRoute&nbsp;=&nbsp;RouteTemplateNormalizer.Normalize(template);</code></td></tr>
 <tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line53"></a><code>53</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;var&nbsp;endpointId&nbsp;=&nbsp;$&quot;{projectContext}::ApiEndpoint::{method}&nbsp;{normalizedRoute}&quot;;</code></td></tr>
-<tr class="coverableline" title="Covered (52 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '52', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">52</td><td class="rightmargin right"><a id="file0_line54"></a><code>54</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(!nodes.Any(node&nbsp;=&gt;&nbsp;node.Id&nbsp;==&nbsp;endpointId))</code></td></tr>
+<tr class="coverableline" title="Partially covered (52 visits, 1 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '52', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">52</td><td class="rightmargin right"><a id="file0_line54"></a><code>54</code></td><td class="percentagebar percentagebar50"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(!nodes.Any(node&nbsp;=&gt;&nbsp;node.Id&nbsp;==&nbsp;endpointId))</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line55"></a><code>55</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
 <tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line56"></a><code>56</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;nodes.Add(new&nbsp;IngestNodeRequest(</code></td></tr>
 <tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line57"></a><code>57</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;endpointId,</code></td></tr>
@@ -1083,7 +1083,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/18/2026 - 21:37:01<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/22/2026 - 10:58:06<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>

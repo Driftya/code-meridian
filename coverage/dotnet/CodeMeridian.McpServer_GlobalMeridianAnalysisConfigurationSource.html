@@ -906,12 +906,12 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Branch coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar30">69%</div>
+<div class="large cardpercentagebar cardpercentagebar39">60%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered branches:</th>
-<td class="limit-width right" title="16">16</td>
+<td class="limit-width right" title="14">14</td>
 </tr>
 <tr>
 <th>Total branches:</th>
@@ -919,7 +919,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Branch coverage:</th>
-<td class="limit-width right" title="16 of 23">69.5%</td>
+<td class="limit-width right" title="14 of 23">60.8%</td>
 </tr>
 </table>
 </div>
@@ -949,7 +949,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tbody>
 <tr><td title=".ctor(CodeMeridian.Tooling.Configuration.CodeMeridianConfigFileStore,Microsoft.Extensions.Logging.ILogger`1&lt;CodeMeridian.McpServer.Configuration.GlobalMeridianAnalysisConfigurationSource&gt;)"><a href="#file0_line7" class="navigatetohash">.ctor(...)</a></td><td>100%</td><td>1</td><td>1</td><td>100%</td></tr>
 <tr><td title="LoadAsync(System.Threading.CancellationToken)"><a href="#file0_line13" class="navigatetohash">LoadAsync(...)</a></td><td>50%</td><td>9</td><td>8</td><td>77.77%</td></tr>
-<tr><td title="Flatten(System.String,System.Text.Json.JsonElement,System.Collections.Generic.ICollection`1&lt;CodeMeridian.Application.Services.AnalysisConfigurationEntry&gt;)"><a href="#file0_line57" class="navigatetohash">Flatten(...)</a></td><td>100%</td><td>10</td><td>10</td><td>100%</td></tr>
+<tr><td title="Flatten(System.String,System.Text.Json.JsonElement,System.Collections.Generic.ICollection`1&lt;CodeMeridian.Application.Services.AnalysisConfigurationEntry&gt;)"><a href="#file0_line57" class="navigatetohash">Flatten(...)</a></td><td>80%</td><td>10</td><td>10</td><td>100%</td></tr>
 <tr><td title="ReadScalarValue(System.Text.Json.JsonElement)"><a href="#file0_line84" class="navigatetohash">ReadScalarValue(...)</a></td><td>40%</td><td>6</td><td>5</td><td>62.5%</td></tr>
 </tbody>
 </table>
@@ -1016,7 +1016,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line54"></a><code>54</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;JsonElement&nbsp;element,</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line55"></a><code>55</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ICollection&lt;AnalysisConfigurationEntry&gt;&nbsp;entries)</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line56"></a><code>56</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
-<tr class="coverableline" title="Covered (16 visits, 6 of 6 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '16', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">16</td><td class="rightmargin right"><a id="file0_line57"></a><code>57</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;switch&nbsp;(element.ValueKind)</code></td></tr>
+<tr class="coverableline" title="Partially covered (16 visits, 4 of 6 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '16', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">16</td><td class="rightmargin right"><a id="file0_line57"></a><code>57</code></td><td class="percentagebar percentagebar60"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;switch&nbsp;(element.ValueKind)</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line58"></a><code>58</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line59"></a><code>59</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case&nbsp;JsonValueKind.Object:</code></td></tr>
 <tr class="coverableline" title="Covered (40 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '40', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">40</td><td class="rightmargin right"><a id="file0_line60"></a><code>60</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;foreach&nbsp;(var&nbsp;property&nbsp;in&nbsp;element.EnumerateObject())</code></td></tr>
@@ -1055,7 +1055,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/18/2026 - 21:37:01<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/22/2026 - 10:58:06<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>

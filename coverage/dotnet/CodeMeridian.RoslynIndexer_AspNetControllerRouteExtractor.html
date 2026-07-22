@@ -906,12 +906,12 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Branch coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar38">61%</div>
+<div class="large cardpercentagebar cardpercentagebar40">60%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered branches:</th>
-<td class="limit-width right" title="42">42</td>
+<td class="limit-width right" title="41">41</td>
 </tr>
 <tr>
 <th>Total branches:</th>
@@ -919,7 +919,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Branch coverage:</th>
-<td class="limit-width right" title="42 of 68">61.7%</td>
+<td class="limit-width right" title="41 of 68">60.2%</td>
 </tr>
 </table>
 </div>
@@ -951,7 +951,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr><td title="ResolveControllerActionRoutes(Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax,Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.String&gt;)"><a href="#file0_line51" class="navigatetohash">ResolveControllerActionRoutes(...)</a></td><td>55.55%</td><td>21</td><td>18</td><td>78.94%</td></tr>
 <tr><td title="ResolveControllerPrefix(Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.String&gt;)"><a href="#file0_line85" class="navigatetohash">ResolveControllerPrefix(...)</a></td><td>100%</td><td>6</td><td>6</td><td>100%</td></tr>
 <tr><td title="ReplaceControllerTokens(System.String,Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax,Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax)"><a href="#file0_line105" class="navigatetohash">ReplaceControllerTokens(...)</a></td><td>83.33%</td><td>6</td><td>6</td><td>100%</td></tr>
-<tr><td title="AddEndpoint(System.Collections.Generic.List`1&lt;CodeMeridian.RoslynIndexer.Pipeline.IngestNodeRequest&gt;,System.Collections.Generic.List`1&lt;CodeMeridian.RoslynIndexer.Pipeline.IngestEdgeRequest&gt;,System.String,System.String,System.String,System.String,System.String,System.Double,System.String,System.Int32)"><a href="#file0_line126" class="navigatetohash">AddEndpoint(...)</a></td><td>100%</td><td>2</td><td>2</td><td>100%</td></tr>
+<tr><td title="AddEndpoint(System.Collections.Generic.List`1&lt;CodeMeridian.RoslynIndexer.Pipeline.IngestNodeRequest&gt;,System.Collections.Generic.List`1&lt;CodeMeridian.RoslynIndexer.Pipeline.IngestEdgeRequest&gt;,System.String,System.String,System.String,System.String,System.String,System.Double,System.String,System.Int32)"><a href="#file0_line126" class="navigatetohash">AddEndpoint(...)</a></td><td>50%</td><td>2</td><td>2</td><td>100%</td></tr>
 <tr><td title="CombineRoutes(System.String,System.String)"><a href="#file0_line153" class="navigatetohash">CombineRoutes(...)</a></td><td>42.85%</td><td>19</td><td>14</td><td>71.42%</td></tr>
 <tr><td title="IsRouteAttribute(Microsoft.CodeAnalysis.CSharp.Syntax.AttributeSyntax)"><a href="#file0_line167" class="navigatetohash">IsRouteAttribute(...)</a></td><td>100%</td><td>1</td><td>1</td><td>100%</td></tr>
 <tr><td title="AttributeName(Microsoft.CodeAnalysis.CSharp.Syntax.AttributeSyntax)"><a href="#file0_line173" class="navigatetohash">AttributeName(...)</a></td><td>50%</td><td>4</td><td>4</td><td>83.33%</td></tr>
@@ -1092,7 +1092,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line125"></a><code>125</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
 <tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line126"></a><code>126</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;var&nbsp;normalizedRoute&nbsp;=&nbsp;RouteTemplateNormalizer.Normalize(template);</code></td></tr>
 <tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line127"></a><code>127</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;var&nbsp;endpointId&nbsp;=&nbsp;$&quot;{projectContext}::ApiEndpoint::{method}&nbsp;{normalizedRoute}&quot;;</code></td></tr>
-<tr class="coverableline" title="Covered (40 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '40', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">40</td><td class="rightmargin right"><a id="file0_line128"></a><code>128</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(!nodes.Any(node&nbsp;=&gt;&nbsp;node.Id&nbsp;==&nbsp;endpointId))</code></td></tr>
+<tr class="coverableline" title="Partially covered (40 visits, 1 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '40', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">40</td><td class="rightmargin right"><a id="file0_line128"></a><code>128</code></td><td class="percentagebar percentagebar50"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(!nodes.Any(node&nbsp;=&gt;&nbsp;node.Id&nbsp;==&nbsp;endpointId))</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line129"></a><code>129</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
 <tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line130"></a><code>130</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;nodes.Add(new&nbsp;IngestNodeRequest(</code></td></tr>
 <tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line131"></a><code>131</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;endpointId,</code></td></tr>
@@ -1150,7 +1150,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/18/2026 - 21:37:01<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/22/2026 - 10:58:06<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>
