@@ -77,10 +77,9 @@ public sealed class Neo4jCodeGraphRepositoryRiskCoreGdsQueriesIntegrationTests :
             pageRank.Should().NotBeEmpty();
             betweenness.Should().Contain(item => item.Node.Id == endpoint.Id || item.Node.Id == service.Id);
             articulation.Should().Contain(item => item.Node.Id == endpoint.Id || item.Node.Id == service.Id);
-            bridgeEdges.Should().Contain(edge =>
-                (edge.Source.Id == entry.Id && edge.Target.Id == endpoint.Id)
-                || (edge.Source.Id == endpoint.Id && edge.Target.Id == service.Id)
-                || (edge.Source.Id == service.Id && edge.Target.Id == store.Id));
+            bridgeEdges.Should().Contain(edge => Connects(edge, entry.Id, endpoint.Id));
+            bridgeEdges.Should().Contain(edge => Connects(edge, endpoint.Id, service.Id));
+            bridgeEdges.Should().Contain(edge => Connects(edge, service.Id, store.Id));
         }
         finally
         {
@@ -88,5 +87,11 @@ public sealed class Neo4jCodeGraphRepositoryRiskCoreGdsQueriesIntegrationTests :
         }
     }
 
+    private static bool Connects(
+        (CodeNode Source, CodeNode Target, IReadOnlyList<long> RemainingSizes) edge,
+        string firstId,
+        string secondId) =>
+        (edge.Source.Id == firstId && edge.Target.Id == secondId)
+        || (edge.Source.Id == secondId && edge.Target.Id == firstId);
 
 }
