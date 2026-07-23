@@ -125,4 +125,31 @@ public sealed class CodebaseQueryServiceFindGraphDriftTests : CodebaseQueryServi
         result.Should().Contain("without `--clear`");
         result.Should().NotContain("one-time `--clear` rebuild");
     }
+
+    [Fact]
+    public async Task FindGraphDriftAsync_StoredSourceRoleOnTestPath_ReportsRoleConflict()
+    {
+        var (sut, graph) = Build();
+        var now = DateTimeOffset.UtcNow;
+        var testHelper = Node(
+            "test-helper",
+            "TempProjectHarness.writeFile",
+            CodeNodeType.Method,
+            "tests/walker-test-helpers.ts",
+            1,
+            "CodeMeridian",
+            updatedAt: now,
+            lineCount: 10,
+            sourceHash: "test-helper-hash") with
+        {
+            FileRole = IndexedFileRole.Source
+        };
+        graph.QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>()).Returns([testHelper]);
+
+        var result = await sut.FindGraphDriftAsync("CodeMeridian");
+
+        result.Should().Contain("Conflicting test file roles (1)");
+        result.Should().Contain("stored as Source, path classifies as Test");
+        result.Should().Contain("TempProjectHarness.writeFile");
+    }
 }

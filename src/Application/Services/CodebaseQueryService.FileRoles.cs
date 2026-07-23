@@ -6,13 +6,22 @@ public sealed partial class CodebaseQueryService
 {
     private IndexedFileRole ResolveFileRole(CodeNode node)
     {
+        var pathRole = string.IsNullOrWhiteSpace(node.FilePath)
+            ? IndexedFileRole.Unknown
+            : fileRoleClassifier.Classify(node.FilePath);
+        if (pathRole == IndexedFileRole.Test)
+            return IndexedFileRole.Test;
+
         if (node.FileRole != IndexedFileRole.Unknown)
             return node.FileRole;
 
-        return string.IsNullOrWhiteSpace(node.FilePath)
-            ? IndexedFileRole.Unknown
-            : fileRoleClassifier.Classify(node.FilePath);
+        return pathRole;
     }
+
+    private bool HasUnmistakableTestRoleConflict(CodeNode node) =>
+        node.FileRole is not IndexedFileRole.Unknown and not IndexedFileRole.Test
+        && !string.IsNullOrWhiteSpace(node.FilePath)
+        && fileRoleClassifier.Classify(node.FilePath) == IndexedFileRole.Test;
 
     private bool AllowsProfile(CodeNode node, AnalysisProfile profile) =>
         analysisProfilePolicy.Allows(profile, ResolveFileRole(node));

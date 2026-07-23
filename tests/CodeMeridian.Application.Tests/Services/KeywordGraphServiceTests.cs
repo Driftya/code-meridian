@@ -276,9 +276,9 @@ public sealed class KeywordGraphServiceTests
                 {
                     TargetNodeId = "generic-peer",
                     TargetKind = "Method",
-                    SharedKeywordCount = 4,
+                    SharedKeywordCount = 7,
                     Score = 0.91d,
-                    MatchedKeywords = ["cancellation", "token", "async", "task"]
+                    MatchedKeywords = ["cancellation", "token", "async", "task", "graph", "infrastructure", "repository"]
                 }
             ]);
         var sut = new KeywordGraphService(

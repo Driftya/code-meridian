@@ -89,7 +89,7 @@ public sealed class CodebaseQueryServicePlanEditRouteTests : CodebaseQueryServic
             "tests/CodeMeridian.Infrastructure.Integration.Tests/Neo4jCodeGraphRepositoryDiagnosticsTests.cs",
             15,
             "CodeMeridian",
-            fileRole: IndexedFileRole.Test);
+            fileRole: IndexedFileRole.Source);
 
         graph.QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>()).Returns([contract, unrelated]);
         graph.FindImpactPathsAsync(contract.Id, 1, Arg.Any<CancellationToken>())

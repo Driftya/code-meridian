@@ -17,6 +17,7 @@
       "interface",
       "method",
       "graph",
+      "infrastructure",
       "repository",
       "service"
     ],

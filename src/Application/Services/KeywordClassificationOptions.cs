@@ -22,6 +22,7 @@ public sealed class KeywordClassificationOptions
         "interface",
         "method",
         "graph",
+        "infrastructure",
         "repository",
         "service"
     ];

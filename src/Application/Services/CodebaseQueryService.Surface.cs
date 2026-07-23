@@ -189,7 +189,7 @@ public partial class CodebaseQueryService
                 .DistinctBy(n => n.Id)
                 .ToArray();
 
-            var steps = BuildEditRouteSteps(routeNodes, anchor, goal)
+            var steps = BuildEditRouteSteps(routeNodes, anchor, goal, relatedTests.Select(test => test.Node))
                 .Where(step => step.Title != "Contract / port" || IsContractNode(anchor) || GoalRequestsContractChange(goal))
                 .ToArray();
             var routeConfidence = DescribeRouteConfidence(anchor, steps, ctx.Node is not null);
@@ -890,13 +890,19 @@ public partial class CodebaseQueryService
     private IReadOnlyList<EditRouteStep> BuildEditRouteSteps(
         IReadOnlyCollection<CodeNode> nodes,
         CodeNode anchor,
-        string goal)
+        string goal,
+        IEnumerable<CodeNode>? relatedTestNodes = null)
     {
         var contracts = nodes.Where(IsContractNode).ToArray();
         var appDomain = nodes.Where(n => !IsContractNode(n) && (IsApplicationNode(n) || IsDomainNode(n))).ToArray();
         var infrastructure = nodes.Where(IsInfrastructureNode).ToArray();
         var composition = nodes.Where(n => IsCompositionNode(n) || IsApiNode(n)).ToArray();
-        var tests = nodes.Where(IsConfiguredTestNode).ToArray();
+        var tests = nodes
+            .Where(IsConfiguredTestNode)
+            .Concat(relatedTestNodes ?? [])
+            .Where(node => !string.IsNullOrWhiteSpace(node.FilePath))
+            .DistinctBy(node => node.Id)
+            .ToArray();
         var fallback = nodes
             .Where(n => !contracts.Contains(n)
                 && !appDomain.Contains(n)

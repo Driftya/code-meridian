@@ -2,7 +2,7 @@
 
 Date: 2026-07-22
 
-Status: implemented; connected-backend reindex acceptance blocked by keyword-refresh queue backpressure
+Status: implemented; final live acceptance rerun pending updated MCP server/indexer build
 
 Scope: fresh self-audit of the connected CodeMeridian tools against the CodeMeridian repository. This plan covers newly confirmed issues that remain after the completed self-tool audit in `2026-07-22-codemeridian-self-tool-audit-plan.md`.
 
@@ -296,13 +296,15 @@ codemeridian evaluate-session . --project CodeMeridian
 
 ## Implementation Evidence
 
-- Full .NET suite: 908 passed, 0 failed.
+- Full .NET suite after acceptance follow-up fixes: 910 passed, 0 failed.
 - TypeScript indexer suite: 63 passed, 0 failed.
 - Focused regressions cover all twelve findings, including live Neo4j endpoint, coverage, and cycle fixtures.
 - The current repository CLI classified 413 C# files as Source=232, Test=168, Configuration=13, with no Unknown roles.
 - Its relationship diagnostics left 1,568 unknown member receivers explicitly unresolved.
-- Two clean self-index attempts reached C# node batch 43/99 and then blocked in the connected backend's bounded keyword-refresh queue. The backend remained healthy, but ingestion did not return within the bounded observation window. Both scoped indexer processes were stopped, leaving the connected project graph partial (doctor reported 1,870 nodes and no call edges).
-- `evaluate-session` completed with rating `partial`, reflecting the intentionally incomplete connected graph and stale-warning evidence after the interrupted clear.
+- A user-completed clean `--clear` self-index restored the graph. Freshness sampled 20 High-confidence nodes, drift was low, and the full index completed at 2026-07-23 08:48:49Z.
+- Eight acceptance scenarios passed directly: receiver-safe editing context, constrained endpoint trace, class-aware coverage, monotonic betweenness, canonical cycles, responsibility deferral, aggregate partial-type sizing, and non-destructive relationship remediation.
+- The fresh graph exposed three remaining precision gaps: a stored Source role overrode an unmistakable TypeScript test path, edit-route test provenance was lost when stored role metadata was stale, and `infrastructure` still inflated lexical confidence. These now have focused regression coverage and passing fixes.
+- Final live confirmation of those three corrected outputs requires the updated MCP server/indexer build to be active. Re-run the hotspot, diagnostics edit-route, graph-drift, and related-knowledge scenarios after deployment/reindexing.
 
 ## Non-Goals
 

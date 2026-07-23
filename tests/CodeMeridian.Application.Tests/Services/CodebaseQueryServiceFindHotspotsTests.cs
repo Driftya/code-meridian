@@ -57,6 +57,25 @@ public sealed class CodebaseQueryServiceFindHotspotsTests : CodebaseQueryService
     }
 
     [Fact]
+    public async Task FindHotspotsAsync_StoredSourceRoleOnUnmistakableTestPath_IsNotProduction()
+    {
+        var (sut, graph) = Build();
+        var staleRole = Node(
+            "test-helper",
+            "TempProjectHarness.writeFile",
+            CodeNodeType.Method,
+            "tests/walker-test-helpers.ts",
+            fileRole: IndexedFileRole.Source);
+        graph.FindHotspotsAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns([(staleRole, 51)]);
+
+        var result = await sut.FindHotspotsAsync();
+
+        result.Should().Contain("### Production candidates (0)");
+        result.Should().NotContain("TempProjectHarness.writeFile");
+        result.Should().Contain("1 suppressed noise node");
+    }
+
+    [Fact]
     public async Task FindHotspotsAsync_DefaultNoiseReduction_HidesBroaderAndSuppressedResults()
     {
         var (sut, graph) = Build();
@@ -107,4 +126,3 @@ public sealed class CodebaseQueryServiceFindHotspotsTests : CodebaseQueryService
 
 
 }
-
