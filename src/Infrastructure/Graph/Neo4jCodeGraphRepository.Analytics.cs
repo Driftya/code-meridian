@@ -119,11 +119,16 @@ public sealed partial class Neo4jCodeGraphRepository
         var testPredicate = $"""
             (
                 {testRole} = 'Test'
-                OR test.namespaceNormalized CONTAINS 'test'
-                OR test.filePathNormalized CONTAINS 'test'
-                OR test.nameNormalized CONTAINS 'test'
-                OR test.filePathNormalized CONTAINS '.spec.'
-                OR test.filePathNormalized CONTAINS '.test.'
+                OR (
+                    {testRole} = 'Unknown'
+                    AND (
+                        test.namespaceNormalized CONTAINS 'test'
+                        OR test.filePathNormalized CONTAINS 'test'
+                        OR test.nameNormalized CONTAINS 'test'
+                        OR test.filePathNormalized CONTAINS '.spec.'
+                        OR test.filePathNormalized CONTAINS '.test.'
+                    )
+                )
             )
             """;
         const string directCypherPrefix = """

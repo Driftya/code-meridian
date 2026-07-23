@@ -112,5 +112,60 @@ public sealed class Neo4jCodeGraphRepositoryFindRelatedTestsIntegrationTests : N
         }
     }
 
+    [Fact]
+    public async Task FindRelatedTestsAsync_WithStoredSourceRole_ExcludesProductionMethodNamedLikeTestHelper()
+    {
+        var projectContext = $"Integration.RelatedTests.SourceRole.{Guid.NewGuid():N}";
+        var target = CreateNode(
+            id: $"{projectContext}.Target",
+            name: "DeleteDiagnosticsAsync",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Neo4jCodeGraphRepository.cs",
+            namespaceName: $"{projectContext}.Graph",
+            fileRole: IndexedFileRole.Source);
+        var productionHelper = CreateNode(
+            id: $"{projectContext}.ProductionHelper",
+            name: "FindRelatedTestsAsync",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Neo4jCodeGraphRepository.Analytics.cs",
+            namespaceName: target.Namespace,
+            fileRole: IndexedFileRole.Source);
+        var directTest = CreateNode(
+            id: $"{projectContext}.DirectTest",
+            name: "DeleteDiagnosticsAsync_PreservesCompatibleIndexRunMetadata",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"tests/{projectContext}/Neo4jCodeGraphRepositoryDeleteDiagnosticsIntegrationTests.cs",
+            namespaceName: $"{projectContext}.Tests",
+            fileRole: IndexedFileRole.Test);
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(target);
+            await _repository.UpsertNodeAsync(productionHelper);
+            await _repository.UpsertNodeAsync(directTest);
+
+            foreach (var caller in new[] { productionHelper, directTest })
+            {
+                await _repository.UpsertEdgeAsync(new CodeEdge
+                {
+                    SourceId = caller.Id,
+                    TargetId = target.Id,
+                    Type = CodeEdgeType.Calls
+                });
+            }
+
+            var related = await _repository.FindRelatedTestsAsync(target.Id, projectContext);
+
+            related.Should().ContainSingle(match =>
+                match.MatchType == "direct" && match.Node.Id == directTest.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
 
 }

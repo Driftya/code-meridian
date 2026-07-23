@@ -2,7 +2,7 @@
 
 Date: 2026-07-22
 
-Status: implemented; final live acceptance rerun pending updated MCP server/indexer build
+Status: implemented; force-full acceptance rerun complete except final edit-route confirmation pending MCP server restart
 
 Scope: fresh self-audit of the connected CodeMeridian tools against the CodeMeridian repository. This plan covers newly confirmed issues that remain after the completed self-tool audit in `2026-07-22-codemeridian-self-tool-audit-plan.md`.
 
@@ -296,7 +296,7 @@ codemeridian evaluate-session . --project CodeMeridian
 
 ## Implementation Evidence
 
-- Full .NET suite after acceptance follow-up fixes: 910 passed, 0 failed.
+- Full .NET suite after acceptance follow-up fixes: 911 passed, 0 failed.
 - TypeScript indexer suite: 63 passed, 0 failed.
 - Focused regressions cover all twelve findings, including live Neo4j endpoint, coverage, and cycle fixtures.
 - The current repository CLI classified 413 C# files as Source=232, Test=168, Configuration=13, with no Unknown roles.
@@ -304,7 +304,10 @@ codemeridian evaluate-session . --project CodeMeridian
 - A user-completed clean `--clear` self-index restored the graph. Freshness sampled 20 High-confidence nodes, drift was low, and the full index completed at 2026-07-23 08:48:49Z.
 - Eight acceptance scenarios passed directly: receiver-safe editing context, constrained endpoint trace, class-aware coverage, monotonic betweenness, canonical cycles, responsibility deferral, aggregate partial-type sizing, and non-destructive relationship remediation.
 - The fresh graph exposed three remaining precision gaps: a stored Source role overrode an unmistakable TypeScript test path, edit-route test provenance was lost when stored role metadata was stale, and `infrastructure` still inflated lexical confidence. These now have focused regression coverage and passing fixes.
-- Final live confirmation of those three corrected outputs requires the updated MCP server/indexer build to be active. Re-run the hotspot, diagnostics edit-route, graph-drift, and related-knowledge scenarios after deployment/reindexing.
+- A user-completed force-full self-index finished at 2026-07-23 09:50:35Z. Freshness sampled 20 High-confidence nodes and graph drift remained low with no stored-role conflicts.
+- The force-full rerun confirmed corrected hotspot suppression and diagnostics-focused related knowledge. The diagnostics regression test ranked sixth and generic non-diagnostics repository methods were pruned.
+- The rerun exposed one final repository predicate gap: `FindRelatedTestsAsync` treated a stored Source method containing `test` in its name as a related test. Stored roles are now authoritative, with a live Neo4j integration regression; focused integration tests passed 3/3 and the full .NET suite passed 911/911.
+- Final live edit-route confirmation requires restarting the connected MCP server so it loads the corrected repository query. No additional reindex is required for this query-only fix.
 
 ## Non-Goals
 
