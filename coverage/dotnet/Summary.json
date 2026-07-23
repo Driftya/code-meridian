@@ -1,14 +1,14 @@
 {
   "summary": {
-    "generatedon": "2026-07-23T09:48:39Z",
+    "generatedon": "2026-07-23T17:53:50Z",
     "parser": "MultiReport (17x Cobertura)",
     "assemblies": 9,
     "classes": 310,
     "files": 222,
     "coveredlines": 18162,
-    "uncoveredlines": 5912,
-    "coverablelines": 24074,
-    "totallines": 36719,
+    "uncoveredlines": 5917,
+    "coverablelines": 24079,
+    "totallines": 36724,
     "linecoverage": 75.4,
     "coveredbranches": 7060,
     "totalbranches": 11377,
@@ -216,10 +216,10 @@
         { "name": "CodeMeridian.Indexer.Cli.SessionEvaluation.SessionUsefulnessReport", "coverage": 96.1, "coveredlines": 25, "coverablelines": 26, "totallines": 74, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 96.1, "fullmethodcoverage": 96.1, "coveredmethods": 25, "fullcoveredmethods": 25, "totalmethods": 26 },
         { "name": "CodeMeridian.Indexer.Cli.SessionEvaluation.ToolPrecisionFeedback", "coverage": 100, "coveredlines": 17, "coverablelines": 17, "totallines": 74, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 17, "fullcoveredmethods": 17, "totalmethods": 17 },
         { "name": "Program", "coverage": 0, "coveredlines": 0, "coverablelines": 8, "totallines": 14, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 6, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
-      { "name": "CodeMeridian.Infrastructure", "classes": 12, "coverage": 6.6, "coveredlines": 184, "coverablelines": 2768, "totallines": 4808, "branchcoverage": 10.3, "coveredbranches": 66, "totalbranches": 636, "methodcoverage": 9.2, "fullmethodcoverage": 7.1, "coveredmethods": 17, "fullcoveredmethods": 13, "totalmethods": 183, "classesinassembly": [
+      { "name": "CodeMeridian.Infrastructure", "classes": 12, "coverage": 6.6, "coveredlines": 184, "coverablelines": 2773, "totallines": 4813, "branchcoverage": 10.3, "coveredbranches": 66, "totalbranches": 636, "methodcoverage": 9.2, "fullmethodcoverage": 7.1, "coveredmethods": 17, "fullcoveredmethods": 13, "totalmethods": 183, "classesinassembly": [
         { "name": "CodeMeridian.Infrastructure.Configuration.Neo4jOptions", "coverage": 0, "coveredlines": 0, "coverablelines": 6, "totallines": 15, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 6 },
         { "name": "CodeMeridian.Infrastructure.DependencyInjection", "coverage": 56.7, "coveredlines": 21, "coverablelines": 37, "totallines": 67, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 10, "methodcoverage": 100, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 1 },
-        { "name": "CodeMeridian.Infrastructure.Graph.Neo4jCodeGraphRepository", "coverage": 0.5, "coveredlines": 10, "coverablelines": 1825, "totallines": 3012, "branchcoverage": 1, "coveredbranches": 4, "totalbranches": 400, "methodcoverage": 1.1, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 89 },
+        { "name": "CodeMeridian.Infrastructure.Graph.Neo4jCodeGraphRepository", "coverage": 0.5, "coveredlines": 10, "coverablelines": 1830, "totallines": 3017, "branchcoverage": 1, "coveredbranches": 4, "totalbranches": 400, "methodcoverage": 1.1, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 89 },
         { "name": "CodeMeridian.Infrastructure.Graph.Neo4jKeywordGraphRepository", "coverage": 0, "coveredlines": 0, "coverablelines": 230, "totallines": 488, "branchcoverage": 0, "coveredbranches": 0, "totalbranches": 18, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 17 },
         { "name": "CodeMeridian.Infrastructure.GraphQueries.Neo4jGraphQueryBuilder", "coverage": 100, "coveredlines": 115, "coverablelines": 115, "totallines": 202, "branchcoverage": 100, "coveredbranches": 34, "totalbranches": 34, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 6 },
         { "name": "CodeMeridian.Infrastructure.GraphQueries.Neo4jGraphQuerySpec", "coverage": 100, "coveredlines": 3, "coverablelines": 3, "totallines": 5, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 3, "fullcoveredmethods": 3, "totalmethods": 3 },
