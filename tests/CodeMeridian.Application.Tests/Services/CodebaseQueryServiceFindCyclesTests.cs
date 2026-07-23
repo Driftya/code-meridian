@@ -37,6 +37,8 @@ public sealed class CodebaseQueryServiceFindCyclesTests : CodebaseQueryServiceAn
         result.Should().Contain("`MyApp.Services`");
         result.Should().Contain("`MyApp.Repositories`");
         result.Should().Contain("| Namespace A |");
+        result.Should().Contain("↔");
+        result.Should().NotContain("A?B");
         result.Should().Contain("abstraction");
     }
 
@@ -44,4 +46,3 @@ public sealed class CodebaseQueryServiceFindCyclesTests : CodebaseQueryServiceAn
 
 
 }
-

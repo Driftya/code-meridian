@@ -71,8 +71,13 @@ public sealed partial class Neo4jCodeGraphRepository
               AND ($projectContextNormalized IS NULL OR prod.projectContextNormalized = $projectContextNormalized)
               AND {prodRole} IN ['Source', 'Unknown']
               AND NOT EXISTS {{
-                MATCH (test:CodeNode)-[:Calls]->(prod)
+                MATCH (test:CodeNode)-[:Calls|Uses]->(prod)
                 WHERE {testPredicate}
+              }}
+              AND NOT EXISTS {{
+                MATCH (prod)-[:Contains*1..2]->(testedMember:CodeNode)<-[:Calls|Uses]-(test:CodeNode)
+                WHERE prod.type = 'Class'
+                  AND {testPredicate}
               }}
             OPTIONAL MATCH (caller:CodeNode)-[:Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable]->(prod)
             WITH prod, count(DISTINCT caller) AS fanIn,
@@ -887,16 +892,30 @@ public sealed partial class Neo4jCodeGraphRepository
         await using var session = _driver.AsyncSession();
 
         // Detect namespace-level bidirectional dependencies (A→B and B→A)
-        const string cypher = """
+        var aRole = FileRoleExpression("a");
+        var bRole = FileRoleExpression("b");
+        var cRole = FileRoleExpression("c");
+        var dRole = FileRoleExpression("d");
+        var cypher = $"""
             MATCH (a:CodeNode)-[:Calls|Uses|DependsOn]->(b:CodeNode)
             WHERE a.namespace IS NOT NULL
               AND b.namespace IS NOT NULL
               AND a.namespace <> b.namespace
-              AND ($projectContextNormalized IS NULL OR a.projectContextNormalized = $projectContextNormalized)
+              AND a.namespace < b.namespace
+              AND ($projectContextNormalized IS NULL OR (
+                    a.projectContextNormalized = $projectContextNormalized
+                AND b.projectContextNormalized = $projectContextNormalized))
+              AND {aRole} IN ['Source', 'Unknown']
+              AND {bRole} IN ['Source', 'Unknown']
             WITH DISTINCT a.namespace AS nsA, b.namespace AS nsB
             MATCH (c:CodeNode)-[:Calls|Uses|DependsOn]->(d:CodeNode)
             WHERE c.namespace = nsB AND d.namespace = nsA
               AND c.namespace <> d.namespace
+              AND ($projectContextNormalized IS NULL OR (
+                    c.projectContextNormalized = $projectContextNormalized
+                AND d.projectContextNormalized = $projectContextNormalized))
+              AND {cRole} IN ['Source', 'Unknown']
+              AND {dRole} IN ['Source', 'Unknown']
             RETURN DISTINCT nsA AS fromNamespace, nsB AS toNamespace
             ORDER BY fromNamespace, toNamespace
             LIMIT 50

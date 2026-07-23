@@ -103,7 +103,22 @@ public partial class CodebaseQueryService
         AppendDriftSection(sb, "Missing source hashes", missingSourceHashes, limit);
         AppendDriftSection(sb, "Missing timestamps", missingTimestamps, limit);
 
-        sb.AppendLine("Recommendation: run `codemeridian index . --project <ProjectName> --clear` with an indexer version that sends `sourceHash` if these nodes are expected to have complete file, line, checksum, and timestamp metadata.");
+        var hasNodeMetadataDrift = missingFileMetadata.Length > 0
+            || incompleteLines.Length > 0
+            || missingTimestamps.Length > 0
+            || missingSourceHashes.Length > 0;
+        if (hasNodeMetadataDrift)
+        {
+            sb.AppendLine("**Node remediation:** run `codemeridian index . --project <ProjectName>` with a current indexer. " +
+                          "If the missing IDs, paths, or hashes follow a schema or canonical-ID change, consider a one-time `--clear` rebuild.");
+        }
+
+        if (relationshipTrust.Confidence != "High")
+        {
+            sb.AppendLine("**Relationship remediation:** run a supported non-destructive full relationship index " +
+                          "(`codemeridian index . --project <ProjectName>` without `--clear`). " +
+                          "Inspect index-run unresolved-reason counts and indexer diagnostics before changing traversal thresholds.");
+        }
 
         return sb.ToString();
     }

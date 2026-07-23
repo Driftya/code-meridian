@@ -40,8 +40,24 @@ public sealed class CodebaseQueryServiceGetBetweennessTests : CodebaseQueryServi
         result.Should().Contain("connective tissue");
     }
 
+    [Fact]
+    public async Task GetBetweennessAsync_OrdersScoresDescendingWithinProductionSection()
+    {
+        var (sut, graph) = Build();
+        graph.GetBetweennessAsync(null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                (Node("b1", "Lower", CodeNodeType.Class, "src/Lower.cs"), 20.0),
+                (Node("b2", "Highest", CodeNodeType.Class, "src/Highest.cs"), 90.0),
+                (Node("b3", "Middle", CodeNodeType.Class, "src/Middle.cs"), 50.0)
+            ]);
+
+        var result = await sut.GetBetweennessAsync();
+
+        result.IndexOf("`Highest`", StringComparison.Ordinal).Should().BeLessThan(result.IndexOf("`Middle`", StringComparison.Ordinal));
+        result.IndexOf("`Middle`", StringComparison.Ordinal).Should().BeLessThan(result.IndexOf("`Lower`", StringComparison.Ordinal));
+    }
+
     // ── FindNaturalModulesAsync ───────────────────────────────────────────────
 
 
 }
-

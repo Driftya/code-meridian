@@ -287,7 +287,7 @@ public sealed class IndexCommandHandlerTests
         using var workspace = TestWorkspace.Create();
         workspace.WriteFile("tsconfig.json", "{}");
         var configFile = workspace.WriteFile("src/config/AppConfig.ts", "export const value = 1;\n");
-        var testFile = workspace.WriteFile("tests/app/order.spec.ts", "export const spec = true;\n");
+        var testFile = workspace.WriteFile("tools/TsIndexer/tests/walker-test-helpers.ts", "export const spec = true;\n");
         var cacheDirectory = new DirectoryInfo(Path.Combine(workspace.Root.FullName, ".meridian", "cache"));
         var classifier = IndexedFileRoleClassifierFactory.Create(snapshot: null);
         var handler = CreateHandler(CreateSettings(workspace.Root, clear: false, incremental: true));
@@ -307,7 +307,7 @@ public sealed class IndexCommandHandlerTests
         payload.Should().BeEquivalentTo(
         [
             new TypeScriptBatchEntry("src/config/AppConfig.ts", "Configuration"),
-            new TypeScriptBatchEntry("tests/app/order.spec.ts", "Test"),
+            new TypeScriptBatchEntry("tools/TsIndexer/tests/walker-test-helpers.ts", "Test"),
         ]);
     }
 

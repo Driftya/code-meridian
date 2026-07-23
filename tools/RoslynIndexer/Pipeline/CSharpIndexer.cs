@@ -5,6 +5,8 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace CodeMeridian.RoslynIndexer.Pipeline;
@@ -35,7 +37,8 @@ public sealed class CSharpIndexer(
         string rootPath,
         CancellationToken cancellationToken = default,
         FileInfo[]? resolutionFiles = null,
-        bool isIncremental = false)
+        bool isIncremental = false,
+        bool refreshCanonicalTypes = false)
     {
         var usedFullResolutionCatalog = !isIncremental || resolutionFiles is not null;
         resolutionFiles ??= files;
@@ -56,6 +59,7 @@ public sealed class CSharpIndexer(
             }
         }
 
+        nodes = AggregateCanonicalTypes(nodes);
         ApplyFileRoles(nodes, fileRoleClassifier);
 
         var callResolution = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
@@ -67,7 +71,7 @@ public sealed class CSharpIndexer(
         var ingestPaths = files
             .Select(file => Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/'))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var nodesToIngest = SelectNodesToIngest(nodes, edges, ingestPaths);
+        var nodesToIngest = SelectNodesToIngest(nodes, edges, ingestPaths, refreshCanonicalTypes);
 
         await CSharpBatchIngestionWriter.BatchIngestNodesAsync(client, logger, nodesToIngest, projectContext, cancellationToken);
         await CSharpBatchIngestionWriter.BatchIngestEdgesAsync(client, logger, edges, cancellationToken);
@@ -136,10 +140,12 @@ public sealed class CSharpIndexer(
     private static List<IngestNodeRequest> SelectNodesToIngest(
         IReadOnlyCollection<IngestNodeRequest> nodes,
         IReadOnlyCollection<IngestEdgeRequest> edges,
-        IReadOnlySet<string> ingestPaths)
+        IReadOnlySet<string> ingestPaths,
+        bool refreshCanonicalTypes)
     {
         var selectedIds = nodes
-            .Where(node => node.FilePath is not null && ingestPaths.Contains(node.FilePath))
+            .Where(node => IsDeclaredInIngestPaths(node, ingestPaths)
+                || refreshCanonicalTypes && IsCanonicalType(node.Type))
             .Select(node => node.Id)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -156,6 +162,76 @@ public sealed class CSharpIndexer(
         }
 
         return nodes.Where(node => selectedIds.Contains(node.Id)).ToList();
+    }
+
+    private static bool IsCanonicalType(string nodeType) =>
+        nodeType is "Class" or "Interface" or "Struct" or "Enum" or "Delegate";
+
+    private static bool IsDeclaredInIngestPaths(IngestNodeRequest node, IReadOnlySet<string> ingestPaths)
+    {
+        if (node.FilePath is not null && ingestPaths.Contains(node.FilePath))
+            return true;
+
+        if (node.Properties is null
+            || !node.Properties.TryGetValue("declarationPaths", out var serializedPaths))
+        {
+            return false;
+        }
+
+        return JsonSerializer.Deserialize<string[]>(serializedPaths)?.Any(ingestPaths.Contains) == true;
+    }
+
+    private static List<IngestNodeRequest> AggregateCanonicalTypes(IReadOnlyList<IngestNodeRequest> nodes)
+    {
+        var aggregateTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Class", "Interface", "Struct", "Enum", "Delegate"
+        };
+        var aggregateById = nodes
+            .Where(node => aggregateTypes.Contains(node.Type))
+            .GroupBy(node => node.Id, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, AggregateCanonicalType, StringComparer.Ordinal);
+
+        return nodes
+            .Where(node => !aggregateTypes.Contains(node.Type))
+            .Concat(aggregateById.Values)
+            .ToList();
+    }
+
+    private static IngestNodeRequest AggregateCanonicalType(IGrouping<string, IngestNodeRequest> declarations)
+    {
+        var ordered = declarations
+            .OrderBy(node => node.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(node => node.LineNumber)
+            .ToArray();
+        var primary = ordered[0];
+        var declarationPaths = ordered
+            .Select(node => node.FilePath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var properties = primary.Properties is null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : new Dictionary<string, string>(primary.Properties, StringComparer.Ordinal);
+        properties["declarationCount"] = ordered.Length.ToString(CultureInfo.InvariantCulture);
+        properties["declarationPaths"] = JsonSerializer.Serialize(declarationPaths);
+        properties["primaryLocationKind"] = "deterministic_lexical_path";
+
+        var hashPayload = string.Join(
+            "\n",
+            ordered.Select(node => $"{node.FilePath}\0{node.SourceHash}"));
+        var aggregateHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(hashPayload)))
+            .ToLowerInvariant();
+
+        return primary with
+        {
+            LineCount = ordered.Sum(node => node.LineCount ?? 0),
+            SourceHash = aggregateHash,
+            Summary = ordered.Select(node => node.Summary).FirstOrDefault(summary => !string.IsNullOrWhiteSpace(summary)),
+            Properties = properties
+        };
     }
 
     private static void LogResolutionSummary(string edgeKind, EdgeResolutionResult result, ILogger logger)

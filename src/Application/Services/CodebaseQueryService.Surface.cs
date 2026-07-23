@@ -56,6 +56,8 @@ public partial class CodebaseQueryService
                     candidates.AddRange(await ExpandFrontendSurfaceCandidatesAsync(nodes, cancellationToken));
             }
 
+            candidates.AddRange(await ExpandContractImplementationsAsync(candidates, cancellationToken));
+
             if (candidates.Count == 0)
                 return $"No implementation surface found for `{goal}`. Try a more specific goal, or re-index before relying on CodeMeridian for exact targets.";
 
@@ -142,6 +144,8 @@ public partial class CodebaseQueryService
                 candidates.AddRange(nodes);
             }
 
+            candidates.AddRange(await ExpandContractImplementationsAsync(candidates, cancellationToken));
+
             var rankedNodes = candidates
                 .Where(n => !string.IsNullOrWhiteSpace(n.FilePath))
                 .Where(node => ShouldIncludeRouteCandidate(node, goal, concepts))
@@ -185,7 +189,9 @@ public partial class CodebaseQueryService
                 .DistinctBy(n => n.Id)
                 .ToArray();
 
-            var steps = BuildEditRouteSteps(routeNodes, anchor, goal);
+            var steps = BuildEditRouteSteps(routeNodes, anchor, goal)
+                .Where(step => step.Title != "Contract / port" || IsContractNode(anchor) || GoalRequestsContractChange(goal))
+                .ToArray();
             var routeConfidence = DescribeRouteConfidence(anchor, steps, ctx.Node is not null);
 
             var sb = new StringBuilder();
@@ -375,18 +381,23 @@ public partial class CodebaseQueryService
             _ => 1
         };
 
-        if (TextMatches(node.Name, goal) || TextMatches(node.Summary, goal))
+        if (TextMatches(node.Name, goal) || TextMatches(node.Summary, goal) || TextMatches(node.SourceSnippet, goal))
             score += 4;
 
         score += concepts.Count(concept => TextMatches(node.Name, concept) || TextMatches(node.Summary, concept) || TextMatches(node.FilePath, concept)) * 3;
         var goalTermHits = goalTerms.Count(term =>
             TextMatches(node.Name, term)
             || TextMatches(node.Summary, term)
+            || TextMatches(node.SourceSnippet, term)
             || TextMatches(node.FilePath, term)
             || TextMatches(node.Namespace, term));
         score += goalTermHits * 4;
         if (goalTermHits >= 2)
             score += 6;
+        if (node.Type == CodeNodeType.Method && goalTermHits >= 2)
+            score += 8;
+        if (IsContractNode(node) && !GoalRequestsContractChange(goal))
+            score -= 8;
 
         if (LooksLikeFrontendGoal(goal, concepts) && IsFrontendGraphNode(node))
             score += node.Type == CodeNodeType.ExternalConcept ? 4 : 3;
@@ -816,6 +827,25 @@ public partial class CodebaseQueryService
             .ToArray();
     }
 
+    private async Task<IReadOnlyCollection<CodeNode>> ExpandContractImplementationsAsync(
+        IEnumerable<CodeNode> nodes,
+        CancellationToken cancellationToken)
+    {
+        var implementations = new List<CodeNode>();
+        foreach (var contract in nodes.Where(IsContractNode).DistinctBy(node => node.Id).Take(8).ToArray())
+        {
+            var impact = await codeGraph.FindImpactPathsAsync(contract.Id, depth: 1, cancellationToken) ?? [];
+            implementations.AddRange(impact
+                .Where(path => path.Steps.Any(step => string.Equals(step.RelationshipType, nameof(CodeEdgeType.Implements), StringComparison.OrdinalIgnoreCase)))
+                .Select(path => path.Node));
+        }
+
+        return implementations
+            .Where(node => !string.IsNullOrWhiteSpace(node.FilePath))
+            .DistinctBy(node => node.Id)
+            .ToArray();
+    }
+
     private static bool LooksLikeFrontendGoal(string goal, IReadOnlyCollection<string> concepts)
     {
         var terms = new[] { goal }.Concat(concepts);
@@ -907,10 +937,25 @@ public partial class CodebaseQueryService
 
     private static bool IsContractNode(CodeNode node) =>
         node.Type == CodeNodeType.Interface
+        || LooksLikeInterfaceFile(node.FilePath)
         || TextMatches(node.Name, "interface")
         || TextMatches(node.Name, "port")
         || TextMatches(node.FilePath, "port")
         || TextMatches(node.FilePath, "abstractions");
+
+    private static bool LooksLikeInterfaceFile(string? filePath)
+    {
+        var fileName = Path.GetFileNameWithoutExtension(filePath ?? string.Empty);
+        return fileName.Length > 1 && fileName[0] == 'I' && char.IsUpper(fileName[1]);
+    }
+
+    private static bool GoalRequestsContractChange(string goal) =>
+        TextMatches(goal, "interface")
+        || TextMatches(goal, "contract")
+        || TextMatches(goal, "port")
+        || TextMatches(goal, "signature")
+        || TextMatches(goal, "public api")
+        || TextMatches(goal, "repository pattern");
 
     private static bool IsApplicationNode(CodeNode node) =>
         TextMatches(node.FilePath, "/Application/")
@@ -973,7 +1018,15 @@ public partial class CodebaseQueryService
             .Where(node =>
                 node.Type is CodeNodeType.Method or CodeNodeType.Class
                 && TextMatches(goal, node.Name))
-            .OrderBy(node => node.Type == CodeNodeType.Class ? 0 : 1)
+            .OrderBy(node => node.Type == CodeNodeType.Method ? 0 : 1)
+            .ThenBy(node => node.LineNumber ?? int.MaxValue)
+            .FirstOrDefault()
+        ?? rankedNodes
+            .Where(node =>
+                node.Type == CodeNodeType.Method
+                && !IsContractNode(node)
+                && CountGoalTermOverlap(node, goal) >= 2)
+            .OrderByDescending(node => ScoreRouteNode(node, goal, concepts))
             .ThenBy(node => node.LineNumber ?? int.MaxValue)
             .FirstOrDefault()
         ?? rankedNodes
@@ -998,6 +1051,13 @@ public partial class CodebaseQueryService
             .FirstOrDefault()
         ?? rankedNodes.FirstOrDefault(node => node.Type is CodeNodeType.Method or CodeNodeType.Class or CodeNodeType.Interface)
         ?? rankedNodes[0];
+
+    private static int CountGoalTermOverlap(CodeNode node, string goal) =>
+        ExtractSurfaceTerms(goal, []).Count(term =>
+            TextMatches(node.Name, term)
+            || TextMatches(node.Summary, term)
+            || TextMatches(node.SourceSnippet, term)
+            || TextMatches(node.FilePath, term));
 
     private int GetRoutePreferenceBoost(CodeNode node)
     {

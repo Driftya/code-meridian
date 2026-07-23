@@ -277,12 +277,12 @@ public partial class CodebaseQueryService
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Circular Dependencies{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{results.Count}** namespace pairs have bidirectional dependencies (A?B AND B?A):\n");
-        sb.AppendLine("| Namespace A | ? | Namespace B |");
+        sb.AppendLine($"**{results.Count}** namespace pairs (canonical) have evidence in both directions (A ↔ B):\n");
+        sb.AppendLine("| Namespace A | ↔ | Namespace B |");
         sb.AppendLine("|------------|---|------------|");
 
         foreach (var (nsA, nsB) in results)
-            sb.AppendLine($"| `{nsA}` | ? | `{nsB}` |");
+            sb.AppendLine($"| `{nsA}` | ↔ | `{nsB}` |");
 
         sb.AppendLine();
         sb.AppendLine("> Circular dependencies prevent clean layering. Introduce an abstraction (interface) to break the cycle.");

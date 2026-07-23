@@ -89,5 +89,40 @@ public sealed class CodebaseQueryServiceFindGraphDriftTests : CodebaseQueryServi
         result.Should().Contain("Relationship completeness:** Unknown");
         result.Should().Contain("no index-run relationship statistics are available");
     }
-}
 
+    [Fact]
+    public async Task FindGraphDriftAsync_WithCompleteNodeMetadataAndMediumRelationshipTrust_DoesNotRecommendClear()
+    {
+        var (sut, graph) = Build();
+        var now = DateTimeOffset.UtcNow;
+        var source = Node(
+            "service",
+            "Service",
+            CodeNodeType.Class,
+            "src/Service.cs",
+            1,
+            "CodeMeridian",
+            updatedAt: now,
+            lineCount: 20,
+            sourceHash: "service-hash");
+        var indexRun = Node("run", "full C# index run", CodeNodeType.IndexRun, project: "CodeMeridian", updatedAt: now) with
+        {
+            Properties = new Dictionary<string, string>
+            {
+                ["mode"] = "full",
+                ["usedFullResolutionCatalog"] = "true",
+                ["attemptedCallEdges"] = "10",
+                ["resolvedCallEdges"] = "9",
+                ["attemptedReferenceEdges"] = "0",
+                ["resolvedReferenceEdges"] = "0"
+            }
+        };
+        graph.QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>()).Returns([source, indexRun]);
+
+        var result = await sut.FindGraphDriftAsync("CodeMeridian");
+
+        result.Should().Contain("Relationship remediation");
+        result.Should().Contain("without `--clear`");
+        result.Should().NotContain("one-time `--clear` rebuild");
+    }
+}

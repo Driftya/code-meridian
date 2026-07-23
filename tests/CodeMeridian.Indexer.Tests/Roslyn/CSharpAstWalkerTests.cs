@@ -7,6 +7,35 @@ namespace CodeMeridian.Indexer.Tests.Roslyn;
 public sealed class CSharpAstWalkerTests
 {
     [Fact]
+    public void ConditionalAccessInvocation_PreservesTypedReceiverEvidence()
+    {
+        const string source = """
+            namespace Demo;
+
+            public interface IRunner
+            {
+                void Run();
+            }
+
+            public sealed class Host
+            {
+                public void Execute(IRunner? runner)
+                {
+                    runner?.Run();
+                }
+            }
+            """;
+
+        var (_, edges) = ExtractGraph(source, "src/Host.cs");
+
+        var call = edges.Should().ContainSingle(edge =>
+            edge.RelationshipType == "Calls"
+            && edge.CallName == "Run").Which;
+        call.Properties.Should().Contain("receiverKind", "TypedOrStatic");
+        call.Properties.Should().Contain("receiverTypeHint", "IRunner");
+    }
+
+    [Fact]
     public void InterfaceStaticAbstractMembers_AreIndexedAndContained()
     {
         const string source = """

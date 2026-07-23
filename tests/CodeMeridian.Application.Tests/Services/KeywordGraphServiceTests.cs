@@ -267,6 +267,36 @@ public sealed class KeywordGraphServiceTests
     }
 
     [Fact]
+    public async Task FindRelatedKnowledgeAsync_UbiquitousFrameworkTermsRemainAwarenessOnly()
+    {
+        var repository = Substitute.For<IKeywordGraphRepository>();
+        repository.FindRelatedByKeywordsAsync(Arg.Any<KeywordRelatedNodeQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new KeywordRelatedNode
+                {
+                    TargetNodeId = "generic-peer",
+                    TargetKind = "Method",
+                    SharedKeywordCount = 4,
+                    Score = 0.91d,
+                    MatchedKeywords = ["cancellation", "token", "async", "task"]
+                }
+            ]);
+        var sut = new KeywordGraphService(
+            repository,
+            Substitute.For<IKeywordExtractionService>(),
+            Options.Create(new KeywordEnrichmentOptions()),
+            Options.Create(new KeywordClassificationOptions()),
+            NullLogger<KeywordGraphService>.Instance);
+
+        var result = await sut.FindRelatedKnowledgeAsync("diagnostics-cleanup", ["Method"], limit: 5);
+
+        result.Should().Contain("### Primary matches (0)");
+        result.Should().Contain("### Awareness-only matches (1)");
+        result.Should().Contain("generic-peer");
+        result.Should().NotContain("Confidence: `high`");
+    }
+
+    [Fact]
     public async Task ClassifyKeywordsAsync_WithKeywords_PersistsClassificationSummary()
     {
         var repository = Substitute.For<IKeywordGraphRepository>();

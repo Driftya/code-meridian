@@ -129,6 +129,37 @@ public sealed class CodebaseQueryServiceResponsibilitySliceTests
     }
 
     [Fact]
+    public async Task SuggestResponsibilitySlicesAsync_DoesNotUseCancellationTokenAsContextPackEvidence()
+    {
+        var graph = Substitute.For<ICodeGraphRepository>();
+        var vector = Substitute.For<IVectorRepository>();
+        var sut = new CodebaseQueryService(graph, vector);
+        var target = Node("class:Loader", "Loader", CodeNodeType.Class, "src/Loader.cs", 1, "Shop");
+        var loadOrders = Node("method:LoadOrders", "LoadOrdersAsync(CancellationToken)", CodeNodeType.Method, target.FilePath, 10, "Shop");
+        var loadCustomers = Node("method:LoadCustomers", "LoadCustomersAsync(CancellationToken)", CodeNodeType.Method, target.FilePath, 20, "Shop");
+        var cancellationToken = Node("type:CancellationToken", "CancellationToken", CodeNodeType.Class, null, null, "Shop", @namespace: "System.Threading");
+
+        graph.QueryNodesAsync(Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Class), Arg.Any<CancellationToken>())
+            .Returns([target]);
+        graph.QueryNodesAsync(Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Method), Arg.Any<CancellationToken>())
+            .Returns([loadOrders, loadCustomers]);
+        graph.QueryEdgesAsync(target.Id, 1, Arg.Any<CancellationToken>())
+            .Returns([Contains(target, loadOrders), Contains(target, loadCustomers)]);
+        graph.GetContextForEditingAsync(loadOrders.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(loadOrders, [], [cancellationToken], []));
+        graph.GetContextForEditingAsync(loadCustomers.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(loadCustomers, [], [cancellationToken], []));
+        graph.FindRelatedTestsAsync(Arg.Any<string>(), "Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindNaturalModuleAssignmentsAsync(Arg.Any<IReadOnlyCollection<string>>(), "Shop", Arg.Any<CancellationToken>()).Returns([]);
+        vector.SearchByTextAsync("Loader", "Shop", 5, Arg.Any<CancellationToken>()).Returns([]);
+
+        var result = await sut.SuggestResponsibilitySlicesAsync("Loader", "Shop");
+
+        result.Should().Contain("`defer_extraction`");
+        result.Should().NotContain("ContextPack");
+    }
+
+    [Fact]
     public async Task SuggestResponsibilitySlicesAsync_WhenCommunityDetectionFails_ReturnsDeterministicResultWithWarning()
     {
         var graph = Substitute.For<ICodeGraphRepository>();

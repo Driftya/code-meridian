@@ -24,16 +24,48 @@ public sealed partial class Neo4jCodeGraphRepository
                  OR endpoint.id = $endpointRoute
                  OR endpoint.id ENDS WITH $endpointSuffix
               )
-            MATCH (target:CodeNode)
-            WHERE ($projectContextNormalized IS NULL OR target.projectContextNormalized = $projectContextNormalized)
-              AND (
-                    target.type IN ['DatabaseTable', 'MessageTopic']
-                 OR (target.type = 'ExternalConcept' AND target.externalKind = 'DatabaseTable')
-              )
-            MATCH path = shortestPath((endpoint)-[:{{BroadConnectionRelationships}}*1..{{clampedDepth}}]-(target))
-            RETURN [n IN nodes(path) | n] AS pathNodes,
-                   [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
-            ORDER BY length(path) ASC, target.name
+            MATCH (handler:CodeNode)-[endpointRel:Uses]->(endpoint)
+            WHERE ($projectContextNormalized IS NULL OR handler.projectContextNormalized = $projectContextNormalized)
+            CALL {
+                WITH endpoint, endpointRel, handler
+                MATCH path = (handler)-[:Calls|Uses|Reads|Writes|PublishesTo|SubscribesTo*1..{{clampedDepth}}]->(target:CodeNode)
+                WHERE all(node IN nodes(path) WHERE $projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
+                  AND (
+                        target.type = 'MessageTopic'
+                     OR (
+                            (target.type = 'DatabaseTable' OR (target.type = 'ExternalConcept' AND target.externalKind = 'DatabaseTable'))
+                        AND any(operation IN nodes(path) WHERE operation.type = 'ExternalConcept' AND operation.externalKind = 'DatabaseOperation')
+                        AND all(operation IN [node IN nodes(path) WHERE node.type = 'ExternalConcept' AND node.externalKind = 'DatabaseOperation']
+                                WHERE coalesce(toFloat(operation.recognitionConfidence), 1.0) >= 0.8)
+                     )
+                  )
+                RETURN [endpoint] + nodes(path) AS pathNodes,
+                       [endpointRel] + relationships(path) AS pathRels,
+                       target.name AS targetName
+                UNION
+                WITH endpoint, endpointRel, handler
+                MATCH prefix = (handler)-[:Calls|Uses|Reads|Writes|PublishesTo|SubscribesTo*0..{{clampedDepth}}]->(contract:CodeNode)
+                MATCH (implementation:CodeNode)-[implementationRel:Implements]->(contract)
+                MATCH suffix = (implementation)-[:Calls|Uses|Reads|Writes|PublishesTo|SubscribesTo*1..{{clampedDepth}}]->(target:CodeNode)
+                WITH endpoint, endpointRel, prefix, implementationRel, implementation, suffix, target,
+                     nodes(prefix) + [implementation] + tail(nodes(suffix)) AS executionNodes
+                WHERE all(node IN executionNodes WHERE $projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
+                  AND (
+                        target.type = 'MessageTopic'
+                     OR (
+                            (target.type = 'DatabaseTable' OR (target.type = 'ExternalConcept' AND target.externalKind = 'DatabaseTable'))
+                        AND any(operation IN executionNodes WHERE operation.type = 'ExternalConcept' AND operation.externalKind = 'DatabaseOperation')
+                        AND all(operation IN [node IN executionNodes WHERE node.type = 'ExternalConcept' AND node.externalKind = 'DatabaseOperation']
+                                WHERE coalesce(toFloat(operation.recognitionConfidence), 1.0) >= 0.8)
+                     )
+                  )
+                RETURN [endpoint] + executionNodes AS pathNodes,
+                       [endpointRel] + relationships(prefix) + [implementationRel] + relationships(suffix) AS pathRels,
+                       target.name AS targetName
+            }
+            RETURN pathNodes,
+                   [r IN pathRels | { type: type(r), confidence: r.confidence }] AS pathRelationships
+            ORDER BY size(pathNodes) ASC, targetName
             LIMIT 20
             """;
 

@@ -68,11 +68,19 @@ internal static class CSharpCallEdgeResolver
                 continue;
             }
 
-            var selected = SelectBestCandidate(source, compatibleCandidates, ReadProperty(edge, "receiverTypeHint"));
+            var receiverTypeHint = ReadProperty(edge, "receiverTypeHint");
+            var receiverKind = ReadProperty(edge, "receiverKind");
+            if (string.Equals(receiverKind, "UnknownMember", StringComparison.Ordinal))
+            {
+                diagnostics.Add("unknown_member_receiver");
+                continue;
+            }
+
+            var selected = SelectBestCandidate(source, compatibleCandidates, receiverTypeHint, receiverKind);
             if (selected is not null)
                 resolved.Add(edge with { TargetId = selected.Id });
             else
-                diagnostics.Add(string.IsNullOrWhiteSpace(ReadProperty(edge, "receiverTypeHint"))
+                diagnostics.Add(string.IsNullOrWhiteSpace(receiverTypeHint)
                     ? "missing_receiver_hint"
                     : "ambiguous_target");
         }
@@ -98,7 +106,8 @@ internal static class CSharpCallEdgeResolver
     private static MethodCandidate? SelectBestCandidate(
         IngestNodeRequest source,
         IReadOnlyList<MethodCandidate> candidates,
-        string? receiverTypeHint)
+        string? receiverTypeHint,
+        string? receiverKind)
     {
         if (!string.IsNullOrWhiteSpace(receiverTypeHint))
         {
@@ -107,6 +116,9 @@ internal static class CSharpCallEdgeResolver
                 .ToArray();
             if (exactReceiverMatches.Length == 1)
                 return exactReceiverMatches[0];
+
+            if (string.Equals(receiverKind, "TypedOrStatic", StringComparison.Ordinal))
+                return null;
         }
 
         if (candidates.Count == 1)

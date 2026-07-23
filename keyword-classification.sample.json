@@ -3,6 +3,23 @@
     "Enabled": true,
     "CommonDocumentFrequencyRatio": 0.3,
     "ClassificationVersion": 1,
+    "LexicalConfidenceStopTerms": [
+      "cancellation",
+      "token",
+      "async",
+      "task",
+      "string",
+      "int",
+      "bool",
+      "object",
+      "void",
+      "class",
+      "interface",
+      "method",
+      "graph",
+      "repository",
+      "service"
+    ],
     "NoiseTerms": [
       "only",
       "when",

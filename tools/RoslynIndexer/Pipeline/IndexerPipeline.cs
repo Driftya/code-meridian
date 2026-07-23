@@ -76,7 +76,8 @@ public sealed class IndexerPipeline(
             root.FullName,
             cancellationToken,
             allCsFiles,
-            changedFiles is not null);
+            changedFiles is not null,
+            refreshCanonicalTypes: deletedFiles?.Any(IsCSharpSourcePath) == true);
 
         logger.LogInformation(
             "Code graph: {Nodes} nodes and {Edges} edges ingested from {IngestedFiles} changed file(s) using {ScannedFiles} scan file(s).",

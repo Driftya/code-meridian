@@ -276,7 +276,7 @@ public sealed class KeywordGraphService(
         }
     }
 
-    private static RelatedKnowledgeResultSet PostProcessRelatedKnowledgeResults(
+    private RelatedKnowledgeResultSet PostProcessRelatedKnowledgeResults(
         IReadOnlyList<KeywordRelatedNode> results,
         int minimumSharedKeywords,
         double minimumScore,
@@ -299,6 +299,8 @@ public sealed class KeywordGraphService(
                     .OrderBy(keyword => keyword, StringComparer.OrdinalIgnoreCase)
                     .Take(8)
                     .ToArray();
+                var hasDiscriminatingKeyword = matchedKeywords.Any(keyword =>
+                    !keywordClassificationOptions.LexicalConfidenceStopTerms.Contains(keyword, StringComparer.OrdinalIgnoreCase));
 
                 return new RelatedKnowledgeMatch(
                     best.TargetNodeId,
@@ -310,7 +312,8 @@ public sealed class KeywordGraphService(
                         group.Max(item => item.Score),
                         group.Max(item => item.SharedKeywordCount),
                         minimumSharedKeywords,
-                        minimumScore));
+                        minimumScore,
+                        hasDiscriminatingKeyword));
             })
             .OrderByDescending(item => ConfidenceRank(item.Confidence))
             .ThenByDescending(item => item.Score)
@@ -359,8 +362,12 @@ public sealed class KeywordGraphService(
         double score,
         int sharedKeywordCount,
         int minimumSharedKeywords,
-        double minimumScore)
+        double minimumScore,
+        bool hasDiscriminatingKeyword)
     {
+        if (!hasDiscriminatingKeyword)
+            return "awareness";
+
         if (sharedKeywordCount >= minimumSharedKeywords + 2 || score >= Math.Max(minimumScore + 0.35d, 0.60d))
             return "high";
 

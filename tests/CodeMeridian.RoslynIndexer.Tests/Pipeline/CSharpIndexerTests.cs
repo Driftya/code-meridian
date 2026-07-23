@@ -99,6 +99,81 @@ public sealed class CSharpIndexerTests : IDisposable
     }
 
     [Fact]
+    public async Task IndexAsync_AggregatesPartialTypeMetadataDeterministically()
+    {
+        var second = WriteFile(
+            "src/Features/Widget.Second.cs",
+            """
+            namespace Demo;
+
+            public partial class Widget
+            {
+                public void Second() { }
+            }
+            """);
+        var first = WriteFile(
+            "src/Features/Widget.First.cs",
+            """
+            namespace Demo;
+
+            public partial class Widget
+            {
+                public void First() { }
+            }
+            """);
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([second, first], "CodeMeridian", _root);
+
+        var typeRequest = handler.Requests.Should().ContainSingle(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::Class::Demo.Widget").Which;
+        typeRequest.Body.GetProperty("filePath").GetString().Should().Be("src/Features/Widget.First.cs");
+        typeRequest.Body.GetProperty("lineCount").GetInt32().Should().Be(8);
+        typeRequest.Body.GetProperty("sourceHash").GetString().Should().HaveLength(64);
+        var properties = typeRequest.Body.GetProperty("properties");
+        properties.GetProperty("declarationCount").GetString().Should().Be("2");
+        JsonSerializer.Deserialize<string[]>(properties.GetProperty("declarationPaths").GetString()!)
+            .Should().Equal("src/Features/Widget.First.cs", "src/Features/Widget.Second.cs");
+    }
+
+    [Fact]
+    public async Task IndexAsync_RefreshesSurvivingPartialTypeAggregateAfterDeletionOnlyChange()
+    {
+        var remaining = WriteFile(
+            "src/Features/Widget.Remaining.cs",
+            """
+            namespace Demo;
+
+            public partial class Widget
+            {
+                public void Remaining() { }
+            }
+            """);
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync(
+            [],
+            "CodeMeridian",
+            _root,
+            resolutionFiles: [remaining],
+            isIncremental: true,
+            refreshCanonicalTypes: true);
+
+        var typeRequest = handler.Requests.Should().ContainSingle(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::Class::Demo.Widget").Which;
+        var properties = typeRequest.Body.GetProperty("properties");
+        properties.GetProperty("declarationCount").GetString().Should().Be("1");
+        JsonSerializer.Deserialize<string[]>(properties.GetProperty("declarationPaths").GetString()!)
+            .Should().Equal("src/Features/Widget.Remaining.cs");
+    }
+
+    [Fact]
     public async Task IndexAsync_KeepsInterfaceAndImplementationMethodsDistinctWithinSameNamespace()
     {
         var file = WriteFile(

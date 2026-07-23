@@ -161,6 +161,41 @@ public sealed class CSharpDatabaseTracingExtractorTests : IDisposable
             && request.Body.GetProperty("type").GetString() == "Reads");
     }
 
+    [Fact]
+    public async Task IndexAsync_DoesNotTreatOrdinaryMemberCollectionsAsEfCoreTables()
+    {
+        var file = WriteFile(
+            "src/InMemoryAnalyzer.cs",
+            """
+            namespace Demo;
+
+            public sealed class InMemoryAnalyzer
+            {
+                public void Analyze(CollectionHolder context, CollectionHolder db, CollectionHolder tx, string value)
+                {
+                    _ = context.Callers.Count();
+                    db.Callees.Add(value);
+                    tx.Members.Remove(value);
+                    _ = tx.Members.Where(member => member == value).ToList();
+                }
+            }
+
+            public sealed class CollectionHolder
+            {
+                public List<string> Callers { get; } = [];
+                public List<string> Callees { get; } = [];
+                public List<string> Members { get; } = [];
+            }
+            """);
+
+        var requests = await IndexAsync([file]);
+
+        requests.Should().NotContain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && (request.Body.GetProperty("type").GetString() == "ExternalConcept"
+                || request.Body.GetProperty("type").GetString() == "DatabaseTable"));
+    }
+
     private async Task<List<(string Method, string Path, JsonElement Body)>> IndexAsync(FileInfo[] files)
     {
         var handler = new RecordingHandler();

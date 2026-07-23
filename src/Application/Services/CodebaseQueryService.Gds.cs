@@ -77,40 +77,48 @@ public partial class CodebaseQueryService
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<(CodeNode Node, double Score)> results;
-        try
+        projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
+        return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
-            results = await codeGraph.GetBetweennessAsync(projectContext, limit: 20, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            return $"Betweenness Centrality failed: {ex.Message}\n" +
-                   "Ensure the Graph Data Science plugin is installed.";
-        }
+            IReadOnlyList<(CodeNode Node, double Score)> results;
+            try
+            {
+                results = await codeGraph.GetBetweennessAsync(projectContext, limit: 20, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                return $"Betweenness Centrality failed: {ex.Message}\n" +
+                       "Ensure the Graph Data Science plugin is installed.";
+            }
 
-        if (results.Count == 0)
-            return $"No results from Betweenness Centrality{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
-                   "The graph may have no edges yet.";
+            if (results.Count == 0)
+                return $"No results from Betweenness Centrality{(projectContext is not null ? $" in '{projectContext}'" : "")}. " +
+                       "The graph may have no edges yet.";
 
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Betweenness Centrality - Bridge Nodes{(projectContext is not null ? $" - {projectContext}" : "")}");
-        sb.AppendLine("Nodes that sit **between subsystems** - the connective tissue of your codebase:\n");
-        sb.AppendLine("| Rank | Score | Type | Name | File |");
-        sb.AppendLine("|------|-------|------|------|------|");
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Betweenness Centrality - Bridge Nodes{(projectContext is not null ? $" - {projectContext}" : "")}");
+            sb.AppendLine("Nodes that sit **between subsystems** - the connective tissue of your codebase. Scores descend within each actionability section:\n");
+            var sections = PartitionScoredNodesForDisplay(results.Select(item => (item.Node, item.Score)), value => value, descending: true);
+            AppendActionabilitySection(
+                sb,
+                "Production candidates",
+                sections.ProductionCandidates,
+                "Score",
+                score => score.ToString("F0", CultureInfo.InvariantCulture));
 
-        var rank = 1;
-        foreach (var (node, score) in results
-                     .OrderBy(item => NodeDisplayRank(item.Node))
-                     .ThenByDescending(item => item.Score))
-        {
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "-";
-            sb.AppendLine($"| {rank++} | {score.ToString("F0", CultureInfo.InvariantCulture)} | {node.Type} | `{node.Name}` | {file} |");
-        }
+            if (ShouldShowBroaderHeuristicMatchesInline())
+                AppendActionabilitySection(sb, "Broader heuristic matches", sections.BroaderHeuristicMatches, "Score",
+                    score => score.ToString("F0", CultureInfo.InvariantCulture));
+            if (ShouldShowSuppressedNoiseInline())
+                AppendActionabilitySection(sb, "Suppressed noise", sections.SuppressedNoise, "Score",
+                    score => score.ToString("F0", CultureInfo.InvariantCulture));
+            AppendSuppressedActionabilitySummary(sb, sections);
 
-        sb.AppendLine();
-        sb.AppendLine("> Removing or changing a high-betweenness node disconnects large parts of the system. Handle with extreme care.");
+            sb.AppendLine();
+            sb.AppendLine("> Removing or changing a high-betweenness node disconnects large parts of the system. Handle with extreme care.");
 
-        return sb.ToString();
+            return sb.ToString();
+        });
     }
 
     private async Task<string> FindBridgesLegacyAsync(

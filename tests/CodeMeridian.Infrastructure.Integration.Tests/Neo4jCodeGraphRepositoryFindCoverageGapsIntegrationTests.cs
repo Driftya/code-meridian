@@ -90,5 +90,57 @@ public sealed class Neo4jCodeGraphRepositoryFindCoverageGapsIntegrationTests : N
         }
     }
 
+    [Fact]
+    public async Task FindCoverageGapsAsync_TestedMemberCoversClassButNotUntestedSiblingMethod()
+    {
+        var projectContext = $"Integration.Coverage.Members.{Guid.NewGuid():N}";
+        var targetClass = CreateNode(
+            id: $"{projectContext}.Service",
+            name: "Service",
+            type: CodeNodeType.Class,
+            projectContext: projectContext,
+            filePath: $"src/{projectContext}/Service.cs");
+        var testedMethod = CreateNode(
+            id: $"{projectContext}.Service.Tested",
+            name: "Tested()",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: targetClass.FilePath!);
+        var untestedMethod = CreateNode(
+            id: $"{projectContext}.Service.Untested",
+            name: "Untested()",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: targetClass.FilePath!);
+        var test = CreateNode(
+            id: $"{projectContext}.ServiceTests.CoversTested",
+            name: "CoversTested()",
+            type: CodeNodeType.Method,
+            projectContext: projectContext,
+            filePath: $"tests/{projectContext}/ServiceTests.cs") with
+        {
+            FileRole = IndexedFileRole.Test
+        };
+
+        try
+        {
+            foreach (var node in new[] { targetClass, testedMethod, untestedMethod, test })
+                await _repository!.UpsertNodeAsync(node);
+            await _repository!.UpsertEdgeAsync(new CodeEdge { SourceId = targetClass.Id, TargetId = testedMethod.Id, Type = CodeEdgeType.Contains });
+            await _repository.UpsertEdgeAsync(new CodeEdge { SourceId = targetClass.Id, TargetId = untestedMethod.Id, Type = CodeEdgeType.Contains });
+            await _repository.UpsertEdgeAsync(new CodeEdge { SourceId = test.Id, TargetId = testedMethod.Id, Type = CodeEdgeType.Calls });
+
+            var gaps = await _repository.FindCoverageGapsAsync(projectContext);
+
+            gaps.Should().NotContain(node => node.Id == targetClass.Id);
+            gaps.Should().NotContain(node => node.Id == testedMethod.Id);
+            gaps.Should().Contain(node => node.Id == untestedMethod.Id);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
 
 }

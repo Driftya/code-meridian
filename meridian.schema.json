@@ -335,6 +335,28 @@
               "type": "string",
               "default": "Service"
             },
+            "maximumMethodsPerProposedSlice": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 24
+            },
+            "minimumSharedEvidenceRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.25
+            },
+            "maximumTargetMethodShare": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.7
+            },
+            "minimumCommunityEvidenceMethodsForHighConfidence": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2
+            },
             "namespaceRootOverrides": {
               "type": "array",
               "items": {

@@ -57,6 +57,64 @@ public sealed class CodebaseQueryServicePlanEditRouteTests : CodebaseQueryServic
     }
 
     [Fact]
+    public async Task PlanEditRouteAsync_BehaviorGoalFollowsContractToConcreteMethodAndDirectTest()
+    {
+        var (sut, graph) = Build();
+        var contract = Node(
+            "contract-delete",
+            "DeleteDiagnosticsAsync(string,CancellationToken)",
+            CodeNodeType.Method,
+            "src/Core/CodeGraph/ICodeGraphRepository.cs",
+            20,
+            "CodeMeridian");
+        var implementation = Node(
+            "implementation-delete",
+            "DeleteDiagnosticsAsync(string,CancellationToken)",
+            CodeNodeType.Method,
+            "src/Infrastructure/Graph/Neo4jCodeGraphRepository.Diagnostics.cs",
+            40,
+            "CodeMeridian",
+            sourceSnippet: "public async Task DeleteDiagnosticsAsync(string projectContext, CancellationToken cancellationToken)");
+        var unrelated = Node(
+            "unrelated-impact",
+            "FindImpactPathsAsync(string,int,CancellationToken)",
+            CodeNodeType.Method,
+            "src/Application/Services/CodebaseQueryService.Analytics.Risk.cs",
+            70,
+            "CodeMeridian");
+        var regression = Node(
+            "test-delete",
+            "DeleteDiagnosticsAsync_RemovesOnlyDiagnostics()",
+            CodeNodeType.Method,
+            "tests/CodeMeridian.Infrastructure.Integration.Tests/Neo4jCodeGraphRepositoryDiagnosticsTests.cs",
+            15,
+            "CodeMeridian",
+            fileRole: IndexedFileRole.Test);
+
+        graph.QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>()).Returns([contract, unrelated]);
+        graph.FindImpactPathsAsync(contract.Id, 1, Arg.Any<CancellationToken>())
+            .Returns([
+                new ImpactPath(
+                    implementation,
+                    1,
+                    [new GraphPathStep(contract, null, null), new GraphPathStep(implementation, "Implements", 1d)])
+            ]);
+        graph.GetContextForEditingAsync(implementation.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(implementation, [], [], []));
+        graph.FindImpactAsync(implementation.Id, 2, Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindDownstreamAsync(implementation.Id, 2, Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindRelatedTestsAsync(implementation.Id, "CodeMeridian", Arg.Any<CancellationToken>())
+            .Returns([(regression, "direct")]);
+
+        var result = await sut.PlanEditRouteAsync("delete diagnostics cleanup", projectContext: "CodeMeridian");
+
+        result.Should().Contain("**Anchor:** `DeleteDiagnosticsAsync(string,CancellationToken)` (Method) - `src/Infrastructure/Graph/Neo4jCodeGraphRepository.Diagnostics.cs`");
+        result.Should().Contain("DeleteDiagnosticsAsync_RemovesOnlyDiagnostics");
+        result.Should().NotContain("Contract / port");
+        result.Should().NotContain("FindImpactPathsAsync");
+    }
+
+    [Fact]
     public async Task PlanEditRouteAsync_PrefersProductionAnchorOverDocsAndTests()
     {
         var (sut, graph) = Build();
@@ -320,4 +378,3 @@ public sealed class CodebaseQueryServicePlanEditRouteTests : CodebaseQueryServic
 
 
 }
-

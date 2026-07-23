@@ -127,6 +127,7 @@ internal sealed class CSharpAstWalker(
         try
         {
             base.VisitMethodDeclaration(node);
+            AddInvocationEdges(node, id);
         }
         finally
         {
@@ -155,6 +156,7 @@ internal sealed class CSharpAstWalker(
         try
         {
             base.VisitConstructorDeclaration(node);
+            AddInvocationEdges(node, id);
         }
         finally
         {
@@ -182,6 +184,7 @@ internal sealed class CSharpAstWalker(
         try
         {
             base.VisitLocalFunctionStatement(node);
+            AddInvocationEdges(node, id);
         }
         finally
         {
@@ -267,8 +270,17 @@ internal sealed class CSharpAstWalker(
 
         var previousMemberId = _currentMemberId;
         _currentMemberId = id;
-        base.VisitIndexerDeclaration(node);
-        _currentMemberId = previousMemberId;
+        PushIdentifierScope(node.ParameterList.Parameters);
+        try
+        {
+            base.VisitIndexerDeclaration(node);
+            AddInvocationEdges(node, id);
+        }
+        finally
+        {
+            PopIdentifierScope();
+            _currentMemberId = previousMemberId;
+        }
     }
 
     public override void VisitLocalDeclarationStatement(LocalDeclarationStatementSyntax node)
@@ -299,8 +311,17 @@ internal sealed class CSharpAstWalker(
 
         var previousMemberId = _currentMemberId;
         _currentMemberId = id;
-        base.VisitOperatorDeclaration(node);
-        _currentMemberId = previousMemberId;
+        PushIdentifierScope(node.ParameterList.Parameters);
+        try
+        {
+            base.VisitOperatorDeclaration(node);
+            AddInvocationEdges(node, id);
+        }
+        finally
+        {
+            PopIdentifierScope();
+            _currentMemberId = previousMemberId;
+        }
     }
 
     public override void VisitConversionOperatorDeclaration(ConversionOperatorDeclarationSyntax node)
@@ -320,8 +341,17 @@ internal sealed class CSharpAstWalker(
 
         var previousMemberId = _currentMemberId;
         _currentMemberId = id;
-        base.VisitConversionOperatorDeclaration(node);
-        _currentMemberId = previousMemberId;
+        PushIdentifierScope(node.ParameterList.Parameters);
+        try
+        {
+            base.VisitConversionOperatorDeclaration(node);
+            AddInvocationEdges(node, id);
+        }
+        finally
+        {
+            PopIdentifierScope();
+            _currentMemberId = previousMemberId;
+        }
     }
 
     private string FullName(string localName) =>
@@ -405,7 +435,6 @@ internal sealed class CSharpAstWalker(
             _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node), HashSource(node.ToFullString()), properties));
 
         edges.Add(new IngestEdgeRequest(containerId, id, "Contains"));
-        AddInvocationEdges(node, id);
 
         return id;
     }
@@ -431,7 +460,6 @@ internal sealed class CSharpAstWalker(
             _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node), HashSource(node.ToFullString()), properties));
 
         edges.Add(new IngestEdgeRequest(containerId, id, "Contains"));
-        AddInvocationEdges(node, id);
 
         return id;
     }
@@ -559,11 +587,13 @@ internal sealed class CSharpAstWalker(
     {
         var invocations = node.DescendantNodes()
             .OfType<InvocationExpressionSyntax>()
+            .Where(invocation => ReferenceEquals(FindOwningCallable(invocation), node))
             .Select(invocation => new
             {
                 Name = ExtractCalleeName(invocation),
                 ParamCount = invocation.ArgumentList.Arguments.Count,
-                ReceiverTypeHint = ResolveReceiverTypeHint(invocation)
+                ReceiverTypeHint = ResolveReceiverTypeHint(invocation),
+                ReceiverKind = ClassifyReceiver(invocation)
             })
             .Where(call => call.Name is not null)
             .Distinct();
@@ -576,34 +606,81 @@ internal sealed class CSharpAstWalker(
                 RelationshipType: "Calls",
                 CallName: callee.Name,
                 ParamCount: callee.ParamCount,
-                Properties: BuildCallProperties(callee.ReceiverTypeHint)));
+                Properties: BuildCallProperties(callee.ReceiverTypeHint, callee.ReceiverKind)));
         }
     }
 
-    private Dictionary<string, string>? BuildCallProperties(string? receiverTypeHint) =>
-        receiverTypeHint is null
-            ? null
-            : new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["receiverTypeHint"] = receiverTypeHint
-            };
+    private static SyntaxNode? FindOwningCallable(InvocationExpressionSyntax invocation) =>
+        invocation.Ancestors().FirstOrDefault(ancestor => ancestor is
+            MethodDeclarationSyntax or
+            ConstructorDeclarationSyntax or
+            LocalFunctionStatementSyntax or
+            IndexerDeclarationSyntax or
+            OperatorDeclarationSyntax or
+            ConversionOperatorDeclarationSyntax or
+            PropertyDeclarationSyntax or
+            EventDeclarationSyntax or
+            FieldDeclarationSyntax);
+
+    private static Dictionary<string, string> BuildCallProperties(string? receiverTypeHint, string receiverKind)
+    {
+        var properties = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["receiverKind"] = receiverKind
+        };
+        if (receiverTypeHint is not null)
+            properties["receiverTypeHint"] = receiverTypeHint;
+
+        return properties;
+    }
+
+    private string ClassifyReceiver(InvocationExpressionSyntax invocation)
+    {
+        var receiver = GetReceiverExpression(invocation);
+        if (receiver is null)
+            return "Unqualified";
+
+        if (receiver is ThisExpressionSyntax or BaseExpressionSyntax)
+            return "ThisOrBase";
+
+        return ResolveReceiverTypeHint(invocation) is not null
+            ? "TypedOrStatic"
+            : "UnknownMember";
+    }
 
     private string? ResolveReceiverTypeHint(InvocationExpressionSyntax invocation)
     {
-        if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess)
+        var receiver = GetReceiverExpression(invocation);
+        if (receiver is null)
             return null;
 
-        return memberAccess.Expression switch
+        return receiver switch
         {
             ThisExpressionSyntax => TryGetDeclaringTypeInfo(_currentTypeId ?? string.Empty, out _, out var currentTypeShortName)
                 ? currentTypeShortName
                 : null,
+            BaseExpressionSyntax => null,
             IdentifierNameSyntax identifierName when _identifierTypeScopes.Count > 0
                 && _identifierTypeScopes.Peek().TryGetValue(identifierName.Identifier.Text, out var scopedType) => scopedType,
             IdentifierNameSyntax identifierName when _currentTypeMemberTypes.TryGetValue(identifierName.Identifier.Text, out var memberType) => memberType,
             IdentifierNameSyntax identifierName when char.IsUpper(identifierName.Identifier.Text.FirstOrDefault()) => identifierName.Identifier.Text,
+            ObjectCreationExpressionSyntax objectCreation => CleanTypeName(objectCreation.Type.ToString()),
             _ => null
         };
+    }
+
+    private static ExpressionSyntax? GetReceiverExpression(InvocationExpressionSyntax invocation)
+    {
+        if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
+            return memberAccess.Expression;
+
+        if (invocation.Expression is not MemberBindingExpressionSyntax)
+            return null;
+
+        return invocation.Ancestors()
+            .OfType<ConditionalAccessExpressionSyntax>()
+            .FirstOrDefault(conditional => conditional.WhenNotNull.Span.Contains(invocation.Span))
+            ?.Expression;
     }
 
     private void AddParameterTypeUseEdges(SeparatedSyntaxList<ParameterSyntax> parameters, string sourceId)
@@ -684,6 +761,7 @@ internal sealed class CSharpAstWalker(
         invocation.Expression switch
         {
             MemberAccessExpressionSyntax m => m.Name.Identifier.Text,
+            MemberBindingExpressionSyntax m => m.Name.Identifier.Text,
             IdentifierNameSyntax i => i.Identifier.Text,
             _ => null
         };

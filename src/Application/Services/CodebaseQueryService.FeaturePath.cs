@@ -57,6 +57,8 @@ public partial class CodebaseQueryService
             }
         }
 
+        candidates.AddRange(await ExpandContractImplementationsAsync(candidates, cancellationToken));
+
         var ranked = candidates
             .Where(node => !string.IsNullOrWhiteSpace(node.FilePath))
             .DistinctBy(node => node.Id)
@@ -198,11 +200,14 @@ public partial class CodebaseQueryService
         var keywordHits = keywords.Count(keyword =>
             TextMatches(node.Name, keyword)
             || TextMatches(node.Summary, keyword)
+            || TextMatches(node.SourceSnippet, keyword)
             || TextMatches(node.FilePath, keyword)
             || TextMatches(node.Namespace, keyword));
         score += keywordHits * 3;
         if (keywordHits >= 2)
             score += 6;
+        if (node.Type == CodeNodeType.Method && keywordHits >= 2)
+            score += 8;
 
         var directKeywordHits = keywords.Count(keyword =>
             TextMatches(node.Name, keyword)
@@ -220,7 +225,9 @@ public partial class CodebaseQueryService
                 _ => 4
             };
 
-        if (IsContractNode(node) || IsApiNode(node) || IsInfrastructureNode(node))
+        if (IsContractNode(node) && !GoalRequestsContractChange(feature))
+            score -= 8;
+        else if (IsContractNode(node) || IsApiNode(node) || IsInfrastructureNode(node))
             score += 2;
         if (node.FileRole == IndexedFileRole.Test || TextMatches(node.FilePath, "test"))
             score -= 6;

@@ -283,6 +283,14 @@ public sealed class ResponsibilitySliceOptions
 {
     public string DefaultServiceSuffix { get; set; } = "Service";
 
+    public int MaximumMethodsPerProposedSlice { get; set; } = 24;
+
+    public double MinimumSharedEvidenceRatio { get; set; } = 0.25d;
+
+    public double MaximumTargetMethodShare { get; set; } = 0.7d;
+
+    public int MinimumCommunityEvidenceMethodsForHighConfidence { get; set; } = 2;
+
     public List<PrefixOverrideOptions> NamespaceRootOverrides { get; set; } = [];
 
     public List<PrefixOverrideOptions> FolderRootOverrides { get; set; } = [];

@@ -98,4 +98,55 @@ public sealed class CSharpCallEdgeResolverTests
         result.Should().ContainSingle(edge =>
             edge.TargetId == "Project::Method::Demo.Services.CodebaseQueryService::FindCoverageGapsAsync(string)");
     }
+
+    [Theory]
+    [InlineData("RunAsync", "Project::Method::Demo.IndexWatchLoop::RunAsync(string)")]
+    [InlineData("Add", "Project::Method::Demo.EdgeResolutionResult::Add(string)")]
+    public void ResolveWithDiagnostics_DoesNotResolveUnknownMemberReceiverToUniqueLocalCandidate(
+        string callName,
+        string candidateId)
+    {
+        var sourceId = "Project::Method::Demo.Repository::DeleteDiagnosticsAsync()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(sourceId, "DeleteDiagnosticsAsync()", "Method", "Demo", "src/Repository.cs", 10, null,
+                Properties: new() { ["declaringTypeShortName"] = "Repository" }),
+            new(candidateId, $"{callName}(string)", "Method", "Demo", "src/Other.cs", 20, null,
+                Properties: new() { ["declaringTypeShortName"] = callName == "Add" ? "EdgeResolutionResult" : "IndexWatchLoop" })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: callName, ParamCount: 1,
+                Properties: new() { ["receiverKind"] = "UnknownMember" })
+        };
+
+        var result = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+
+        result.Edges.Should().BeEmpty();
+        result.UnresolvedByReason.Should().ContainSingle()
+            .Which.Should().Be(new KeyValuePair<string, int>("unknown_member_receiver", 1));
+    }
+
+    [Fact]
+    public void ResolveWithDiagnostics_DoesNotFallbackWhenTypedReceiverHasNoMatchingLocalType()
+    {
+        var sourceId = "Project::Method::Demo.Repository::DeleteDiagnosticsAsync()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(sourceId, "DeleteDiagnosticsAsync()", "Method", "Demo", "src/Repository.cs", 10, null,
+                Properties: new() { ["declaringTypeShortName"] = "Repository" }),
+            new("Project::Method::Demo.IndexWatchLoop::RunAsync(string)", "RunAsync(string)", "Method", "Demo", "src/Other.cs", 20, null,
+                Properties: new() { ["declaringTypeShortName"] = "IndexWatchLoop" })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: "RunAsync", ParamCount: 1,
+                Properties: new() { ["receiverKind"] = "TypedOrStatic", ["receiverTypeHint"] = "IAsyncQueryRunner" })
+        };
+
+        var result = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+
+        result.Edges.Should().BeEmpty();
+        result.UnresolvedByReason.Should().ContainKey("ambiguous_target");
+    }
 }

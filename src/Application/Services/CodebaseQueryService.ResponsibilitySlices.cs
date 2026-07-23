@@ -60,13 +60,30 @@ public sealed partial class CodebaseQueryService
                         methods,
                         docMatches.Select(doc => doc.Source).Where(source => !string.IsNullOrWhiteSpace(source)).Cast<string>().ToArray(),
                         BuildResponsibilityCommunityAdvice(methods, communityLookup),
-                        analysisOptions.ResponsibilitySlices.DefaultServiceSuffix);
+                        analysisOptions.ResponsibilitySlices.DefaultServiceSuffix,
+                        analysisOptions.ResponsibilitySlices.MinimumCommunityEvidenceMethodsForHighConfidence);
                 })
                 .Where(slice => slice.Methods.Count > 1 || slice.Score >= 8)
                 .OrderByDescending(slice => slice.Score)
                 .ThenBy(slice => slice.Name, StringComparer.OrdinalIgnoreCase)
                 .Take(maxSlices)
                 .ToArray();
+
+            var invalidSlice = slices.FirstOrDefault(slice =>
+                slice.Methods.Count > analysisOptions.ResponsibilitySlices.MaximumMethodsPerProposedSlice
+                || (methodSignals.Count >= 8
+                    && (double)slice.Methods.Count / methodSignals.Count > analysisOptions.ResponsibilitySlices.MaximumTargetMethodShare)
+                || (slice.Methods.Count >= 4
+                    && slice.SharedEvidenceRatio < analysisOptions.ResponsibilitySlices.MinimumSharedEvidenceRatio));
+            if (invalidSlice is not null)
+                return BuildResponsibilityDeferResult(
+                    targetNode,
+                    "defer_extraction",
+                    $"The proposed `{invalidSlice.Name}` slice is too broad or weakly cohesive " +
+                    $"({invalidSlice.Methods.Count} methods, {invalidSlice.SharedEvidenceRatio:P0} pairwise shared evidence). " +
+                    "Add discriminating caller, dependency, workflow, test, or documentation evidence before extraction.",
+                    includeNamespacePlan,
+                    includeMigrationSteps);
 
             if (slices.Length == 0)
                 return BuildResponsibilityDeferResult(

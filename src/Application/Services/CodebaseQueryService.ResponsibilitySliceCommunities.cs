@@ -85,6 +85,7 @@ public sealed partial class CodebaseQueryService
         return new ResponsibilityCommunityAdvice(
             HasSignal: true,
             Bonus: advisoryBonus,
+            EvidenceMethodCount: distinctMethodCount,
             Summary: $"community {entries.Key} mostly reflects {driver} across {distinctMethodCount} methods");
     }
 
@@ -164,8 +165,9 @@ public sealed partial class CodebaseQueryService
     private sealed record ResponsibilityCommunityAdvice(
         bool HasSignal,
         int Bonus,
+        int EvidenceMethodCount,
         string Summary)
     {
-        public static ResponsibilityCommunityAdvice None { get; } = new(false, 0, string.Empty);
+        public static ResponsibilityCommunityAdvice None { get; } = new(false, 0, 0, string.Empty);
     }
 }

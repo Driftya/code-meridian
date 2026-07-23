@@ -7,6 +7,24 @@ public sealed class KeywordClassificationOptions
     public bool Enabled { get; set; } = true;
     public double CommonDocumentFrequencyRatio { get; set; } = 0.35d;
     public int ClassificationVersion { get; set; } = 1;
+    public List<string> LexicalConfidenceStopTerms { get; set; } =
+    [
+        "cancellation",
+        "token",
+        "async",
+        "task",
+        "string",
+        "int",
+        "bool",
+        "object",
+        "void",
+        "class",
+        "interface",
+        "method",
+        "graph",
+        "repository",
+        "service"
+    ];
     public List<string> NoiseTerms { get; set; } =
     [
         "only",

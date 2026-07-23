@@ -27,7 +27,7 @@ public sealed partial class CodebaseQueryService
             string.Join(' ', signal.Dependencies.Select(dependency => dependency.Name))
         });
 
-        if (ContainsAny(text, "context", "minimal", "editing", "pack", "token"))
+        if (ContainsAny(text, "context", "minimal", "editing", "pack"))
             return "ContextPacks";
         if (ContainsAny(text, "impact", "downstream", "caller", "connection", "blast"))
             return "Impact";
@@ -207,6 +207,7 @@ public sealed partial class CodebaseQueryService
             var dependencies = context.Callees
                 .Where(node => !isTestNode(node))
                 .Where(node => node.Type is CodeNodeType.Class or CodeNodeType.Interface or CodeNodeType.Method or CodeNodeType.ConfigurationKey or CodeNodeType.ApiEndpoint)
+                .Where(node => !IsFrameworkSignatureDependency(node))
                 .DistinctBy(node => node.Id)
                 .ToArray();
             var productionCallers = context.Callers
@@ -219,6 +220,14 @@ public sealed partial class CodebaseQueryService
             var signal = new ResponsibilityMethodSignals(method, string.Empty, dependencies, productionCallers, workflowCallers, relatedTests);
 
             return signal with { SliceName = SelectResponsibilitySliceName(signal) };
+        }
+
+        private static bool IsFrameworkSignatureDependency(CodeNode node)
+        {
+            var identifier = ExtractRelevantIdentifier(node.Name);
+            return identifier is "CancellationToken" or "Task" or "ValueTask" or "String" or "Int32" or "Boolean" or "Object"
+                || string.Equals(node.Namespace, "System", StringComparison.Ordinal)
+                || node.Namespace?.StartsWith("System.Threading", StringComparison.Ordinal) == true;
         }
 
         private static bool IsWorkflowNode(CodeNode node)
@@ -239,6 +248,7 @@ public sealed partial class CodebaseQueryService
         int Score,
         string Confidence,
         string CommunitySignal,
+        double SharedEvidenceRatio,
         string Reason)
     {
         public static ResponsibilitySlice Create(
@@ -246,7 +256,8 @@ public sealed partial class CodebaseQueryService
             IReadOnlyList<ResponsibilityMethodSignals> methods,
             IReadOnlyList<string> docSources,
             ResponsibilityCommunityAdvice communityAdvice,
-            string defaultServiceSuffix)
+            string defaultServiceSuffix,
+            int minimumCommunityEvidenceMethodsForHighConfidence)
         {
             var dependencies = methods.SelectMany(method => method.Dependencies).DistinctBy(node => node.Id).ToArray();
             var callers = methods.SelectMany(method => method.WorkflowCallers).DistinctBy(node => node.Id).ToArray();
@@ -262,7 +273,10 @@ public sealed partial class CodebaseQueryService
 
             var score = baseScore + communityAdvice.Bonus;
 
-            var confidence = score >= 18 ? "High" : score >= 9 ? "Medium" : "Low";
+            var sharedEvidenceRatio = CalculateSharedEvidenceRatio(methods);
+            var confidence = score >= 18 && communityAdvice.EvidenceMethodCount >= minimumCommunityEvidenceMethodsForHighConfidence
+                ? "High"
+                : score >= 9 ? "Medium" : "Low";
             var evidence = new List<string>
             {
                 $"{methods.Count} methods"
@@ -277,6 +291,8 @@ public sealed partial class CodebaseQueryService
                 evidence.Add($"{Math.Min(docSources.Count, 3)} docs");
             if (communityAdvice.HasSignal)
                 evidence.Add(communityAdvice.Summary);
+            if (methods.Count > 1)
+                evidence.Add($"{sharedEvidenceRatio:P0} pairwise shared-evidence ratio");
 
             return new ResponsibilitySlice(
                 name,
@@ -286,8 +302,36 @@ public sealed partial class CodebaseQueryService
                 score,
                 confidence,
                 communityAdvice.HasSignal ? communityAdvice.Summary : "no supporting community signal",
+                sharedEvidenceRatio,
                 string.Join(", ", evidence));
         }
+
+        private static double CalculateSharedEvidenceRatio(IReadOnlyList<ResponsibilityMethodSignals> methods)
+        {
+            if (methods.Count < 2)
+                return 1d;
+
+            var supportedPairs = 0;
+            var pairCount = 0;
+            for (var left = 0; left < methods.Count - 1; left++)
+            {
+                var leftEvidence = EvidenceIds(methods[left]);
+                for (var right = left + 1; right < methods.Count; right++)
+                {
+                    pairCount++;
+                    if (leftEvidence.Overlaps(EvidenceIds(methods[right])))
+                        supportedPairs++;
+                }
+            }
+
+            return pairCount == 0 ? 0d : (double)supportedPairs / pairCount;
+        }
+
+        private static HashSet<string> EvidenceIds(ResponsibilityMethodSignals method) => method.Dependencies
+            .Concat(method.WorkflowCallers)
+            .Concat(method.RelatedTests)
+            .Select(node => node.Id)
+            .ToHashSet(StringComparer.Ordinal);
 
         private static string BuildServiceName(string name, string defaultServiceSuffix)
         {

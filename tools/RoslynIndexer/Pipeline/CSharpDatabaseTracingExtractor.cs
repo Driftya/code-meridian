@@ -128,6 +128,7 @@ internal static class CSharpDatabaseTracingExtractor
     {
         var receiver = GetReceiverExpression(invocation.Expression);
         var tables = new List<string>();
+        var hasTypedReceiverEvidence = HasTypedEfCoreReceiverEvidence(invocation, receiver);
 
         if (HasTableSource(preset, "SqlText")
             && ResolveSqlText(invocation, preset, constants) is { } sqlText
@@ -136,14 +137,14 @@ internal static class CSharpDatabaseTracingExtractor
             tables.AddRange(ExtractTablesFromSql(sqlText, maxTablesPerOperation));
         }
 
-        if (tables.Count == 0 && HasTableSource(preset, "GenericTypeArgument"))
+        if (tables.Count == 0 && hasTypedReceiverEvidence && HasTableSource(preset, "GenericTypeArgument"))
         {
             var genericTable = FindGenericTableName(receiver);
             if (!string.IsNullOrWhiteSpace(genericTable))
                 tables.Add(genericTable);
         }
 
-        if (tables.Count == 0 && HasTableSource(preset, "ReceiverMemberName"))
+        if (tables.Count == 0 && hasTypedReceiverEvidence && HasTableSource(preset, "ReceiverMemberName"))
         {
             var memberTable = FindReceiverTableName(receiver);
             if (!string.IsNullOrWhiteSpace(memberTable))
@@ -160,7 +161,10 @@ internal static class CSharpDatabaseTracingExtractor
         if (tables.Count == 0)
             return null;
 
-        return new DatabaseUsageRecognition(preset.Id, preset.Provider, memberName, operationType, tables);
+        var evidence = LooksLikeSql(ResolveSqlText(invocation, preset, constants))
+            ? "parsed_sql_text"
+            : "typed_dbcontext_or_dbset_receiver";
+        return new DatabaseUsageRecognition(preset.Id, preset.Provider, memberName, operationType, tables, evidence, 0.96d);
     }
 
     private static DatabaseUsageRecognition? TryRecognizeSqlInvocation(
@@ -266,7 +270,9 @@ internal static class CSharpDatabaseTracingExtractor
                 ["provider"] = recognition.Provider,
                 ["operationType"] = relationshipType,
                 ["recognizerId"] = recognition.RecognizerId,
-                ["methodName"] = recognition.MethodName
+                ["methodName"] = recognition.MethodName,
+                ["recognitionEvidence"] = recognition.Evidence,
+                ["recognitionConfidence"] = recognition.Confidence.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)
             }));
 
         edges.Add(new IngestEdgeRequest(
@@ -274,11 +280,12 @@ internal static class CSharpDatabaseTracingExtractor
             operationNodeId,
             relationshipType,
             CallSite: $"{relativePath}:{lineNumber}",
-            Confidence: 0.88d,
+            Confidence: recognition.Confidence,
             Properties: new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["provider"] = recognition.Provider,
-                ["recognizerId"] = recognition.RecognizerId
+                ["recognizerId"] = recognition.RecognizerId,
+                ["recognitionEvidence"] = recognition.Evidence
             }));
 
         foreach (var tableName in recognition.Tables)
@@ -495,6 +502,120 @@ internal static class CSharpDatabaseTracingExtractor
         || expression is ThisExpressionSyntax
         || expression is MemberAccessExpressionSyntax memberAccess && memberAccess.Expression is IdentifierNameSyntax;
 
+    private static bool HasTypedEfCoreReceiverEvidence(
+        InvocationExpressionSyntax invocation,
+        ExpressionSyntax? receiver)
+    {
+        if (receiver is null)
+            return false;
+
+        var rootIdentifier = FindRootIdentifier(receiver);
+        if (rootIdentifier is not null
+            && ResolveIdentifierType(invocation, rootIdentifier) is { } rootType
+            && IsEfCoreReceiverType(rootType))
+        {
+            return true;
+        }
+
+        var receiverMember = FindRootReceiverMember(receiver);
+        return receiverMember is not null
+            && ResolveContainingTypeMemberType(invocation, receiverMember) is { } memberType
+            && IsEfCoreReceiverType(memberType);
+    }
+
+    private static string? FindRootIdentifier(ExpressionSyntax expression) => expression switch
+    {
+        IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
+        MemberAccessExpressionSyntax memberAccess => FindRootIdentifier(memberAccess.Expression),
+        InvocationExpressionSyntax invocation => GetReceiverExpression(invocation.Expression) is { } nested
+            ? FindRootIdentifier(nested)
+            : null,
+        ElementAccessExpressionSyntax elementAccess => FindRootIdentifier(elementAccess.Expression),
+        _ => null
+    };
+
+    private static string? FindRootReceiverMember(ExpressionSyntax expression)
+    {
+        if (expression is MemberAccessExpressionSyntax memberAccess)
+        {
+            if (memberAccess.Expression is ThisExpressionSyntax)
+                return memberAccess.Name.Identifier.ValueText;
+
+            return FindRootReceiverMember(memberAccess.Expression);
+        }
+
+        if (expression is InvocationExpressionSyntax invocation
+            && GetReceiverExpression(invocation.Expression) is { } nested)
+        {
+            return FindRootReceiverMember(nested);
+        }
+
+        return expression is IdentifierNameSyntax identifier
+            ? identifier.Identifier.ValueText
+            : null;
+    }
+
+    private static string? ResolveIdentifierType(InvocationExpressionSyntax invocation, string identifier)
+    {
+        var method = invocation.Ancestors().OfType<MethodDeclarationSyntax>().FirstOrDefault();
+        var parameterType = method?.ParameterList.Parameters
+            .FirstOrDefault(parameter => parameter.Identifier.ValueText == identifier)
+            ?.Type?.ToString();
+        if (!string.IsNullOrWhiteSpace(parameterType))
+            return parameterType;
+
+        var constructor = invocation.Ancestors().OfType<ConstructorDeclarationSyntax>().FirstOrDefault();
+        parameterType = constructor?.ParameterList.Parameters
+            .FirstOrDefault(parameter => parameter.Identifier.ValueText == identifier)
+            ?.Type?.ToString();
+        if (!string.IsNullOrWhiteSpace(parameterType))
+            return parameterType;
+
+        var local = invocation.Ancestors()
+            .OfType<BlockSyntax>()
+            .SelectMany(block => block.DescendantNodes().OfType<LocalDeclarationStatementSyntax>())
+            .Where(declaration => declaration.SpanStart < invocation.SpanStart)
+            .SelectMany(declaration => declaration.Declaration.Variables.Select(variable => (declaration.Declaration.Type, Variable: variable)))
+            .LastOrDefault(candidate => candidate.Variable.Identifier.ValueText == identifier);
+        if (local.Variable is not null)
+            return local.Type.IsVar && local.Variable.Initializer?.Value is ObjectCreationExpressionSyntax creation
+                ? creation.Type.ToString()
+                : local.Type.ToString();
+
+        return ResolveContainingTypeMemberType(invocation, identifier);
+    }
+
+    private static string? ResolveContainingTypeMemberType(InvocationExpressionSyntax invocation, string memberName)
+    {
+        var containingType = invocation.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault();
+        if (containingType is null)
+            return null;
+
+        var propertyType = containingType.Members.OfType<PropertyDeclarationSyntax>()
+            .FirstOrDefault(property => property.Identifier.ValueText == memberName)
+            ?.Type.ToString();
+        if (!string.IsNullOrWhiteSpace(propertyType))
+            return propertyType;
+
+        return containingType.Members.OfType<FieldDeclarationSyntax>()
+            .Where(field => field.Declaration.Variables.Any(variable => variable.Identifier.ValueText == memberName))
+            .Select(field => field.Declaration.Type.ToString())
+            .FirstOrDefault();
+    }
+
+    private static bool IsEfCoreReceiverType(string rawType)
+    {
+        var normalized = rawType.Trim().TrimEnd('?');
+        var lastDot = normalized.LastIndexOf('.');
+        if (lastDot >= 0)
+            normalized = normalized[(lastDot + 1)..];
+
+        return normalized.Equals("DbContext", StringComparison.Ordinal)
+            || normalized.EndsWith("DbContext", StringComparison.Ordinal)
+            || normalized.Equals("DbSet", StringComparison.Ordinal)
+            || normalized.StartsWith("DbSet<", StringComparison.Ordinal);
+    }
+
     private static string NormalizeTypeName(string value)
     {
         var name = value.Trim();
@@ -566,7 +687,9 @@ internal static class CSharpDatabaseTracingExtractor
         string Provider,
         string MethodName,
         DatabaseOperationType OperationType,
-        IReadOnlyList<string> Tables);
+        IReadOnlyList<string> Tables,
+        string Evidence = "parsed_statement",
+        double Confidence = 0.9d);
 
     private enum DatabaseOperationType
     {
