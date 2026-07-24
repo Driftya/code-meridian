@@ -287,6 +287,56 @@ public sealed class CSharpIndexerTests : IDisposable
     }
 
     [Fact]
+    public async Task IndexAsync_ResolvesInheritedRepositoryFieldCallsFromConventionalTestClass()
+    {
+        var baseFile = WriteFile(
+            "tests/RepositoryIntegrationTestBase.cs",
+            """
+            namespace Demo.Tests;
+
+            public abstract class RepositoryIntegrationTestBase
+            {
+                protected Repository? _repository;
+            }
+            """);
+        var testFile = WriteFile(
+            "tests/RepositoryDeleteDiagnosticsIntegrationTests.cs",
+            """
+            namespace Demo.Tests;
+
+            public sealed class RepositoryDeleteDiagnosticsIntegrationTests : RepositoryIntegrationTestBase
+            {
+                public async Task PreservesMetadata()
+                {
+                    await _repository!.DeleteDiagnosticsAsync("Demo");
+                }
+            }
+            """);
+        var repositoryFile = WriteFile(
+            "src/Repository.cs",
+            """
+            namespace Demo;
+
+            public sealed class Repository
+            {
+                public Task DeleteDiagnosticsAsync(string projectContext, CancellationToken cancellationToken = default) =>
+                    Task.CompletedTask;
+            }
+            """);
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([baseFile, testFile, repositoryFile], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes/edges"
+            && request.Body.GetProperty("type").GetString() == "Calls"
+            && request.Body.GetProperty("sourceId").GetString() == "CodeMeridian::Method::Demo.Tests.RepositoryDeleteDiagnosticsIntegrationTests::PreservesMetadata()"
+            && request.Body.GetProperty("targetId").GetString() == "CodeMeridian::Method::Demo.Repository::DeleteDiagnosticsAsync(string,CancellationToken)");
+    }
+
+    [Fact]
     public async Task IndexAsync_ResolvesConstructorParameterTypeToUsesEdge()
     {
         var service = WriteFile(

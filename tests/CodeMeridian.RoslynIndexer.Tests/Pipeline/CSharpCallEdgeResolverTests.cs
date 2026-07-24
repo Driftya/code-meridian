@@ -99,6 +99,37 @@ public sealed class CSharpCallEdgeResolverTests
             edge.TargetId == "Project::Method::Demo.Services.CodebaseQueryService::FindCoverageGapsAsync(string)");
     }
 
+    [Fact]
+    public void Resolve_UsesConventionalTestClassSubjectForUnknownInheritedMemberReceiver()
+    {
+        var sourceId = "Project::Method::Demo.Tests.Neo4jCodeGraphRepositoryDeleteDiagnosticsIntegrationTests::PreservesMetadata()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(sourceId, "PreservesMetadata()", "Method", "Demo.Tests", "tests/Neo4jCodeGraphRepositoryDeleteDiagnosticsIntegrationTests.cs", 10, null,
+                Properties: new() { ["declaringTypeShortName"] = "Neo4jCodeGraphRepositoryDeleteDiagnosticsIntegrationTests" }),
+            new("Project::Method::Demo.Contracts.ICodeGraphRepository::DeleteDiagnosticsAsync(string,CancellationToken)", "DeleteDiagnosticsAsync(string,CancellationToken)", "Method", "Demo.Contracts", "src/ICodeGraphRepository.cs", 5, null,
+                Properties: new() { ["declaringTypeShortName"] = "ICodeGraphRepository", ["requiredParameterCount"] = "1", ["totalParameterCount"] = "2" }),
+            new("Project::Method::Demo.Graph.Neo4jCodeGraphRepository::DeleteDiagnosticsAsync(string,CancellationToken)", "DeleteDiagnosticsAsync(string,CancellationToken)", "Method", "Demo.Graph", "src/Neo4jCodeGraphRepository.cs", 20, null,
+                Properties: new() { ["declaringTypeShortName"] = "Neo4jCodeGraphRepository", ["requiredParameterCount"] = "1", ["totalParameterCount"] = "2" })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(
+                sourceId,
+                string.Empty,
+                "Calls",
+                CallName: "DeleteDiagnosticsAsync",
+                ParamCount: 1,
+                Properties: new() { ["receiverKind"] = "UnknownMember" })
+        };
+
+        var result = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+
+        result.Edges.Should().ContainSingle(edge =>
+            edge.TargetId == "Project::Method::Demo.Graph.Neo4jCodeGraphRepository::DeleteDiagnosticsAsync(string,CancellationToken)");
+        result.UnresolvedByReason.Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData("RunAsync", "Project::Method::Demo.IndexWatchLoop::RunAsync(string)")]
     [InlineData("Add", "Project::Method::Demo.EdgeResolutionResult::Add(string)")]

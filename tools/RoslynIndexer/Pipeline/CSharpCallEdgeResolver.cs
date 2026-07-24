@@ -72,7 +72,11 @@ internal static class CSharpCallEdgeResolver
             var receiverKind = ReadProperty(edge, "receiverKind");
             if (string.Equals(receiverKind, "UnknownMember", StringComparison.Ordinal))
             {
-                diagnostics.Add("unknown_member_receiver");
+                var testSubject = SelectTestSubjectMatch(source, compatibleCandidates);
+                if (testSubject is not null)
+                    resolved.Add(edge with { TargetId = testSubject.Id });
+                else
+                    diagnostics.Add("unknown_member_receiver");
                 continue;
             }
 
