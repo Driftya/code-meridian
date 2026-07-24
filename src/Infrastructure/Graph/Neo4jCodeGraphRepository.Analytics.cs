@@ -157,6 +157,13 @@ public sealed partial class Neo4jCodeGraphRepository
                 OR test.filePathNormalized CONTAINS target.nameNormalized
                 OR test.nameNormalized CONTAINS target.nameNormalized
                 OR target.nameNormalized CONTAINS test.nameNormalized
+                OR (
+                    size(split(target.nameNormalized, '(')[0]) >= 4
+                    AND (
+                        test.filePathNormalized CONTAINS split(target.nameNormalized, '(')[0]
+                        OR test.nameNormalized CONTAINS split(target.nameNormalized, '(')[0]
+                    )
+                )
               )
               AND NOT EXISTS {{
                 MATCH (test)-[:Calls]->(target)

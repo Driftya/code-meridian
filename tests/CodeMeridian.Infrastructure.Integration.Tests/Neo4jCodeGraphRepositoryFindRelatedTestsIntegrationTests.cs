@@ -118,7 +118,7 @@ public sealed class Neo4jCodeGraphRepositoryFindRelatedTestsIntegrationTests : N
         var projectContext = $"Integration.RelatedTests.SourceRole.{Guid.NewGuid():N}";
         var target = CreateNode(
             id: $"{projectContext}.Target",
-            name: "DeleteDiagnosticsAsync",
+            name: "DeleteDiagnosticsAsync(string,CancellationToken)",
             type: CodeNodeType.Method,
             projectContext: projectContext,
             filePath: $"src/{projectContext}/Neo4jCodeGraphRepository.cs",
@@ -147,20 +147,17 @@ public sealed class Neo4jCodeGraphRepositoryFindRelatedTestsIntegrationTests : N
             await _repository.UpsertNodeAsync(productionHelper);
             await _repository.UpsertNodeAsync(directTest);
 
-            foreach (var caller in new[] { productionHelper, directTest })
+            await _repository.UpsertEdgeAsync(new CodeEdge
             {
-                await _repository.UpsertEdgeAsync(new CodeEdge
-                {
-                    SourceId = caller.Id,
-                    TargetId = target.Id,
-                    Type = CodeEdgeType.Calls
-                });
-            }
+                SourceId = productionHelper.Id,
+                TargetId = target.Id,
+                Type = CodeEdgeType.Calls
+            });
 
             var related = await _repository.FindRelatedTestsAsync(target.Id, projectContext);
 
             related.Should().ContainSingle(match =>
-                match.MatchType == "direct" && match.Node.Id == directTest.Id);
+                match.MatchType == "heuristic" && match.Node.Id == directTest.Id);
         }
         finally
         {

@@ -307,6 +307,7 @@ codemeridian evaluate-session . --project CodeMeridian
 - A user-completed force-full self-index finished at 2026-07-23 09:50:35Z. Freshness sampled 20 High-confidence nodes and graph drift remained low with no stored-role conflicts.
 - The force-full rerun confirmed corrected hotspot suppression and diagnostics-focused related knowledge. The diagnostics regression test ranked sixth and generic non-diagnostics repository methods were pruned.
 - The rerun exposed one final repository predicate gap: `FindRelatedTestsAsync` treated a stored Source method containing `test` in its name as a related test. Stored roles are now authoritative, with a live Neo4j integration regression; focused integration tests passed 3/3 and the full .NET suite passed 911/911.
+- After restart, the Source false positive was gone, but conservative relationship resolution left the route with zero related tests. The heuristic now compares signature-bearing targets by base method name, recovering the exact diagnostics regression without requiring a direct `Calls` edge; focused integration tests and the 911-test .NET suite pass.
 - Final live edit-route confirmation requires restarting the connected MCP server so it loads the corrected repository query. No additional reindex is required for this query-only fix.
 
 ## Non-Goals
