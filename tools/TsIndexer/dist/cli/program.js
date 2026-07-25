@@ -9,6 +9,7 @@ export async function parseCommandLine(argv) {
         .requiredOption('--project <name>', 'Project context name.')
         .requiredOption('--url <url>', 'CodeMeridian server URL.')
         .requiredOption('--batch-file <path>', 'JSON batch file written by CodeMeridian.Indexer.')
+        .option('--incremental', 'Mark this as an incremental batch with a partial resolution catalog.')
         .showHelpAfterError();
     program.parse(argv);
     const parsed = program.opts();
@@ -18,6 +19,7 @@ export async function parseCommandLine(argv) {
         project: parsed.project,
         url: parsed.url,
         batchFile: parsed.batchFile,
+        incremental: parsed.incremental,
     };
     return resolveOptions(options);
 }
@@ -30,6 +32,7 @@ function resolveOptions(options) {
         serverUrl: normalizeRequiredString(options.url, 'url'),
         apiKey: normalizeOptionalString(process.env.CodeMeridian_Auth_ApiKey),
         batchFilePath: path.resolve(options.batchFile),
+        isIncremental: options.incremental === true,
     };
 }
 function normalizeOptionalString(value) {

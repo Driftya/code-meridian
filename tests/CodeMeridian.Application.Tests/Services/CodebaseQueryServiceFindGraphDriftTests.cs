@@ -127,6 +127,88 @@ public sealed class CodebaseQueryServiceFindGraphDriftTests : CodebaseQueryServi
     }
 
     [Fact]
+    public async Task FindGraphDriftAsync_WithOnlyExternalV2Outcomes_DoesNotRecommendRelationshipRemediation()
+    {
+        var (sut, graph) = Build();
+        var now = DateTimeOffset.UtcNow;
+        var source = Node(
+            "service",
+            "Service",
+            CodeNodeType.Class,
+            "src/Service.cs",
+            1,
+            "CodeMeridian",
+            updatedAt: now,
+            lineCount: 20,
+            sourceHash: "service-hash");
+        var indexRun = Node("run-v2", "full C# index run", CodeNodeType.IndexRun, project: "CodeMeridian", updatedAt: now) with
+        {
+            Properties = new Dictionary<string, string>
+            {
+                ["relationshipHealthSchemaVersion"] = "2",
+                ["language"] = "CSharp",
+                ["resolutionScope"] = "project",
+                ["mode"] = "full",
+                ["usedFullResolutionCatalog"] = "true",
+                ["attemptedCallEdges"] = "10866",
+                ["resolvedCallEdges"] = "10",
+                ["attemptedReferenceEdges"] = "0",
+                ["resolvedReferenceEdges"] = "0",
+                ["externalOrUnindexedRelationshipCount"] = "10856",
+                ["unresolvedLocalRelationshipCount"] = "0",
+                ["indeterminateRelationshipCount"] = "0"
+            }
+        };
+        graph.QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>()).Returns([source, indexRun]);
+
+        var result = await sut.FindGraphDriftAsync("CodeMeridian");
+
+        result.Should().Contain("Graph drift: low");
+        result.Should().Contain("10856 relationship(s) as external");
+        result.Should().NotContain("Relationship remediation");
+    }
+
+    [Fact]
+    public async Task FindGraphDriftAsync_WithV2LocalFailure_RaisesDriftToModerate()
+    {
+        var (sut, graph) = Build();
+        var now = DateTimeOffset.UtcNow;
+        var source = Node(
+            "service",
+            "Service",
+            CodeNodeType.Class,
+            "src/Service.cs",
+            1,
+            "CodeMeridian",
+            updatedAt: now,
+            lineCount: 20,
+            sourceHash: "service-hash");
+        var indexRun = Node("run-v2", "full C# index run", CodeNodeType.IndexRun, project: "CodeMeridian", updatedAt: now) with
+        {
+            Properties = new Dictionary<string, string>
+            {
+                ["relationshipHealthSchemaVersion"] = "2",
+                ["language"] = "CSharp",
+                ["resolutionScope"] = "project",
+                ["mode"] = "full",
+                ["usedFullResolutionCatalog"] = "true",
+                ["attemptedCallEdges"] = "11",
+                ["resolvedCallEdges"] = "10",
+                ["unresolvedLocalRelationshipCount"] = "1",
+                ["indeterminateRelationshipCount"] = "0",
+                ["externalOrUnindexedRelationshipCount"] = "0"
+            }
+        };
+        graph.QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>()).Returns([source, indexRun]);
+
+        var result = await sut.FindGraphDriftAsync("CodeMeridian");
+
+        result.Should().Contain("**Drift:** moderate");
+        result.Should().Contain("1 unresolved local");
+        result.Should().Contain("Relationship remediation");
+    }
+
+    [Fact]
     public async Task FindGraphDriftAsync_StoredSourceRoleOnTestPath_ReportsRoleConflict()
     {
         var (sut, graph) = Build();

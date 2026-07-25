@@ -295,8 +295,8 @@ public static class KnowledgeApiEndpoints
         ICodeGraphRepository codeGraph,
         CancellationToken ct)
     {
-        await codeGraph.DeleteDiagnosticsAsync(projectContext, ct);
-        return Results.NoContent();
+        var deletedCount = await codeGraph.DeleteDiagnosticsAsync(projectContext, ct);
+        return Results.Ok(new { deletedCount });
     }
 
     private static async Task<IResult> DeleteConfiguration(

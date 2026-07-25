@@ -178,6 +178,57 @@ public sealed class CSharpCallEdgeResolverTests
         var result = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
 
         result.Edges.Should().BeEmpty();
-        result.UnresolvedByReason.Should().ContainKey("ambiguous_target");
+        result.Stats.ExternalOrUnindexed.Should().Be(1);
+        result.Stats.UnresolvedLocal.Should().Be(0);
+        result.Stats.HasValidAccounting.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ResolveWithDiagnostics_DuplicateResolvedCallsPreserveCandidateAccounting()
+    {
+        var sourceId = "Project::Method::Demo.Service::Caller()";
+        var targetId = "Project::Method::Demo.Service::Target()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(sourceId, "Caller()", "Method", "Demo", "src/Service.cs", 10, null,
+                Properties: new() { ["declaringTypeShortName"] = "Service" }),
+            new(targetId, "Target()", "Method", "Demo", "src/Service.cs", 20, null,
+                Properties: new() { ["declaringTypeShortName"] = "Service" })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: "Target", ParamCount: 0),
+            new(sourceId, string.Empty, "Calls", CallName: "Target", ParamCount: 0)
+        };
+
+        var result = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+
+        result.Edges.Should().ContainSingle();
+        result.Stats.Attempted.Should().Be(2);
+        result.Stats.ResolvedLocal.Should().Be(2);
+        result.Stats.DuplicateEdges.Should().Be(1);
+        result.UniqueResolvedEdges.Should().Be(1);
+        result.Stats.HasValidAccounting.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ResolveWithDiagnostics_MissingCallMetadata_IsIndeterminateAndNotPersisted()
+    {
+        var sourceId = "Project::Method::Demo.Service::Caller()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(sourceId, "Caller()", "Method", "Demo", "src/Service.cs", 10, null)
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: null, ParamCount: 0)
+        };
+
+        var result = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+
+        result.Edges.Should().BeEmpty();
+        result.Stats.Indeterminate.Should().Be(1);
+        result.Stats.Reasons.Should().ContainKey("indeterminate:missing_call_name");
+        result.Stats.HasValidAccounting.Should().BeTrue();
     }
 }

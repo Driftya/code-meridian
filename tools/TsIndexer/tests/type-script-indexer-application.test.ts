@@ -85,6 +85,55 @@ describe('TypeScriptIndexerApplication', () => {
         }),
       ]),
     );
+
+    const indexRun = readBodies(requests, '/api/v1/knowledge/nodes')
+      .find(body => body.properties?.externalKind === 'IndexRun');
+    expect(indexRun).toEqual(expect.objectContaining({
+      type: 'Diagnostic',
+      properties: expect.objectContaining({
+        relationshipHealthSchemaVersion: '2',
+        language: 'TypeScript',
+        mode: 'full',
+        usedFullResolutionCatalog: 'true',
+        callRelationshipOutcomes: expect.any(String),
+        referenceRelationshipOutcomes: expect.any(String),
+      }),
+    }));
+    expect(readBodies(requests, '/api/v1/knowledge/nodes')
+      .filter(body => body.type === 'Diagnostic' && body.properties?.externalKind !== 'IndexRun')).toEqual([]);
+  });
+
+  it('marks incremental TypeScript relationship metadata as partial-catalog evidence', async () => {
+    project.writeFile('tsconfig.json', '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}');
+    project.writeFile('src/service.ts', 'export function run() { console.log("ok"); }\n');
+
+    const rootPath = project.getRootPath();
+    const batchFilePath = path.join(rootPath, 'batch.json');
+    fs.writeFileSync(batchFilePath, JSON.stringify([{ path: 'src/service.ts' }]));
+
+    const requests: Array<{ path: string; body?: string }> = [];
+    globalThis.fetch = vi.fn(async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      requests.push({ path: new URL(url).pathname, body: init?.body?.toString() });
+      return new Response('{}', { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }) as typeof fetch;
+
+    const app = new TypeScriptIndexerApplication();
+    await app.run({
+      rootPath,
+      projectName: 'CodeMeridian',
+      serverUrl: 'http://127.0.0.1:5100',
+      batchFilePath,
+      isIncremental: true,
+    });
+
+    const indexRun = readBodies(requests, '/api/v1/knowledge/nodes')
+      .find(body => body.properties?.externalKind === 'IndexRun');
+    expect(indexRun?.properties).toEqual(expect.objectContaining({
+      language: 'TypeScript',
+      mode: 'incremental',
+      usedFullResolutionCatalog: 'false',
+    }));
   });
 
   it('indexes batch entries without a file role', async () => {

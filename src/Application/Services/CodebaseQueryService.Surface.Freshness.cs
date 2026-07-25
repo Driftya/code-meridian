@@ -40,6 +40,7 @@ public partial class CodebaseQueryService
             sb.AppendLine($"**Query:** `{query}`");
         sb.AppendLine($"**Trust summary (node metadata):** {high} High, {medium} Medium, {low} Low confidence");
         sb.AppendLine($"**Relationship completeness:** {relationshipTrust.Confidence} — {relationshipTrust.Reason}");
+        AppendRelationshipEvidence(sb, relationshipTrust);
         sb.AppendLine($"**Last full index:** {relationshipTrust.LastFullIndex?.ToString("u") ?? "unknown"}");
         sb.AppendLine($"**Last incremental index:** {relationshipTrust.LastIncrementalIndex?.ToString("u") ?? "none recorded"}\n");
         sb.AppendLine("| Confidence | Node | Source verification | Line metadata | Last indexed / content updated | Reason |");
@@ -91,17 +92,20 @@ public partial class CodebaseQueryService
             && missingSourceHashes.Length == 0
             && testRoleConflicts.Length == 0
             && relationshipTrust.Confidence == "High")
-            return $"Graph drift: low{(projectContext is not null ? $" for '{projectContext}'" : "")}. Indexed file metadata, line metadata, source hashes, update timestamps, and relationship-run statistics look consistent. Source files are not read by the MCP server.";
+            return $"Graph drift: low{(projectContext is not null ? $" for '{projectContext}'" : "")}. Indexed file metadata, line metadata, source hashes, and update timestamps look consistent. Relationship evidence: {relationshipTrust.Reason}. Outcome totals: {relationshipTrust.UnresolvedLocalCount} unresolved local, {relationshipTrust.IndeterminateCount} indeterminate, {relationshipTrust.ExternalOrUnindexedCount} external/unindexed, {relationshipTrust.DuplicateCount} duplicate candidate(s), {relationshipTrust.SyntheticCount} synthetic edge(s). Source files are not read by the MCP server.";
 
         var severity = lowConfidence > 25 || missingFileMetadata.Length > 50 || incompleteLines.Length > 100 || testRoleConflicts.Length > 50 ? "high"
             : lowConfidence > 5 || missingFileMetadata.Length > 10 || incompleteLines.Length > 25 || testRoleConflicts.Length > 10 ? "moderate"
             : "low";
+        if (relationshipTrust.Confidence == "Low" && severity == "low")
+            severity = "moderate";
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Graph Drift{(projectContext is not null ? $" - {projectContext}" : "")}");
         sb.AppendLine($"**Drift:** {severity}");
         sb.AppendLine($"**Signals:** {missingFileMetadata.Length} nodes lack file paths, {incompleteLines.Length} have incomplete line metadata, {missingSourceHashes.Length} lack source hashes, {missingTimestamps.Length} lack update timestamps, {testRoleConflicts.Length} have stored roles that conflict with unmistakable test paths.");
         sb.AppendLine($"**Relationship completeness:** {relationshipTrust.Confidence} — {relationshipTrust.Reason}");
+        AppendRelationshipEvidence(sb, relationshipTrust);
         sb.AppendLine("**Source verification:** source hashes are checked for presence; source files are not read by the MCP server because indexed projects may live on a different machine.\n");
 
         AppendDriftSection(sb, "Missing file metadata", missingFileMetadata, limit);

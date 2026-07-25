@@ -3,6 +3,7 @@ export interface IndexCommandOptions {
   project: string;
   url: string;
   batchFile: string;
+  incremental?: boolean;
 }
 
 export interface ResolvedIndexCommandOptions {
@@ -11,4 +12,5 @@ export interface ResolvedIndexCommandOptions {
   serverUrl: string;
   apiKey?: string;
   batchFilePath: string;
+  isIncremental?: boolean;
 }

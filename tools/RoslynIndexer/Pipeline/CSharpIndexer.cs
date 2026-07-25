@@ -91,6 +91,8 @@ public sealed class CSharpIndexer(
             referenceResolution.Attempted,
             referenceResolution.Resolved,
             unresolved,
+            callResolution.Stats,
+            referenceResolution.Stats,
             mode,
             usedFullResolutionCatalog);
         await PersistIndexRunAsync(client, logger, projectContext, stats, cancellationToken);
@@ -108,6 +110,9 @@ public sealed class CSharpIndexer(
         var properties = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["externalKind"] = "IndexRun",
+            ["relationshipHealthSchemaVersion"] = "2",
+            ["language"] = "CSharp",
+            ["resolutionScope"] = "project",
             ["mode"] = stats.Mode,
             ["completedAt"] = now.ToString("O", CultureInfo.InvariantCulture),
             ["scannedFileCount"] = stats.ScannedFiles.ToString(CultureInfo.InvariantCulture),
@@ -116,7 +121,29 @@ public sealed class CSharpIndexer(
             ["resolvedCallEdges"] = stats.ResolvedCallEdges.ToString(CultureInfo.InvariantCulture),
             ["attemptedReferenceEdges"] = stats.AttemptedReferenceEdges.ToString(CultureInfo.InvariantCulture),
             ["resolvedReferenceEdges"] = stats.ResolvedReferenceEdges.ToString(CultureInfo.InvariantCulture),
+            ["uniqueCallEdges"] = stats.CallResolution.UniqueResolvedEdges.ToString(CultureInfo.InvariantCulture),
+            ["uniqueReferenceEdges"] = stats.ReferenceResolution.UniqueResolvedEdges.ToString(CultureInfo.InvariantCulture),
+            ["ingestedEdgeCount"] = stats.Edges.ToString(CultureInfo.InvariantCulture),
             ["unresolvedEdgesByReason"] = JsonSerializer.Serialize(stats.UnresolvedEdgesByReason),
+            ["callRelationshipOutcomes"] = JsonSerializer.Serialize(stats.CallResolution),
+            ["referenceRelationshipOutcomes"] = JsonSerializer.Serialize(stats.ReferenceResolution),
+            ["externalOrUnindexedRelationshipCount"] = (
+                stats.CallResolution.ExternalOrUnindexed + stats.ReferenceResolution.ExternalOrUnindexed)
+                .ToString(CultureInfo.InvariantCulture),
+            ["unresolvedLocalRelationshipCount"] = (
+                stats.CallResolution.UnresolvedLocal + stats.ReferenceResolution.UnresolvedLocal)
+                .ToString(CultureInfo.InvariantCulture),
+            ["indeterminateRelationshipCount"] = (
+                stats.CallResolution.Indeterminate + stats.ReferenceResolution.Indeterminate)
+                .ToString(CultureInfo.InvariantCulture),
+            ["duplicateRelationshipCount"] = (
+                stats.CallResolution.DuplicateEdges + stats.ReferenceResolution.DuplicateEdges)
+                .ToString(CultureInfo.InvariantCulture),
+            ["syntheticRelationshipCount"] = (
+                stats.CallResolution.SyntheticEdges + stats.ReferenceResolution.SyntheticEdges)
+                .ToString(CultureInfo.InvariantCulture),
+            ["relationshipFailureSamples"] = JsonSerializer.Serialize(
+                stats.CallResolution.Samples.Concat(stats.ReferenceResolution.Samples).ToArray()),
             ["usedFullResolutionCatalog"] = stats.UsedFullResolutionCatalog.ToString(CultureInfo.InvariantCulture)
         };
         var run = new IngestNodeRequest(
@@ -240,13 +267,31 @@ public sealed class CSharpIndexer(
             return;
 
         logger.LogInformation(
-            "Resolved {Resolved}/{Attempted} local {EdgeKind} edge(s). Unresolved: {UnresolvedByReason}",
-            result.Resolved,
-            result.Attempted,
+            "{EdgeKind}: {Attempted} candidate(s); {ResolvedLocal} resolved locally; " +
+            "{ExternalOrUnindexed} external/unindexed; {UnresolvedLocal} unresolved local; " +
+            "{Indeterminate} indeterminate; {DuplicateEdges} duplicate edge(s) collapsed; " +
+            "{SyntheticEdges} synthetic edge(s). Reasons: {Reasons}",
             edgeKind,
-            result.UnresolvedByReason.Count == 0
+            result.Stats.Attempted,
+            result.Stats.ResolvedLocal,
+            result.Stats.ExternalOrUnindexed,
+            result.Stats.UnresolvedLocal,
+            result.Stats.Indeterminate,
+            result.Stats.DuplicateEdges,
+            result.Stats.SyntheticEdges,
+            result.Stats.Reasons.Count == 0
                 ? "none"
-                : string.Join(", ", result.UnresolvedByReason.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}")));
+                : string.Join(", ", result.Stats.Reasons.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}")));
+
+        if (result.Stats.Samples.Count > 0)
+        {
+            logger.LogWarning(
+                "{EdgeKind} relationship failure samples: {Samples}",
+                edgeKind,
+                string.Join("; ", result.Stats.Samples.Select(sample =>
+                    $"{sample.FilePath ?? sample.SourceId}:{sample.LineNumber?.ToString(CultureInfo.InvariantCulture) ?? "?"} "
+                    + $"{sample.TargetName ?? "unknown"} ({sample.Reason})")));
+        }
     }
 
     private static void ApplyFileRoles(List<IngestNodeRequest> nodes, IIndexedFileRoleClassifier fileRoleClassifier)

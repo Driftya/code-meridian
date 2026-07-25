@@ -1,8 +1,7 @@
 import path from 'node:path';
 import { SyntaxKind } from 'ts-morph';
 import { addNode, fileId, nodeId } from './common.js';
-export function collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole) {
-    const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
+export function collectConfigurationNodes(sourceFile, _rootPath, projectName, nodes, knownIds, classifyFileRole) {
     for (const usage of findConfigurationUsages(sourceFile)) {
         const canonicalKey = normalizeConfigurationKey(usage.rawKey);
         addNode(nodes, knownIds, {

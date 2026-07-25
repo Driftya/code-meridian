@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { SyntaxKind } from 'ts-morph';
+import { relationshipEdgeKey, } from '../relationship-health.js';
 import { addNode, fileId, getNamespaceForPath, hashText, isTestFilePath, nodeId, sourceHash, sourceSnippet } from './common.js';
 import { extractIndexedTestCases } from './test-discovery.js';
 export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds, classifyFileRole) {
@@ -205,7 +206,7 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds,
         }, classifyFileRole);
     }
 }
-export function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds, methodIndex) {
+export function collectEdges(sourceFile, rootPath, projectName, _nodes, edges, knownIds, methodIndex, callOutcomes, typeReferenceOutcomes) {
     const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
     const fId = fileId(projectName, relPath);
     for (const cls of sourceFile.getClasses()) {
@@ -217,27 +218,27 @@ export function collectEdges(sourceFile, rootPath, projectName, nodes, edges, kn
             const mId = nodeId(projectName, relPath, `${name}.${method.getName()}`, 'Method');
             if (knownIds.has(mId))
                 edges.push({ sourceId: cId, targetId: mId, type: 'Contains' });
-            addCallEdges(projectName, rootPath, knownIds, mId, method.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, {
+            addCallEdges(projectName, rootPath, knownIds, mId, method.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
                 filePath: relPath,
                 className: name,
             });
-            addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds);
+            addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds, typeReferenceOutcomes);
         }
         for (const ctor of cls.getConstructors()) {
             const ctorId = nodeId(projectName, relPath, `${name}.constructor`, 'Method');
             if (knownIds.has(ctorId))
                 edges.push({ sourceId: cId, targetId: ctorId, type: 'Contains' });
-            addCallEdges(projectName, rootPath, knownIds, ctorId, ctor.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, {
+            addCallEdges(projectName, rootPath, knownIds, ctorId, ctor.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
                 filePath: relPath,
                 className: name,
             });
-            addTypeUseEdges(projectName, rootPath, relPath, ctor, ctorId, edges, knownIds);
+            addTypeUseEdges(projectName, rootPath, relPath, ctor, ctorId, edges, knownIds, typeReferenceOutcomes);
         }
         for (const prop of cls.getProperties()) {
             const pId = nodeId(projectName, relPath, `${name}.${prop.getName()}`, 'Property');
             if (knownIds.has(pId))
                 edges.push({ sourceId: cId, targetId: pId, type: 'Contains' });
-            addTypeUseEdges(projectName, rootPath, relPath, prop, pId, edges, knownIds);
+            addTypeUseEdges(projectName, rootPath, relPath, prop, pId, edges, knownIds, typeReferenceOutcomes);
         }
         const baseClass = cls.getBaseClass();
         if (baseClass) {
@@ -261,7 +262,7 @@ export function collectEdges(sourceFile, rootPath, projectName, nodes, edges, kn
             const mId = nodeId(projectName, relPath, `${name}.${method.getName()}`, 'Method');
             if (knownIds.has(mId))
                 edges.push({ sourceId: iId, targetId: mId, type: 'Contains' });
-            addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds);
+            addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds, typeReferenceOutcomes);
         }
         for (const ext of iface.getExtends()) {
             const matchingId = resolveHeritageTargetId(projectName, rootPath, ext, knownIds);
@@ -274,10 +275,10 @@ export function collectEdges(sourceFile, rootPath, projectName, nodes, edges, kn
         const fnId = nodeId(projectName, relPath, name, 'Method');
         if (knownIds.has(fnId))
             edges.push({ sourceId: fId, targetId: fnId, type: 'Contains' });
-        addCallEdges(projectName, rootPath, knownIds, fnId, fn.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, {
+        addCallEdges(projectName, rootPath, knownIds, fnId, fn.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
             filePath: relPath,
         });
-        addTypeUseEdges(projectName, rootPath, relPath, fn, fnId, edges, knownIds);
+        addTypeUseEdges(projectName, rootPath, relPath, fn, fnId, edges, knownIds, typeReferenceOutcomes);
     }
     for (const variable of getTopLevelFunctionVariables(sourceFile)) {
         const variableId = nodeId(projectName, relPath, variable.getName(), 'Method');
@@ -287,22 +288,22 @@ export function collectEdges(sourceFile, rootPath, projectName, nodes, edges, kn
             ?? variable.getInitializerIfKind(SyntaxKind.FunctionExpression);
         if (!initializer)
             continue;
-        addCallEdges(projectName, rootPath, knownIds, variableId, initializer.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, {
+        addCallEdges(projectName, rootPath, knownIds, variableId, initializer.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
             filePath: relPath,
         });
-        addTypeUseEdges(projectName, rootPath, relPath, variable, variableId, edges, knownIds);
+        addTypeUseEdges(projectName, rootPath, relPath, variable, variableId, edges, knownIds, typeReferenceOutcomes);
     }
     for (const typeAlias of sourceFile.getTypeAliases()) {
         const aliasId = nodeId(projectName, relPath, typeAlias.getName(), 'Interface');
         if (knownIds.has(aliasId))
             edges.push({ sourceId: fId, targetId: aliasId, type: 'Contains' });
-        addTypeUseEdges(projectName, rootPath, relPath, typeAlias, aliasId, edges, knownIds);
+        addTypeUseEdges(projectName, rootPath, relPath, typeAlias, aliasId, edges, knownIds, typeReferenceOutcomes);
     }
     for (const testCase of extractIndexedTestCases(sourceFile, projectName, relPath)) {
         if (knownIds.has(testCase.id)) {
             edges.push({ sourceId: fId, targetId: testCase.id, type: 'Contains' });
         }
-        addCallEdges(projectName, rootPath, knownIds, testCase.id, testCase.callback.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, { filePath: relPath });
+        addCallEdges(projectName, rootPath, knownIds, testCase.id, testCase.callback.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, { filePath: relPath });
     }
     for (const enumDecl of sourceFile.getEnums()) {
         const eId = nodeId(projectName, relPath, enumDecl.getName(), 'Enum');
@@ -339,21 +340,38 @@ export function collectEdges(sourceFile, rootPath, projectName, nodes, edges, kn
         }
     }
 }
-function addCallEdges(projectName, rootPath, knownIds, sourceId, calls, edges, methodIndex, source) {
+function addCallEdges(projectName, rootPath, knownIds, sourceId, calls, edges, methodIndex, outcomes, source) {
     for (const call of calls) {
         const symbolTargetId = resolveCallTargetId(projectName, rootPath, call, knownIds);
         if (symbolTargetId && symbolTargetId !== sourceId) {
-            edges.push({ sourceId, targetId: symbolTargetId, type: 'Calls' });
+            if (outcomes.recordResolved(relationshipEdgeKey(sourceId, symbolTargetId, 'Calls'))) {
+                edges.push({ sourceId, targetId: symbolTargetId, type: 'Calls' });
+            }
+            continue;
+        }
+        if (symbolTargetId === sourceId) {
+            outcomes.recordResolved();
             continue;
         }
         const calleeName = calleeShortName(call);
-        if (!calleeName)
+        if (!calleeName) {
+            outcomes.record('indeterminate', 'missing_call_name', relationshipSample(call, sourceId, source.filePath));
             continue;
+        }
         const candidates = methodIndex.get(calleeName) ?? [];
         const targetId = selectCallTarget(candidates, source, calleeName);
-        if (!targetId || targetId === sourceId)
+        if (targetId && targetId !== sourceId) {
+            if (outcomes.recordResolved(relationshipEdgeKey(sourceId, targetId, 'Calls'))) {
+                edges.push({ sourceId, targetId, type: 'Calls' });
+            }
             continue;
-        edges.push({ sourceId, targetId, type: 'Calls' });
+        }
+        if (targetId === sourceId) {
+            outcomes.recordResolved();
+            continue;
+        }
+        const classification = classifyUnresolvedCall(call, rootPath, candidates.length > 0);
+        outcomes.record(classification.disposition, classification.reason, relationshipSample(call, sourceId, source.filePath, calleeName));
     }
 }
 function resolveCallTargetId(projectName, rootPath, call, knownIds) {
@@ -365,6 +383,9 @@ function resolveCallTargetId(projectName, rootPath, call, knownIds) {
     const direct = resolveSymbolTargetId(projectName, rootPath, symbol, fallbackName, knownIds);
     if (direct)
         return direct;
+    const memberTarget = resolvePropertyAccessCallTargetId(projectName, rootPath, expression, fallbackName, knownIds);
+    if (memberTarget)
+        return memberTarget;
     if (expression.getKind() === SyntaxKind.Identifier) {
         const identifier = expression.asKindOrThrow(SyntaxKind.Identifier);
         for (const definition of identifier.getDefinitionNodes()) {
@@ -379,6 +400,46 @@ function resolveCallTargetId(projectName, rootPath, call, knownIds) {
                     return importedTarget;
             }
         }
+    }
+    return undefined;
+}
+function resolvePropertyAccessCallTargetId(projectName, rootPath, expression, memberName, knownIds) {
+    if (expression.getKind() !== SyntaxKind.PropertyAccessExpression) {
+        return undefined;
+    }
+    const propertyAccess = expression.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+    const owner = propertyAccess.getExpression();
+    const candidates = new Set();
+    for (const declaration of owner.getType().getSymbol()?.getDeclarations() ?? []) {
+        const targetId = resolveTypeMemberTargetId(projectName, rootPath, declaration, memberName, knownIds);
+        if (targetId) {
+            candidates.add(targetId);
+        }
+    }
+    if (candidates.size === 1) {
+        return [...candidates][0];
+    }
+    return undefined;
+}
+function resolveTypeMemberTargetId(projectName, rootPath, declaration, memberName, knownIds) {
+    const sourceFile = declaration.getSourceFile();
+    const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
+    if (declaration.getKind() === SyntaxKind.ClassDeclaration) {
+        const className = declaration.asKindOrThrow(SyntaxKind.ClassDeclaration).getName();
+        if (!className)
+            return undefined;
+        const targetId = nodeId(projectName, relPath, `${className}.${memberName}`, 'Method');
+        return knownIds.has(targetId) ? targetId : undefined;
+    }
+    if (declaration.getKind() === SyntaxKind.InterfaceDeclaration) {
+        const interfaceName = declaration.asKindOrThrow(SyntaxKind.InterfaceDeclaration).getName();
+        const targetId = nodeId(projectName, relPath, `${interfaceName}.${memberName}`, 'Method');
+        return knownIds.has(targetId) ? targetId : undefined;
+    }
+    if (declaration.getKind() === SyntaxKind.TypeAliasDeclaration) {
+        const aliasName = declaration.asKindOrThrow(SyntaxKind.TypeAliasDeclaration).getName();
+        const targetId = nodeId(projectName, relPath, `${aliasName}.${memberName}`, 'Method');
+        return knownIds.has(targetId) ? targetId : undefined;
     }
     return undefined;
 }
@@ -410,16 +471,25 @@ function findInterfaceId(shortName, projectName, knownIds) {
     }
     return undefined;
 }
-function addTypeUseEdges(projectName, rootPath, relPath, node, sourceId, edges, knownIds) {
+function addTypeUseEdges(projectName, rootPath, relPath, node, sourceId, edges, knownIds, outcomes) {
     const typeReferences = node.getDescendantsOfKind(SyntaxKind.TypeReference);
     for (const typeRef of typeReferences) {
         const targetId = resolveTypeReference(projectName, rootPath, relPath, typeRef, knownIds);
         if (targetId && targetId !== sourceId) {
-            edges.push({ sourceId, targetId, type: 'Uses' });
+            if (outcomes.recordResolved(relationshipEdgeKey(sourceId, targetId, 'Uses'))) {
+                edges.push({ sourceId, targetId, type: 'Uses' });
+            }
+            continue;
         }
+        if (targetId === sourceId) {
+            outcomes.recordResolved();
+            continue;
+        }
+        const classification = classifyUnresolvedSymbol(typeRef.getTypeName().getSymbol(), rootPath);
+        outcomes.record(classification.disposition, classification.reason, relationshipSample(typeRef, sourceId, relPath, typeRef.getText()));
     }
 }
-function resolveTypeReference(projectName, rootPath, relPath, typeRef, knownIds) {
+function resolveTypeReference(projectName, rootPath, _relPath, typeRef, knownIds) {
     const symbol = typeRef.getTypeName().getSymbol();
     return resolveSymbolTargetId(projectName, rootPath, symbol, typeRef.getText(), knownIds);
 }
@@ -555,7 +625,7 @@ function resolveDeclarationTargetId(projectName, rootPath, declaration, knownIds
                 ? 'Enum'
                 : kind === 'TypeAliasDeclaration'
                     ? 'Interface'
-                    : kind === 'FunctionDeclaration' || kind === 'MethodDeclaration' || kind === 'Constructor' || kind === 'VariableDeclaration'
+                    : kind === 'FunctionDeclaration' || kind === 'MethodDeclaration' || kind === 'MethodSignature' || kind === 'Constructor' || kind === 'VariableDeclaration'
                         ? 'Method'
                         : undefined;
     if (!targetType)
@@ -573,13 +643,21 @@ function buildMethodDeclarationName(declaration) {
         const variable = declaration.asKindOrThrow(SyntaxKind.VariableDeclaration);
         return variable.getName();
     }
-    if (declaration.getKindName() !== 'MethodDeclaration') {
+    if (declaration.getKindName() !== 'MethodDeclaration' && declaration.getKindName() !== 'MethodSignature') {
         return declaration.getSymbol()?.getName() ?? declaration.getText().split(/\s+/)[0];
     }
-    const method = declaration.asKindOrThrow(SyntaxKind.MethodDeclaration);
-    const classDecl = method.getFirstAncestorByKind(SyntaxKind.ClassDeclaration);
-    const className = classDecl?.getName();
-    return className ? `${className}.${method.getName()}` : method.getName();
+    const methodName = 'getName' in declaration && typeof declaration.getName === 'function'
+        ? declaration.getName()
+        : declaration.getSymbol()?.getName() ?? declaration.getText().split(/\s+/)[0];
+    const classDecl = declaration.getFirstAncestorByKind(SyntaxKind.ClassDeclaration);
+    if (classDecl?.getName()) {
+        return `${classDecl.getName()}.${methodName}`;
+    }
+    const interfaceDecl = declaration.getFirstAncestorByKind(SyntaxKind.InterfaceDeclaration);
+    if (interfaceDecl?.getName()) {
+        return `${interfaceDecl.getName()}.${methodName}`;
+    }
+    return methodName;
 }
 function getTopLevelFunctionVariables(sourceFile) {
     return sourceFile
@@ -601,7 +679,7 @@ function resolveHeritageTargetId(projectName, rootPath, heritageClause, knownIds
     const fallbackName = expressionText.split('<')[0];
     return findInterfaceId(fallbackName, projectName, knownIds) ?? resolveClassIdByName(projectName, rootPath, fallbackName, knownIds);
 }
-function resolveClassIdByName(projectName, rootPath, name, knownIds) {
+function resolveClassIdByName(projectName, _rootPath, name, knownIds) {
     for (const id of knownIds) {
         if (id.startsWith(`${projectName}:Class:`) && id.endsWith(`:${name}`)) {
             return id;
@@ -620,6 +698,59 @@ function getHeritageExpressionSymbol(node) {
         return node.getExpression().getSymbol();
     }
     return node.getSymbol();
+}
+function classifyUnresolvedCall(call, rootPath, hasLocalNameCandidate) {
+    const expression = call.getExpression();
+    const direct = classifyUnresolvedSymbol(expression.getSymbol(), rootPath);
+    if (direct.disposition !== 'indeterminate') {
+        return direct;
+    }
+    if (expression.isKind(SyntaxKind.PropertyAccessExpression)) {
+        const owner = expression.getExpression();
+        const ownerSymbol = owner.getType().getSymbol() ?? owner.getSymbol();
+        const ownerClassification = classifyUnresolvedSymbol(ownerSymbol, rootPath);
+        if (ownerClassification.disposition !== 'indeterminate') {
+            return ownerClassification.disposition === 'unresolved_local'
+                ? { disposition: 'unresolved_local', reason: 'local_receiver_target_not_indexed' }
+                : { disposition: 'external_or_unindexed', reason: 'external_receiver' };
+        }
+        return hasLocalNameCandidate
+            ? { disposition: 'unresolved_local', reason: 'ambiguous_local_call_target' }
+            : { disposition: 'indeterminate', reason: 'unknown_receiver_provenance' };
+    }
+    return hasLocalNameCandidate
+        ? { disposition: 'unresolved_local', reason: 'ambiguous_local_call_target' }
+        : { disposition: 'external_or_unindexed', reason: 'unindexed_or_global_call' };
+}
+function classifyUnresolvedSymbol(symbol, rootPath) {
+    if (!symbol) {
+        return { disposition: 'indeterminate', reason: 'missing_symbol' };
+    }
+    const aliased = symbol.getAliasedSymbol?.();
+    const aliasedDeclarations = aliased && aliased !== symbol ? aliased.getDeclarations() : [];
+    const declarations = aliasedDeclarations.length > 0
+        ? aliasedDeclarations
+        : symbol.getDeclarations();
+    if (declarations.length === 0) {
+        return { disposition: 'indeterminate', reason: 'symbol_without_declaration' };
+    }
+    const normalizedRoot = path.resolve(rootPath).toLowerCase();
+    const hasLocalDeclaration = declarations.some(declaration => isPathWithinRoot(declaration.getSourceFile().getFilePath(), normalizedRoot));
+    return hasLocalDeclaration
+        ? { disposition: 'unresolved_local', reason: 'local_declaration_not_indexed' }
+        : { disposition: 'external_or_unindexed', reason: 'declaration_outside_index_scope' };
+}
+function isPathWithinRoot(filePath, normalizedRoot) {
+    const normalizedFile = path.resolve(filePath).toLowerCase();
+    return normalizedFile === normalizedRoot || normalizedFile.startsWith(`${normalizedRoot}${path.sep}`);
+}
+function relationshipSample(node, sourceId, filePath, targetName) {
+    return {
+        sourceId,
+        filePath,
+        lineNumber: node.getStartLineNumber(),
+        ...(targetName ? { targetName } : {}),
+    };
 }
 function sanitizeNamespace(value) {
     return value.replace(/[\\/:*?"<>|]/g, '_');

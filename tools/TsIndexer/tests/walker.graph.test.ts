@@ -5,6 +5,41 @@ import { useTempProject } from './walker-test-helpers.js';
 const project = useTempProject();
 
 describe('walkTypeScript graph indexing', () => {
+  it('classifies every call candidate exactly once and reports duplicate emitted edges', () => {
+    project.writeFile(
+      'health.ts',
+      `const localHandler = createHandler();
+
+function helper() {}
+
+export function run() {
+  helper();
+  helper();
+  localHandler();
+  missingReceiver.execute();
+  console.log('done');
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+    const repeated = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+    const calls = result.relationshipHealth.calls;
+
+    expect(calls.attempted).toBe(
+      calls.resolvedLocal + calls.externalOrUnindexed + calls.unresolvedLocal + calls.indeterminate,
+    );
+    expect(calls.resolvedLocal).toBeGreaterThanOrEqual(2);
+    expect(calls.duplicateEdges).toBeGreaterThanOrEqual(1);
+    expect(calls.unresolvedLocal).toBeGreaterThanOrEqual(1);
+    expect(calls.indeterminate).toBeGreaterThanOrEqual(1);
+    expect(calls.externalOrUnindexed).toBeGreaterThanOrEqual(1);
+    expect(result.edges.filter(edge => edge.type === 'Calls'
+      && edge.sourceId.endsWith(':run')
+      && edge.targetId.endsWith(':helper'))).toHaveLength(1);
+    expect(repeated.relationshipHealth).toEqual(result.relationshipHealth);
+  });
+
   it('indexes classes, methods, line metadata, and contains edges', () => {
     project.writeFile(
       'editor.ts',

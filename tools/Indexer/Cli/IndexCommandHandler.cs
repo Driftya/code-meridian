@@ -369,7 +369,11 @@ internal sealed class IndexCommandHandler(
 
             var batchFile = WriteTypeScriptBatchFile(context.CacheDirectory, typeScriptRoot, files, fileRoleClassifier);
             var tsArgs = TypeScriptIndexerCommandBuilder.BuildTypeScriptIndexerArgs(tsIndexerRoot, typeScriptRoot, _settings.Project);
-            TypeScriptIndexerCommandBuilder.AddTypeScriptIndexerOptions(tsArgs, _settings.CodeMeridianUrl, batchFile);
+            TypeScriptIndexerCommandBuilder.AddTypeScriptIndexerOptions(
+                tsArgs,
+                _settings.CodeMeridianUrl,
+                batchFile,
+                changedFiles is not null);
 
             exitCode = await TypeScriptIndexerProcessRunner.RunAsync(
                 tsxCommand,

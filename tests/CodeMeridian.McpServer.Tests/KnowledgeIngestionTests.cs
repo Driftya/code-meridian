@@ -357,6 +357,26 @@ public sealed class KnowledgeIngestionTests
     }
 
     [Fact]
+    public async Task KnowledgeApiEndpoints_DeleteDiagnostics_ReturnsDeletedOrdinaryCount()
+    {
+        var repo = Substitute.For<ICodeGraphRepository>();
+        repo.DeleteDiagnosticsAsync("CodeMeridian", Arg.Any<CancellationToken>()).Returns(7);
+        var routeHandler = typeof(KnowledgeApiEndpoints)
+            .GetMethod("DeleteDiagnostics", BindingFlags.NonPublic | BindingFlags.Static);
+
+        routeHandler.Should().NotBeNull();
+        var task = (Task<IResult>)routeHandler!.Invoke(
+            null,
+            ["CodeMeridian", repo, CancellationToken.None])!;
+        var result = await task;
+
+        await repo.Received(1).DeleteDiagnosticsAsync("CodeMeridian", Arg.Any<CancellationToken>());
+        var value = result.Should().BeAssignableTo<IValueHttpResult>().Subject.Value;
+        value.Should().NotBeNull();
+        value!.GetType().GetProperty("deletedCount")!.GetValue(value).Should().Be(7L);
+    }
+
+    [Fact]
     public async Task KnowledgeApiEndpoints_IngestEdge_ForwardsEdgeMetadata()
     {
         var repo = Substitute.For<ICodeGraphRepository>();

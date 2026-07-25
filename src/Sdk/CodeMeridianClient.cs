@@ -267,7 +267,7 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task ClearProjectDiagnosticsAsync(
+    public async Task<long> ClearProjectDiagnosticsAsync(
         string projectContext,
         CancellationToken cancellationToken = default)
     {
@@ -276,6 +276,14 @@ public sealed class CodeMeridianClient(HttpClient httpClient)
             cancellationToken);
 
         response.EnsureSuccessStatusCode();
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return 0;
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var document = await System.Text.Json.JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        return document.RootElement.TryGetProperty("deletedCount", out var deletedCount)
+            ? deletedCount.GetInt64()
+            : 0;
     }
 
     public async Task ClearProjectConfigurationAsync(

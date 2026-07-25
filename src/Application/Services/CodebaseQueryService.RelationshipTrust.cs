@@ -1,11 +1,14 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using CodeMeridian.Core.CodeGraph;
 
 namespace CodeMeridian.Application.Services;
 
 public partial class CodebaseQueryService
 {
+    private const int UnresolvedLocalLowConfidenceThreshold = 1;
+
     private async Task<RelationshipTrust> GetRelationshipTrustAsync(
         string? projectContext,
         CancellationToken cancellationToken)
@@ -15,69 +18,122 @@ public partial class CodebaseQueryService
             {
                 TypeFilter = CodeNodeType.IndexRun,
                 ProjectContext = projectContext,
-                Limit = 100
+                Limit = 500
             },
             cancellationToken);
         var compatibleRuns = await codeGraph.QueryNodesAsync(
             new CodeGraphQuery
             {
                 TypeFilter = CodeNodeType.Diagnostic,
-                NameFilter = "C# index run",
+                NameFilter = "index run",
                 ProjectContext = projectContext,
-                Limit = 100
+                Limit = 200
             },
             cancellationToken);
-        var indexRuns = nativeRuns
+        var parsedRuns = nativeRuns
             .Concat(compatibleRuns)
             .Where(IsRelationshipIndexRun)
             .DistinctBy(node => node.Id)
-            .OrderByDescending(node => node.LastIndexedAt ?? node.UpdatedAt ?? node.CreatedAt)
+            .Select(ParseIndexRun)
+            .OrderByDescending(run => run.Timestamp)
             .ToArray();
-        if (indexRuns.Length == 0)
+        if (parsedRuns.Length == 0)
         {
             return new RelationshipTrust(
                 "Unknown",
                 "no index-run relationship statistics are available",
                 null,
-                null);
+                null,
+                0,
+                0,
+                0,
+                0,
+                0,
+                []);
         }
 
-        var parsedRuns = indexRuns.Select(ParseIndexRun).ToArray();
-        var latest = parsedRuns[0];
-        var latestFull = parsedRuns.FirstOrDefault(run => run.Mode == "full");
-        var latestIncremental = parsedRuns.FirstOrDefault(run => run.Mode == "incremental");
+        var currentRuns = parsedRuns
+            .GroupBy(run => (run.Language, run.ResolutionScope))
+            .Select(group => group.First())
+            .ToArray();
         var warnings = new List<string>();
         var confidence = "High";
+        var externalCount = currentRuns.Sum(run => run.ExternalOrUnindexedCount);
+        var unresolvedLocalCount = currentRuns.Sum(run => run.UnresolvedLocalCount);
+        var indeterminateCount = currentRuns.Sum(run => run.IndeterminateCount);
+        var legacyEstimate = currentRuns.Sum(run => run.LegacyUnresolvedEstimate);
+        var duplicateCount = currentRuns.Sum(run => run.DuplicateCount);
+        var syntheticCount = currentRuns.Sum(run => run.SyntheticCount);
 
-        if (!latest.UsedFullResolutionCatalog)
+        foreach (var run in currentRuns)
         {
-            confidence = "Low";
-            warnings.Add("the latest incremental pass did not use a full relationship-resolution catalog");
+            var scope = $"{run.Language}/{run.ResolutionScope}";
+            if (!run.UsedFullResolutionCatalog)
+            {
+                confidence = "Low";
+                warnings.Add($"{scope} used a partial relationship-resolution catalog");
+            }
+
+            if (run.SchemaVersion >= 2)
+            {
+                if (run.UnresolvedLocalCount >= UnresolvedLocalLowConfidenceThreshold)
+                {
+                    confidence = "Low";
+                    warnings.Add($"{scope} reported {run.UnresolvedLocalCount} unresolved local relationship(s)");
+                }
+
+                if (run.IndeterminateCount > 0)
+                {
+                    if (confidence == "High")
+                        confidence = "Medium";
+                    warnings.Add($"{scope} reported {run.IndeterminateCount} relationship(s) with indeterminate provenance");
+                }
+            }
+            else if (run.LegacyUnresolvedEstimate > 0)
+            {
+                if (confidence == "High")
+                    confidence = "Medium";
+                warnings.Add($"{scope} has a legacy unresolved estimate of {run.LegacyUnresolvedEstimate}; external and local failures were not distinguished");
+            }
+
+            var latestFull = parsedRuns.FirstOrDefault(candidate =>
+                candidate.Language == run.Language
+                && candidate.ResolutionScope == run.ResolutionScope
+                && candidate.Mode == "full");
+            if (run.Mode == "incremental" && latestFull is not null
+                && run.ScannedFiles > 0 && run.IngestedFiles * 10 <= run.ScannedFiles
+                && run.ResolvedRelationships * 2 < latestFull.ResolvedRelationships)
+            {
+                confidence = "Low";
+                warnings.Add($"{scope} resolved relationships dropped by more than 50% after a small incremental batch");
+            }
         }
 
-        if (latest.UnresolvedCount > 0)
-        {
-            if (confidence == "High")
-                confidence = "Medium";
-            warnings.Add($"the latest pass left {latest.UnresolvedCount} attempted local relationship(s) unresolved");
-        }
+        var evidence = $"classified {externalCount} relationship(s) as external or outside the indexed scope";
+        if (warnings.Count == 0)
+            warnings.Add($"the latest run for each language/scope used a full catalog and reported no actionable relationship failures; {evidence}");
+        else
+            warnings.Add(evidence);
 
-        if (latest.Mode == "incremental" && latestFull is not null &&
-            latest.ScannedFiles > 0 && latest.IngestedFiles * 10 <= latest.ScannedFiles &&
-            latest.ResolvedRelationships * 2 < latestFull.ResolvedRelationships)
-        {
-            confidence = "Low";
-            warnings.Add("resolved relationships dropped by more than 50% after a small incremental batch");
-        }
+        var samples = currentRuns
+            .SelectMany(run => run.Samples)
+            .Distinct(StringComparer.Ordinal)
+            .Take(5)
+            .ToArray();
+        if (samples.Length > 0)
+            warnings.Add($"samples: {string.Join(", ", samples)}");
 
-        var reason = warnings.Count == 0
-            ? "the latest index pass used a full resolution catalog and reported no unresolved local relationships"
-            : string.Join("; ", warnings);
         return new RelationshipTrust(
             confidence,
-            reason,
-            latestFull?.Timestamp,
-            latestIncremental?.Timestamp);
+            string.Join("; ", warnings),
+            parsedRuns.Where(run => run.Mode == "full").MaxBy(run => run.Timestamp)?.Timestamp,
+            parsedRuns.Where(run => run.Mode == "incremental").MaxBy(run => run.Timestamp)?.Timestamp,
+            externalCount,
+            unresolvedLocalCount + legacyEstimate,
+            indeterminateCount,
+            duplicateCount,
+            syntheticCount,
+            samples);
     }
 
     private static void AppendRelationshipTrustWarning(StringBuilder builder, RelationshipTrust trust)
@@ -94,25 +150,84 @@ public partial class CodebaseQueryService
             ? string.Empty
             : $" Relationship completeness is {trust.Confidence.ToLowerInvariant()}: {trust.Reason}. An empty relationship result is not proof that a change is safe.";
 
+    private static void AppendRelationshipEvidence(StringBuilder builder, RelationshipTrust trust)
+    {
+        if (trust.Confidence == "Unknown")
+            return;
+
+        builder.AppendLine(
+            $"**Relationship outcomes:** {trust.UnresolvedLocalCount} unresolved local, "
+            + $"{trust.IndeterminateCount} indeterminate, {trust.ExternalOrUnindexedCount} external/unindexed, "
+            + $"{trust.DuplicateCount} duplicate candidate(s), {trust.SyntheticCount} synthetic edge(s)");
+        if (trust.Samples.Count > 0)
+            builder.AppendLine($"**Relationship failure samples:** {string.Join("; ", trust.Samples)}");
+    }
+
     private static ParsedIndexRun ParseIndexRun(CodeNode node)
     {
         var properties = node.Properties;
         var mode = Read("mode") ?? (node.Name.StartsWith("incremental", StringComparison.OrdinalIgnoreCase) ? "incremental" : "full");
         var attempted = ReadInt("attemptedCallEdges") + ReadInt("attemptedReferenceEdges");
         var resolved = ReadInt("resolvedCallEdges") + ReadInt("resolvedReferenceEdges");
+        var schemaVersion = ReadInt("relationshipHealthSchemaVersion");
         return new ParsedIndexRun(
             mode,
+            Read("language") ?? "CSharp",
+            Read("resolutionScope") ?? "project",
+            schemaVersion,
             ReadBool("usedFullResolutionCatalog"),
             ReadInt("scannedFileCount"),
             ReadInt("ingestedFileCount"),
             resolved,
-            Math.Max(0, attempted - resolved),
+            ReadInt("externalOrUnindexedRelationshipCount"),
+            ReadInt("unresolvedLocalRelationshipCount"),
+            ReadInt("indeterminateRelationshipCount"),
+            ReadInt("duplicateRelationshipCount"),
+            ReadInt("syntheticRelationshipCount"),
+            schemaVersion >= 2 ? 0 : Math.Max(0, attempted - resolved),
+            ReadSamples(Read("relationshipFailureSamples")),
             node.LastIndexedAt ?? node.UpdatedAt ?? node.CreatedAt);
 
         string? Read(string key) => properties.TryGetValue(key, out var value) ? value : null;
         int ReadInt(string key) => int.TryParse(Read(key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
         bool ReadBool(string key) => bool.TryParse(Read(key), out var value) && value;
     }
+
+    private static IReadOnlyList<string> ReadSamples(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return [];
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.EnumerateArray()
+                .Select(element =>
+                {
+                    var reason = ReadJsonString(element, "Reason") ?? ReadJsonString(element, "reason") ?? "unknown reason";
+                    var file = ReadJsonString(element, "FilePath") ?? ReadJsonString(element, "filePath");
+                    var line = ReadJsonInt(element, "LineNumber") ?? ReadJsonInt(element, "lineNumber");
+                    return string.IsNullOrWhiteSpace(file)
+                        ? reason
+                        : $"{file}{(line is > 0 ? $":{line}" : "")} ({reason})";
+                })
+                .ToArray();
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static string? ReadJsonString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String
+            ? property.GetString()
+            : null;
+
+    private static int? ReadJsonInt(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var property) && property.TryGetInt32(out var value)
+            ? value
+            : null;
 
     private static bool IsRelationshipIndexRun(CodeNode node) =>
         node.Type == CodeNodeType.IndexRun
@@ -124,14 +239,29 @@ public partial class CodebaseQueryService
         string Confidence,
         string Reason,
         DateTimeOffset? LastFullIndex,
-        DateTimeOffset? LastIncrementalIndex);
+        DateTimeOffset? LastIncrementalIndex,
+        int ExternalOrUnindexedCount,
+        int UnresolvedLocalCount,
+        int IndeterminateCount,
+        int DuplicateCount,
+        int SyntheticCount,
+        IReadOnlyList<string> Samples);
 
     private sealed record ParsedIndexRun(
         string Mode,
+        string Language,
+        string ResolutionScope,
+        int SchemaVersion,
         bool UsedFullResolutionCatalog,
         int ScannedFiles,
         int IngestedFiles,
         int ResolvedRelationships,
-        int UnresolvedCount,
+        int ExternalOrUnindexedCount,
+        int UnresolvedLocalCount,
+        int IndeterminateCount,
+        int DuplicateCount,
+        int SyntheticCount,
+        int LegacyUnresolvedEstimate,
+        IReadOnlyList<string> Samples,
         DateTimeOffset? Timestamp);
 }

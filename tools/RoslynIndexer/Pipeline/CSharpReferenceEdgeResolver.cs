@@ -26,8 +26,7 @@ internal static class CSharpReferenceEdgeResolver
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
 
         var resolved = new List<IngestEdgeRequest>(edges.Count);
-        var diagnostics = new EdgeResolutionDiagnostics();
-        var attempted = 0;
+        var outcomes = new RelationshipResolutionCollector("TypeReferences");
         foreach (var edge in edges)
         {
             if (edge.RelationshipType is not ("Uses" or "Implements" or "Inherits"))
@@ -36,49 +35,62 @@ internal static class CSharpReferenceEdgeResolver
                 continue;
             }
 
-            attempted++;
-
             if (nodesById.ContainsKey(edge.TargetId))
             {
+                outcomes.RecordResolved(nodesById.GetValueOrDefault(edge.SourceId)!, edge);
                 resolved.Add(edge);
                 continue;
             }
 
             if (!nodesById.TryGetValue(edge.SourceId, out var source))
             {
-                diagnostics.Add("missing_source");
+                outcomes.Record(RelationshipResolutionDisposition.Indeterminate, "missing_source", null, edge);
                 continue;
             }
 
             if (edge.TargetName is null || edge.TargetType is null)
             {
-                diagnostics.Add("missing_target_metadata");
+                outcomes.Record(RelationshipResolutionDisposition.Indeterminate, "missing_target_metadata", source, edge);
                 continue;
             }
 
             if (!typeCandidates.TryGetValue((edge.TargetType, edge.TargetName), out var candidates) &&
                 !typeCandidatesByName.TryGetValue(edge.TargetName, out candidates))
             {
-                diagnostics.Add("missing_target");
+                outcomes.Record(
+                    RelationshipResolutionDisposition.ExternalOrUnindexed,
+                    "external_or_unindexed_type",
+                    source,
+                    edge);
                 continue;
             }
 
             var selected = SelectBestTypeCandidate(source, candidates);
             if (selected is not null)
-                resolved.Add(edge with { TargetId = selected.Id });
+            {
+                var resolvedEdge = edge with { TargetId = selected.Id };
+                outcomes.RecordResolved(source, resolvedEdge);
+                resolved.Add(resolvedEdge);
+            }
             else
-                diagnostics.Add("ambiguous_target");
+                outcomes.Record(
+                    RelationshipResolutionDisposition.UnresolvedLocal,
+                    "ambiguous_local_type",
+                    source,
+                    edge);
         }
 
-        var memberImplementationEdges = BuildMemberImplementationEdges(nodes, resolved);
+        var memberImplementationEdges = BuildMemberImplementationEdges(nodes, resolved)
+            .DistinctBy(BuildEdgeIdentity, StringComparer.Ordinal)
+            .ToArray();
         resolved.AddRange(memberImplementationEdges);
 
         var distinct = resolved
             .Where(edge => !string.IsNullOrWhiteSpace(edge.TargetId))
             .DistinctBy(BuildEdgeIdentity, StringComparer.Ordinal)
             .ToList();
-        var resolvedCount = distinct.Count(edge => edge.RelationshipType is "Uses" or "Implements" or "Inherits");
-        return new EdgeResolutionResult(distinct, attempted, resolvedCount, diagnostics.Snapshot());
+        var stats = outcomes.Build(memberImplementationEdges.Length);
+        return new EdgeResolutionResult(distinct, stats.UniqueResolvedEdges, stats);
     }
 
     private static string BuildEdgeIdentity(IngestEdgeRequest edge) =>

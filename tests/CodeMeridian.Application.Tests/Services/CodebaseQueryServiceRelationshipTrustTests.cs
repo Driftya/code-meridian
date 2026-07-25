@@ -65,6 +65,44 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
         result.Should().Contain("Relationship completeness is unknown");
     }
 
+    [Fact]
+    public async Task CheckGraphFreshnessAsync_WithOnlyExternalV2Outcomes_KeepsHighTrust()
+    {
+        var (sut, graph) = Build();
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == null),
+                Arg.Any<CancellationToken>())
+            .Returns([SourceNode()]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.IndexRun),
+                Arg.Any<CancellationToken>())
+            .Returns([V2IndexRun(external: 10856, unresolvedLocal: 0, indeterminate: 0)]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "Project");
+
+        result.Should().Contain("**Relationship completeness:** High");
+        result.Should().Contain("classified 10856 relationship(s) as external or outside the indexed scope");
+        result.Should().NotContain("Relationship remediation");
+    }
+
+    [Fact]
+    public async Task FindHotspotsAsync_WithV2LocalAndIndeterminateOutcomes_DegradesTrustAndShowsSamples()
+    {
+        var (sut, graph) = Build();
+        graph.FindHotspotsAsync("Project", 15, Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<(CodeNode Node, int FanIn)>());
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Diagnostic),
+                Arg.Any<CancellationToken>())
+            .Returns([V2IndexRun(external: 4, unresolvedLocal: 2, indeterminate: 1, compatible: true)]);
+
+        var result = await sut.FindHotspotsAsync("Project");
+
+        result.Should().Contain("Relationship completeness is low");
+        result.Should().Contain("2 unresolved local relationship(s)");
+        result.Should().Contain("src/Service.cs:12");
+    }
+
     private static (CodebaseQueryService Sut, ICodeGraphRepository Graph) Build()
     {
         var graph = Substitute.For<ICodeGraphRepository>();
@@ -112,6 +150,39 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
             ["resolvedCallEdges"] = resolved.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["attemptedReferenceEdges"] = "0",
             ["resolvedReferenceEdges"] = "0",
+            ["usedFullResolutionCatalog"] = "true"
+        }
+    };
+
+    private static CodeNode V2IndexRun(
+        int external,
+        int unresolvedLocal,
+        int indeterminate,
+        bool compatible = false) => new()
+    {
+        Id = "Project::IndexRun::v2",
+        Name = "full C# index run",
+        Type = compatible ? CodeNodeType.Diagnostic : CodeNodeType.IndexRun,
+        ProjectContext = "Project",
+        UpdatedAt = DateTimeOffset.Parse("2026-07-22T10:00:00Z"),
+        LastIndexedAt = DateTimeOffset.Parse("2026-07-22T10:00:00Z"),
+        Properties = new Dictionary<string, string>
+        {
+            ["externalKind"] = "IndexRun",
+            ["relationshipHealthSchemaVersion"] = "2",
+            ["language"] = "CSharp",
+            ["resolutionScope"] = "project",
+            ["mode"] = "full",
+            ["scannedFileCount"] = "40",
+            ["ingestedFileCount"] = "40",
+            ["attemptedCallEdges"] = (30 + external + unresolvedLocal + indeterminate).ToString(),
+            ["resolvedCallEdges"] = "30",
+            ["attemptedReferenceEdges"] = "0",
+            ["resolvedReferenceEdges"] = "0",
+            ["externalOrUnindexedRelationshipCount"] = external.ToString(),
+            ["unresolvedLocalRelationshipCount"] = unresolvedLocal.ToString(),
+            ["indeterminateRelationshipCount"] = indeterminate.ToString(),
+            ["relationshipFailureSamples"] = """[{"FilePath":"src/Service.cs","LineNumber":12,"Reason":"missing_local_target"}]""",
             ["usedFullResolutionCatalog"] = "true"
         }
     };

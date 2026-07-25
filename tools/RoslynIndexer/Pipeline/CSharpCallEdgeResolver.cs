@@ -26,35 +26,46 @@ internal static class CSharpCallEdgeResolver
                 ReadProperty(n.Properties, "declaringTypeShortName")))
             .GroupBy(n => n.Name, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
+        var localTypeNames = nodes
+            .Where(node => node.Type is "Class" or "Interface" or "Struct" or "Record")
+            .Select(node => node.Name)
+            .ToHashSet(StringComparer.Ordinal);
 
         var resolved = new List<IngestEdgeRequest>(edges.Count);
-        var diagnostics = new EdgeResolutionDiagnostics();
-        var attempted = 0;
+        var outcomes = new RelationshipResolutionCollector("Calls");
         foreach (var edge in edges)
         {
-            if (edge.RelationshipType != "Calls" || edge.CallName is null)
+            if (edge.RelationshipType != "Calls")
             {
                 resolved.Add(edge);
                 continue;
             }
 
-            attempted++;
-
-            if (!nodesById.TryGetValue(edge.SourceId, out var source))
+            nodesById.TryGetValue(edge.SourceId, out var source);
+            if (edge.CallName is null)
             {
-                diagnostics.Add("missing_source");
+                outcomes.Record(RelationshipResolutionDisposition.Indeterminate, "missing_call_name", source, edge);
+                continue;
+            }
+
+            if (source is null)
+            {
+                outcomes.Record(RelationshipResolutionDisposition.Indeterminate, "missing_source", null, edge);
                 continue;
             }
 
             if (edge.ParamCount is null)
             {
-                diagnostics.Add("missing_parameter_metadata");
+                outcomes.Record(RelationshipResolutionDisposition.Indeterminate, "missing_parameter_metadata", source, edge);
                 continue;
             }
 
+            var receiverTypeHint = ReadProperty(edge, "receiverTypeHint");
+            var receiverKind = ReadProperty(edge, "receiverKind");
             if (!methodCandidates.TryGetValue(edge.CallName, out var candidates))
             {
-                diagnostics.Add("missing_target");
+                var disposition = ClassifyMissingTarget(receiverKind, receiverTypeHint, localTypeNames);
+                outcomes.Record(disposition, MissingTargetReason(disposition), source, edge);
                 continue;
             }
 
@@ -64,37 +75,93 @@ internal static class CSharpCallEdgeResolver
                 .ToArray();
             if (compatibleCandidates.Length == 0)
             {
-                diagnostics.Add("missing_target");
+                var disposition = IsKnownExternalReceiver(receiverKind, receiverTypeHint, localTypeNames)
+                    ? RelationshipResolutionDisposition.ExternalOrUnindexed
+                    : RelationshipResolutionDisposition.UnresolvedLocal;
+                outcomes.Record(disposition, disposition == RelationshipResolutionDisposition.ExternalOrUnindexed
+                    ? "external_receiver_incompatible_arity"
+                    : "local_target_incompatible_arity", source, edge);
                 continue;
             }
 
-            var receiverTypeHint = ReadProperty(edge, "receiverTypeHint");
-            var receiverKind = ReadProperty(edge, "receiverKind");
             if (string.Equals(receiverKind, "UnknownMember", StringComparison.Ordinal))
             {
                 var testSubject = SelectTestSubjectMatch(source, compatibleCandidates);
                 if (testSubject is not null)
-                    resolved.Add(edge with { TargetId = testSubject.Id });
+                {
+                    var resolvedEdge = edge with { TargetId = testSubject.Id };
+                    outcomes.RecordResolved(source, resolvedEdge);
+                    resolved.Add(resolvedEdge);
+                }
                 else
-                    diagnostics.Add("unknown_member_receiver");
+                    outcomes.Record(RelationshipResolutionDisposition.Indeterminate, "unknown_member_receiver", source, edge);
                 continue;
             }
 
             var selected = SelectBestCandidate(source, compatibleCandidates, receiverTypeHint, receiverKind);
             if (selected is not null)
-                resolved.Add(edge with { TargetId = selected.Id });
+            {
+                var resolvedEdge = edge with { TargetId = selected.Id };
+                outcomes.RecordResolved(source, resolvedEdge);
+                resolved.Add(resolvedEdge);
+            }
             else
-                diagnostics.Add(string.IsNullOrWhiteSpace(receiverTypeHint)
-                    ? "missing_receiver_hint"
-                    : "ambiguous_target");
+            {
+                var disposition = IsKnownExternalReceiver(receiverKind, receiverTypeHint, localTypeNames)
+                    ? RelationshipResolutionDisposition.ExternalOrUnindexed
+                    : RelationshipResolutionDisposition.UnresolvedLocal;
+                var reason = disposition == RelationshipResolutionDisposition.ExternalOrUnindexed
+                    ? "external_receiver_name_collision"
+                    : string.IsNullOrWhiteSpace(receiverTypeHint)
+                        ? "missing_receiver_hint"
+                        : "ambiguous_local_target";
+                outcomes.Record(disposition, reason, source, edge);
+            }
         }
 
         var distinct = resolved
             .DistinctBy(BuildEdgeIdentity, StringComparer.Ordinal)
             .ToList();
-        var resolvedCount = distinct.Count(edge => edge.RelationshipType == "Calls");
-        return new EdgeResolutionResult(distinct, attempted, resolvedCount, diagnostics.Snapshot());
+        var stats = outcomes.Build();
+        return new EdgeResolutionResult(distinct, stats.UniqueResolvedEdges, stats);
     }
+
+    private static RelationshipResolutionDisposition ClassifyMissingTarget(
+        string? receiverKind,
+        string? receiverTypeHint,
+        IReadOnlySet<string> localTypeNames)
+    {
+        if (string.Equals(receiverKind, "UnknownMember", StringComparison.Ordinal))
+            return RelationshipResolutionDisposition.Indeterminate;
+
+        if (string.Equals(receiverKind, "ThisOrBase", StringComparison.Ordinal)
+            || IsKnownLocalReceiver(receiverTypeHint, localTypeNames))
+        {
+            return RelationshipResolutionDisposition.UnresolvedLocal;
+        }
+
+        return RelationshipResolutionDisposition.ExternalOrUnindexed;
+    }
+
+    private static string MissingTargetReason(RelationshipResolutionDisposition disposition) =>
+        disposition switch
+        {
+            RelationshipResolutionDisposition.Indeterminate => "unknown_member_receiver",
+            RelationshipResolutionDisposition.UnresolvedLocal => "local_target_missing",
+            _ => "external_or_unindexed_target"
+        };
+
+    private static bool IsKnownExternalReceiver(
+        string? receiverKind,
+        string? receiverTypeHint,
+        IReadOnlySet<string> localTypeNames) =>
+        string.Equals(receiverKind, "TypedOrStatic", StringComparison.Ordinal)
+        && !string.IsNullOrWhiteSpace(receiverTypeHint)
+        && !IsKnownLocalReceiver(receiverTypeHint, localTypeNames);
+
+    private static bool IsKnownLocalReceiver(string? receiverTypeHint, IReadOnlySet<string> localTypeNames) =>
+        !string.IsNullOrWhiteSpace(receiverTypeHint)
+        && localTypeNames.Contains(receiverTypeHint);
 
     private static string BuildEdgeIdentity(IngestEdgeRequest edge) =>
         edge.RelationshipType is "ReadsConfig" or "BindsConfig"

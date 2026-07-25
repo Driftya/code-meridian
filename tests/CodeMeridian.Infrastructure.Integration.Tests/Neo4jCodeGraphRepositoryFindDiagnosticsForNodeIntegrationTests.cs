@@ -31,11 +31,24 @@ public sealed class Neo4jCodeGraphRepositoryFindDiagnosticsForNodeIntegrationTes
             namespaceName: target.Namespace,
             lineNumber: 21,
             summary: "Synthetic diagnostic for integration coverage");
+        var indexRun = CreateNode(
+            id: $"{projectContext}.IndexRun",
+            name: "full TypeScript index run",
+            type: CodeNodeType.Diagnostic,
+            projectContext: projectContext,
+            filePath: filePath,
+            namespaceName: target.Namespace,
+            properties: new Dictionary<string, string>
+            {
+                ["externalKind"] = "IndexRun",
+                ["relationshipHealthSchemaVersion"] = "2"
+            });
 
         try
         {
             await _repository!.UpsertNodeAsync(target);
             await _repository.UpsertNodeAsync(diagnostic);
+            await _repository.UpsertNodeAsync(indexRun);
 
             var diagnostics = await _repository.FindDiagnosticsForNodeAsync(target.Id);
 

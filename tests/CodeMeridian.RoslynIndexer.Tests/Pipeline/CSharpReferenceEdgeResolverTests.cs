@@ -55,4 +55,37 @@ public sealed class CSharpReferenceEdgeResolverTests
             edge.SourceId == "Project::Struct::Demo.Box"
             && edge.TargetId == "Project::Class::Demo.Point");
     }
+
+    [Fact]
+    public void ResolveWithDiagnostics_SeparatesExternalAndSyntheticEdgesFromRawAccounting()
+    {
+        var interfaceId = "Project::Interface::Demo.IWorker";
+        var implementationId = "Project::Class::Demo.Worker";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(interfaceId, "IWorker", "Interface", "Demo", "src/IWorker.cs", 1, null),
+            new(implementationId, "Worker", "Class", "Demo", "src/Worker.cs", 1, null),
+            new("Project::Method::Demo.IWorker::Run()", "Run()", "Method", "Demo", "src/IWorker.cs", 2, null,
+                Properties: new() { ["declaringTypeId"] = interfaceId }),
+            new("Project::Method::Demo.Worker::Run()", "Run()", "Method", "Demo", "src/Worker.cs", 2, null,
+                Properties: new() { ["declaringTypeId"] = implementationId })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(implementationId, interfaceId, "Implements"),
+            new(implementationId, string.Empty, "Uses", TargetName: "CancellationToken", TargetType: "Class")
+        };
+
+        var result = CSharpReferenceEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+
+        result.Stats.Attempted.Should().Be(2);
+        result.Stats.ResolvedLocal.Should().Be(1);
+        result.Stats.ExternalOrUnindexed.Should().Be(1);
+        result.Stats.SyntheticEdges.Should().Be(1);
+        result.Stats.HasValidAccounting.Should().BeTrue();
+        result.Edges.Should().Contain(edge =>
+            edge.SourceId == "Project::Method::Demo.Worker::Run()"
+            && edge.TargetId == "Project::Method::Demo.IWorker::Run()"
+            && edge.RelationshipType == "Implements");
+    }
 }

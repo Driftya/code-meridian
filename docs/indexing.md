@@ -174,7 +174,7 @@ codemeridian index . --verify --project CodeMeridian --fail-on moderate
 
 ## Clear Commands
 
-Use `codemeridian index --clear` for normal rebuilds. It clears the selected project once before indexing, which avoids stale nodes after file moves, renames, or indexer ID changes.
+Use `codemeridian index --force-full` for a routine non-destructive full relationship refresh. Use `codemeridian index --clear` when stale IDs are expected after file moves, project moves, renames, or indexer schema/ID changes; it clears the selected project once before indexing.
 
 Use `codemeridian clear --project <name>` when you want to remove one project's indexed code graph and documentation without immediately re-indexing.
 
@@ -186,7 +186,11 @@ By default, the unified indexer stores a language-neutral file snapshot in `.mer
 
 Changed and deleted files are removed from the project graph before re-indexing, which prevents old symbols from lingering when a file is edited or removed. Use `--clear` after major renames, project moves, or indexer ID changes. Use `--no-incremental` or `--force-full` when you want a full scan without clearing existing knowledge.
 
-For C#, node ingestion and relationship resolution have separate scopes. Only changed files own and upsert their file-backed nodes, but every current C# file participates in the resolution catalog. `Contains` and declaration edges are owned by their source file. Cross-file `Calls`, `Uses`, `Implements`, and inheritance edges are reconstructed from the surviving source declarations, so deleting or changing a target cannot permanently erase an incoming edge from an unchanged source. Synthetic targets without a file are ingested only when a changed source reaches them. Each full or incremental pass records scanned/ingested counts and resolved/unresolved relationship diagnostics in project-scoped index-run metadata.
+For C#, node ingestion and relationship resolution have separate scopes. Only changed files own and upsert their file-backed nodes, but every current C# file participates in the resolution catalog. `Contains` and declaration edges are owned by their source file. Cross-file `Calls`, `Uses`, `Implements`, and inheritance edges are reconstructed from the surviving source declarations, so deleting or changing a target cannot permanently erase an incoming edge from an unchanged source. Synthetic targets without a file are ingested only when a changed source reaches them.
+
+C# and TypeScript index runs record relationship-health metadata using mutually exclusive candidate outcomes: resolved locally, external or outside the indexed scope, unresolved locally, and indeterminate. Duplicate resolved candidates and synthetic implementation edges are reported separately and do not distort candidate accounting. A full catalog with only resolved and external outcomes remains High confidence; indeterminate syntax-only cases lower confidence to Medium, while known local failures or a partial catalog lower it to Low. Legacy runs remain readable, but their old attempted-minus-resolved value is labeled as an estimate.
+
+Relationship resolution is best effort and intentionally does not create graph nodes for every framework or installed-package method. Bounded deterministic failure samples appear in freshness/drift evidence to make remaining local resolver cases reproducible without storing source bodies or argument values.
 
 ## C# Indexing
 
@@ -273,7 +277,7 @@ The unified indexer refreshes diagnostic nodes for the project, then runs availa
 
 Without `--allow-repo-scripts`, the indexer skips `dotnet build` and repo lint commands but still uses the local `tsc` check when available.
 
-Diagnostics are stored as `Diagnostic` code nodes with severity/code, source tool, message, file, and line. When backend embeddings are enabled, diagnostic messages are embedded during ingestion for semantic discovery. Diagnostics can be queried with `find_diagnostics` and `find_diagnostics_for_node`.
+Diagnostics are stored as `Diagnostic` code nodes with severity/code, source tool, message, file, and line. Each diagnostics pass deletes the project's previous ordinary diagnostics, ingests the new distinct set, and verifies the persisted ordinary count. Relationship-health `IndexRun` compatibility nodes are preserved during replacement and excluded from `find_diagnostics`, nearby-diagnostic queries, and `doctor` diagnostic totals. Replacement is clear-then-ingest rather than atomic; if the process is interrupted after cleanup, rerun the diagnostics pass to restore and verify the current set. When backend embeddings are enabled, diagnostic messages are embedded during ingestion for semantic discovery.
 
 ## `codemeridian doctor`
 

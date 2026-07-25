@@ -8,8 +8,24 @@ using CodeMeridian.Tooling.Discovery;
 
 namespace CodeMeridian.Indexer.Cli.Commands;
 
-internal sealed class DiagnosticsCommand(IProjectDiscoveryService projectDiscoveryService)
+internal sealed class DiagnosticsCommand
 {
+    private readonly IProjectDiscoveryService _projectDiscoveryService;
+    private readonly Func<string, string?, HttpClient> _httpClientFactory;
+
+    public DiagnosticsCommand(IProjectDiscoveryService projectDiscoveryService)
+        : this(projectDiscoveryService, CreateHttpClient)
+    {
+    }
+
+    internal DiagnosticsCommand(
+        IProjectDiscoveryService projectDiscoveryService,
+        Func<string, string?, HttpClient> httpClientFactory)
+    {
+        _projectDiscoveryService = projectDiscoveryService;
+        _httpClientFactory = httpClientFactory;
+    }
+
     public async Task<int> RunAsync(
         DirectoryInfo rootPath,
         IReadOnlyCollection<DirectoryInfo> typeScriptRoots,
@@ -21,28 +37,22 @@ internal sealed class DiagnosticsCommand(IProjectDiscoveryService projectDiscove
         Console.WriteLine();
         Console.WriteLine("Indexing diagnostics...");
 
-        using var httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(codeMeridianUrl),
-            Timeout = TimeSpan.FromMinutes(10)
-        };
-        httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-        if (!string.IsNullOrWhiteSpace(apiKey))
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        using var httpClient = _httpClientFactory(codeMeridianUrl, apiKey);
 
         var client = new CodeMeridianClient(httpClient);
-        await client.ClearProjectDiagnosticsAsync(project);
+        var deletedCount = await client.ClearProjectDiagnosticsAsync(project);
+        Console.WriteLine($"  Cleared {deletedCount} stale diagnostic(s); index-run health metadata was preserved.");
 
         var findings = new List<DiagnosticFinding>();
 
-        if (allowRepoScripts && projectDiscoveryService.ContainsFile(rootPath, ".cs"))
+        if (allowRepoScripts && _projectDiscoveryService.ContainsFile(rootPath, ".cs"))
         {
             var build = await RunCaptureAsync("dotnet", BuildDotnetBuildArguments(rootPath), rootPath);
             var dotnetFindings = ParseDotnetDiagnostics(build.Output, rootPath, project);
             findings.AddRange(dotnetFindings);
             Console.WriteLine($"  dotnet build exit code {build.ExitCode}; parsed {dotnetFindings.Count} diagnostics.");
         }
-        else if (projectDiscoveryService.ContainsFile(rootPath, ".cs"))
+        else if (_projectDiscoveryService.ContainsFile(rootPath, ".cs"))
         {
             Console.WriteLine("  C# build diagnostics skipped. Use --allow-repo-scripts to run repo-controlled build steps.");
         }
@@ -108,8 +118,32 @@ internal sealed class DiagnosticsCommand(IProjectDiscoveryService projectDiscove
             }
         }
 
-        Console.WriteLine($"  Indexed {distinct.Length} diagnostics.");
+        var status = await client.GetDoctorStatusAsync(project);
+        if (status is null)
+            throw new InvalidOperationException("Diagnostics replacement could not be verified because the server did not return project status.");
+        if (status.DiagnosticsIndexed != distinct.Length)
+        {
+            throw new InvalidOperationException(
+                $"Diagnostics replacement verification failed: submitted {distinct.Length} ordinary diagnostic(s), "
+                + $"but the server reports {status.DiagnosticsIndexed}.");
+        }
+
+        Console.WriteLine($"  Indexed and verified {distinct.Length} diagnostics.");
         return 0;
+    }
+
+    private static HttpClient CreateHttpClient(string codeMeridianUrl, string? apiKey)
+    {
+        var httpClient = new HttpClient
+        {
+            BaseAddress = new Uri(codeMeridianUrl),
+            Timeout = TimeSpan.FromMinutes(10)
+        };
+        httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        return httpClient;
     }
 
     private static async Task<(int ExitCode, string Output)> RunCaptureAsync(

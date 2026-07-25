@@ -41,6 +41,9 @@ This file is the quick reference for what the TypeScript indexer currently parse
 ## Notes
 
 - The indexer is syntax-first and uses `ts-morph` for conservative symbol-assisted resolution where available.
+- Calls and type references use the same v2 relationship-health outcomes as C#: resolved local, external/unindexed, unresolved local, and indeterminate. Duplicate emitted edges are counted separately.
+- Full batches record full-catalog evidence per TypeScript project root. Incremental batches are explicitly marked partial-catalog because only changed files are supplied to the worker.
+- Compiler and lint diagnostics are owned by the unified indexer's project-level diagnostics phase, so `--skip-diagnostics` is honored consistently and stale ordinary diagnostics can be replaced and verified once per project.
 - Type aliases are currently represented as `Interface` nodes to stay compatible with the shared graph contract.
 - Class accessors, namespace declarations, and nested/local function expressions are not yet guaranteed to be indexed as first-class nodes.
 - If a declaration form is not listed above, it is currently not guaranteed to be indexed as a first-class node.

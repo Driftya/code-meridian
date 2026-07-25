@@ -195,6 +195,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         const string cypher = """
             MATCH (n:CodeNode)
             WHERE n.type = 'Diagnostic'
+              AND coalesce(n.externalKind, '') <> 'IndexRun'
               AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
             RETURN count(n) AS count
             """;
@@ -446,22 +447,33 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         });
     }
 
-    public async Task DeleteDiagnosticsAsync(string projectContext, CancellationToken cancellationToken = default)
+    public async Task<long> DeleteDiagnosticsAsync(string projectContext, CancellationToken cancellationToken = default)
     {
         await using var session = _driver.AsyncSession();
 
-        const string cypher = """
+        const string whereClause = """
             MATCH (n:CodeNode)
-            WHERE n.projectContextNormalized = $projectContextNormalized
+            WHERE (
+                n.projectContextNormalized = $projectContextNormalized
+                OR (
+                    n.projectContextNormalized IS NULL
+                    AND toLower(trim(n.projectContext)) = $projectContextNormalized
+                )
+              )
               AND n.type = 'Diagnostic'
               AND coalesce(n.externalKind, '') <> 'IndexRun'
-            DETACH DELETE n
             """;
 
-        await session.ExecuteWriteAsync(async tx =>
+        return await session.ExecuteWriteAsync(async tx =>
         {
-            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Normalize(projectContext) });
-            await cursor.ConsumeAsync();
+            var parameters = new { projectContextNormalized = Normalize(projectContext) };
+            var countCursor = await tx.RunAsync($"{whereClause}\nRETURN count(n) AS count", parameters);
+            var countRecord = await countCursor.SingleAsync();
+            var deletedCount = countRecord["count"].As<long>();
+
+            var deleteCursor = await tx.RunAsync($"{whereClause}\nDETACH DELETE n", parameters);
+            await deleteCursor.ConsumeAsync();
+            return deletedCount;
         });
     }
 
@@ -517,6 +529,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         const string cypher = """
             MATCH (n:CodeNode)
             WHERE n.type = 'Diagnostic'
+              AND coalesce(n.externalKind, '') <> 'IndexRun'
               AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
               AND ($severityNormalized IS NULL OR n.nameNormalized STARTS WITH $severityNormalized)
             RETURN n
@@ -547,6 +560,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             MATCH (target:CodeNode {id: $nodeId})
             MATCH (diag:CodeNode)
             WHERE diag.type = 'Diagnostic'
+              AND coalesce(diag.externalKind, '') <> 'IndexRun'
               AND diag.projectContextNormalized = target.projectContextNormalized
               AND diag.filePathNormalized = target.filePathNormalized
             RETURN diag AS n

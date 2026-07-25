@@ -47,5 +47,7 @@ This file is the quick reference for what the Roslyn indexer currently parses an
 
 - The indexer is syntax-driven. It does not require semantic compilation to walk a file.
 - Type resolution is name-based and intentionally conservative when multiple candidates share a name.
+- Call and type-reference candidates are classified as resolved local, external/unindexed, unresolved local, or indeterminate. Framework/package targets are not promised as graph nodes and do not reduce local relationship confidence.
+- Duplicate resolved candidates and synthetic member-implementation edges are reported separately from the mutually exclusive raw-candidate outcomes.
+- Each index run stores bounded, deterministic unresolved-local and indeterminate samples plus v2 relationship-health totals. Incremental passes use the full C# resolution catalog even when only changed file-owned nodes are ingested.
 - If a member form is not listed above, it is currently not guaranteed to be indexed as a first-class node.
-

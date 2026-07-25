@@ -7,10 +7,15 @@ import { collectDatabaseTracingEdges, collectDatabaseTracingNodes } from './walk
 import { loadDatabaseTracingOptions, type DatabaseTracingOptions } from './walker/database-tracing-options.js';
 import { collectEdges, collectNodes } from './walker/graph.js';
 import { collectRouteEdges, collectRouteNodes } from './walker/routes.js';
+import {
+  RelationshipOutcomeCollector,
+  type TypeScriptRelationshipHealth,
+} from './relationship-health.js';
 
 export interface WalkResult {
   nodes: CodeNodeDto[];
   edges: CodeEdgeDto[];
+  relationshipHealth: TypeScriptRelationshipHealth;
 }
 
 export function walkTypeScript(
@@ -24,6 +29,8 @@ export function walkTypeScript(
   const edges: CodeEdgeDto[] = [];
   const knownIds = new Set<string>();
   const methodIndex = new Map<string, string[]>();
+  const callOutcomes = new RelationshipOutcomeCollector('Calls');
+  const typeReferenceOutcomes = new RelationshipOutcomeCollector('TypeReferences');
   const tracingOptions = databaseTracingOptions ?? loadDatabaseTracingOptions(rootPath);
 
   const tsConfigPath = path.join(rootPath, 'tsconfig.json');
@@ -54,13 +61,31 @@ export function walkTypeScript(
   indexMethods(nodes, methodIndex);
 
   for (const sourceFile of sourceFiles) {
-    collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds, methodIndex);
+    collectEdges(
+      sourceFile,
+      rootPath,
+      projectName,
+      nodes,
+      edges,
+      knownIds,
+      methodIndex,
+      callOutcomes,
+      typeReferenceOutcomes,
+    );
     collectRouteEdges(sourceFile, rootPath, projectName, edges, knownIds);
     collectConfigurationEdges(sourceFile, rootPath, projectName, edges);
     collectDatabaseTracingEdges(sourceFile, rootPath, projectName, edges, tracingOptions);
   }
 
-  return { nodes, edges };
+  return {
+    nodes,
+    edges,
+    relationshipHealth: {
+      schemaVersion: 2,
+      calls: callOutcomes.build(),
+      typeReferences: typeReferenceOutcomes.build(),
+    },
+  };
 }
 
 function indexMethods(nodes: CodeNodeDto[], methodIndex: Map<string, string[]>): void {

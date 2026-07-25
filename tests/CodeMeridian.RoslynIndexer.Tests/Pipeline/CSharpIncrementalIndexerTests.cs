@@ -96,7 +96,7 @@ public sealed class CSharpIncrementalIndexerTests : IDisposable
     }
 
     [Fact]
-    public async Task IndexAsync_ReportsDeterministicUnresolvedReasons()
+    public async Task IndexAsync_ReportsDeterministicExternalOutcomes()
     {
         var caller = WriteFile("src/Caller.cs", """
             namespace Sample;
@@ -108,10 +108,14 @@ public sealed class CSharpIncrementalIndexerTests : IDisposable
         var (sut, _) = CreateSut();
 
         var stats = await sut.IndexAsync([caller], "SampleProject", _root);
+        var repeated = await sut.IndexAsync([caller], "SampleProject", _root);
 
         stats.AttemptedCallEdges.Should().Be(1);
         stats.ResolvedCallEdges.Should().Be(0);
-        stats.UnresolvedEdgesByReason.Should().ContainKey("missing_target").WhoseValue.Should().Be(1);
+        stats.CallResolution.ExternalOrUnindexed.Should().Be(1);
+        stats.CallResolution.UnresolvedLocal.Should().Be(0);
+        stats.CallResolution.HasValidAccounting.Should().BeTrue();
+        repeated.CallResolution.Should().BeEquivalentTo(stats.CallResolution);
     }
 
     [Fact]
@@ -134,7 +138,7 @@ public sealed class CSharpIncrementalIndexerTests : IDisposable
             isIncremental: true);
 
         handler.HasAnyEdgeTo("Sample.Callee::Execute()").Should().BeFalse();
-        stats.UnresolvedEdgesByReason.Should().ContainKey("missing_target");
+        stats.CallResolution.ExternalOrUnindexed.Should().Be(1);
         stats.IngestedFiles.Should().Be(0);
     }
 
@@ -166,7 +170,8 @@ public sealed class CSharpIncrementalIndexerTests : IDisposable
 
         handler.HasAnyEdgeTo("Sample.Callee::Execute()").Should().BeFalse();
         handler.HasEdge("Calls", "Sample.Caller::Run()", "Sample.Callee::ExecuteRenamed()").Should().BeFalse();
-        stats.UnresolvedEdgesByReason.Should().ContainKey("missing_target");
+        stats.CallResolution.UnresolvedLocal.Should().Be(1);
+        stats.CallResolution.Reasons.Should().ContainKey("unresolved_local:local_target_missing");
     }
 
     [Fact]

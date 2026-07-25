@@ -16,10 +16,13 @@ internal static class TypeScriptIndexerCommandBuilder
     public static void AddTypeScriptIndexerOptions(
         List<string> arguments,
         string codeMeridianUrl,
-        FileInfo batchFile)
+        FileInfo batchFile,
+        bool isIncremental = false)
     {
         arguments.AddRange(["--url", codeMeridianUrl]);
         arguments.AddRange(["--batch-file", GetPath(batchFile)]);
+        if (isIncremental)
+            arguments.Add("--incremental");
     }
 
     private static string CombinePath(DirectoryInfo root, params string[] segments)

@@ -636,15 +636,16 @@ public sealed class CodeMeridianClientTests
     [Fact]
     public async Task ClearProjectDiagnosticsAsync_SendsDeleteRequest()
     {
-        var handler = new CapturingHandler(HttpStatusCode.NoContent);
+        var handler = new CapturingHandler(HttpStatusCode.OK);
         var client = new HttpClient(handler)
         {
             BaseAddress = new Uri("http://localhost")
         };
         var sut = new CodeMeridianClient(client);
 
-        await sut.ClearProjectDiagnosticsAsync("My Project");
+        var deletedCount = await sut.ClearProjectDiagnosticsAsync("My Project");
 
+        deletedCount.Should().Be(7);
         handler.Request.Should().NotBeNull();
         handler.Request!.Method.Should().Be(HttpMethod.Delete);
         handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/v1/knowledge/project/My%20Project/diagnostics");
@@ -697,7 +698,9 @@ public sealed class CodeMeridianClientTests
                 return new HttpResponseMessage(HttpStatusCode.Created)
                 {
                     StatusCode = statusCode,
-                    Content = request.RequestUri!.AbsolutePath == "/api/v1/status/version"
+                    Content = request.RequestUri!.AbsolutePath.EndsWith("/diagnostics", StringComparison.Ordinal)
+                        ? JsonContent.Create(new { deletedCount = 7 })
+                        : request.RequestUri!.AbsolutePath == "/api/v1/status/version"
                         ? JsonContent.Create(new CodeMeridianComponentVersion("CodeMeridian.McpServer", "1.2.3", 1, 2))
                         : request.RequestUri!.AbsolutePath == "/api/v1/embeddings"
                             ? JsonContent.Create(new

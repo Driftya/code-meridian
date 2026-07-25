@@ -37,4 +37,18 @@ public sealed class TypeScriptIndexerCommandBuilderTests
             "--batch-file",
             @"C:\temp\ts-batch.json");
     }
+
+    [Fact]
+    public void AddTypeScriptIndexerOptions_ForIncrementalBatch_AddsPartialCatalogFlag()
+    {
+        var args = new List<string>();
+
+        TypeScriptIndexerCommandBuilder.AddTypeScriptIndexerOptions(
+            args,
+            "http://localhost:5100",
+            new FileInfo(@"C:\temp\ts-batch.json"),
+            isIncremental: true);
+
+        args.Should().Contain("--incremental");
+    }
 }
