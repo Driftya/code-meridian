@@ -876,16 +876,16 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Line coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar28">71%</div>
+<div class="large cardpercentagebar cardpercentagebar27">73%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered lines:</th>
-<td class="limit-width right" title="128">128</td>
+<td class="limit-width right" title="131">131</td>
 </tr>
 <tr>
 <th>Uncovered lines:</th>
-<td class="limit-width right" title="51">51</td>
+<td class="limit-width right" title="48">48</td>
 </tr>
 <tr>
 <th>Coverable lines:</th>
@@ -897,7 +897,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Line coverage:</th>
-<td class="limit-width right" title="128 of 179">71.5%</td>
+<td class="limit-width right" title="131 of 179">73.1%</td>
 </tr>
 </table>
 </div>
@@ -963,7 +963,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr><td title="DeleteProject()"><a href="#file0_line263" class="navigatetohash">DeleteProject()</a></td><td>100%</td><td>2</td><td>1</td><td>0%</td></tr>
 <tr><td title="DeleteProjectFile()"><a href="#file0_line277" class="navigatetohash">DeleteProjectFile()</a></td><td>100%</td><td>2</td><td>1</td><td>0%</td></tr>
 <tr><td title="DeleteCodeGraph()"><a href="#file0_line289" class="navigatetohash">DeleteCodeGraph()</a></td><td>100%</td><td>2</td><td>1</td><td>0%</td></tr>
-<tr><td title="DeleteDiagnostics()"><a href="#file0_line298" class="navigatetohash">DeleteDiagnostics()</a></td><td>100%</td><td>2</td><td>1</td><td>0%</td></tr>
+<tr><td title="DeleteDiagnostics()"><a href="#file0_line298" class="navigatetohash">DeleteDiagnostics()</a></td><td>100%</td><td>1</td><td>1</td><td>100%</td></tr>
 <tr><td title="DeleteConfiguration()"><a href="#file0_line307" class="navigatetohash">DeleteConfiguration()</a></td><td>100%</td><td>2</td><td>1</td><td>0%</td></tr>
 <tr><td title="ParseEmbedding(System.String)"><a href="#file0_line313" class="navigatetohash">ParseEmbedding(...)</a></td><td>25%</td><td>10</td><td>4</td><td>28.57%</td></tr>
 <tr><td title="IsEmbeddableType(CodeMeridian.Core.CodeGraph.CodeNodeType)"><a href="#file0_line325" class="navigatetohash">IsEmbeddableType(...)</a></td><td>50%</td><td>10</td><td>10</td><td>100%</td></tr>
@@ -1276,9 +1276,9 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line295"></a><code>295</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ICodeGraphRepository&nbsp;codeGraph,</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line296"></a><code>296</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CancellationToken&nbsp;ct)</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line297"></a><code>297</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
-<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line298"></a><code>298</code></td><td></td><td class="lightred"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;await&nbsp;codeGraph.DeleteDiagnosticsAsync(projectContext,&nbsp;ct);</code></td></tr>
-<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line299"></a><code>299</code></td><td></td><td class="lightred"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return&nbsp;Results.NoContent();</code></td></tr>
-<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line300"></a><code>300</code></td><td></td><td class="lightred"><code>&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
+<tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line298"></a><code>298</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;var&nbsp;deletedCount&nbsp;=&nbsp;await&nbsp;codeGraph.DeleteDiagnosticsAsync(projectContext,&nbsp;ct);</code></td></tr>
+<tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line299"></a><code>299</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return&nbsp;Results.Ok(new&nbsp;{&nbsp;deletedCount&nbsp;});</code></td></tr>
+<tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line300"></a><code>300</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line301"></a><code>301</code></td><td></td><td class="lightgray"><code></code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line302"></a><code>302</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;private&nbsp;static&nbsp;async&nbsp;Task&lt;IResult&gt;&nbsp;DeleteConfiguration(</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line303"></a><code>303</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;string&nbsp;projectContext,</code></td></tr>
@@ -1451,7 +1451,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/24/2026 - 12:51:39<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/26/2026 - 09:37:01<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>
@@ -1471,7 +1471,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <a href="#file0_line263" class="navigatetohash percentagebar percentagebar0" title="Line coverage: 0% - DeleteProject()"><i class="icon-cube"></i>DeleteProject()</a><br />
 <a href="#file0_line277" class="navigatetohash percentagebar percentagebar0" title="Line coverage: 0% - DeleteProjectFile()"><i class="icon-cube"></i>DeleteProjectFile()</a><br />
 <a href="#file0_line289" class="navigatetohash percentagebar percentagebar0" title="Line coverage: 0% - DeleteCodeGraph()"><i class="icon-cube"></i>DeleteCodeGraph()</a><br />
-<a href="#file0_line298" class="navigatetohash percentagebar percentagebar0" title="Line coverage: 0% - DeleteDiagnostics()"><i class="icon-cube"></i>DeleteDiagnostics()</a><br />
+<a href="#file0_line298" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - DeleteDiagnostics()"><i class="icon-cube"></i>DeleteDiagnostics()</a><br />
 <a href="#file0_line307" class="navigatetohash percentagebar percentagebar0" title="Line coverage: 0% - DeleteConfiguration()"><i class="icon-cube"></i>DeleteConfiguration()</a><br />
 <a href="#file0_line313" class="navigatetohash percentagebar percentagebar20" title="Line coverage: 28.5% - ParseEmbedding(System.String)"><i class="icon-cube"></i>ParseEmbedding(System.String)</a><br />
 <a href="#file0_line325" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - IsEmbeddableType(CodeMeridian.Core.CodeGraph.CodeNodeType)"><i class="icon-cube"></i>IsEmbeddableType(CodeMeridian.Core.CodeGraph.CodeNodeType)</a><br />
