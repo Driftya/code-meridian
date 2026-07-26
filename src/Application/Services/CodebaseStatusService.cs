@@ -1,5 +1,6 @@
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
+using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Application.Services;
 
@@ -7,13 +8,17 @@ public sealed class CodebaseStatusService(
     ICodeGraphRepository codeGraph,
     IVectorRepository vectorStore,
     IEmbeddingProvider embeddingProvider,
-    ICodebaseQueryService queryService) : ICodebaseStatusService
+    ICodebaseQueryService queryService,
+    IOptions<EmbeddingOptions> embeddingOptions) : ICodebaseStatusService
 {
+    private readonly EmbeddingOptions _embeddingOptions = embeddingOptions.Value;
+
     public async Task<DoctorStatus> GetDoctorStatusAsync(string? projectContext = null, CancellationToken cancellationToken = default)
     {
         try
         {
             var nodeCountTask = codeGraph.CountCodeNodesAsync(projectContext, cancellationToken);
+            var embeddedNodeCountTask = codeGraph.CountEmbeddedCodeNodesAsync(projectContext, cancellationToken);
             var callEdgeCountTask = codeGraph.CountCallEdgesAsync(projectContext, cancellationToken);
             var diagnosticCountTask = codeGraph.CountDiagnosticsAsync(projectContext, cancellationToken);
             var documentCountTask = vectorStore.CountAsync(projectContext, cancellationToken);
@@ -22,6 +27,7 @@ public sealed class CodebaseStatusService(
 
             await Task.WhenAll(
                 nodeCountTask,
+                embeddedNodeCountTask,
                 callEdgeCountTask,
                 diagnosticCountTask,
                 documentCountTask,
@@ -37,7 +43,9 @@ public sealed class CodebaseStatusService(
                 await diagnosticCountTask,
                 ParseDriftSeverity(await graphDriftTask),
                 await graphDriftTask,
+                _embeddingOptions.Enabled,
                 await embeddingAvailableTask,
+                await embeddedNodeCountTask,
                 embeddingProvider.ProviderName,
                 embeddingProvider.Dimensions);
         }
@@ -53,7 +61,9 @@ public sealed class CodebaseStatusService(
                 0,
                 "high",
                 ex.Message,
+                _embeddingOptions.Enabled,
                 embeddingAvailable,
+                0,
                 embeddingProvider.ProviderName,
                 embeddingProvider.Dimensions,
                 ex.Message);
@@ -62,6 +72,9 @@ public sealed class CodebaseStatusService(
 
     private async Task<bool> SafeIsEmbeddingAvailableAsync(CancellationToken cancellationToken)
     {
+        if (!_embeddingOptions.Enabled)
+            return false;
+
         try
         {
             return await embeddingProvider.IsAvailableAsync(cancellationToken);

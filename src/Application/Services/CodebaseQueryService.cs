@@ -225,6 +225,9 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         CancellationToken cancellationToken = default)
     {
         var diagnostics = await codeGraph.FindDiagnosticsForNodeAsync(nodeId, cancellationToken);
+        if (diagnostics.Count == 0)
+            return $"No diagnostics found in this node's file for `{nodeId}`.";
+
         return FormatDiagnostics(diagnostics, $"Diagnostics Near `{nodeId}`");
     }
 

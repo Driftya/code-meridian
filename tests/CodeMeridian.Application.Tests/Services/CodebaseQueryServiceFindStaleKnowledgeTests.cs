@@ -183,6 +183,40 @@ public sealed class CodebaseQueryServiceFindStaleKnowledgeTests : CodebaseQueryS
         result.Should().NotContain("MissingThingService");
     }
 
+    [Fact]
+    public async Task FindStaleKnowledgeAsync_IgnoresFencedExamplesAndExplicitProhibitions()
+    {
+        var (sut, graph) = Build();
+        var vector = Substitute.For<IVectorRepository>();
+        sut = new CodebaseQueryService(graph, vector);
+        vector.ListAsync(Arg.Any<string?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new KnowledgeDocument
+                {
+                    Id = "agent-guidance",
+                    Source = "docs/agent/behavior.md",
+                    ProjectContext = "Shop",
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                    Content = """
+                        Avoid Thread.Sleep in asynchronous code.
+                        Do not call MissingLegacyService from production.
+                        ```powershell
+                        dotnet test tests/MissingFixture.Tests/MissingFixture.Tests.csproj
+                        ```
+                        """
+                }
+            ]);
+        graph.QueryNodesAsync(Arg.Any<CodeGraphQuery>(), Arg.Any<CancellationToken>()).Returns([]);
+        graph.FindUnreferencedAsync("Shop", Arg.Any<CancellationToken>()).Returns([]);
+        graph.GetMostRecentCodeUpdateAsync("Shop", Arg.Any<CancellationToken>()).Returns(DateTimeOffset.UtcNow.AddMinutes(-1));
+
+        var result = await sut.FindStaleKnowledgeAsync("Shop");
+
+        result.Should().Contain("No obvious stale knowledge found");
+        result.Should().NotContain("Thread.Sleep");
+        result.Should().NotContain("MissingLegacyService");
+        result.Should().NotContain("MissingFixture");
+    }
+
 
 }
-

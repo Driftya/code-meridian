@@ -221,7 +221,7 @@ public sealed class IndexerConfigTests : IDisposable
 
         var json = File.ReadAllText(Path.Combine(_root, "meridian.json"));
 
-        json.Should().Contain("\"version\": 1");
+        json.Should().Contain("\"version\": 2");
         json.Should().Contain("\"project\": \"MyApi\"");
         json.Should().Contain("\"$schema\": \"./meridian.schema.json\"");
         json.Should().Contain("\"codeMeridianUrl\": \"http://localhost:5100\"");
@@ -261,7 +261,7 @@ public sealed class IndexerConfigTests : IDisposable
         _store.WriteGlobal("http://global:5100", overwrite: false, globalRoot);
 
         var json = File.ReadAllText(Path.Combine(globalRoot.FullName, "meridian.json"));
-        json.Should().Contain("\"version\": 1");
+        json.Should().Contain("\"version\": 2");
         json.Should().Contain("\"project\": \"\"");
         json.Should().Contain("\"codeMeridianUrl\": \"http://global:5100\"");
         json.Should().Contain("\"useGlobalCache\": true");
@@ -306,7 +306,7 @@ public sealed class IndexerConfigTests : IDisposable
         _store.WriteGlobal("http://new:5100", overwrite: false, globalRoot);
 
         var json = File.ReadAllText(Path.Combine(globalRoot.FullName, "meridian.json"));
-        json.Should().Contain("\"version\": 1");
+        json.Should().Contain("\"version\": 2");
         json.Should().Contain("\"project\": \"\"");
         json.Should().Contain("\"codeMeridianUrl\": \"http://new:5100\"");
         json.Should().Contain("\"useGlobalCache\": true");
@@ -326,7 +326,7 @@ public sealed class IndexerConfigTests : IDisposable
         result.Created.Should().BeFalse();
         result.Changed.Should().BeTrue();
         result.PreviousVersion.Should().Be(0);
-        result.CurrentVersion.Should().Be(1);
+        result.CurrentVersion.Should().Be(2);
         result.BackupPath.Should().NotBeNull();
         File.Exists(result.BackupPath!).Should().BeTrue();
         File.ReadAllText(configPath).Should().Contain("\"codeMeridianUrl\": \"http://global:5100\"");
@@ -363,12 +363,12 @@ public sealed class IndexerConfigTests : IDisposable
         result.Created.Should().BeFalse();
         result.Changed.Should().BeTrue();
         result.PreviousVersion.Should().Be(0);
-        result.CurrentVersion.Should().Be(1);
+        result.CurrentVersion.Should().Be(2);
         result.BackupPath.Should().NotBeNull();
         File.Exists(result.BackupPath!).Should().BeTrue();
 
         var json = File.ReadAllText(configPath);
-        json.Should().Contain("\"version\": 1");
+        json.Should().Contain("\"version\": 2");
         json.Should().Contain("\"customSetting\"");
         json.Should().Contain("\"enabled\": true");
         json.Should().Contain("\"CustomRoot\"");
@@ -412,7 +412,7 @@ public sealed class IndexerConfigTests : IDisposable
         _store.Write(new DirectoryInfo(_root), "MyApi", "http://localhost:5100", overwrite: false);
 
         var json = File.ReadAllText(configPath);
-        json.Should().Contain("\"version\": 1");
+        json.Should().Contain("\"version\": 2");
         json.Split("\"appsettings.json\"").Length.Should().Be(2);
         json.Split("\"DependencyInjection\"").Length.Should().Be(2);
     }

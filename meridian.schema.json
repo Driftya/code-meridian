@@ -35,6 +35,18 @@
       "default": false,
       "description": "Store indexer runtime cache and generated files outside the repository."
     },
+    "embedding": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Project expectation for server-side embedding enrichment during ingestion. Provider credentials and endpoints remain server configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this project expects the CodeMeridian server to generate embeddings for ingested code nodes."
+        }
+      }
+    },
     "configurationFiles": {
       "type": "array",
       "items": { "type": "string" },

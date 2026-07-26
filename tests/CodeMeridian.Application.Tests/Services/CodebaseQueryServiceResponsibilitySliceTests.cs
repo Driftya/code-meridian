@@ -126,6 +126,7 @@ public sealed class CodebaseQueryServiceResponsibilitySliceTests
 
         result.Should().Contain("`defer_extraction`");
         result.Should().Contain("did not share enough caller, dependency, test, or workflow evidence");
+        result.Should().NotContain("Re-index the project");
     }
 
     [Fact]

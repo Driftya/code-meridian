@@ -29,6 +29,8 @@ public sealed class StatusCommandTests
             GraphDrift = "low",
             GraphDriftReport = "all good",
             EmbeddingsEnabled = true,
+            EmbeddingsAvailable = true,
+            EmbeddedNodes = 101,
             EmbeddingProvider = "ollama",
             EmbeddingDimensions = 768,
             Error = "watch stale"
@@ -45,7 +47,9 @@ public sealed class StatusCommandTests
             output.ToString().Should().Contain("CodeMeridian doctor");
             output.ToString().Should().Contain("Neo4j reachable         : yes");
             output.ToString().Should().Contain("Graph drift             : low");
-            output.ToString().Should().Contain("Embeddings              : ollama (768 dims)");
+            output.ToString().Should().Contain("Embeddings configured   : yes");
+            output.ToString().Should().Contain("Provider reachable      : yes");
+            output.ToString().Should().Contain("Embedded code nodes     : 101");
             output.ToString().Should().Contain("Note                    : watch stale");
         }
         finally

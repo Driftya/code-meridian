@@ -16,14 +16,24 @@ public partial class CodebaseQueryService
         if (intent.Kind == StructuralIntentKind.Members)
             return await QueryNamespaceMembersAsync(intent.Target, projectContext, cancellationToken);
 
-        var candidates = await codeGraph.QueryNodesAsync(
-            new CodeGraphQuery
-            {
-                NameFilter = intent.Target,
-                ProjectContext = projectContext,
-                Limit = 50
-            },
-            cancellationToken);
+        EditingContext? canonicalContext = null;
+        IReadOnlyList<CodeNode> candidates;
+        if (LooksLikeCanonicalNodeId(intent.Target))
+        {
+            canonicalContext = await codeGraph.GetContextForEditingAsync(intent.Target, cancellationToken);
+            candidates = canonicalContext?.Node is null ? [] : [canonicalContext.Node];
+        }
+        else
+        {
+            candidates = await codeGraph.QueryNodesAsync(
+                new CodeGraphQuery
+                {
+                    NameFilter = intent.Target,
+                    ProjectContext = projectContext,
+                    Limit = 50
+                },
+                cancellationToken);
+        }
         var ranked = candidates
             .Where(node => node.Type is not (CodeNodeType.File or CodeNodeType.Namespace))
             .OrderBy(node => StructuralTargetRank(node, intent.Target))
@@ -39,7 +49,7 @@ public partial class CodebaseQueryService
             return FormatAmbiguousStructuralTargets(intent.Target, best);
 
         var target = best[0];
-        var context = await codeGraph.GetContextForEditingAsync(target.Id, cancellationToken);
+        var context = canonicalContext ?? await codeGraph.GetContextForEditingAsync(target.Id, cancellationToken);
         if (context?.Node is null)
             return $"Target \u0060{target.Id}\u0060 was resolved, but its relationship context is unavailable. Re-index before trusting structural results.";
 
@@ -122,6 +132,28 @@ public partial class CodebaseQueryService
             return 2;
         return 3;
     }
+
+    private static bool LooksLikeCanonicalNodeId(string target) =>
+        target.Contains("::", StringComparison.Ordinal)
+        || CanonicalNodeIdPrefixes.Any(prefix => target.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+
+    private static readonly string[] CanonicalNodeIdPrefixes =
+    [
+        "Namespace:",
+        "Class:",
+        "Struct:",
+        "Interface:",
+        "Method:",
+        "Delegate:",
+        "Property:",
+        "Field:",
+        "Event:",
+        "Indexer:",
+        "Operator:",
+        "Enum:",
+        "File:",
+        "Module:"
+    ];
 
     private static bool TryParseStructuralIntent(string query, out StructuralIntent intent)
     {

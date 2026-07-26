@@ -176,7 +176,7 @@ public sealed partial class CodebaseQueryService
                 "replace_surface" => await WithReplacementTargetsAsync(step, target, toDependency, (from, to) => ReplaceSurfaceAsync(from, to, projectContext, cancellationToken: cancellationToken)),
                 "suggest_extractions" => await SuggestExtractionsAsync(projectContext, cancellationToken: cancellationToken),
                 "suggest_responsibility_slices" => await WithTargetAsync(step, target, nodeId => SuggestResponsibilitySlicesAsync(nodeId, projectContext, cancellationToken: cancellationToken)),
-                "resolve_exact_symbol" => await WithTargetAsync(step, target, symbol => ResolveExactSymbolAsync(symbol, projectContext: projectContext, cancellationToken: cancellationToken)),
+                "resolve_exact_symbol" => await ResolveWorkflowTargetAsync(step, target, projectContext, cancellationToken),
                 "check_graph_freshness" => await CheckGraphFreshnessAsync(target ?? goal, projectContext, cancellationToken: cancellationToken),
                 "find_graph_drift" => await FindGraphDriftAsync(projectContext, cancellationToken: cancellationToken),
                 "find_stale_knowledge" => await FindStaleKnowledgeAsync(projectContext, cancellationToken: cancellationToken),
@@ -185,6 +185,16 @@ public sealed partial class CodebaseQueryService
                 "rebuild_keyword_graph" or "classify_keywords" or "get_client_extension_contract" or "list_client_extension_examples" or "get_client_extension_example" => await UnsupportedAsync(step),
                 _ => await UnsupportedAsync(step)
             };
+
+            if (IsSemanticallyFailedWorkflowOutput(step.Tool, output))
+            {
+                return new ContextWorkflowStepExecutionResult(
+                    step.Order,
+                    step.Tool,
+                    step.Required,
+                    "failed",
+                    Error: output);
+            }
 
             return new ContextWorkflowStepExecutionResult(step.Order, step.Tool, step.Required, "completed", output);
         }
@@ -212,6 +222,25 @@ public sealed partial class CodebaseQueryService
 
         return await execute(target);
     }
+
+    private async Task<string> ResolveWorkflowTargetAsync(
+        ContextWorkflowStep step,
+        string? target,
+        string? projectContext,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+            throw new MissingWorkflowInputException($"{step.Tool} requires a target or canonical node ID.");
+
+        if (LooksLikeCanonicalNodeId(target))
+            return $"Target is already canonical: `{target}`.";
+
+        return await ResolveExactSymbolAsync(target, projectContext: projectContext, cancellationToken: cancellationToken);
+    }
+
+    private static bool IsSemanticallyFailedWorkflowOutput(string tool, string output) =>
+        tool == "resolve_exact_symbol"
+        && output.StartsWith("No exact symbol candidates found", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<string> WithTwoTargetsAsync(
         ContextWorkflowStep step,

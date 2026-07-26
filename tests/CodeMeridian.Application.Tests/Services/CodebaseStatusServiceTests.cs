@@ -3,6 +3,7 @@ using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
 using FluentAssertions;
 using NSubstitute;
+using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Application.Tests.Services;
 
@@ -16,7 +17,17 @@ public sealed class CodebaseStatusServiceTests
         embeddings.ProviderName.Returns("Ollama");
         embeddings.Dimensions.Returns(768);
         var query = Substitute.For<ICodebaseQueryService>();
-        return (new CodebaseStatusService(graph, vector, embeddings, query), graph, vector, embeddings, query);
+        return (
+            new CodebaseStatusService(
+                graph,
+                vector,
+                embeddings,
+                query,
+                Options.Create(new EmbeddingOptions { Enabled = true })),
+            graph,
+            vector,
+            embeddings,
+            query);
     }
 
     [Fact]
@@ -25,6 +36,7 @@ public sealed class CodebaseStatusServiceTests
         var (sut, graph, vector, embeddings, query) = Build();
 
         graph.CountCodeNodesAsync("Shop", Arg.Any<CancellationToken>()).Returns(12_482);
+        graph.CountEmbeddedCodeNodesAsync("Shop", Arg.Any<CancellationToken>()).Returns(9_001);
         graph.CountCallEdgesAsync("Shop", Arg.Any<CancellationToken>()).Returns(34_901);
         graph.CountDiagnosticsAsync("Shop", Arg.Any<CancellationToken>()).Returns(14);
         vector.CountAsync("Shop", Arg.Any<CancellationToken>()).Returns(78);
@@ -40,7 +52,9 @@ public sealed class CodebaseStatusServiceTests
         result.DiagnosticsIndexed.Should().Be(14);
         result.GraphDrift.Should().Be("low");
         result.GraphDriftReport.Should().Be("Graph drift: low");
-        result.EmbeddingsEnabled.Should().BeFalse();
+        result.EmbeddingsEnabled.Should().BeTrue();
+        result.EmbeddingsAvailable.Should().BeFalse();
+        result.EmbeddedNodes.Should().Be(9_001);
         result.EmbeddingProvider.Should().Be(embeddings.ProviderName);
         result.EmbeddingDimensions.Should().Be(embeddings.Dimensions);
         result.Error.Should().BeNull();
@@ -62,6 +76,7 @@ public sealed class CodebaseStatusServiceTests
         result.GraphDrift.Should().Be("high");
         result.GraphDriftReport.Should().Contain("Neo4j unavailable");
         result.EmbeddingsEnabled.Should().BeTrue();
+        result.EmbeddingsAvailable.Should().BeTrue();
         result.Error.Should().Contain("Neo4j unavailable");
     }
 }

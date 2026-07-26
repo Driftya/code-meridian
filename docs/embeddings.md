@@ -8,6 +8,25 @@ Set the embedding variables on the **CodeMeridian backend** only. The C# and Typ
 
 Make sure `Neo4j__EmbeddingDimensions` matches the embedding model you are using. For `nomic-embed-text:latest`, set it to `768`. For `text-embedding-3-small`, set it to `1536`.
 
+Projects can also declare their expectation in `meridian.json`:
+
+```json
+{
+  "embedding": {
+    "enabled": true
+  }
+}
+```
+
+This project setting does not configure the remote provider. The backend still requires `Embedding__Enabled=true` and the provider-specific environment variables on the server host. It lets the indexer surface whether embedding enrichment is expected consistently for Roslyn, TypeScript, HTML/CSS, document, and configuration indexing.
+
+Use `codemeridian doctor --project MyApp` to distinguish:
+
+- whether embeddings are configured on the server;
+- whether the provider is currently reachable;
+- which provider and dimensions are active;
+- how many code nodes in the project actually have a stored embedding.
+
 ## Quick Start
 
 ### Option 1: Enable Ollama on the backend host (recommended for local development)

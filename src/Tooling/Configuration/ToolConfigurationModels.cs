@@ -8,7 +8,8 @@ public sealed record CodeMeridianConfigSnapshot(
     IReadOnlyList<string>? ConfigurationFiles,
     string? ArchitecturePath,
     CodeMeridianFileRolePatternSnapshot? FileRoles,
-    int Version);
+    int Version,
+    bool? EmbeddingEnabled = null);
 
 public sealed record ToolConfigurationContext(
     DirectoryInfo RootPath,
@@ -28,6 +29,12 @@ public sealed class CodeMeridianConfigFileOptions
     public string[]? ConfigurationFiles { get; set; }
     public CodeMeridianArchitectureOptions? Architecture { get; set; }
     public CodeMeridianIndexingOptions? Indexing { get; set; }
+    public CodeMeridianEmbeddingOptions? Embedding { get; set; }
+}
+
+public sealed class CodeMeridianEmbeddingOptions
+{
+    public bool? Enabled { get; set; }
 }
 
 public sealed class CodeMeridianArchitectureOptions

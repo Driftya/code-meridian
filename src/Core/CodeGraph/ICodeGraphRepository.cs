@@ -13,6 +13,7 @@ public interface ICodeGraphRepository
     Task DeleteConfigurationAsync(string projectContext, CancellationToken cancellationToken = default);
     Task DeleteAllAsync(CancellationToken cancellationToken = default);
     Task<long> CountCodeNodesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<long> CountEmbeddedCodeNodesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<long> CountCallEdgesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<long> CountDiagnosticsAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<string>> GetProjectContextsAsync(string? search = null, CancellationToken cancellationToken = default);

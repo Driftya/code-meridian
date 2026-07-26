@@ -34,7 +34,8 @@ public sealed partial class CodebaseQueryService
                     "defer_extraction",
                     "The target does not have enough indexed method members to form responsibility slices.",
                     includeNamespacePlan,
-                    includeMigrationSteps);
+                    includeMigrationSteps,
+                    methodNodes.Count > 0);
 
             var methodSignals = new List<ResponsibilityMethodSignals>();
             foreach (var method in methodNodes)
@@ -83,7 +84,8 @@ public sealed partial class CodebaseQueryService
                     $"({invalidSlice.Methods.Count} methods, {invalidSlice.SharedEvidenceRatio:P0} pairwise shared evidence). " +
                     "Add discriminating caller, dependency, workflow, test, or documentation evidence before extraction.",
                     includeNamespacePlan,
-                    includeMigrationSteps);
+                    includeMigrationSteps,
+                    hasIndexedMethodMembers: true);
 
             if (slices.Length == 0)
                 return BuildResponsibilityDeferResult(
@@ -91,7 +93,8 @@ public sealed partial class CodebaseQueryService
                     "defer_extraction",
                     "Indexed methods did not share enough caller, dependency, test, or workflow evidence to recommend a safe extraction.",
                     includeNamespacePlan,
-                    includeMigrationSteps);
+                    includeMigrationSteps,
+                    hasIndexedMethodMembers: true);
 
             if (slices.All(slice => slice.Confidence == "Low"))
                 return BuildResponsibilityDeferResult(
@@ -99,7 +102,8 @@ public sealed partial class CodebaseQueryService
                     "defer_extraction",
                     "Indexed methods did not share enough caller, dependency, test, or workflow evidence to recommend a safe extraction.",
                     includeNamespacePlan,
-                    includeMigrationSteps);
+                    includeMigrationSteps,
+                    hasIndexedMethodMembers: true);
 
             var fanIn = methodSignals.Sum(signal => signal.ProductionCallers.Count);
             var fanOut = methodSignals.Sum(signal => signal.Dependencies.Count);
@@ -313,7 +317,8 @@ public sealed partial class CodebaseQueryService
         string strategy,
         string reason,
         bool includeNamespacePlan,
-        bool includeMigrationSteps)
+        bool includeMigrationSteps,
+        bool hasIndexedMethodMembers)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"## Responsibility Slice Suggestions - `{targetNode.Name}`");
@@ -331,7 +336,8 @@ public sealed partial class CodebaseQueryService
         {
             sb.AppendLine();
             sb.AppendLine("### Migration Steps");
-            sb.AppendLine("- Re-index the project if the target is known to have method members.");
+            if (!hasIndexedMethodMembers)
+                sb.AppendLine("- Re-index the project if the target is known to have method members.");
             sb.AppendLine("- Add characterization tests before attempting extraction.");
             sb.AppendLine("- Re-run this tool after method, caller, and test edges are present.");
         }

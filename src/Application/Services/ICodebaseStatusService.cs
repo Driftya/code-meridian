@@ -18,6 +18,8 @@ public sealed record DoctorStatus(
     string GraphDrift,
     string GraphDriftReport,
     bool EmbeddingsEnabled,
+    bool EmbeddingsAvailable,
+    long EmbeddedNodes,
     string EmbeddingProvider,
     int EmbeddingDimensions,
     string? Error = null);

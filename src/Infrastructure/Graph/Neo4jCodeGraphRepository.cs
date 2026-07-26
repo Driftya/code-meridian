@@ -173,6 +173,22 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         return record["count"].As<long>();
     }
 
+    public async Task<long> CountEmbeddedCodeNodesAsync(string? projectContext = null, CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+
+        const string cypher = """
+            MATCH (n:CodeNode)
+            WHERE n.embedding IS NOT NULL
+              AND ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
+            RETURN count(n) AS count
+            """;
+
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
+        var record = await cursor.SingleAsync();
+        return record["count"].As<long>();
+    }
+
     public async Task<long> CountCallEdgesAsync(string? projectContext = null, CancellationToken cancellationToken = default)
     {
         await using var session = _driver.AsyncSession();

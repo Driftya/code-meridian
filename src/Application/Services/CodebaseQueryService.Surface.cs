@@ -1031,8 +1031,9 @@ public partial class CodebaseQueryService
             .Where(node =>
                 node.Type == CodeNodeType.Method
                 && !IsContractNode(node)
-                && CountGoalTermOverlap(node, goal) >= 2)
-            .OrderByDescending(node => ScoreRouteNode(node, goal, concepts))
+                && CountRouteIdentityOverlap(node, goal) > 0)
+            .OrderByDescending(node => CountRouteIdentityOverlap(node, goal))
+            .ThenByDescending(node => ScoreRouteNode(node, goal, concepts))
             .ThenBy(node => node.LineNumber ?? int.MaxValue)
             .FirstOrDefault()
         ?? rankedNodes
@@ -1064,6 +1065,12 @@ public partial class CodebaseQueryService
             || TextMatches(node.Summary, term)
             || TextMatches(node.SourceSnippet, term)
             || TextMatches(node.FilePath, term));
+
+    private static int CountRouteIdentityOverlap(CodeNode node, string goal) =>
+        ExtractSurfaceTerms(goal, []).Count(term =>
+            TextMatches(node.Name, term)
+            || TextMatches(Path.GetFileNameWithoutExtension(node.FilePath ?? string.Empty), term)
+            || TextMatches(node.Namespace, term));
 
     private int GetRoutePreferenceBoost(CodeNode node)
     {

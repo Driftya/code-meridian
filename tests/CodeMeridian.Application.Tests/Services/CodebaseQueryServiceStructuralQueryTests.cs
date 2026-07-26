@@ -44,6 +44,24 @@ public sealed class CodebaseQueryServiceStructuralQueryTests
     }
 
     [Fact]
+    public async Task QueryStructureAsync_CanonicalRetryBypassesNameFilteringAndReturnsRelationships()
+    {
+        var (sut, graph) = Build();
+        var target = Node("Project::Method::Sample.Service::Run()", "Run()", CodeNodeType.Method, "src/Service.cs");
+        var caller = Node("Project::Method::Sample.Controller::Post()", "Post()", CodeNodeType.Method, "src/Controller.cs");
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>())
+            .Returns(new EditingContext(target, [caller], [], []));
+
+        var result = await sut.QueryStructureAsync($"callers of `{target.Id}`");
+
+        result.Should().Contain(target.Id);
+        result.Should().Contain(caller.Id);
+        await graph.DidNotReceive().QueryNodesAsync(
+            Arg.Is<CodeGraphQuery>(query => query.NameFilter == target.Id),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task QueryStructureAsync_ImplementationsIntent_ReturnsIncomingImplementationFacts()
     {
         var (sut, graph) = Build();

@@ -320,9 +320,29 @@ public sealed class CodebaseQueryServiceContextWorkflowTests
             "find_test_shield",
             "build_minimal_context");
         steps.Should().OnlyContain(step => step.GetProperty("status").GetString() == "completed");
-        steps[0].GetProperty("output").GetString().Should().Contain("## Exact Symbol Resolution");
+        steps[0].GetProperty("output").GetString().Should().Contain("already canonical");
         steps[4].GetProperty("output").GetString().Should().Contain("## Test Shield Map");
         steps[5].GetProperty("output").GetString().Should().Contain("## Minimal Context Pack");
+    }
+
+    [Fact]
+    public async Task ExecuteContextWorkflowAsync_WhenRequiredResolutionHasNoCandidates_FailsAndStops()
+    {
+        var sut = BuildService();
+
+        using var doc = JsonDocument.Parse(await sut.ExecuteContextWorkflowAsync(
+            "Before editing MissingService",
+            target: "MissingService",
+            projectContext: "CodeMeridian",
+            workflowType: "before_edit",
+            includeOptionalSteps: false));
+
+        doc.RootElement.GetProperty("status").GetString().Should().Be("failed");
+        var steps = doc.RootElement.GetProperty("steps").EnumerateArray().ToArray();
+        steps.Should().ContainSingle();
+        steps[0].GetProperty("tool").GetString().Should().Be("resolve_exact_symbol");
+        steps[0].GetProperty("status").GetString().Should().Be("failed");
+        steps[0].GetProperty("error").GetString().Should().Contain("No exact symbol candidates");
     }
 
     [Fact]

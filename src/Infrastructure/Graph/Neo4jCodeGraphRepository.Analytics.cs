@@ -209,6 +209,11 @@ public sealed partial class Neo4jCodeGraphRepository
         const string cypher = """
             MATCH (n:CodeNode)
             WHERE ($projectContextNormalized IS NULL OR n.projectContextNormalized = $projectContextNormalized)
+              AND n.type IN [
+                  'Namespace', 'Class', 'Struct', 'Interface', 'Method', 'Delegate',
+                  'Property', 'Field', 'Event', 'Indexer', 'Operator', 'Enum',
+                  'File', 'Module'
+              ]
               AND (n.createdAt >= $cutoff OR n.updatedAt >= $cutoff)
             WITH n,
                  CASE WHEN n.createdAt >= $cutoff AND (n.updatedAt IS NULL OR n.createdAt = n.updatedAt)

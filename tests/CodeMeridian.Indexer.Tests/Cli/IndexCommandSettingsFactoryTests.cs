@@ -146,7 +146,7 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
             Path.Combine(_root, "meridian.json"),
             """
             {
-              "version": 1,
+              "version": 2,
               "project": "MyApi",
               "codeMeridianUrl": "http://local:5100"
             }
@@ -171,7 +171,7 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
             Storage: null));
 
         settings.HasOutdatedLocalConfig.Should().BeFalse();
-        settings.LocalConfigVersion.Should().Be(1);
+        settings.LocalConfigVersion.Should().Be(2);
         settings.CurrentConfigVersion.Should().Be(CodeMeridianConfigFileStore.CurrentConfigVersion);
     }
 

@@ -33,6 +33,9 @@ public sealed class CodeMeridianConfigFileStoreTests : IDisposable
               "architecture": {
                 "path": "  .meridian/custom-architecture.json  "
               },
+              "embedding": {
+                "enabled": true
+              },
               "indexing": {
                 "fileRoles": {
                   "test": [
@@ -60,6 +63,7 @@ public sealed class CodeMeridianConfigFileStoreTests : IDisposable
         snapshot.UseGlobalCache.Should().BeFalse();
         snapshot.Version.Should().Be(7);
         snapshot.ArchitecturePath.Should().Be(".meridian/custom-architecture.json");
+        snapshot.EmbeddingEnabled.Should().BeTrue();
         snapshot.ConfigurationFiles.Should().BeEquivalentTo([".env", "appsettings.json"]);
         snapshot.FileRoles.Should().NotBeNull();
         snapshot.FileRoles!.Test.Should().BeEquivalentTo(["tests/**/*.cs", "**/*Tests.cs"]);
@@ -124,6 +128,7 @@ public sealed class CodeMeridianConfigFileStoreTests : IDisposable
         result.AddedPaths.Should().Contain("version");
         result.AddedPaths.Should().Contain("architecture");
         result.AddedPaths.Should().Contain("analysis");
+        result.AddedPaths.Should().Contain("embedding");
         File.Exists(result.BackupPath!).Should().BeTrue();
 
         using var document = JsonDocument.Parse(File.ReadAllText(meridianJsonPath));

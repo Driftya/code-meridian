@@ -46,6 +46,8 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Storage : {_settings.StorageMode.ToString().ToLowerInvariant()}");
         Console.WriteLine($"  Cache   : {context.CacheDirectory.FullName}");
         Console.WriteLine($"  Mode    : {(_settings.Incremental && !_settings.Clear ? "incremental" : "full")}");
+        if (_settings.EmbeddingEnabled is not null)
+            Console.WriteLine($"  Embedding expectation: {(_settings.EmbeddingEnabled.Value ? "enabled on server" : "disabled")}");
         if (_settings.HasOutdatedLocalConfig)
         {
             Console.WriteLine();
@@ -263,6 +265,7 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  TypeScript roots  : {(typeScriptRoots.Count == 0 ? "none" : typeScriptRoots.Count)}");
         Console.WriteLine($"  HTML/CSS roots    : {(htmlCssRoots.Count == 0 ? "none" : htmlCssRoots.Count)}");
         Console.WriteLine($"  Config indexer    : {(_settings.SkipConfiguration ? "skipped" : "enabled")}");
+        Console.WriteLine($"  Embeddings        : {DescribeEmbeddingExpectation()}");
 
         foreach (var typeScriptRoot in typeScriptRoots)
             Console.WriteLine($"    - {Path.GetRelativePath(_settings.RootPath.FullName, typeScriptRoot.FullName)}");
@@ -272,6 +275,14 @@ internal sealed class IndexCommandHandler(
 
         Console.WriteLine($"  Project context   : {_settings.Project}");
     }
+
+    private string DescribeEmbeddingExpectation() =>
+        _settings.EmbeddingEnabled switch
+        {
+            true => "expected from server ingestion",
+            false => "not expected",
+            null => "unspecified"
+        };
 
     private IndexExecutionContext BuildExecutionContext(bool clear)
     {

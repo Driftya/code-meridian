@@ -34,7 +34,10 @@ internal sealed class StatusCommand
         Console.WriteLine($"  Docs indexed            : {status.DocumentsIndexed:N0}");
         Console.WriteLine($"  Diagnostics indexed     : {status.DiagnosticsIndexed:N0}");
         Console.WriteLine($"  Graph drift             : {status.GraphDrift}");
-        Console.WriteLine($"  Embeddings              : {(status.EmbeddingsEnabled ? $"{status.EmbeddingProvider} ({status.EmbeddingDimensions} dims)" : "disabled")}");
+        Console.WriteLine($"  Embeddings configured   : {(status.EmbeddingsEnabled ? "yes" : "no")}");
+        Console.WriteLine($"  Embedding provider      : {status.EmbeddingProvider} ({status.EmbeddingDimensions} dims)");
+        Console.WriteLine($"  Provider reachable      : {(status.EmbeddingsAvailable ? "yes" : "no")}");
+        Console.WriteLine($"  Embedded code nodes     : {status.EmbeddedNodes:N0}");
 
         if (!string.IsNullOrWhiteSpace(status.Error))
             Console.WriteLine($"  Note                    : {status.Error}");

@@ -6,7 +6,7 @@ namespace CodeMeridian.Tooling.Configuration;
 
 public sealed class CodeMeridianConfigFileStore
 {
-    public const int CurrentConfigVersion = 1;
+    public const int CurrentConfigVersion = 2;
 
     public const string DefaultArchitecturePath = ".meridian/architecture.json";
     public const string DefaultArchitectureTemplateFileName = "architecture.clean.template.json";
@@ -199,7 +199,8 @@ public sealed class CodeMeridianConfigFileStore
                 NormalizePatterns(options.ConfigurationFiles),
                 NormalizeOptionalString(options.Architecture?.Path),
                 NormalizeFileRolePatterns(options.Indexing?.FileRoles),
-                ReadVersion(root));
+                ReadVersion(root),
+                options.Embedding?.Enabled);
         }
         catch
         {

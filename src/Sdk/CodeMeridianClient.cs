@@ -381,7 +381,9 @@ public sealed record DoctorStatusResponse(
     bool EmbeddingsEnabled,
     string EmbeddingProvider,
     int EmbeddingDimensions,
-    string? Error);
+    string? Error,
+    bool EmbeddingsAvailable = false,
+    long EmbeddedNodes = 0);
 
 public sealed record KeywordGraphJobSubmissionResponse(
     bool Accepted,

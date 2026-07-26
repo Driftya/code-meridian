@@ -21,6 +21,7 @@ internal sealed class ResolvedIndexerSettings
     public IReadOnlyList<string>? ConfigurationFiles { get; init; }
     public string? ArchitecturePath { get; init; }
     public CodeMeridianFileRolePatternSnapshot? FileRoles { get; init; }
+    public bool? EmbeddingEnabled { get; init; }
     public bool SkipDiagnostics { get; init; }
     public bool AllowRepoScripts { get; init; }
     public bool Incremental { get; init; } = true;

@@ -207,6 +207,63 @@ public sealed class Neo4jCodeGraphRepositoryConfigurationIntegrationTests : IAsy
     }
 
     [Fact]
+    public async Task FindConfigUsageAsync_ForLeafKey_IncludesTypedParentSectionBinding()
+    {
+        var projectContext = $"Integration.ConfigLeafUsage.{Guid.NewGuid():N}";
+        var sectionKey = ConfigNode($"{projectContext}.SectionKey", "Neo4j", CodeNodeType.ConfigurationKey, projectContext)
+            with
+            {
+                Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["canonicalKey"] = "Neo4j",
+                    ["normalizedKey"] = "neo4j"
+                }
+            };
+        var leafKey = ConfigNode($"{projectContext}.LeafKey", "Neo4j:Uri", CodeNodeType.ConfigurationKey, projectContext)
+            with
+            {
+                Properties = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["canonicalKey"] = "Neo4j:Uri",
+                    ["normalizedKey"] = "neo4j:uri"
+                }
+            };
+        var binder = ConfigNode($"{projectContext}.Binder", "Add", CodeNodeType.Method, projectContext, $"src/{projectContext}/DependencyInjection.cs");
+
+        try
+        {
+            await _repository!.UpsertNodeAsync(sectionKey);
+            await _repository.UpsertNodeAsync(leafKey);
+            await _repository.UpsertNodeAsync(binder);
+            await _repository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = binder.Id,
+                TargetId = sectionKey.Id,
+                Type = CodeEdgeType.BindsConfig,
+                Confidence = 0.9d,
+                Properties = new Dictionary<string, string>
+                {
+                    ["rawKey"] = "Neo4j",
+                    ["accessPattern"] = "Configure",
+                    ["optionsType"] = "Neo4jOptions"
+                }
+            });
+
+            var usage = await _repository.FindConfigUsageAsync("Neo4j:Uri", projectContext);
+
+            usage.Should().ContainSingle();
+            usage[0].KeyNode.Id.Should().Be(sectionKey.Id);
+            usage[0].RelationshipType.Should().Be("BindsConfig");
+            usage[0].AccessPattern.Should().Contain("covers requested leaf");
+            usage[0].Confidence.Should().Be(0.75d);
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(projectContext);
+        }
+    }
+
+    [Fact]
     public async Task DeleteConfigurationAsync_PreservesConfigurationUsageEdges()
     {
         var projectContext = $"Integration.ConfigDelete.{Guid.NewGuid():N}";

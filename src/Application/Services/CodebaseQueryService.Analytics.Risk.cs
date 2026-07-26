@@ -505,12 +505,13 @@ public partial class CodebaseQueryService
 
     private IEnumerable<string> ExtractSymbolMentions(string content)
     {
-        var dotted = DottedSymbolRegex().Matches(content)
+        var searchableContent = RemoveNonAssertiveKnowledgeExamples(content);
+        var dotted = DottedSymbolRegex().Matches(searchableContent)
             .Select(match => match.Value)
             .Where(IsLikelySymbolMention)
             .Distinct(StringComparer.OrdinalIgnoreCase);
 
-        var memberLike = MemberLikeRegex().Matches(content)
+        var memberLike = MemberLikeRegex().Matches(searchableContent)
             .Select(match => match.Value)
             .Where(value => value.Length >= 6)
             .Where(IsLikelySymbolMention)
@@ -519,6 +520,30 @@ public partial class CodebaseQueryService
 
         return dotted.Concat(memberLike);
     }
+
+    private static string RemoveNonAssertiveKnowledgeExamples(string content)
+    {
+        var withoutFences = FencedCodeBlockRegex().Replace(content, string.Empty);
+        var retainedLines = withoutFences
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(line =>
+            {
+                var normalized = line.TrimStart(' ', '\t', '-', '*', '>', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', ')');
+                return !NonAssertiveKnowledgePrefixes.Any(prefix =>
+                    normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            });
+        return string.Join('\n', retainedLines);
+    }
+
+    private static readonly string[] NonAssertiveKnowledgePrefixes =
+    [
+        "avoid ",
+        "do not ",
+        "don't ",
+        "never ",
+        "example:",
+        "examples:"
+    ];
 
     private bool IsLikelySingleSymbolMention(string value)
     {
@@ -567,6 +592,9 @@ public partial class CodebaseQueryService
 
     [GeneratedRegex(@"\b[A-Z][A-Za-z0-9_]{2,}\b", RegexOptions.Compiled)]
     private static partial Regex MemberLikeRegex();
+
+    [GeneratedRegex(@"(?ms)^\s*(```|~~~).*?^\s*\1\s*$", RegexOptions.Compiled)]
+    private static partial Regex FencedCodeBlockRegex();
 
     private static TimeSpan ParseWindow(string window) => window.ToLowerInvariant() switch
     {

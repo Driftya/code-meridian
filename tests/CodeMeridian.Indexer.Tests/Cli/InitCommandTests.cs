@@ -58,7 +58,7 @@ public sealed class InitCommandTests : IDisposable
         File.Exists(Path.Combine(_root, "docker-compose.codemeridian.yml")).Should().BeFalse();
 
         var meridianJson = File.ReadAllText(meridianJsonPath);
-        meridianJson.Should().Contain("\"version\": 1");
+        meridianJson.Should().Contain("\"version\": 2");
         meridianJson.Should().Contain("\"allowRepoScripts\": true");
         meridianJson.Should().Contain("\"path\": \".meridian/architecture.json\"");
     }
@@ -99,7 +99,7 @@ public sealed class InitCommandTests : IDisposable
         File.Exists(Path.Combine(_root, ".continue", "mcpServers", "code-meridian.yaml")).Should().BeFalse();
 
         var meridianJson = File.ReadAllText(meridianJsonPath);
-        meridianJson.Should().Contain("\"version\": 1");
+        meridianJson.Should().Contain("\"version\": 2");
         meridianJson.Should().Contain("\"project\": \"\"");
         meridianJson.Should().Contain("\"codeMeridianUrl\": \"http://global:5100\"");
         meridianJson.Should().Contain("\"useGlobalCache\": true");
@@ -128,7 +128,7 @@ public sealed class InitCommandTests : IDisposable
 
         exitCode.Should().Be(0);
         var meridianJson = File.ReadAllText(meridianJsonPath);
-        meridianJson.Should().Contain("\"version\": 1");
+        meridianJson.Should().Contain("\"version\": 2");
         meridianJson.Should().Contain("\"allowRepoScripts\": true");
         File.Exists($"{meridianJsonPath}.bak").Should().BeTrue();
     }

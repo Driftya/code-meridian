@@ -63,15 +63,33 @@ public sealed partial class Neo4jCodeGraphRepository
         const string cypher = """
             MATCH (consumer:CodeNode)-[rel:ReadsConfig|BindsConfig]->(key:CodeNode)
             WHERE key.type = 'ConfigurationKey'
-              AND key.nameNormalized = $canonicalKeyNormalized
+              AND (
+                  key.nameNormalized = $canonicalKeyNormalized
+                  OR (
+                      size($sectionKeysNormalized) > 0
+                      AND type(rel) = 'BindsConfig'
+                      AND key.nameNormalized IN $sectionKeysNormalized
+                  )
+              )
               AND ($projectContextNormalized IS NULL
                    OR consumer.projectContextNormalized = $projectContextNormalized
                    OR key.projectContextNormalized = $projectContextNormalized)
             RETURN consumer, key, type(rel) AS relationshipType,
                    rel.rawKey AS rawKey,
-                   rel.accessPattern AS accessPattern,
+                   CASE
+                       WHEN key.nameNormalized <> $canonicalKeyNormalized
+                       THEN coalesce(rel.accessPattern, 'section binding') + ' (covers requested leaf)'
+                       ELSE rel.accessPattern
+                   END AS accessPattern,
                    rel.optionsType AS optionsType,
-                   rel.confidence AS confidence
+                   CASE
+                       WHEN key.nameNormalized <> $canonicalKeyNormalized
+                       THEN CASE
+                           WHEN coalesce(rel.confidence, 0.75) > 0.75 THEN 0.75
+                           ELSE coalesce(rel.confidence, 0.75)
+                       END
+                       ELSE rel.confidence
+                   END AS confidence
             ORDER BY coalesce(rel.confidence, 0) DESC, consumer.filePath, consumer.lineNumber, consumer.name
             LIMIT 100
             """;
@@ -79,6 +97,9 @@ public sealed partial class Neo4jCodeGraphRepository
         var cursor = await session.RunAsync(cypher, new
         {
             canonicalKeyNormalized = Normalize(canonicalKey),
+            sectionKeysNormalized = GetParentConfigurationKeys(canonicalKey)
+                .Select(Normalize)
+                .ToArray(),
             projectContextNormalized = (object?)Normalize(projectContext)
         });
 
@@ -98,5 +119,16 @@ public sealed partial class Neo4jCodeGraphRepository
         }
 
         return results;
+    }
+
+    private static IReadOnlyList<string> GetParentConfigurationKeys(string canonicalKey)
+    {
+        var segments = canonicalKey.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length < 2)
+            return [];
+
+        return Enumerable.Range(1, segments.Length - 1)
+            .Select(length => string.Join(':', segments.Take(length)))
+            .ToArray();
     }
 }
