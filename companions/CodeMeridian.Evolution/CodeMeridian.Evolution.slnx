@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CodeMeridian.Evolution.Api/CodeMeridian.Evolution.Api.csproj" />
+    <Project Path="src/CodeMeridian.Evolution.Application/CodeMeridian.Evolution.Application.csproj" />
+    <Project Path="src/CodeMeridian.Evolution.Domain/CodeMeridian.Evolution.Domain.csproj" />
+    <Project Path="src/CodeMeridian.Evolution.Infrastructure/CodeMeridian.Evolution.Infrastructure.csproj" />
+    <Project Path="src/CodeMeridian.Evolution.Worker/CodeMeridian.Evolution.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CodeMeridian.Evolution.Api.Tests/CodeMeridian.Evolution.Api.Tests.csproj" />
+    <Project Path="tests/CodeMeridian.Evolution.Application.Tests/CodeMeridian.Evolution.Application.Tests.csproj" />
+    <Project Path="tests/CodeMeridian.Evolution.Architecture.Tests/CodeMeridian.Evolution.Architecture.Tests.csproj" />
+    <Project Path="tests/CodeMeridian.Evolution.Domain.Tests/CodeMeridian.Evolution.Domain.Tests.csproj" />
+    <Project Path="tests/CodeMeridian.Evolution.Infrastructure.Tests/CodeMeridian.Evolution.Infrastructure.Tests.csproj" />
+    <Project Path="tests/CodeMeridian.Evolution.Integration.Tests/CodeMeridian.Evolution.Integration.Tests.csproj" />
+    <Project Path="tests/CodeMeridian.Evolution.Worker.Tests/CodeMeridian.Evolution.Worker.Tests.csproj" />
+  </Folder>
+</Solution>

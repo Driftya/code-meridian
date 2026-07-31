@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CodeMeridian.Evolution.Domain</RootNamespace>
+  </PropertyGroup>
+
+</Project>

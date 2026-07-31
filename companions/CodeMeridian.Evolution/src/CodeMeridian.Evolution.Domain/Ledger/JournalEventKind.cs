@@ -1,0 +1,38 @@
+namespace CodeMeridian.Evolution.Domain.Ledger;
+
+public enum JournalEventKind
+{
+    Initialized,
+    Observation,
+    PromptReceived,
+    SensorRegistered,
+    SensorRunCompleted,
+    GoalAuthorized,
+    GoalPaused,
+    GoalCompleted,
+    AttentionSelected,
+    ProviderInvoked,
+    ProviderProbed,
+    ReasoningCompleted,
+    CognitiveCycleStarted,
+    CognitiveCycleCompleted,
+    AffectUpdated,
+    DriveUpdated,
+    SimulationCompleted,
+    ProjectRegistered,
+    InterpretationRecorded,
+    BeliefRecorded,
+    MemoryRecorded,
+    MemoryChallenged,
+    Adjustment,
+    ActionRequested,
+    ActionObserved,
+    GovernanceChanged,
+    CandidateProposed,
+    ApprovalRecorded,
+    OutcomeRecorded,
+    Reflection,
+    SkillUpdated,
+    IntegrityChecked,
+    PeriodClosed
+}

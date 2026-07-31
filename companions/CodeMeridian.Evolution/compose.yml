@@ -1,0 +1,85 @@
+name: meridian-evolution
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${EVOLUTION_POSTGRES_DB:-meridian_evolution}
+      POSTGRES_USER: ${EVOLUTION_POSTGRES_USER:-meridian}
+      POSTGRES_PASSWORD: ${EVOLUTION_POSTGRES_PASSWORD:-local-only-password}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - evolution-data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: src/CodeMeridian.Evolution.Api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Evolution: Host=postgres;Port=5432;Database=${EVOLUTION_POSTGRES_DB:-meridian_evolution};Username=${EVOLUTION_POSTGRES_USER:-meridian};Password=${EVOLUTION_POSTGRES_PASSWORD:-local-only-password}
+      Evolution__Storage__UseInMemory: "false"
+      Evolution__ApiKey: ${EVOLUTION_API_KEY:-local-evaluation-key}
+      Evolution__Sensors__InternetFeed__Enabled: ${EVOLUTION_INTERNET_FEED_ENABLED:-false}
+      Evolution__Sensors__InternetFeed__FeedUrls__0: ${EVOLUTION_FEED_URL:-}
+      Evolution__Sensors__InternetFeed__AllowedHosts__0: ${EVOLUTION_FEED_ALLOWED_HOST:-}
+      Evolution__Sensors__CodeMeridian__Enabled: ${EVOLUTION_CODEMERIDIAN_ENABLED:-false}
+      Evolution__Sensors__CodeMeridian__BaseUrl: ${EVOLUTION_CODEMERIDIAN_URL:-http://host.docker.internal:5100}
+      Evolution__Sensors__CodeMeridian__ApiKey: ${EVOLUTION_CODEMERIDIAN_API_KEY:-}
+      Evolution__Sensors__CodeMeridian__ProjectContext: ${EVOLUTION_CODEMERIDIAN_PROJECT_CONTEXT:-CodeMeridian}
+      Evolution__Sensors__CodeMeridian__TargetProjectId: ${EVOLUTION_CODEMERIDIAN_TARGET_PROJECT:-codemeridian}
+      Evolution__Reasoning__ChatModel__Enabled: ${EVOLUTION_CHAT_MODEL_ENABLED:-false}
+      Evolution__Reasoning__ChatModel__Endpoint: ${EVOLUTION_CHAT_MODEL_ENDPOINT:-http://host.docker.internal:11434/v1/chat/completions}
+      Evolution__Reasoning__ChatModel__ApiKey: ${EVOLUTION_CHAT_MODEL_API_KEY:-}
+      Evolution__Reasoning__ChatModel__Model: ${EVOLUTION_CHAT_MODEL_NAME:-}
+    ports:
+      - "${EVOLUTION_API_PORT:-5084}:8080"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/CodeMeridian.Evolution.Worker/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Evolution: Host=postgres;Port=5432;Database=${EVOLUTION_POSTGRES_DB:-meridian_evolution};Username=${EVOLUTION_POSTGRES_USER:-meridian};Password=${EVOLUTION_POSTGRES_PASSWORD:-local-only-password}
+      Evolution__Storage__UseInMemory: "false"
+      Evolution__Worker__SensorInterval: "00:00:30"
+      Evolution__Worker__ReasoningProviderId: ${EVOLUTION_REASONING_PROVIDER:-fake}
+      Evolution__Sensors__InternetFeed__Enabled: ${EVOLUTION_INTERNET_FEED_ENABLED:-false}
+      Evolution__Sensors__InternetFeed__FeedUrls__0: ${EVOLUTION_FEED_URL:-}
+      Evolution__Sensors__InternetFeed__AllowedHosts__0: ${EVOLUTION_FEED_ALLOWED_HOST:-}
+      Evolution__Sensors__CodeMeridian__Enabled: ${EVOLUTION_CODEMERIDIAN_ENABLED:-false}
+      Evolution__Sensors__CodeMeridian__BaseUrl: ${EVOLUTION_CODEMERIDIAN_URL:-http://host.docker.internal:5100}
+      Evolution__Sensors__CodeMeridian__ApiKey: ${EVOLUTION_CODEMERIDIAN_API_KEY:-}
+      Evolution__Sensors__CodeMeridian__ProjectContext: ${EVOLUTION_CODEMERIDIAN_PROJECT_CONTEXT:-CodeMeridian}
+      Evolution__Sensors__CodeMeridian__TargetProjectId: ${EVOLUTION_CODEMERIDIAN_TARGET_PROJECT:-codemeridian}
+      Evolution__Reasoning__ChatModel__Enabled: ${EVOLUTION_CHAT_MODEL_ENABLED:-false}
+      Evolution__Reasoning__ChatModel__Endpoint: ${EVOLUTION_CHAT_MODEL_ENDPOINT:-http://host.docker.internal:11434/v1/chat/completions}
+      Evolution__Reasoning__ChatModel__ApiKey: ${EVOLUTION_CHAT_MODEL_API_KEY:-}
+      Evolution__Reasoning__ChatModel__Model: ${EVOLUTION_CHAT_MODEL_NAME:-}
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ui/CodeMeridian.Evolution.Web
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "${EVOLUTION_WEB_PORT:-4174}:8080"
+    restart: unless-stopped
+
+volumes:
+  evolution-data:

@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CodeMeridian.Evolution.Application\CodeMeridian.Evolution.Application.csproj" />
+    <ProjectReference Include="..\..\src\CodeMeridian.Evolution.Domain\CodeMeridian.Evolution.Domain.csproj" />
+    <ProjectReference Include="..\..\src\CodeMeridian.Evolution.Infrastructure\CodeMeridian.Evolution.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

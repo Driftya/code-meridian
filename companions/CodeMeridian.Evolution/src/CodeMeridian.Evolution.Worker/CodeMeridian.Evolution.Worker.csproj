@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <RootNamespace>CodeMeridian.Evolution.Worker</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeMeridian.Evolution.Application\CodeMeridian.Evolution.Application.csproj" />
+    <ProjectReference Include="..\CodeMeridian.Evolution.Infrastructure\CodeMeridian.Evolution.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,16 @@
+@CodeMeridian.Evolution.Api_HostAddress = http://localhost:5084
+
+GET {{CodeMeridian.Evolution.Api_HostAddress}}/healthz
+Accept: application/json
+
+###
+
+GET {{CodeMeridian.Evolution.Api_HostAddress}}/api/now
+Accept: application/json
+
+###
+
+GET {{CodeMeridian.Evolution.Api_HostAddress}}/api/ledger/trial-balance
+Accept: application/json
+
+###
