@@ -4,10 +4,10 @@ try {
     const options = await parseCommandLine(process.argv);
     const application = new TypeScriptIndexerApplication();
     const exitCode = await application.run(options);
-    process.exit(exitCode);
+    process.exitCode = exitCode;
 }
 catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`error: ${message}`);
-    process.exit(1);
+    process.exitCode = 1;
 }
