@@ -59,7 +59,11 @@ NEO4J_BOLT_PORT=47687
 CODEMERIDIAN_PORT=5100
 CodeMeridian_Url=http://192.168.10.70:5100
 CodeMeridian_Auth_ApiKey=replace-with-a-long-random-token
+Mcp__Tasks__Enabled=true
+Mcp__Apps__Enabled=false
 ```
+
+Set `Mcp__Apps__Enabled=true` only when enabling the experimental read-only MCP Apps. Recreate the MCP container after changing either MCP feature flag so Docker Compose applies the updated environment.
 
 Generate a token if needed:
 

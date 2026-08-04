@@ -43,6 +43,8 @@ services:
       Neo4j__Password: ${NEO4J_PASSWORD:-CodeMeridian}
       Neo4j__EmbeddingDimensions: ${Neo4j__EmbeddingDimensions:-1536}
       CodeMeridian_Auth_ApiKey: ${CodeMeridian_Auth_ApiKey:-}
+      Mcp__Tasks__Enabled: ${Mcp__Tasks__Enabled:-true}
+      Mcp__Apps__Enabled: ${Mcp__Apps__Enabled:-false}
       Embedding__Enabled: ${Embedding__Enabled:-false}
       Embedding__Provider: ${Embedding__Provider:-Ollama}
       Embedding__OllamaBaseUrl: ${Embedding__OllamaBaseUrl:-http://host.docker.internal:11434}
