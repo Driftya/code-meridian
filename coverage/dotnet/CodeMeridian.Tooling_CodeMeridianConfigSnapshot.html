@@ -197,7 +197,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 
 .tooltip { position: absolute; display: none; padding: 5px; background: #F4C63D; color: #453D3F; pointer-events: none; z-index: 1; min-width: 250px; }
 
-.column-min-200 { min-width: 200px; }
+.column-min-200 { width: 200px; }
 .column70 { width: 70px; }
 .column90 { width: 90px; }
 .column98 { width: 98px; }
@@ -638,7 +638,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
             border: 5px solid #333;
         }
 
-        .overview tr:hover > td {
+        .overview tbody tr:hover > td {
             background-color: #2E2D2C;
         }
 
@@ -968,16 +968,16 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tbody>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line1"></a><code>1</code></td><td></td><td class="lightgray"><code>namespace&nbsp;CodeMeridian.Tooling.Configuration;</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line2"></a><code>2</code></td><td></td><td class="lightgray"><code></code></td></tr>
-<tr class="coverableline" title="Covered (31 visits)" data-coverage="{'AllTestMethods': {'VC': '31', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">31</td><td class="rightmargin right"><a id="file0_line3"></a><code>3</code></td><td></td><td class="lightgreen"><code>public&nbsp;sealed&nbsp;record&nbsp;CodeMeridianConfigSnapshot(</code></td></tr>
-<tr class="coverableline" title="Covered (15 visits)" data-coverage="{'AllTestMethods': {'VC': '15', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">15</td><td class="rightmargin right"><a id="file0_line4"></a><code>4</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;string?&nbsp;Project,</code></td></tr>
-<tr class="coverableline" title="Covered (15 visits)" data-coverage="{'AllTestMethods': {'VC': '15', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">15</td><td class="rightmargin right"><a id="file0_line5"></a><code>5</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;string?&nbsp;CodeMeridianUrl,</code></td></tr>
-<tr class="coverableline" title="Covered (19 visits)" data-coverage="{'AllTestMethods': {'VC': '19', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">19</td><td class="rightmargin right"><a id="file0_line6"></a><code>6</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;bool?&nbsp;AllowRepoScripts,</code></td></tr>
-<tr class="coverableline" title="Covered (14 visits)" data-coverage="{'AllTestMethods': {'VC': '14', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">14</td><td class="rightmargin right"><a id="file0_line7"></a><code>7</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;bool?&nbsp;UseGlobalCache,</code></td></tr>
-<tr class="coverableline" title="Covered (13 visits)" data-coverage="{'AllTestMethods': {'VC': '13', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">13</td><td class="rightmargin right"><a id="file0_line8"></a><code>8</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;IReadOnlyList&lt;string&gt;?&nbsp;ConfigurationFiles,</code></td></tr>
-<tr class="coverableline" title="Covered (15 visits)" data-coverage="{'AllTestMethods': {'VC': '15', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">15</td><td class="rightmargin right"><a id="file0_line9"></a><code>9</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;string?&nbsp;ArchitecturePath,</code></td></tr>
-<tr class="coverableline" title="Covered (19 visits)" data-coverage="{'AllTestMethods': {'VC': '19', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">19</td><td class="rightmargin right"><a id="file0_line10"></a><code>10</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;CodeMeridianFileRolePatternSnapshot?&nbsp;FileRoles,</code></td></tr>
-<tr class="coverableline" title="Covered (21 visits)" data-coverage="{'AllTestMethods': {'VC': '21', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">21</td><td class="rightmargin right"><a id="file0_line11"></a><code>11</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;Version,</code></td></tr>
-<tr class="coverableline" title="Covered (43 visits)" data-coverage="{'AllTestMethods': {'VC': '43', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">43</td><td class="rightmargin right"><a id="file0_line12"></a><code>12</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;bool?&nbsp;EmbeddingEnabled&nbsp;=&nbsp;null);</code></td></tr>
+<tr class="coverableline" title="Covered (62 visits)" data-coverage="{'AllTestMethods': {'VC': '62', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">62</td><td class="rightmargin right"><a id="file0_line3"></a><code>3</code></td><td></td><td class="lightgreen"><code>public&nbsp;sealed&nbsp;record&nbsp;CodeMeridianConfigSnapshot(</code></td></tr>
+<tr class="coverableline" title="Covered (30 visits)" data-coverage="{'AllTestMethods': {'VC': '30', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">30</td><td class="rightmargin right"><a id="file0_line4"></a><code>4</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;string?&nbsp;Project,</code></td></tr>
+<tr class="coverableline" title="Covered (30 visits)" data-coverage="{'AllTestMethods': {'VC': '30', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">30</td><td class="rightmargin right"><a id="file0_line5"></a><code>5</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;string?&nbsp;CodeMeridianUrl,</code></td></tr>
+<tr class="coverableline" title="Covered (38 visits)" data-coverage="{'AllTestMethods': {'VC': '38', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">38</td><td class="rightmargin right"><a id="file0_line6"></a><code>6</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;bool?&nbsp;AllowRepoScripts,</code></td></tr>
+<tr class="coverableline" title="Covered (28 visits)" data-coverage="{'AllTestMethods': {'VC': '28', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">28</td><td class="rightmargin right"><a id="file0_line7"></a><code>7</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;bool?&nbsp;UseGlobalCache,</code></td></tr>
+<tr class="coverableline" title="Covered (26 visits)" data-coverage="{'AllTestMethods': {'VC': '26', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">26</td><td class="rightmargin right"><a id="file0_line8"></a><code>8</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;IReadOnlyList&lt;string&gt;?&nbsp;ConfigurationFiles,</code></td></tr>
+<tr class="coverableline" title="Covered (30 visits)" data-coverage="{'AllTestMethods': {'VC': '30', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">30</td><td class="rightmargin right"><a id="file0_line9"></a><code>9</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;string?&nbsp;ArchitecturePath,</code></td></tr>
+<tr class="coverableline" title="Covered (38 visits)" data-coverage="{'AllTestMethods': {'VC': '38', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">38</td><td class="rightmargin right"><a id="file0_line10"></a><code>10</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;CodeMeridianFileRolePatternSnapshot?&nbsp;FileRoles,</code></td></tr>
+<tr class="coverableline" title="Covered (42 visits)" data-coverage="{'AllTestMethods': {'VC': '42', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">42</td><td class="rightmargin right"><a id="file0_line11"></a><code>11</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;Version,</code></td></tr>
+<tr class="coverableline" title="Covered (86 visits)" data-coverage="{'AllTestMethods': {'VC': '86', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">86</td><td class="rightmargin right"><a id="file0_line12"></a><code>12</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;bool?&nbsp;EmbeddingEnabled&nbsp;=&nbsp;null);</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line13"></a><code>13</code></td><td></td><td class="lightgray"><code></code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line14"></a><code>14</code></td><td></td><td class="lightgray"><code>public&nbsp;sealed&nbsp;record&nbsp;ToolConfigurationContext(</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line15"></a><code>15</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;DirectoryInfo&nbsp;RootPath,</code></td></tr>
@@ -1035,7 +1035,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.10.0<br />07/26/2026 - 10:10:36<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.11.0<br />08/04/2026 - 07:14:27<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>
