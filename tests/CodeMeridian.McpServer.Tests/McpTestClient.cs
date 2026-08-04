@@ -7,11 +7,12 @@ internal static class McpTestClient
 {
     public static async Task<McpClient> CreateAsync(
         HttpClient httpClient,
-        string? protocolVersion = null)
+        string? protocolVersion = null,
+        string? apiKey = null)
     {
         httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Bearer",
-            GraphQlWebApplicationFactory.ApiKey);
+            apiKey ?? GraphQlWebApplicationFactory.ApiKey);
 
         var transport = new HttpClientTransport(
             new HttpClientTransportOptions

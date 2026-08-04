@@ -1,6 +1,6 @@
 # MCP 2 Capability Adoption Plan
 
-- Status: local implementation substantially complete; live deployment, graph-data acceptance, and host compatibility remain intentionally deferred
+- Status: implementation and deployed SDK/real-graph acceptance complete; interactive VS Code/Codex/Continue and App-host evidence remain
 - Date: 2026-08-04
 - Scope: adopt the MCP 2026-07-28 / C# SDK 2.x capabilities that materially improve CodeMeridian's safety, machine-readability, long-running operations, client experience, and operability
 - Primary host: `src/McpServer`
@@ -23,10 +23,12 @@ Completed in the current working tree:
 - [x] Add two experimental, disabled-by-default MCP Apps that render typed read-only contract/path data with no external network access.
 - [x] Add a jsdom accessibility, CSP, external-asset, and hostile-value injection harness for both Apps.
 - [x] Document shipped behavior, security boundaries, rollback controls, and known operational limits in `docs/mcp-2-capabilities.md`.
+- [x] Add an environment-gated, non-parallel live acceptance suite that never stores the endpoint or API key and requires a separate opt-in for graph-maintenance writes.
+- [x] Run the modern, down-level, structured-output, discovery-cache, real-graph Task completion, and real-graph Task cancellation checks against the deployed server.
 
 Deliberately deferred because it needs a product decision, deployment topology, or real-client evidence:
 
-- [ ] deployed VS Code/Codex/Continue compatibility evidence and App screenshots
+- [ ] interactive VS Code/Codex/Continue compatibility evidence and App screenshots
 - [ ] additional graph-analysis structured contracts beyond `find_connection`
 - [ ] durable, multi-replica, multi-principal task ownership and restart survival
 - [ ] task progress phases and explicit host-shutdown drain/cancel semantics
@@ -59,7 +61,7 @@ CodeMeridian now runs the MCP 2.x SDK over stateless Streamable HTTP and has loc
 5. add caching hints for stable discovery responses
 6. provide optional MCP Apps that render typed read-only contract and graph-path data behind an experimental feature flag
 
-The remaining acceptance batch is deliberately live-only: deploy once, exercise VS Code/Codex/Continue, run real graph Tasks, inspect App rendering, and capture compatibility evidence without requiring intermediate server or index updates.
+The deployed server and real graph have now passed the reusable SDK acceptance batch. The remaining acceptance is host-specific: restart the existing Codex connection, exercise VS Code and Continue, enable Apps for an experimental deployment, inspect rendering, and capture compatibility evidence.
 
 ## Baseline Already Completed
 
@@ -242,8 +244,8 @@ No phase should start until its gate is resolved and recorded in this document o
 
 ### 0.3 Measure current behavior
 
-- [ ] Measure serialized `tools/list` payload size.
-- [ ] Measure cold and warm `tools/list` latency.
+- [x] Measure serialized `tools/list` payload size. Live sample on 2026-08-04: 63,749 bytes including the Streamable HTTP response envelope.
+- [x] Measure cold and warm `tools/list` latency. Live sample on 2026-08-04: 77 ms cold and 50 ms warm after a 530 ms connect/discovery handshake.
 - [ ] Measure representative tool-result sizes for compact, full, and source-snippet modes.
 - [ ] Measure `rebuild_keyword_graph` and `classify_keywords` duration on small and production-sized graphs.
 - [ ] Record timeout behavior in VS Code, Codex, and Continue.
@@ -1017,7 +1019,10 @@ Run the narrowest relevant commands first.
 - [x] MCP App DOM/security/accessibility tests: 3 passed.
 - [x] TypeScript workspace build: all three workspaces compiled successfully.
 - [x] Release publish verification: MCP server published successfully and included both `Apps/client-extension-contract.html` (7,597 bytes) and `Apps/connection-viewer.html` (11,013 bytes).
-- [ ] Live deployed-client compatibility remains outstanding and is intentionally separate from local verification.
+- [x] Environment-gated deployed SDK/real-graph suite: 6 passed, 0 failed, 0 skipped with graph-maintenance Tasks enabled.
+- [x] Combined MCP endpoint/host/live suite: 110 passed, 0 failed, 0 skipped.
+- [x] Post-harness full solution regression: 980 passed, 0 failed, with the six live tests skipped by default when live credentials are absent.
+- [x] Deployed SDK and real-graph compatibility are verified separately from local verification; interactive host compatibility remains outstanding.
 
 ### MCP host
 
@@ -1049,16 +1054,43 @@ npm run build
 
 ### Live acceptance
 
-- [ ] Connect with VS Code using `type: "http"`.
-- [ ] Connect with Codex using the same Streamable HTTP endpoint.
-- [ ] Connect with Continue using `streamable-http`.
-- [ ] Capture negotiated protocol version.
-- [ ] List all tools and verify annotations.
-- [ ] Call every structured-output pilot.
-- [ ] Start, poll, and cancel a task.
-- [ ] Verify cache hints with a raw/SDK client.
+- [ ] Connect with VS Code using `type: "http"`. The checked-in workspace configuration is correct and VS Code 1.127.0 is installed, but interactive connection evidence is still required.
+- [ ] Connect with Codex using the same Streamable HTTP endpoint. A fresh 2.0 SDK client passes; the already-open Codex connector still sends a pre-upgrade `Mcp-Session-Id` and must be restarted before this can be checked.
+- [ ] Connect with Continue using `streamable-http`. Continue is not installed on the acceptance workstation.
+- [x] Capture negotiated protocol version: `2026-07-28` through `server/discover`; pinned fallback `2025-11-25` through `initialize`.
+- [x] List all 62 tools and verify object input schemas, titles/annotations, and exactly four advertised output schemas.
+- [x] Call every structured-output pilot and validate each payload against its advertised JSON Schema.
+- [x] Start and poll `classify_keywords`, then start and cancel `rebuild_keyword_graph`, against the real `CodeMeridian` graph.
+- [x] Verify private five-minute `tools/list` cache hints with the SDK client.
 - [ ] Open the MCP App in every claimed compatible host.
-- [ ] Confirm old clients retain useful ordinary text results.
+- [x] Confirm a pinned `2025-11-25` client retains useful ordinary text results.
+
+#### Live acceptance evidence (2026-08-04)
+
+- [x] Six live acceptance tests passed with zero failures when graph-maintenance checks were explicitly enabled.
+- [x] The complete MCP server suite passed with 110 tests and zero failures/skips while connected to the live deployment.
+- [x] The fresh client did not send or receive `Mcp-Session-Id`; this isolates the current Codex failure to its retained pre-upgrade connection state.
+- [x] Graph freshness returned 25 High, 0 Medium, and 0 Low metadata-confidence findings.
+- [ ] Relationship completeness is not accepted as high: the graph reports 959 unresolved-local, 6,588 indeterminate, 4,667 external/unindexed, 130 duplicate-candidate, and 189 synthetic relationships.
+- [x] Live operational sample: 530 ms connect/discovery, 77 ms cold and 50 ms warm `tools/list`, and a 63,749-byte catalog response.
+- [x] Live Task sample: `classify_keywords` completed in 525 ms and `rebuild_keyword_graph` cancellation reached its terminal state in 29 ms.
+- [x] Tasks are enabled on the deployed server.
+- [ ] Apps are disabled on the deployed server, as expected from the safe default; resource rendering in a real host therefore remains untested.
+
+The live suite reads secrets only from process environment variables. The mutation switch is separate so ordinary live checks cannot accidentally start graph maintenance:
+
+```powershell
+$env:CODEMERIDIAN_LIVE_URL = 'https://your-server.example'
+$env:CODEMERIDIAN_LIVE_API_KEY = '<secret>'
+dotnet test tests/CodeMeridian.McpServer.Tests/CodeMeridian.McpServer.Tests.csproj `
+  --filter 'Category=LiveAcceptance'
+
+$env:CODEMERIDIAN_LIVE_ENABLE_MUTATING_TASKS = 'true'
+dotnet test tests/CodeMeridian.McpServer.Tests/CodeMeridian.McpServer.Tests.csproj `
+  --filter 'Category=LiveAcceptance'
+```
+
+After changing or redeploying a configured MCP server, restart the Codex extension before collecting Codex host evidence. This is also the recovery step for a client retaining a stateful session header after the server moves to stateless mode.
 
 ## Rollout Strategy
 
@@ -1222,12 +1254,12 @@ Mitigation:
 
 ## Remaining Work Order
 
-1. Complete the broad local regression and publish-output verification recorded below.
-2. Deploy the finished local batch once, without an intermediate graph re-index.
-3. Exercise VS Code, Codex, and Continue against the same server build.
-4. Run ordinary and task-backed keyword maintenance against real graph data, including cancellation.
-5. Open both Apps in every host that will be claimed as compatible and capture evidence.
-6. Decide on any further structured tools, rate limits, durable Tasks, or parameter-header work only from measured evidence.
+1. [x] Complete the broad local regression and publish-output verification recorded below.
+2. [x] Deploy the finished local batch and index the implementation diff.
+3. [ ] Restart and exercise VS Code, Codex, and Continue against the same server build; install Continue only if it remains a claimed client.
+4. [x] Run task-backed keyword maintenance against real graph data, including cancellation.
+5. [ ] Enable the experimental Apps flag, open both Apps in every host that will be claimed as compatible, and capture evidence.
+6. [ ] Decide on any further structured tools, rate limits, durable Tasks, or parameter-header work only from measured evidence.
 
 ## Overall Success Criteria
 

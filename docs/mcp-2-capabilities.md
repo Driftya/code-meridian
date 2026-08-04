@@ -8,14 +8,14 @@ Package, protocol, compatibility, and rollback changes are summarized in [the lo
 
 ## Compatibility Status
 
-| Client path | Locally verified | Notes |
+| Client path | Verified | Notes |
 |---|---:|---|
-| C# SDK default negotiation | Yes | Negotiates `2026-07-28` through `server/discover`; stateless raw-wire baseline is checked in. |
-| C# SDK pinned down-level | Yes | Negotiates `2025-11-25` through `initialize`; tools, annotations, structured results, Tasks, cache hints, and text fallbacks remain available. |
+| C# SDK default negotiation | Local and deployed | Negotiates `2026-07-28` through `server/discover`; stateless raw-wire baseline and environment-gated live coverage pass. |
+| C# SDK pinned down-level | Local and deployed | Negotiates `2025-11-25` through `initialize`; tools, annotations, structured results, Tasks, cache hints, and text fallbacks remain available. |
 | Non-App MCP clients | Yes | Apps are disabled by default, and App-backed tools retain ordinary text and structured results. |
-| VS Code | Pending live acceptance | Generated configuration uses HTTP against the existing `/sse` path. |
-| Codex | Pending live acceptance | Must be exercised against the deployed server before claiming host-specific optional-capability support. |
-| Continue | Pending live acceptance | Must be exercised against the deployed server before claiming host-specific optional-capability support. |
+| VS Code | Pending interactive acceptance | Workspace configuration uses `type: "http"` against the existing `/sse` path; the acceptance workstation has VS Code 1.127.0. |
+| Codex | Pending connector restart | A fresh SDK connection passes. The connection opened before deployment retains `Mcp-Session-Id`; restart the extension before host acceptance. |
+| Continue | Not tested | Continue is not installed on the acceptance workstation. |
 
 The local modern and down-level baselines intentionally lock stable contract facts rather than entire response bodies: negotiated version, handshake path, tool count, annotation count, structured-tool inventory, capability flags, and discovery cache policy. Descriptions remain outside strict snapshots so documentation improvements do not cause protocol churn.
 
@@ -163,6 +163,8 @@ Authentication applies to `server/discover`, `initialize`, `tools/list`, `tools/
 
 The modern raw-wire baseline confirms stateless discovery/calls do not issue `Mcp-Session-Id`, expose the API key, or require a legacy GET event stream. The pinned `2025-11-25` compatibility path also works through ordinary HTTP initialization and tool calls.
 
+After replacing a stateful deployment with this stateless server, restart clients that were already connected. A retained `Mcp-Session-Id` belongs to the old connection and the stateless endpoint rejects it. Fresh modern and down-level SDK connections do not send or receive that header.
+
 ## Rollback
 
 Capabilities degrade independently:
@@ -179,17 +181,17 @@ The SDK upgrade, stateless transport, safety annotations, and versioned result c
 
 The following work is intentionally not claimed as complete:
 
-- run the final VS Code, Codex, and Continue matrix against the updated deployed server
+- restart the Codex extension and run the final interactive VS Code/Codex matrix against the updated deployed server
+- install and test Continue only if it remains a supported-client claim
 - capture host-specific screenshots and confirm which hosts render MCP Apps
-- exercise the deployed keyword Tasks against real graph data, including rebuild/classify duration and cancellation integrity
 - add principal-aware authorization if more than one authenticated identity is introduced
 - select durable/shared task storage before any multi-replica deployment
 - define phase/percentage progress and host-shutdown drain/cancel semantics
 - measure production tool latency and concurrency before adding tool-aware rate limits
 - decide from client evidence whether additional graph tools justify structured conversion or another App
-- publish release notes and perform the deployment/restart acceptance batch
+- enable Apps in an experimental deployment before collecting real-host resource/rendering evidence
 
-No live server update or graph index rebuild is required for the local implementation and test work above.
+The deployed SDK, structured-output, cache, graph-read, Task-completion, and Task-cancellation checks pass. No further graph index rebuild is required for the implementation and test work above.
 
 ## Local Verification
 
@@ -203,3 +205,15 @@ Permanent coverage includes:
 - bounded tool activities and metrics
 - ordinary-call, task-backed, disabled, completion, error, timeout, oversize, TTL, capacity, cancellation, health, and task-metric behavior
 - Apps-disabled behavior plus capability, metadata, resources, CSP, injection, and accessibility checks when enabled
+- environment-gated, non-parallel deployed-server checks with a separate opt-in for graph-maintenance Tasks
+
+Run read-only live acceptance without storing credentials in the repository:
+
+```powershell
+$env:CODEMERIDIAN_LIVE_URL = 'https://your-server.example'
+$env:CODEMERIDIAN_LIVE_API_KEY = '<secret>'
+dotnet test tests/CodeMeridian.McpServer.Tests/CodeMeridian.McpServer.Tests.csproj `
+  --filter 'Category=LiveAcceptance'
+```
+
+Set `CODEMERIDIAN_LIVE_ENABLE_MUTATING_TASKS=true` only when the target graph is approved for keyword classification and rebuild cancellation testing.
