@@ -252,6 +252,10 @@ codemeridian keywords rebuild --project CodeMeridian
 codemeridian keywords classify --project CodeMeridian
 ```
 
+The equivalent MCP tools, `rebuild_keyword_graph` and `classify_keywords`, support client-opted MCP Tasks. Ordinary calls still wait for and return the normal result. A task-aware client can instead poll or cancel the operation. The MCP task runtime is process-local: by default it retains task state for 30 minutes, allows four active tasks, limits maintenance execution to 30 minutes, and caps serialized results at 128 KiB. These limits are configured under `Mcp:Tasks`; task progress is currently lifecycle/status based rather than phase or percentage based.
+
+MCP Tasks are separate from the REST keyword jobs submitted by the CLI. Their IDs, retention, cancellation, and restart behavior are not interchangeable. See [MCP 2 Capabilities](mcp-2-capabilities.md#mcp-tasks) for the complete operational contract.
+
 ## Diagnostics Indexing
 
 Diagnostics indexing runs by default so compiler, analyzer, TypeScript, and lint findings stay attached to the graph.
@@ -448,7 +452,7 @@ When this repository is opened in VS Code, `.vscode/mcp.json` registers CodeMeri
 {
   "servers": {
     "CodeMeridian": {
-      "type": "sse",
+      "type": "http",
       "url": "http://localhost:5100/sse",
       "headers": {
         "Authorization": "Bearer ${env:CodeMeridian_Auth_ApiKey}"

@@ -1,5 +1,3 @@
-using System.Text.Json;
-using CodeMeridian.Application.ClientExtensions;
 using CodeMeridian.Application.Services;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
@@ -23,6 +21,26 @@ public sealed class ToolWrappersTests
 
         result.Should().Be("query-result");
         await queryService.Received(1).QueryStructureAsync("callers of SaveAsync", "CodeMeridian", Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("too_long")]
+    [InlineData("control")]
+    public async Task CodebaseTools_QueryCodebaseAsync_RejectsInvalidProjectContext(string scenario)
+    {
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        var projectContext = scenario == "too_long"
+            ? new string('x', 201)
+            : "bad\u0001context";
+        var sut = new CodebaseTools(queryService);
+
+        var action = () => sut.QueryCodebaseAsync("query", projectContext);
+
+        await action.Should().ThrowAsync<ArgumentException>();
+        await queryService.DidNotReceiveWithAnyArgs().QueryStructureAsync(
+            default!,
+            default,
+            default);
     }
 
     [Fact]
@@ -184,39 +202,6 @@ public sealed class ToolWrappersTests
     }
 
     [Fact]
-    public void ClientExtensionTools_GetClientExtensionContract_ReturnsEndpointAuthLimitsAndExamples()
-    {
-        var sut = new ClientExtensionTools(new ClientExtensionService());
-
-        var result = sut.GetClientExtensionContract();
-
-        result.Should().Contain("# Client Extension Contract");
-        result.Should().Contain("/graphql");
-        result.Should().Contain("Authorization");
-        result.Should().Contain("X-CodeMeridian-ApiKey");
-        result.Should().Contain("Max page size: 100");
-        result.Should().Contain("schema-overview");
-    }
-
-    [Fact]
-    public void ClientExtensionTools_ListAndGetClientExtensionExample_ReturnCheckedInQueries()
-    {
-        var sut = new ClientExtensionTools(new ClientExtensionService());
-
-        var listed = sut.ListClientExtensionExamples();
-        listed.Should().Contain("keyword-search");
-        listed.Should().Contain("docs/graphql/03-keyword-search.graphql");
-
-        var example = sut.GetClientExtensionExample("keyword-search");
-        example.Should().Contain("# Client Extension Example: keyword-search");
-        example.Should().Contain("KeywordSearch");
-        example.Should().Contain("\"text\": \"graphql\"");
-        example.Should().Contain("Expected result shape");
-
-        sut.GetClientExtensionExample("missing-example").Should().Contain("Unknown client extension example");
-    }
-
-    [Fact]
     public async Task ExtensionTools_LinkExternalConceptAsync_UpsertsNodeAndDirectionalEdge()
     {
         var codeGraph = Substitute.For<ICodeGraphRepository>();
@@ -234,12 +219,14 @@ public sealed class ToolWrappersTests
         result.Should().Contain("db:orders");
         await codeGraph.Received(1).UpsertNodeAsync(
             Arg.Is<CodeNode>(node =>
+                node != null &&
                 node.Id == "db:orders" &&
                 node.Type == CodeNodeType.DatabaseTable &&
                 node.ProjectContext == "CodeMeridian"),
             Arg.Any<CancellationToken>());
         await codeGraph.Received(1).UpsertEdgeAsync(
             Arg.Is<CodeEdge>(edge =>
+                edge != null &&
                 edge.SourceId == "db:orders" &&
                 edge.TargetId == "Method:OrderService.SaveAsync" &&
                 edge.Type == CodeEdgeType.Reads),

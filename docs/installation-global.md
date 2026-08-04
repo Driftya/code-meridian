@@ -64,7 +64,7 @@ Add:
 {
   "servers": {
     "CodeMeridian": {
-      "type": "sse",
+      "type": "http",
       "url": "http://localhost:5100/sse",
       "headers": {
         "Authorization": "Bearer ${env:CodeMeridian_Auth_ApiKey}"

@@ -2,16 +2,21 @@ using CodeMeridian.Application;
 using CodeMeridian.Application.GraphQueries;
 using CodeMeridian.Application.Services;
 using CodeMeridian.Infrastructure;
+using CodeMeridian.McpServer;
 using CodeMeridian.McpServer.Api;
+using CodeMeridian.McpServer.Apps;
 using CodeMeridian.McpServer.Configuration;
 using CodeMeridian.McpServer.GraphQl;
 using CodeMeridian.McpServer.Keywording;
+using CodeMeridian.McpServer.Tasks;
 using CodeMeridian.McpServer.Tools;
 using CodeMeridian.Tooling.Configuration;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol.Extensions.Apps;
+using ModelContextProtocol.Extensions.Tasks;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -38,25 +43,45 @@ builder.Services.AddHostedService<KeywordRefreshWorker>();
 
 // ── MCP server — GitHub Copilot connects here via .vscode/mcp.json ───────────
 // Copilot discovers and calls these tools automatically during chat.
-builder.Services
+var mcpServerBuilder = builder.Services
     .AddMcpServer()
-    .WithHttpTransport(options =>
-    {
-        // Give idle sessions a long timeout so VS Code's SSE connection
-        // is not cleaned up between chat interactions
-        options.IdleTimeout = TimeSpan.FromHours(2);
-    })
+    .WithHttpTransport(options => options.Stateless = true)
+    .WithCodeMeridianFilters();
+
+var mcpTaskOptions = builder.Configuration
+    .GetSection(McpTaskRuntimeOptions.SectionName)
+    .Get<McpTaskRuntimeOptions>() ?? new McpTaskRuntimeOptions();
+builder.Services.AddSingleton(mcpTaskOptions);
+
+if (mcpTaskOptions.Enabled)
+{
+    var taskStore = new CodeMeridianMcpTaskStore(mcpTaskOptions);
+    builder.Services.AddSingleton(taskStore);
+    builder.Services.AddSingleton<IMcpTaskStore>(taskStore);
+    mcpServerBuilder.WithTasks(
+        taskStore,
+        options => options.ExecutionModeSelector = request =>
+            request.MatchedPrimitive?.Id is "rebuild_keyword_graph" or "classify_keywords"
+                ? McpTaskExecutionMode.Optional
+                : McpTaskExecutionMode.Synchronous);
+}
+
+mcpServerBuilder
     .WithTools<CodebaseTools>()
     .WithTools<KeywordTools>()
     .WithTools<KnowledgeTools>()
     .WithTools<ClientExtensionTools>()
     .WithTools<ExtensionTools>();
 
-// ── Kestrel — extend keep-alive so long-lived SSE connections aren't dropped ──
-builder.WebHost.ConfigureKestrel(kestrel =>
+if (builder.Configuration.GetValue<bool>("Mcp:Apps:Enabled"))
 {
-    kestrel.Limits.KeepAliveTimeout = TimeSpan.FromHours(1);
-});
+#pragma warning disable MCPEXP003 // MCP Apps is experimental in the 2.0 SDK.
+    mcpServerBuilder
+        .WithResources<ClientExtensionAppResources>()
+        .WithResources<ConnectionAppResources>()
+        .WithMcpApps();
+#pragma warning restore MCPEXP003
+}
 
 // ── GraphQL transport - shared bounded read surface for client extensions ───
 builder.Services
@@ -74,7 +99,9 @@ builder.Services
         options.ExecutionTimeout = GraphQlReadContract.ExecutionTimeout;
     });
 
-builder.Services.AddHealthChecks();
+var healthChecks = builder.Services.AddHealthChecks();
+if (mcpTaskOptions.Enabled)
+    healthChecks.AddCheck<CodeMeridianMcpTaskStoreHealthCheck>("mcp_tasks");
 builder.Services.AddOpenApi();
 builder.Services
     .AddAuthentication(ApiKeyScheme)
@@ -116,7 +143,7 @@ app.MapEmbeddingApi();
 app.MapStatusApi();
 app.MapGraphQL(GraphQlReadContract.EndpointPath).AllowAnonymous();
 
-// MCP SSE endpoint — VS Code connects to http://localhost:5100/sse
+// MCP Streamable HTTP endpoint. The historical /sse path is retained for client configuration compatibility.
 app.MapMcp("/sse");
 
 app.Run();

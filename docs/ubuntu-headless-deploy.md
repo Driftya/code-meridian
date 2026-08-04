@@ -92,7 +92,7 @@ If `CodeMeridian_Auth_ApiKey` is set, API, MCP, and GraphQL query execution requ
 
 ```bash
 curl -H "Authorization: Bearer replace-with-a-long-random-token" \
-  http://192.168.10.70:5100/sse
+  http://192.168.10.70:5100/api/v1/status/version
 ```
 
 ## Firewall With Persistent iptables
@@ -166,7 +166,7 @@ For VS Code, use this in the client project's `.vscode/mcp.json`:
 {
   "servers": {
     "CodeMeridian": {
-      "type": "sse",
+      "type": "http",
       "url": "http://192.168.10.70:5100/sse",
       "headers": {
         "Authorization": "Bearer ${env:CodeMeridian_Auth_ApiKey}"

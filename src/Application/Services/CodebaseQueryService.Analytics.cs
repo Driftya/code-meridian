@@ -143,45 +143,6 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> FindConnectionAsync(
-        string fromId,
-        string toId,
-        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
-        CancellationToken cancellationToken = default)
-    {
-        var path = await codeGraph.FindConnectionAsync(fromId, toId, cancellationToken);
-
-        if (path.Count == 0)
-            return $"No path found between `{fromId}` and `{toId}` within 10 hops. " +
-                   "They may be in unconnected parts of the graph.";
-
-        if (detailLevel == ContextDetailLevel.Summary)
-            return $"Connection summary: `{fromId}` reaches `{toId}` in {path.Count - 1} hops through " +
-                   $"{path.Count} graph nodes.";
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Connection — `{fromId}` → `{toId}`");
-        sb.AppendLine($"Shortest path ({path.Count - 1} hops):\n");
-
-        for (var i = 0; i < path.Count; i++)
-        {
-            var (node, via) = path[i];
-            sb.Append($"**{node.Type}** `{node.Name}`");
-            if (node.FilePath is not null) sb.Append($" ({node.FilePath})");
-            if (via is not null) sb.Append($"\n  —[{via}]→");
-            sb.AppendLine();
-        }
-
-        var frontendSignals = SummarizeFrontendRelationships(path.Select(step => step.ViaRelationship));
-        if (frontendSignals.Length > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine($"Frontend signals: {string.Join(", ", frontendSignals)}.");
-        }
-
-        return sb.ToString();
-    }
-
     public async Task<string> FindUnreferencedAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)

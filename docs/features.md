@@ -2,6 +2,21 @@
 
 This page is the detailed tool and feature reference. For the public overview and quick start, see [README.md](../README.md).
 
+## MCP 2 Host Capabilities
+
+CodeMeridian uses the stable 2.x C# MCP SDK over stateless Streamable HTTP. The configured `/sse` path is retained for client compatibility; it is not the removed stateful SSE transport.
+
+The MCP host provides:
+
+- reviewed titles and safety annotations for all 62 tools
+- useful Markdown plus advertised structured results for `find_connection` and the three client-extension discovery tools
+- private five-minute `tools/list` caching hints
+- client-opted Tasks for `rebuild_keyword_graph` and `classify_keywords`, with ordinary synchronous calls retained
+- bounded per-tool telemetry that excludes arguments and credentials
+- optional read-only MCP Apps for the client-extension contract and connection-path views, disabled by default
+
+See [MCP 2 Capabilities](mcp-2-capabilities.md) for result contracts, task limits, compatibility status, configuration, and rollback guidance.
+
 ## Query and Exploration
 
 ### `query_codebase`
@@ -55,6 +70,8 @@ Keyword extraction is configurable through `KeywordEnrichment` in `appsettings.j
 Rebuild the keyword graph for CodeMeridian.
 ```
 
+MCP clients that support Tasks may opt into a task, poll the operation, or cancel it. Clients that do not opt in receive the same ordinary tool response. The process-local task runtime has bounded concurrency, duration, result size, and retention; see [MCP 2 Capabilities](mcp-2-capabilities.md#mcp-tasks).
+
 ### `classify_keywords`
 
 Classifies derived `Keyword` nodes using configurable lexical term lists and document-frequency thresholds. Classification persists `classification`, `isCommon`, `isNoise`, `usefulnessScore`, and `classificationVersion` metadata on `Keyword` nodes so lexical matches can suppress noise and weight more useful terms higher.
@@ -64,6 +81,8 @@ Configure the rules through `KeywordClassification` in `appsettings.json`.
 ```text
 Classify the derived keywords for CodeMeridian.
 ```
+
+This tool has the same optional MCP Task behavior and ordinary-call fallback as `rebuild_keyword_graph`.
 
 CLI equivalent:
 
@@ -193,6 +212,8 @@ Which parts of MyApi are most risky to change?
 ### `find_connection`
 
 Finds the shortest relationship path between two nodes.
+
+The MCP response includes both the existing Markdown path and a versioned structured payload containing bounded nodes, edges, path metadata, and frontend relationship signals. When experimental Apps are enabled, compatible hosts can render the same facts through the read-only connection viewer without exposing GraphQL or server credentials.
 
 This now includes route-linked full-stack paths when the project has been re-indexed with the updated C# and TypeScript indexers. Static frontend HTTP calls can connect through shared `ApiEndpoint` nodes to backend ASP.NET handlers or controller actions.
 

@@ -11,7 +11,7 @@ namespace CodeMeridian.McpServer.Tools;
 [McpServerToolType]
 public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
 {
-    [McpServerTool(Name = "query_codebase")]
+    [McpServerTool(Name = "query_codebase", Title = "Query Codebase", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Query the code knowledge graph for structural information about classes, methods, " +
         "interfaces, call graphs, and dependencies. " +
@@ -23,10 +23,13 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         string query,
         [Description("Optional project name to narrow the search (e.g. 'MyApi', 'AuthService'). Omit to search all projects.")]
         string? projectContext = null,
-        CancellationToken cancellationToken = default) =>
-        queryService.QueryStructureAsync(query, projectContext, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        McpArgumentValidation.ValidateProjectContext(projectContext);
+        return queryService.QueryStructureAsync(query, projectContext, cancellationToken);
+    }
 
-    [McpServerTool(Name = "get_architectural_overview")]
+    [McpServerTool(Name = "get_architectural_overview", Title = "Get Architectural Overview", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Get a high-level overview of a project's structure: namespaces, class count, key interfaces, and top-level modules. " +
         "Use this at the start of a session to orient yourself before diving into details. " +
@@ -37,7 +40,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.GetOverviewAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "search_documentation")]
+    [McpServerTool(Name = "search_documentation", Title = "Search Documentation", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Full-text search over ingested documentation, ADRs, README files, and code comments. " +
         "Use this when the user asks about decisions, patterns, or concepts rather than specific code elements.")]
@@ -49,7 +52,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.SearchDocumentationAsync(query, projectContext, cancellationToken);
 
-    [McpServerTool(Name = "find_tool_dependency_impact")]
+    [McpServerTool(Name = "find_tool_dependency_impact", Title = "Find Tool Dependency Impact", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Show which CodeMeridian tools, reports, evaluators, docs, and regression suites depend on a tool or shared contract. " +
         "Use this before changing a CodeMeridian tool so you know which adjacent surfaces need review or tests. " +
@@ -62,7 +65,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindToolDependencyImpactAsync(subject, includeAwarenessOnly, cancellationToken);
 
-    [McpServerTool(Name = "find_impact")]
+    [McpServerTool(Name = "find_impact", Title = "Find Impact", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Traverse the call graph backwards to find everything that would be affected by changing a method or class. " +
         "ALWAYS call this before suggesting a refactor or edit to understand blast radius. " +
@@ -80,7 +83,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindImpactAsync(nodeId, depth, detailLevel, includeConfidence, cancellationToken);
 
-    [McpServerTool(Name = "find_diagnostics")]
+    [McpServerTool(Name = "find_diagnostics", Title = "Find Diagnostics", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find indexed compiler, analyzer, TypeScript, or lint diagnostics for a project. " +
         "Use this to understand current build/type/lint failures before editing.")]
@@ -92,7 +95,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindDiagnosticsAsync(projectContext, severity, cancellationToken);
 
-    [McpServerTool(Name = "find_diagnostics_for_node")]
+    [McpServerTool(Name = "find_diagnostics_for_node", Title = "Find Diagnostics For Node", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find indexed diagnostics in the same file as a code node, ordered by proximity to the node line. " +
         "Use this before editing a method or class to see nearby compiler/type/lint problems.")]
@@ -102,7 +105,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindDiagnosticsForNodeAsync(nodeId, cancellationToken);
 
-    [McpServerTool(Name = "find_stale_knowledge")]
+    [McpServerTool(Name = "find_stale_knowledge", Title = "Find Stale Knowledge", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Detect potentially stale knowledge in ingested docs, external concept links, and orphaned graph references. " +
         "Use this when persistent memory may be out of date after code renames, reindexing, or documentation drift.")]
@@ -114,7 +117,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindStaleKnowledgeAsync(projectContext, limit, cancellationToken);
 
-    [McpServerTool(Name = "knowledge_decay")]
+    [McpServerTool(Name = "knowledge_decay", Title = "Review Knowledge Decay", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Graph-backed stale-knowledge view. " +
         "This is an alias of find_stale_knowledge for workflows that think in terms of knowledge decay.")]
@@ -126,7 +129,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindStaleKnowledgeAsync(projectContext, limit, cancellationToken);
 
-    [McpServerTool(Name = "find_implementation_surface")]
+    [McpServerTool(Name = "find_implementation_surface", Title = "Find Implementation Surface", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find the most likely files, classes, and methods to edit for a requested feature or fix. " +
         "Use this before implementation when the user describes a goal rather than a precise node ID.")]
@@ -142,7 +145,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindImplementationSurfaceAsync(goal, conceptsCsv, projectContext, limit, cancellationToken);
 
-    [McpServerTool(Name = "analyze_feature_implementation_path")]
+    [McpServerTool(Name = "analyze_feature_implementation_path", Title = "Analyze Feature Implementation Path", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Map a feature request or docs/features/*.md path to implementation status, closest code surfaces, " +
         "likely touched areas, tests, docs, missing graph evidence, and risk. " +
@@ -170,7 +173,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
             limit,
             cancellationToken);
 
-    [McpServerTool(Name = "plan_edit_route")]
+    [McpServerTool(Name = "plan_edit_route", Title = "Plan Edit Route", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Plan an ordered edit route for a feature or refactor goal. " +
         "Use this before implementation when the user wants an itinerary across contracts, application/domain behavior, " +
@@ -187,7 +190,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.PlanEditRouteAsync(goal, conceptsCsv, projectContext, limit, cancellationToken);
 
-    [McpServerTool(Name = "replace_surface")]
+    [McpServerTool(Name = "replace_surface", Title = "Plan Dependency Replacement", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Group dependency replacement work into safe and risky clusters. " +
         "Use this before broad library migrations such as `Newtonsoft.Json` to `System.Text.Json` so the graph can separate isolated internal swaps from boundary-heavy shared usage.")]
@@ -203,7 +206,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.ReplaceSurfaceAsync(fromDependency, toDependency, projectContext, limit, cancellationToken);
 
-    [McpServerTool(Name = "resolve_exact_symbol")]
+    [McpServerTool(Name = "resolve_exact_symbol", Title = "Resolve Exact Symbol", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Resolve a method, class, interface, or file hint to canonical CodeMeridian node IDs. " +
         "Use this when query_codebase or find_implementation_surface found a likely file but you need the exact node ID before editing.")]
@@ -221,7 +224,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.ResolveExactSymbolAsync(symbol, filePath, line, projectContext, limit, cancellationToken);
 
-    [McpServerTool(Name = "check_graph_freshness")]
+    [McpServerTool(Name = "check_graph_freshness", Title = "Check Graph Freshness", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Report freshness and confidence for graph nodes using indexer-supplied file, line, and timestamp metadata. " +
         "Use this when CodeMeridian results may be stale or only partially trusted. Source files are not read from the MCP server.")]
@@ -235,7 +238,7 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.CheckGraphFreshnessAsync(query, projectContext, limit, cancellationToken);
 
-    [McpServerTool(Name = "find_graph_drift")]
+    [McpServerTool(Name = "find_graph_drift", Title = "Find Graph Drift", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Detect graph drift before implementation by checking missing indexed file metadata, incomplete line metadata, and missing update timestamps. " +
         "Use this before relying on exact graph targets after renames, broad refactors, or indexer changes.")]

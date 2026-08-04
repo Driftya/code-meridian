@@ -14,7 +14,7 @@ public sealed class KnowledgeTools(
     ICodeGraphRepository codeGraph,
     IVectorRepository vectorStore)
 {
-    [McpServerTool(Name = "ingest_code_node")]
+    [McpServerTool(Name = "ingest_code_node", Title = "Ingest Code Node", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false)]
     [Description(
         "Add a code element (class, method, interface, etc.) to the knowledge graph. " +
         "Call this from an AST parser or build-time indexer to map the codebase into Neo4j.")]
@@ -81,7 +81,7 @@ public sealed class KnowledgeTools(
         return $"Node '{name}' ({type}) ingested successfully{(embedding is not null ? $" with {embedding.Length}-dim embedding" : "")}.";
     }
 
-    [McpServerTool(Name = "ingest_relationship")]
+    [McpServerTool(Name = "ingest_relationship", Title = "Ingest Relationship", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false)]
     [Description(
         "Add a relationship between two code nodes. " +
         "Valid types: Contains, Calls, Implements, Inherits, Uses, DependsOn, Overrides.")]
@@ -120,7 +120,7 @@ public sealed class KnowledgeTools(
         return $"Relationship {sourceId} --[{relationshipType}]--> {targetId} ingested{(callSite is not null ? $" (call-site: {callSite})" : "")}.";
     }
 
-    [McpServerTool(Name = "ingest_document")]
+    [McpServerTool(Name = "ingest_document", Title = "Ingest Document", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false)]
     [Description(
         "Ingest a text document (README, ADR, code comment, changelog) so it can be searched. " +
         "The document is stored in Neo4j and indexed for full-text search.")]
@@ -154,7 +154,7 @@ public sealed class KnowledgeTools(
         return $"Document from '{source ?? "unknown"}' ingested (id: {document.Id}).";
     }
 
-    [McpServerTool(Name = "clear_project_knowledge")]
+    [McpServerTool(Name = "clear_project_knowledge", Title = "Clear Project Knowledge", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false)]
     [Description(
         "Remove all knowledge (code nodes, relationships, and documents) for a specific project. " +
         "Use this before re-indexing a project after major structural changes.")]
@@ -170,7 +170,7 @@ public sealed class KnowledgeTools(
         return $"All knowledge for project '{projectContext}' removed from Neo4j.";
     }
 
-    [McpServerTool(Name = "clear_code_graph")]
+    [McpServerTool(Name = "clear_code_graph", Title = "Clear Code Graph", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false)]
     [Description(
         "Remove all indexed code graph nodes and relationships across every project. " +
         "This deletes CodeNode data only; documentation KnowledgeDocument nodes are preserved. " +

@@ -6,7 +6,7 @@ namespace CodeMeridian.McpServer.Tools;
 
 public sealed partial class CodebaseTools
 {
-    [McpServerTool(Name = "find_config_definitions")]
+    [McpServerTool(Name = "find_config_definitions", Title = "Find Configuration Definitions", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find where a canonical configuration key is defined or overridden across configuration files. " +
         "Use this when the user asks where a setting comes from, which files override it, or how ':' and '__' forms relate.")]
@@ -18,7 +18,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindConfigDefinitionsAsync(canonicalKey, projectContext, cancellationToken);
 
-    [McpServerTool(Name = "find_config_usage")]
+    [McpServerTool(Name = "find_config_usage", Title = "Find Configuration Usage", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find code nodes that directly read or bind a canonical configuration key. " +
         "Use this when the user asks what code uses a setting or which options class binds a configuration section.")]

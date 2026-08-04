@@ -6,7 +6,7 @@ namespace CodeMeridian.McpServer.Tools;
 
 public sealed partial class CodebaseTools
 {
-    [McpServerTool(Name = "plan_context_workflow")]
+    [McpServerTool(Name = "plan_context_workflow", Title = "Plan Context Workflow", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Plan the recommended sequence of CodeMeridian tools for a task. " +
         "Use this when an agent needs to know which CodeMeridian tools to call, in what order, and why. " +
@@ -40,7 +40,7 @@ public sealed partial class CodebaseTools
             includeExecutionHints,
             cancellationToken);
 
-    [McpServerTool(Name = "execute_context_workflow")]
+    [McpServerTool(Name = "execute_context_workflow", Title = "Execute Context Workflow", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Execute an approved read-only context workflow plan and return step results. " +
         "This tool refuses graph-mutating or destructive steps unless explicitly approved, and it stops when a required step lacks the target input it needs. " +

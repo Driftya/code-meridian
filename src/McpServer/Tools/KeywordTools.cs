@@ -7,7 +7,7 @@ namespace CodeMeridian.McpServer.Tools;
 [McpServerToolType]
 public sealed class KeywordTools(IKeywordGraphService keywordGraphService)
 {
-    [McpServerTool(Name = "find_related_knowledge")]
+    [McpServerTool(Name = "find_related_knowledge", Title = "Find Related Knowledge", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find code, docs, diagnostics, and knowledge nodes that are lexically related to a source node through shared derived keywords. " +
         "Use this after rebuilding the keyword graph when structural edges alone do not explain a likely connection.")]
@@ -31,7 +31,7 @@ public sealed class KeywordTools(IKeywordGraphService keywordGraphService)
             limit,
             cancellationToken);
 
-    [McpServerTool(Name = "rebuild_keyword_graph")]
+    [McpServerTool(Name = "rebuild_keyword_graph", Title = "Rebuild Keyword Graph", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false)]
     [Description(
         "Rebuild the derived keyword graph for an indexed project or for all projects. " +
         "This is a maintenance operation that tokenizes existing CodeNode and KnowledgeDocument text into shared Keyword nodes.")]
@@ -41,7 +41,7 @@ public sealed class KeywordTools(IKeywordGraphService keywordGraphService)
         CancellationToken cancellationToken = default) =>
         keywordGraphService.RebuildKeywordGraphAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "classify_keywords")]
+    [McpServerTool(Name = "classify_keywords", Title = "Classify Keywords", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false)]
     [Description(
         "Classify derived Keyword nodes with configurable lexical rules and document-frequency thresholds. " +
         "Use this after rebuilding the keyword graph to mark noise/common terms and improve keyword-based related-knowledge ranking.")]

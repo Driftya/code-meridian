@@ -253,6 +253,7 @@ Architecture rules come from the indexed project configuration when `.meridian/a
 - [Indexing projects](docs/indexing.md)
 - [Evaluating session usefulness](docs/evaluate.md)
 - [Feature reference](docs/features.md)
+- [MCP 2 capabilities and operational limits](docs/mcp-2-capabilities.md)
 - [Code embeddings and semantic search](docs/embeddings.md)
 - [Publishing the indexer tool](docs/publishing.md)
 - [Ubuntu headless deployment](docs/ubuntu-headless-deploy.md)

@@ -15,9 +15,15 @@
     <ProjectReference Include="..\..\src\McpServer\CodeMeridian.McpServer.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.*" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.*" />
+    <PackageReference Include="ModelContextProtocol.Extensions.Tasks" Version="2.*" />
     <PackageReference Include="xunit" Version="2.*" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.*" />
     <PackageReference Include="NSubstitute" Version="6.*" />
     <PackageReference Include="FluentAssertions" Version="7.*" />
+    <PackageReference Include="JsonSchema.Net" Version="9.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Snapshots\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

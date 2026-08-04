@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using System.Text;
 using CodeMeridian.Application.ClientExtensions;
+using CodeMeridian.McpServer.Apps;
+using ModelContextProtocol.Extensions.Apps;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace CodeMeridian.McpServer.Tools;
@@ -11,11 +14,16 @@ namespace CodeMeridian.McpServer.Tools;
 [McpServerToolType]
 public sealed class ClientExtensionTools(IClientExtensionService clientExtensions)
 {
-    [McpServerTool(Name = "get_client_extension_contract")]
+    [McpServerTool(Name = "get_client_extension_contract", Title = "Get Client Extension Contract", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ClientExtensionContract))]
+#pragma warning disable MCPEXP003 // MCP Apps is experimental in the 2.0 SDK.
+    [McpAppUi(
+        ResourceUri = ClientExtensionAppResources.ResourceUri,
+        Visibility = [McpUiToolVisibility.Model, McpUiToolVisibility.App])]
+#pragma warning restore MCPEXP003
     [Description(
         "Return the canonical contract for client-owned extensions that query CodeMeridian through GraphQL. " +
         "Use this before building custom routing, prompts, UI, or query composition on the client.")]
-    public string GetClientExtensionContract()
+    public CallToolResult GetClientExtensionContract()
     {
         var contract = clientExtensions.GetContract();
         var builder = new StringBuilder();
@@ -47,14 +55,14 @@ public sealed class ClientExtensionTools(IClientExtensionService clientExtension
         foreach (var exampleId in contract.ExampleIds)
             builder.AppendLine($"  - `{exampleId}`");
 
-        return builder.ToString().TrimEnd();
+        return StructuredToolResult.Create(builder.ToString().TrimEnd(), contract);
     }
 
-    [McpServerTool(Name = "list_client_extension_examples")]
+    [McpServerTool(Name = "list_client_extension_examples", Title = "List Client Extension Examples", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ClientExtensionExample[]))]
     [Description(
         "List curated GraphQL examples that client-side extensions can reuse as deterministic starting points. " +
         "These examples are checked into docs/graphql and do not execute arbitrary client code on the server.")]
-    public string ListClientExtensionExamples()
+    public CallToolResult ListClientExtensionExamples()
     {
         var examples = clientExtensions.ListExamples();
         var builder = new StringBuilder();
@@ -70,20 +78,21 @@ public sealed class ClientExtensionTools(IClientExtensionService clientExtension
             builder.AppendLine($"  Description: {example.Description}");
         }
 
-        return builder.ToString().TrimEnd();
+        return StructuredToolResult.Create(builder.ToString().TrimEnd(), examples.ToArray());
     }
 
-    [McpServerTool(Name = "get_client_extension_example")]
+    [McpServerTool(Name = "get_client_extension_example", Title = "Get Client Extension Example", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ClientExtensionExample))]
     [Description(
         "Return one curated GraphQL example, including the checked-in document, variables template, expected result shape, and usage notes. " +
         "Use the example id returned by list_client_extension_examples.")]
-    public string GetClientExtensionExample(
+    public CallToolResult GetClientExtensionExample(
         [Description("Stable example id from list_client_extension_examples, e.g. 'keyword-search'")]
         string exampleId)
     {
         var example = clientExtensions.GetExample(exampleId);
         if (example is null)
-            return $"Unknown client extension example '{exampleId}'. Use list_client_extension_examples to see valid ids.";
+            return StructuredToolResult.TextOnly(
+                $"Unknown client extension example '{exampleId}'. Use list_client_extension_examples to see valid ids.");
 
         var builder = new StringBuilder();
         builder.AppendLine($"# Client Extension Example: {example.Id}");
@@ -110,6 +119,6 @@ public sealed class ClientExtensionTools(IClientExtensionService clientExtension
         builder.AppendLine("```graphql");
         builder.AppendLine(example.GraphQlDocument.TrimEnd());
         builder.AppendLine("```");
-        return builder.ToString().TrimEnd();
+        return StructuredToolResult.Create(builder.ToString().TrimEnd(), example);
     }
 }

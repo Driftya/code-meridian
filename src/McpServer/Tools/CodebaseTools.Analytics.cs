@@ -11,7 +11,7 @@ namespace CodeMeridian.McpServer.Tools;
 
 public sealed partial class CodebaseTools
 {
-    [McpServerTool(Name = "find_hotspots")]
+    [McpServerTool(Name = "find_hotspots", Title = "Find Hotspots", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Rank code elements by how many other nodes depend on them (fan-in). " +
         "Use at the start of a change session to understand which parts of the codebase carry the most risk. " +
@@ -22,7 +22,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindHotspotsAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "find_frontend_cascade_conflicts")]
+    [McpServerTool(Name = "find_frontend_cascade_conflicts", Title = "Find Frontend Cascade Conflicts", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Report likely CSS/SCSS override conflicts from indexed frontend declarations. " +
         "Uses bounded selector specificity plus same-stylesheet source order, and marks the result as inferred instead of full browser-proof cascade resolution.")]
@@ -36,22 +36,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindFrontendCascadeConflictsAsync(projectContext, filter, excludeTests, cancellationToken);
 
-    [McpServerTool(Name = "find_connection")]
-    [Description(
-        "Find the shortest path between two code elements in the graph. " +
-        "Use this when the user asks how two classes or methods relate to each other, " +
-        "or to trace an execution path between a controller and a data layer.")]
-    public Task<string> FindConnectionAsync(
-        [Description("ID of the starting node, e.g. 'MyNamespace.OrderController.CreateAsync(CreateOrderRequest,CancellationToken)'")]
-        string fromId,
-        [Description("ID of the destination node, e.g. 'MyNamespace.PaymentGateway.ChargeAsync(decimal,CancellationToken)'")]
-        string toId,
-        [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
-        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
-        CancellationToken cancellationToken = default) =>
-        queryService.FindConnectionAsync(fromId, toId, detailLevel, cancellationToken);
-
-    [McpServerTool(Name = "trace_endpoint")]
+    [McpServerTool(Name = "trace_endpoint", Title = "Trace Endpoint", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Trace one indexed API route through graph-backed implementation, database, and messaging paths. " +
         "Use this when the user asks what a route touches downstream and you want route-to-table or route-to-topic evidence without reading files.")]
@@ -65,7 +50,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.TraceEndpointAsync(route, projectContext, detailLevel, cancellationToken);
 
-    [McpServerTool(Name = "find_unreferenced")]
+    [McpServerTool(Name = "find_unreferenced", Title = "Find Unreferenced Code", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find methods and classes with no incoming references — dead code candidates. " +
         "Useful before a cleanup task or when trimming a codebase. " +
@@ -76,7 +61,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindUnreferencedAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "find_cross_project_dependencies")]
+    [McpServerTool(Name = "find_cross_project_dependencies", Title = "Find Cross-Project Dependencies", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find edges that cross project boundaries — where code in one indexed project calls or depends on code in another. " +
         "Use this to understand coupling between services, libraries, and microservices. " +
@@ -87,7 +72,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindCrossProjectDependenciesAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "find_coverage_gaps")]
+    [McpServerTool(Name = "find_coverage_gaps", Title = "Find Coverage Gaps", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find production classes and methods that no test calls — coverage gap candidates. " +
         "Use this before writing tests to identify the highest-priority untested areas, " +
@@ -101,7 +86,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindCoverageGapsAsync(projectContext, detailLevel, cancellationToken);
 
-    [McpServerTool(Name = "find_test_shield")]
+    [McpServerTool(Name = "find_test_shield", Title = "Find Test Shield", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Show which tests protect a target change path. " +
         "Use this before risky edits to separate direct test callers, indirect shields on callers/path nodes, " +
@@ -118,7 +103,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindTestShieldAsync(nodeId, projectContext, depth, limit, cancellationToken);
 
-    [McpServerTool(Name = "find_recently_changed")]
+    [McpServerTool(Name = "find_recently_changed", Title = "Find Recently Changed Code", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find code nodes created or updated within a time window. " +
         "Use this to understand what changed recently — useful for code review context, " +
@@ -132,7 +117,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindRecentlyChangedAsync(projectContext, window, cancellationToken);
 
-    [McpServerTool(Name = "find_large_nodes")]
+    [McpServerTool(Name = "find_large_nodes", Title = "Find Large Nodes", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Scan for oversized classes (default >400 lines) and methods (default >40 lines) that violate the " +
         "Single Responsibility Principle. Excludes test files. " +
@@ -151,7 +136,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindLargeNodesAsync(projectContext, classThreshold, methodThreshold, detailLevel, cancellationToken);
 
-    [McpServerTool(Name = "get_context_for_editing")]
+    [McpServerTool(Name = "get_context_for_editing", Title = "Get Context For Editing", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Return the call-graph context for a specific node before editing it: " +
         "direct callers (who will be affected), direct callees (what it depends on), " +
@@ -166,7 +151,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.GetContextForEditingAsync(nodeId, detailLevel, cancellationToken);
 
-    [McpServerTool(Name = "build_minimal_context")]
+    [McpServerTool(Name = "build_minimal_context", Title = "Build Minimal Context", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Build a bounded, task-specific context pack for editing or reviewing one code node. " +
         "Use this when you need the smallest useful set of callers, callees, impact, downstream dependencies, " +
@@ -200,7 +185,7 @@ public sealed partial class CodebaseTools
             detailLevel,
             cancellationToken);
 
-    [McpServerTool(Name = "find_god_classes")]
+    [McpServerTool(Name = "find_god_classes", Title = "Find God Classes", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find classes that are both large (SRP violation) and heavily depended upon (high fan-in). " +
         "These are the highest-risk refactoring targets in the codebase. " +
@@ -213,7 +198,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindGodClassesAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "find_downstream")]
+    [McpServerTool(Name = "find_downstream", Title = "Find Downstream Dependencies", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Traverse the call graph FORWARD to find everything this node transitively calls or depends on. " +
         "Complements find_impact (backward). Together they give the full change surface around any node. " +
@@ -228,7 +213,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindDownstreamAsync(nodeId, depth, detailLevel, cancellationToken);
 
-    [McpServerTool(Name = "find_cycles")]
+    [McpServerTool(Name = "find_cycles", Title = "Find Dependency Cycles", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Detect namespace-level circular dependencies: pairs of namespaces where A depends on B AND B depends on A. " +
         "Circular dependencies are a leading cause of build-order failures and tight coupling. " +
@@ -239,7 +224,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindCyclesAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "architecture_drift_history")]
+    [McpServerTool(Name = "architecture_drift_history", Title = "Architecture Drift History", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Show a 30-day architecture erosion timeline from current graph signals: configured architecture violations, " +
         "namespace cycles, and god-class growth. Uses indexed node timestamps and states when historical deleted-edge data is unavailable.")]
@@ -251,7 +236,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindArchitectureErosionTimelineAsync(projectContext, days, cancellationToken);
 
-    [McpServerTool(Name = "find_architecture_violations")]
+    [McpServerTool(Name = "find_architecture_violations", Title = "Find Architecture Violations", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Check for configured architecture layer violations using the project's indexed architecture rules. " +
         "Run this on every PR to enforce architectural boundaries automatically. " +
@@ -262,7 +247,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindArchitectureViolationsAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "find_smell_paths")]
+    [McpServerTool(Name = "find_smell_paths", Title = "Find Architecture Smell Paths", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Surface dependency smell paths as shortest forbidden layer-to-layer paths from the project's indexed architecture rules. " +
         "Use this to explain architecture violations with an exact graph path instead of a flat edge list.")]
@@ -274,7 +259,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindSmellPathsAsync(projectContext, maxDepth, cancellationToken);
 
-    [McpServerTool(Name = "find_high_churn")]
+    [McpServerTool(Name = "find_high_churn", Title = "Find High-Churn Code", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find code nodes that have been re-indexed the most times — a proxy for files that change frequently. " +
         "High churn combined with high fan-in (from find_hotspots) identifies the highest technical-debt risk areas. " +
@@ -287,7 +272,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindHighChurnAsync(projectContext, threshold, cancellationToken);
 
-    [McpServerTool(Name = "analyze_changed_subgraph")]
+    [McpServerTool(Name = "analyze_changed_subgraph", Title = "Analyze Changed Subgraph", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Project a bounded graph neighborhood around explicit changed files and summarize risk, impacted nodes, related tests, architecture smells, and docs to review. " +
         "Use this for review-oriented diff context without dumping raw hunks. " +

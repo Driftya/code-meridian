@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CodeMeridian Client Extension Contract</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --surface: var(--color-background-primary, #101418);
+      --surface-raised: var(--color-background-secondary, #182027);
+      --text: var(--color-text-primary, #f2f5f7);
+      --muted: var(--color-text-secondary, #aeb9c2);
+      --border: var(--color-border-secondary, #34414b);
+      --accent: var(--color-text-info, #58b8ff);
+      --success: var(--color-text-success, #57d69a);
+      --font: var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+      --mono: var(--font-mono, ui-monospace, "Cascadia Code", monospace);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 14px; background: var(--surface); color: var(--text); font: 13px/1.45 var(--font); }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: 16px; }
+    button { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; background: var(--surface-raised); color: var(--text); cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    button:disabled { cursor: wait; opacity: .55; }
+    .status { margin: 0 0 10px; color: var(--muted); }
+    .status.ready { color: var(--success); }
+    .status.error { color: var(--color-text-danger, #ff7d7d); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+    .card { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); }
+    .wide { grid-column: 1 / -1; }
+    .label { margin-bottom: 3px; color: var(--muted); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+    .value { overflow-wrap: anywhere; }
+    code { color: var(--accent); font-family: var(--mono); }
+    ul { margin: 5px 0 0; padding-left: 18px; }
+    .empty { padding: 24px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Client Extension Contract</h1>
+    <button id="refresh" type="button">Refresh</button>
+  </header>
+  <p id="status" class="status">Connecting to the MCP host…</p>
+  <main id="content" class="empty">Waiting for contract data.</main>
+
+  <script>
+    const refreshButton = document.getElementById('refresh');
+    const statusElement = document.getElementById('status');
+    const contentElement = document.getElementById('content');
+    let nextRequestId = 1;
+    const pendingRequests = new Map();
+
+    function sendRequest(method, params = {}) {
+      const id = nextRequestId++;
+      return new Promise((resolve, reject) => {
+        pendingRequests.set(id, { resolve, reject });
+        window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
+      });
+    }
+
+    function sendNotification(method, params = {}) {
+      window.parent.postMessage({ jsonrpc: '2.0', method, params }, '*');
+    }
+
+    function setStatus(message, state = '') {
+      statusElement.textContent = message;
+      statusElement.className = `status ${state}`.trim();
+    }
+
+    function addCard(grid, label, value, wide = false) {
+      const card = document.createElement('section');
+      card.className = `card${wide ? ' wide' : ''}`;
+      const heading = document.createElement('div');
+      heading.className = 'label';
+      heading.textContent = label;
+      const body = document.createElement('div');
+      body.className = 'value';
+      const code = document.createElement('code');
+      code.textContent = String(value ?? '—');
+      body.appendChild(code);
+      card.append(heading, body);
+      grid.appendChild(card);
+    }
+
+    function addListCard(grid, label, values) {
+      const card = document.createElement('section');
+      card.className = 'card wide';
+      const heading = document.createElement('div');
+      heading.className = 'label';
+      heading.textContent = label;
+      const list = document.createElement('ul');
+      for (const value of values || []) {
+        const item = document.createElement('li');
+        const code = document.createElement('code');
+        code.textContent = String(value);
+        item.appendChild(code);
+        list.appendChild(item);
+      }
+      card.append(heading, list);
+      grid.appendChild(card);
+    }
+
+    function renderContract(contract) {
+      if (!contract || typeof contract !== 'object') return false;
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      addCard(grid, 'Contract version', contract.version);
+      addCard(grid, 'GraphQL endpoint', contract.graphQlEndpointPath);
+      addCard(grid, 'Default / max page size', `${contract.defaultPageSize} / ${contract.maxPageSize}`);
+      addCard(grid, 'Traversal depth', contract.maxTraversalDepth);
+      addCard(grid, 'Maximum fields', contract.maxAllowedFields);
+      addCard(grid, 'Execution timeout', `${contract.executionTimeoutSeconds}s`);
+      addCard(grid, 'Extension ownership', contract.extensionOwnership, true);
+      addCard(grid, 'Authentication', contract.authRequirement, true);
+      addListCard(grid, 'Supported authentication headers', contract.supportedAuthHeaders);
+      addListCard(grid, 'Documentation', contract.documentationPaths);
+      addListCard(grid, 'Example IDs', contract.exampleIds);
+      contentElement.className = '';
+      contentElement.replaceChildren(grid);
+      setStatus('Contract loaded.', 'ready');
+      return true;
+    }
+
+    function handleToolResult(params) {
+      if (!renderContract(params?.structuredContent)) {
+        setStatus('The host returned text-only content; use the chat response for details.');
+      }
+    }
+
+    window.addEventListener('message', event => {
+      if (event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || message.jsonrpc !== '2.0') return;
+      if (message.id !== undefined && pendingRequests.has(message.id)) {
+        const pending = pendingRequests.get(message.id);
+        pendingRequests.delete(message.id);
+        message.error
+          ? pending.reject(new Error(message.error.message || 'MCP request failed'))
+          : pending.resolve(message.result);
+        return;
+      }
+      if (message.method === 'ui/notifications/tool-result') handleToolResult(message.params);
+    });
+
+    async function refreshContract() {
+      refreshButton.disabled = true;
+      setStatus('Refreshing contract…');
+      try {
+        const result = await sendRequest('tools/call', {
+          name: 'get_client_extension_contract',
+          arguments: {}
+        });
+        handleToolResult(result);
+      } catch (error) {
+        setStatus(`Refresh failed: ${error.message}`, 'error');
+      } finally {
+        refreshButton.disabled = false;
+      }
+    }
+
+    refreshButton.addEventListener('click', refreshContract);
+
+    async function initialize() {
+      try {
+        await sendRequest('ui/initialize', {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          clientInfo: { name: 'code-meridian-contract-viewer', version: '1.0.0' }
+        });
+        sendNotification('ui/notifications/initialized');
+        setStatus('Connected. Waiting for the tool result…');
+      } catch (error) {
+        setStatus(`Host connection unavailable: ${error.message}`, 'error');
+      }
+    }
+
+    initialize();
+  </script>
+</body>
+</html>

@@ -11,7 +11,7 @@ namespace CodeMeridian.McpServer.Tools;
 
 public sealed partial class CodebaseTools
 {
-    [McpServerTool(Name = "get_pagerank")]
+    [McpServerTool(Name = "get_pagerank", Title = "Get PageRank", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Run GDS PageRank on the call graph to find the most architecturally influential nodes. " +
         "Unlike fan-in (find_hotspots), PageRank accounts for the importance of callers themselves — " +
@@ -23,7 +23,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.GetPageRankAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "get_betweenness")]
+    [McpServerTool(Name = "get_betweenness", Title = "Get Betweenness Centrality", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Run GDS Betweenness Centrality to find bridge nodes — code that sits between subsystems. " +
         "High betweenness nodes are the connective tissue of your architecture. " +
@@ -35,7 +35,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.GetBetweennessAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "find_bridges")]
+    [McpServerTool(Name = "find_bridges", Title = "Find Graph Bridges", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find risky core nodes by combining GDS betweenness centrality, PageRank, articulation-point detection, bridge-edge detection, and direct graph context. " +
         "Reports why a node is structurally risky, which layers it connects, and the next CodeMeridian tool to use before refactoring it. Requires Neo4j Graph Data Science plugin.")]
@@ -45,7 +45,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindBridgesAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "find_natural_modules")]
+    [McpServerTool(Name = "find_natural_modules", Title = "Find Natural Modules", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Run GDS Louvain community detection to discover the organic module boundaries that the codebase has evolved into. " +
         "Communities are clusters of tightly interconnected code that call each other more than they call outside code. " +
@@ -57,7 +57,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindNaturalModulesAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "suggest_extractions")]
+    [McpServerTool(Name = "suggest_extractions", Title = "Suggest Extractions", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Suggest refactor extraction candidates by ranking tightly connected natural modules that look safe to peel out. " +
         "Combines Louvain communities with hotspot, large-class, nearby-test, and coverage-gap signals so the result is explainable instead of speculative. " +
@@ -70,7 +70,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.SuggestExtractionsAsync(projectContext, limit, cancellationToken);
 
-    [McpServerTool(Name = "suggest_responsibility_slices")]
+    [McpServerTool(Name = "suggest_responsibility_slices", Title = "Suggest Responsibility Slices", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Suggest responsibility-based extraction slices for a large class or service. " +
         "Clusters indexed methods with deterministic graph evidence from shared dependencies, workflow callers, tests, docs, and existing namespace/folder patterns, " +
@@ -102,7 +102,7 @@ public sealed partial class CodebaseTools
             includeSourceSnippets,
             cancellationToken);
 
-    [McpServerTool(Name = "find_similar_nodes")]
+    [McpServerTool(Name = "find_similar_nodes", Title = "Find Similar Nodes", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find code nodes semantically similar to the given node using native Neo4j vector embeddings. " +
         "Unlike structural queries, this finds conceptually related code regardless of call-graph proximity — " +
@@ -116,7 +116,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindSimilarToNodeAsync(nodeId, projectContext, cancellationToken);
 
-    [McpServerTool(Name = "hybrid_search")]
+    [McpServerTool(Name = "hybrid_search", Title = "Hybrid Search", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find semantically related code nodes using embeddings, then constrain the results to a graph neighborhood. " +
         "Use this when you want concept matching that stays near a specific subsystem or node. " +
@@ -137,7 +137,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindHybridSearchAsync(query, nearNodeId, maxHops, projectContext, excludeTests, limit, cancellationToken);
 
-    [McpServerTool(Name = "find_implementation_patterns")]
+    [McpServerTool(Name = "find_implementation_patterns", Title = "Find Implementation Patterns", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find structurally similar implementation slices for a requested feature or flow. " +
         "This blends lexical or embedding seeds with graph evidence such as entry points, application/domain behavior, contracts, repositories, external boundaries, and tests. " +
@@ -154,7 +154,7 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindImplementationPatternsAsync(query, projectContext, excludeTests, limit, cancellationToken);
 
-    [McpServerTool(Name = "find_duplicate_candidates")]
+    [McpServerTool(Name = "find_duplicate_candidates", Title = "Find Duplicate Candidates", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Find duplicate-review candidates through the existing generic duplicate-analysis surface. " +
         "For Method/Class nodes it compares embedded code nodes semantically; for ExternalConcept it clusters indexed frontend style declarations by normalized value shape. " +

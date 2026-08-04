@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CodeMeridian Connection Viewer</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --surface: var(--color-background-primary, #101418);
+      --raised: var(--color-background-secondary, #182027);
+      --text: var(--color-text-primary, #f2f5f7);
+      --muted: var(--color-text-secondary, #aeb9c2);
+      --border: var(--color-border-secondary, #34414b);
+      --accent: var(--color-text-info, #58b8ff);
+      --success: var(--color-text-success, #57d69a);
+      --danger: var(--color-text-danger, #ff7d7d);
+      --font: var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+      --mono: var(--font-mono, ui-monospace, "Cascadia Code", monospace);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 14px; background: var(--surface); color: var(--text); font: 13px/1.45 var(--font); }
+    h1, h2 { margin: 0; }
+    h1 { font-size: 16px; }
+    h2 { font-size: 13px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    button { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; background: var(--raised); color: var(--text); cursor: pointer; }
+    button:hover, button:focus-visible { border-color: var(--accent); outline: none; }
+    button:disabled { cursor: wait; opacity: .55; }
+    .status { margin: 0 0 10px; color: var(--muted); }
+    .status.ready { color: var(--success); }
+    .status.error { color: var(--danger); }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .fact, .path-node, .empty { border: 1px solid var(--border); border-radius: 8px; background: var(--raised); }
+    .fact { min-width: 0; padding: 8px; }
+    .label { color: var(--muted); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+    .value { overflow-wrap: anywhere; font-family: var(--mono); }
+    .path { margin: 8px 0 0; padding: 0; list-style: none; }
+    .path-node { position: relative; margin: 0 0 24px; padding: 10px; }
+    .path-node:not(:last-child)::after { position: absolute; left: 18px; top: 100%; height: 25px; border-left: 2px solid var(--accent); content: ""; }
+    .node-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; }
+    .node-order { color: var(--muted); font-family: var(--mono); }
+    .node-type, .edge { border-radius: 999px; padding: 1px 6px; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-family: var(--mono); font-size: 11px; }
+    .edge { position: absolute; left: 30px; top: calc(100% + 4px); z-index: 1; white-space: nowrap; }
+    .details { margin-top: 5px; color: var(--muted); overflow-wrap: anywhere; }
+    .details code { color: var(--text); font-family: var(--mono); }
+    .signals { margin: 10px 0 0; padding-left: 20px; }
+    .empty { padding: 24px; color: var(--muted); text-align: center; }
+    .warning { color: var(--color-text-warning, #ffd166); }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Connection Viewer</h1>
+    <button id="refresh" type="button" disabled>Refresh path</button>
+  </header>
+  <p id="status" class="status" role="status" aria-live="polite">Connecting to the MCP host…</p>
+  <main id="content" aria-busy="true">
+    <p class="empty">Waiting for connection data.</p>
+  </main>
+  <noscript><p class="empty">This read-only viewer needs JavaScript. The tool's Markdown result remains available in chat.</p></noscript>
+
+  <script>
+    const refreshButton = document.getElementById('refresh');
+    const statusElement = document.getElementById('status');
+    const contentElement = document.getElementById('content');
+    const pendingRequests = new Map();
+    let nextRequestId = 1;
+    let currentQuery = null;
+
+    function sendRequest(method, params = {}) {
+      const id = nextRequestId++;
+      return new Promise((resolve, reject) => {
+        pendingRequests.set(id, { resolve, reject });
+        window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
+      });
+    }
+
+    function sendNotification(method, params = {}) {
+      window.parent.postMessage({ jsonrpc: '2.0', method, params }, '*');
+    }
+
+    function setStatus(message, state = '') {
+      statusElement.textContent = message;
+      statusElement.className = `status ${state}`.trim();
+    }
+
+    function textElement(tag, className, value) {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      element.textContent = String(value ?? '—');
+      return element;
+    }
+
+    function addFact(container, label, value) {
+      const fact = document.createElement('section');
+      fact.className = 'fact';
+      fact.append(textElement('div', 'label', label), textElement('div', 'value', value));
+      container.appendChild(fact);
+    }
+
+    function renderConnection(connection) {
+      if (!connection || typeof connection !== 'object' || !Array.isArray(connection.nodes)) return false;
+
+      currentQuery = {
+        fromId: String(connection.fromId ?? ''),
+        toId: String(connection.toId ?? '')
+      };
+      refreshButton.disabled = !currentQuery.fromId || !currentQuery.toId;
+
+      const fragment = document.createDocumentFragment();
+      const summary = document.createElement('section');
+      summary.className = 'summary';
+      summary.setAttribute('aria-label', 'Connection summary');
+      addFact(summary, 'From', currentQuery.fromId);
+      addFact(summary, 'To', currentQuery.toId);
+      addFact(summary, 'Hops', connection.hopCount ?? 0);
+      addFact(summary, 'Traversal bound', connection.maxHops ?? '—');
+      addFact(summary, 'Contract', connection.contractVersion ?? '—');
+      fragment.appendChild(summary);
+
+      if (!connection.pathFound || connection.nodes.length === 0) {
+        fragment.appendChild(textElement('p', 'empty', `No path was found within ${connection.maxHops ?? 'the configured'} hops.`));
+      } else {
+        const heading = textElement('h2', '', 'Ordered path');
+        const path = document.createElement('ol');
+        path.className = 'path';
+        path.setAttribute('aria-label', 'Ordered connection path');
+        const edges = new Map((connection.edges || []).map(edge => [Number(edge.order), edge]));
+
+        for (const node of connection.nodes) {
+          const item = document.createElement('li');
+          item.className = 'path-node';
+          const nodeHeading = document.createElement('div');
+          nodeHeading.className = 'node-heading';
+          nodeHeading.append(
+            textElement('span', 'node-order', `${Number(node.order) + 1}.`),
+            textElement('strong', '', node.name),
+            textElement('span', 'node-type', node.type)
+          );
+          item.appendChild(nodeHeading);
+
+          const details = document.createElement('div');
+          details.className = 'details';
+          const location = [node.namespace, node.filePath, node.lineNumber ? `line ${node.lineNumber}` : null]
+            .filter(Boolean)
+            .join(' · ');
+          details.appendChild(textElement('code', '', location || node.id));
+          item.appendChild(details);
+
+          const edge = edges.get(Number(node.order));
+          if (edge) {
+            const edgeLabel = textElement('span', 'edge', edge.relationship);
+            edgeLabel.setAttribute('aria-label', `then ${edge.relationship}`);
+            item.appendChild(edgeLabel);
+          }
+          path.appendChild(item);
+        }
+        fragment.append(heading, path);
+      }
+
+      if (connection.truncated) {
+        fragment.appendChild(textElement('p', 'warning', 'This result was truncated at the configured bound.'));
+      }
+
+      if (Array.isArray(connection.frontendSignals) && connection.frontendSignals.length > 0) {
+        const heading = textElement('h2', '', 'Frontend signals');
+        const list = document.createElement('ul');
+        list.className = 'signals';
+        for (const signal of connection.frontendSignals)
+          list.appendChild(textElement('li', '', signal));
+        fragment.append(heading, list);
+      }
+
+      contentElement.replaceChildren(fragment);
+      contentElement.setAttribute('aria-busy', 'false');
+      setStatus(connection.pathFound ? 'Connection path loaded.' : 'No connection path found.', connection.pathFound ? 'ready' : '');
+      return true;
+    }
+
+    function handleToolResult(params) {
+      if (!renderConnection(params?.structuredContent)) {
+        contentElement.setAttribute('aria-busy', 'false');
+        setStatus('The host returned text-only content; use the chat response for details.');
+      }
+    }
+
+    window.addEventListener('message', event => {
+      if (event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || message.jsonrpc !== '2.0') return;
+      if (message.id !== undefined && pendingRequests.has(message.id)) {
+        const pending = pendingRequests.get(message.id);
+        pendingRequests.delete(message.id);
+        message.error
+          ? pending.reject(new Error(message.error.message || 'MCP request failed'))
+          : pending.resolve(message.result);
+        return;
+      }
+      if (message.method === 'ui/notifications/tool-result') handleToolResult(message.params);
+    });
+
+    async function refreshConnection() {
+      if (!currentQuery) return;
+      refreshButton.disabled = true;
+      contentElement.setAttribute('aria-busy', 'true');
+      setStatus('Refreshing connection…');
+      try {
+        handleToolResult(await sendRequest('tools/call', {
+          name: 'find_connection',
+          arguments: { ...currentQuery, detailLevel: 'Compact' }
+        }));
+      } catch (error) {
+        contentElement.setAttribute('aria-busy', 'false');
+        setStatus(`Refresh failed: ${error.message}`, 'error');
+      } finally {
+        refreshButton.disabled = !currentQuery;
+      }
+    }
+
+    refreshButton.addEventListener('click', refreshConnection);
+
+    async function initialize() {
+      try {
+        await sendRequest('ui/initialize', {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          clientInfo: { name: 'code-meridian-connection-viewer', version: '1.0.0' }
+        });
+        sendNotification('ui/notifications/initialized');
+        setStatus('Connected. Waiting for the tool result…');
+      } catch (error) {
+        contentElement.setAttribute('aria-busy', 'false');
+        setStatus(`Host connection unavailable: ${error.message}`, 'error');
+      }
+    }
+
+    initialize();
+  </script>
+</body>
+</html>

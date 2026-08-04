@@ -1,0 +1,16 @@
+{
+  "protocolVersion": "2026-07-28",
+  "handshakeMethod": "server/discover",
+  "toolCount": 62,
+  "annotationCount": 62,
+  "structuredToolNames": [
+    "find_connection",
+    "get_client_extension_contract",
+    "get_client_extension_example",
+    "list_client_extension_examples"
+  ],
+  "tasksAdvertised": true,
+  "appsAdvertised": false,
+  "toolCatalogTimeToLiveSeconds": 300,
+  "toolCatalogCacheScope": "private"
+}

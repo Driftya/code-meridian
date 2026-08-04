@@ -10,7 +10,7 @@ namespace CodeMeridian.McpServer.Tools;
 [McpServerToolType]
 public sealed class ExtensionTools(ICodeGraphRepository codeGraph)
 {
-    [McpServerTool(Name = "link_external_concept")]
+    [McpServerTool(Name = "link_external_concept", Title = "Link External Concept", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false)]
     [Description(
         "Create or update a node representing an external concept (database table, API endpoint, Kafka topic, " +
         "external service, etc.) and draw a directed relationship edge to or from an existing code node. " +

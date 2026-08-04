@@ -64,6 +64,7 @@ public sealed class ServeWriterTests : IDisposable
 
         json.Should().Contain("\"Other\"");
         json.Should().Contain("\"CodeMeridian\"");
+        json.Should().Contain("\"type\": \"http\"");
         json.Should().Contain("\"url\": \"http://localhost:5100/sse\"");
         json.Should().Contain("Bearer ${env:CodeMeridian_Auth_ApiKey}");
     }
