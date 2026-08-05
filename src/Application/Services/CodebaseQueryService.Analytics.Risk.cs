@@ -818,7 +818,8 @@ public partial class CodebaseQueryService
                 path.Node,
                 path.Distance,
                 string.Join(", ", noteParts.Distinct(StringComparer.OrdinalIgnoreCase)),
-                pathText);
+                pathText,
+                path.Steps);
 
             if (freshness.Confidence == "Low")
                 unknown.Add(finding);
@@ -1246,7 +1247,8 @@ public partial class CodebaseQueryService
         CodeNode Node,
         int Distance,
         string Note,
-        string Path);
+        string Path,
+        IReadOnlyList<GraphPathStep> Steps);
 
     private sealed record ImpactConfidenceReport(
         string OverallConfidence,

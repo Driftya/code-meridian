@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using CodeMeridian.Application.Services;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace CodeMeridian.McpServer.Tools;
@@ -65,13 +66,13 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.FindToolDependencyImpactAsync(subject, includeAwarenessOnly, cancellationToken);
 
-    [McpServerTool(Name = "find_impact", Title = "Find Impact", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [McpServerTool(Name = "find_impact", Title = "Find Impact", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ImpactAnalysisResult))]
     [Description(
         "Traverse the call graph backwards to find everything that would be affected by changing a method or class. " +
         "ALWAYS call this before suggesting a refactor or edit to understand blast radius. " +
         "Identifies callers, transitive dependents, and cross-namespace effects. " +
         "Use node IDs in the form 'Namespace.ClassName.MethodName' or the id returned by query_codebase.")]
-    public Task<string> FindImpactAsync(
+    public async Task<CallToolResult> FindImpactAsync(
         [Description("ID of the node to analyse, e.g. 'MyNamespace.UserService.SaveAsync(User,CancellationToken)'")]
         string nodeId,
         [Description("How many hops to traverse. Default 5, max practical is 8.")]
@@ -80,8 +81,11 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         [Description("Whether to separate proven callers, heuristic callers, and unknown-risk nodes using path and freshness signals. Default false.")]
         bool includeConfidence = false,
-        CancellationToken cancellationToken = default) =>
-        queryService.FindImpactAsync(nodeId, depth, detailLevel, includeConfidence, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var result = await queryService.FindImpactResultAsync(nodeId, depth, includeConfidence, cancellationToken);
+        return StructuredToolResult.Create(result.ToMarkdown(detailLevel, includeConfidence), result);
+    }
 
     [McpServerTool(Name = "find_diagnostics", Title = "Find Diagnostics", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
@@ -224,19 +228,22 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
         CancellationToken cancellationToken = default) =>
         queryService.ResolveExactSymbolAsync(symbol, filePath, line, projectContext, limit, cancellationToken);
 
-    [McpServerTool(Name = "check_graph_freshness", Title = "Check Graph Freshness", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [McpServerTool(Name = "check_graph_freshness", Title = "Check Graph Freshness", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(GraphFreshnessResult))]
     [Description(
         "Report freshness and confidence for graph nodes using indexer-supplied file, line, and timestamp metadata. " +
         "Use this when CodeMeridian results may be stale or only partially trusted. Source files are not read from the MCP server.")]
-    public Task<string> CheckGraphFreshnessAsync(
+    public async Task<CallToolResult> CheckGraphFreshnessAsync(
         [Description("Optional search query to inspect matching nodes. Omit to sample the project graph.")]
         string? query = null,
         [Description("Optional project name to scope freshness checks.")]
         string? projectContext = null,
         [Description("Maximum number of nodes to inspect.")]
         int limit = 25,
-        CancellationToken cancellationToken = default) =>
-        queryService.CheckGraphFreshnessAsync(query, projectContext, limit, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var result = await queryService.CheckGraphFreshnessResultAsync(query, projectContext, limit, cancellationToken);
+        return StructuredToolResult.Create(result.ToMarkdown(), result);
+    }
 
     [McpServerTool(Name = "find_graph_drift", Title = "Find Graph Drift", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(

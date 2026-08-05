@@ -95,6 +95,10 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
 
     private static readonly HashSet<string> StructuredToolNames =
     [
+        "check_graph_freshness",
+        "find_impact",
+        "find_test_shield",
+        "build_minimal_context",
         "find_connection",
         "get_client_extension_contract",
         "list_client_extension_examples",

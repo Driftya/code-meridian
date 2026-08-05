@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using CodeMeridian.Application.Services;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace CodeMeridian.McpServer.Tools;
@@ -86,12 +87,12 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindCoverageGapsAsync(projectContext, detailLevel, cancellationToken);
 
-    [McpServerTool(Name = "find_test_shield", Title = "Find Test Shield", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [McpServerTool(Name = "find_test_shield", Title = "Find Test Shield", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(TestShieldResult))]
     [Description(
         "Show which tests protect a target change path. " +
         "Use this before risky edits to separate direct test callers, indirect shields on callers/path nodes, " +
         "and unshielded path nodes that currently have little or no test protection.")]
-    public Task<string> FindTestShieldAsync(
+    public async Task<CallToolResult> FindTestShieldAsync(
         [Description("Target node ID to analyse, preferably an exact method/class ID.")]
         string nodeId,
         [Description("Optional project name to scope related-test lookups when the node itself has no project context.")]
@@ -100,8 +101,11 @@ public sealed partial class CodebaseTools
         int depth = 2,
         [Description("Maximum number of path findings to include per section. Default 20.")]
         int limit = 20,
-        CancellationToken cancellationToken = default) =>
-        queryService.FindTestShieldAsync(nodeId, projectContext, depth, limit, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var result = await queryService.FindTestShieldResultAsync(nodeId, projectContext, depth, limit, cancellationToken);
+        return StructuredToolResult.Create(result.ToMarkdown(), result);
+    }
 
     [McpServerTool(Name = "find_recently_changed", Title = "Find Recently Changed Code", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
@@ -151,12 +155,12 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.GetContextForEditingAsync(nodeId, detailLevel, cancellationToken);
 
-    [McpServerTool(Name = "build_minimal_context", Title = "Build Minimal Context", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [McpServerTool(Name = "build_minimal_context", Title = "Build Minimal Context", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(MinimalContextResult))]
     [Description(
         "Build a bounded, task-specific context pack for editing or reviewing one code node. " +
         "Use this when you need the smallest useful set of callers, callees, impact, downstream dependencies, " +
         "direct test callers, heuristic test matches, coverage gaps, and likely files before making a change.")]
-    public Task<string> BuildMinimalContextAsync(
+    public async Task<CallToolResult> BuildMinimalContextAsync(
         [Description("Target node ID to build context for, preferably the exact ID returned by query_codebase.")]
         string target,
         [Description("Optional plain-language goal for the change, used to label the context pack.")]
@@ -173,8 +177,9 @@ public sealed partial class CodebaseTools
         bool explainPaths = false,
         [Description("How much context to return: Summary, Compact, or Full. Defaults to Compact.")]
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
-        CancellationToken cancellationToken = default) =>
-        queryService.BuildMinimalContextAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await queryService.BuildMinimalContextResultAsync(
             target,
             goal,
             maxTokens,
@@ -184,6 +189,8 @@ public sealed partial class CodebaseTools
             explainPaths,
             detailLevel,
             cancellationToken);
+        return StructuredToolResult.Create(result.ToMarkdown(detailLevel), result);
+    }
 
     [McpServerTool(Name = "find_god_classes", Title = "Find God Classes", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(

@@ -1,6 +1,6 @@
 # MCP 2 Capability Adoption Plan
 
-- Status: implementation and deployed SDK/real-graph acceptance complete; interactive VS Code/Codex/Continue and App-host evidence remain
+- Status: implementation, deployed SDK/real-graph acceptance, and current Codex connector discovery are complete; interactive VS Code/Continue and App-host rendering evidence remain
 - Date: 2026-08-04
 - Scope: adopt the MCP 2026-07-28 / C# SDK 2.x capabilities that materially improve CodeMeridian's safety, machine-readability, long-running operations, client experience, and operability
 - Primary host: `src/McpServer`
@@ -13,7 +13,7 @@ Completed in the current working tree:
 
 - [x] Upgrade and run the stable 2.0 SDK over explicit stateless Streamable HTTP.
 - [x] Give all 62 tools reviewed titles and behavior annotations, enforced through the real in-memory discovery endpoint.
-- [x] Preserve Markdown while adding typed, schema-validated structured results to three client-extension tools and `find_connection`.
+- [x] Preserve Markdown while adding typed, schema-validated structured results to three client-extension tools and five graph-analysis tools.
 - [x] Evaluate and remove the optional project-context header pilot after real endpoint tests exposed the SDK's required integrity-mirror behavior.
 - [x] Add private five-minute `tools/list` caching hints.
 - [x] Add bounded logs, activities, counters, and duration metrics without arguments or credentials.
@@ -25,11 +25,12 @@ Completed in the current working tree:
 - [x] Document shipped behavior, security boundaries, rollback controls, and known operational limits in `docs/mcp-2-capabilities.md`.
 - [x] Add an environment-gated, non-parallel live acceptance suite that never stores the endpoint or API key and requires a separate opt-in for graph-maintenance writes.
 - [x] Run the modern, down-level, structured-output, discovery-cache, real-graph Task completion, and real-graph Task cancellation checks against the deployed server.
+- [x] Restart the current Codex connector and verify that it discovers and reads both deployed `ui://` MCP App resources.
 
 Deliberately deferred because it needs a product decision, deployment topology, or real-client evidence:
 
-- [ ] interactive VS Code/Codex/Continue compatibility evidence and App screenshots
-- [ ] additional graph-analysis structured contracts beyond `find_connection`
+- [ ] interactive VS Code/Continue compatibility evidence and App screenshots; current Codex protocol/resource discovery is verified, but inline App rendering is not
+- [x] additional graph-analysis structured contracts for freshness, impact, test-shield, and minimal-context results
 - [ ] durable, multi-replica, multi-principal task ownership and restart survival
 - [ ] task progress phases and explicit host-shutdown drain/cancel semantics
 - [ ] tool-aware rate limiting and destructive-tool authorization roles
@@ -61,7 +62,7 @@ CodeMeridian now runs the MCP 2.x SDK over stateless Streamable HTTP and has loc
 5. add caching hints for stable discovery responses
 6. provide optional MCP Apps that render typed read-only contract and graph-path data behind an experimental feature flag
 
-The deployed server and real graph have now passed the reusable SDK acceptance batch. The remaining acceptance is host-specific: restart the existing Codex connection, exercise VS Code and Continue, enable Apps for an experimental deployment, inspect rendering, and capture compatibility evidence.
+The deployed server and real graph have now passed the reusable SDK acceptance batch. The restarted Codex connector also discovers and reads both enabled App resources. The remaining acceptance is host-specific: exercise VS Code and optional Continue, inspect inline App rendering in every claimed compatible host, and capture compatibility evidence.
 
 ## Baseline Already Completed
 
@@ -197,7 +198,7 @@ No phase should start until its gate is resolved and recorded in this document o
 - [x] Use the existing useful Markdown for the current pilots.
 - [x] Reuse the existing client-extension contract version for the first structured object; do not invent a shared MCP result version yet.
 - [x] Confirm behavior for an SDK client pinned to `2025-11-25`, including initialize, discovery, annotations, structured text fallback, ordinary maintenance calls, and cache hints.
-- [ ] Confirm the minimum supported versions of VS Code, Codex, and Continue for each optional capability.
+- [ ] Confirm the minimum supported versions of VS Code, Codex, and Continue for each optional capability. VS Code introduced MCP Apps in 1.109 and the acceptance workstation has 1.127.0; Codex and Continue version evidence remains open.
 
 ### Gate B: Tasks scope
 
@@ -244,8 +245,8 @@ No phase should start until its gate is resolved and recorded in this document o
 
 ### 0.3 Measure current behavior
 
-- [x] Measure serialized `tools/list` payload size. Live sample on 2026-08-04: 63,749 bytes including the Streamable HTTP response envelope.
-- [x] Measure cold and warm `tools/list` latency. Live sample on 2026-08-04: 77 ms cold and 50 ms warm after a 530 ms connect/discovery handshake.
+- [x] Measure serialized `tools/list` payload size. Latest live sample on 2026-08-04 with Apps enabled: 63,955 bytes including the Streamable HTTP response envelope.
+- [x] Measure cold and warm `tools/list` latency. Latest live sample on 2026-08-04 with Apps enabled: 35 ms cold and 11 ms warm after a 166 ms connect/discovery handshake.
 - [ ] Measure representative tool-result sizes for compact, full, and source-snippet modes.
 - [ ] Measure `rebuild_keyword_graph` and `classify_keywords` duration on small and production-sized graphs.
 - [ ] Record timeout behavior in VS Code, Codex, and Continue.
@@ -512,13 +513,13 @@ Suggested target:
 
 Tasks:
 
-- [ ] Define a typed freshness result with project, query, trust summary, relationship completeness, index timestamps, and node findings.
-- [ ] Move result construction ahead of markdown formatting.
-- [ ] Retain the existing markdown formatter.
-- [ ] Enable structured content and advertise the typed output schema.
-- [ ] Add schema snapshot coverage.
-- [ ] Test zero matches, mixed confidence, stale nodes, and low relationship completeness.
-- [ ] Verify bounded samples and no source-body leakage.
+- [x] Define a typed freshness result with project, query, trust summary, relationship completeness, index timestamps, and node findings.
+- [x] Move result construction ahead of markdown formatting.
+- [x] Retain the existing markdown formatter.
+- [x] Enable structured content and advertise the typed output schema.
+- [x] Add schema snapshot coverage.
+- [x] Test zero matches, mixed confidence, stale nodes, and low relationship completeness.
+- [x] Verify bounded samples and no source-body leakage.
 
 ### 2.5 Pilot 2: impact analysis
 
@@ -528,12 +529,12 @@ Suggested target:
 
 Tasks:
 
-- [ ] Define typed impacted nodes and path segments.
-- [ ] Preserve proven, heuristic, and unknown-risk classifications.
-- [ ] Preserve depth and truncation metadata.
-- [ ] Preserve the existing markdown summary.
-- [ ] Verify cyclic paths serialize without recursive object loops.
-- [ ] Test empty impact, direct callers, transitive callers, stale evidence, and bounded depth.
+- [x] Define typed impacted nodes and path segments.
+- [x] Preserve proven, heuristic, and unknown-risk classifications.
+- [x] Preserve depth and truncation metadata.
+- [x] Preserve the existing markdown summary.
+- [x] Verify cyclic paths serialize without recursive object loops.
+- [x] Test empty impact, direct callers, transitive callers, stale evidence, and bounded depth.
 
 ### 2.6 Pilot 3: test shield
 
@@ -543,11 +544,11 @@ Suggested target:
 
 Tasks:
 
-- [ ] Define typed direct, primary, secondary, and unshielded findings.
-- [ ] Include suggested commands as data, not only prose.
-- [ ] Include confidence and evidence path fields.
-- [ ] Preserve the current markdown sections.
-- [ ] Test directly linked, heuristic-only, and no-shield cases.
+- [x] Define typed direct, primary, secondary, and unshielded findings.
+- [x] Include suggested commands as data, not only prose.
+- [x] Include confidence and evidence path fields.
+- [x] Preserve the current markdown sections.
+- [x] Test directly linked, heuristic-only, and no-shield cases.
 
 ### 2.7 Pilot 4: minimal context
 
@@ -557,12 +558,12 @@ Suggested target:
 
 Tasks:
 
-- [ ] Define typed callers, callees, impacts, downstream dependencies, tests, gaps, files, snippets, and token-budget metadata.
-- [ ] Keep source snippets bounded.
-- [ ] Ensure structured output respects `maxTokens` or define a separate structured-size bound.
-- [ ] Avoid duplicating large snippets in both text and structured content.
-- [ ] Define truncation flags per collection.
-- [ ] Test compact, full, snippets-on, snippets-off, and budget-exceeded paths.
+- [x] Define typed callers, callees, impacts, downstream dependencies, tests, gaps, files, snippets, and token-budget metadata.
+- [x] Keep source snippets bounded.
+- [x] Ensure structured output respects `maxTokens` or define a separate structured-size bound.
+- [x] Avoid duplicating large snippets in both text and structured content.
+- [x] Define truncation flags per collection.
+- [x] Test compact, full, snippets-on, snippets-off, and budget-exceeded paths.
 
 ### 2.8 Structured-content contract testing
 
@@ -582,13 +583,13 @@ Tasks:
 - [ ] Collect client compatibility results from VS Code, Codex, and Continue.
 - [ ] Compare token usage before and after structured output.
 - [ ] Confirm the structured form is actually consumed by target clients.
-- [x] Confirm the graph pilot remained surgical: three small result records and one typed Application method, with no universal hierarchy or MCP dependency.
-- [x] Reject a shared result metadata type for now; the two feature contracts have different version and fact needs.
-- [ ] Select the next maximum five tools; do not mass-convert the remaining catalog.
+- [x] Confirm the graph pilots remained feature-specific, one-public-type-per-file records with no universal hierarchy or MCP dependency.
+- [x] Keep shared metadata limited to bounded graph-node and relationship-completeness facts; retain tool-specific contracts for all other fields.
+- [x] Select and implement the next four tools; do not mass-convert the remaining catalog.
 
 ### Phase 2 exit criteria
 
-- [x] Four tools, including the high-value `find_connection` graph pilot, return schema-valid structured facts and useful Markdown.
+- [x] Eight tools, including five graph-analysis pilots, return schema-valid structured facts and useful Markdown.
 - [x] No MCP SDK types leak into Application or Core.
 - [x] Existing clients retain working text results for the implemented pilots.
 - [x] Implemented schema contracts are versioned and validated against their advertised schemas.
@@ -1054,11 +1055,11 @@ npm run build
 
 ### Live acceptance
 
-- [ ] Connect with VS Code using `type: "http"`. The checked-in workspace configuration is correct and VS Code 1.127.0 is installed, but interactive connection evidence is still required.
-- [ ] Connect with Codex using the same Streamable HTTP endpoint. A fresh 2.0 SDK client passes; the already-open Codex connector still sends a pre-upgrade `Mcp-Session-Id` and must be restarted before this can be checked.
+- [ ] Connect with VS Code using `type: "http"`. The checked-in workspace configuration is correct and VS Code 1.127.0 is installed, which is newer than the documented MCP Apps introduction in 1.109. Enable `chat.mcp.apps.enabled`, then capture interactive connection and inline-rendering evidence.
+- [x] Connect with Codex using the same Streamable HTTP endpoint. After restart, the current connector lists both App resources and reads the connection-viewer resource successfully.
 - [ ] Connect with Continue using `streamable-http`. Continue is not installed on the acceptance workstation.
 - [x] Capture negotiated protocol version: `2026-07-28` through `server/discover`; pinned fallback `2025-11-25` through `initialize`.
-- [x] List all 62 tools and verify object input schemas, titles/annotations, and exactly four advertised output schemas.
+- [x] List all 62 tools and verify object input schemas, titles/annotations, and the deployed build's four advertised output schemas. The next deployment will advertise the four newly completed graph contracts as well.
 - [x] Call every structured-output pilot and validate each payload against its advertised JSON Schema.
 - [x] Start and poll `classify_keywords`, then start and cancel `rebuild_keyword_graph`, against the real `CodeMeridian` graph.
 - [x] Verify private five-minute `tools/list` cache hints with the SDK client.
@@ -1069,13 +1070,15 @@ npm run build
 
 - [x] Six live acceptance tests passed with zero failures when graph-maintenance checks were explicitly enabled.
 - [x] The complete MCP server suite passed with 110 tests and zero failures/skips while connected to the live deployment.
-- [x] The fresh client did not send or receive `Mcp-Session-Id`; this isolates the current Codex failure to its retained pre-upgrade connection state.
+- [x] The fresh SDK client did not send or receive `Mcp-Session-Id`; after restart, the current Codex connector also connects successfully and discovers the upgraded resource surface.
 - [x] Graph freshness returned 25 High, 0 Medium, and 0 Low metadata-confidence findings.
 - [ ] Relationship completeness is not accepted as high: the graph reports 959 unresolved-local, 6,588 indeterminate, 4,667 external/unindexed, 130 duplicate-candidate, and 189 synthetic relationships.
-- [x] Live operational sample: 530 ms connect/discovery, 77 ms cold and 50 ms warm `tools/list`, and a 63,749-byte catalog response.
-- [x] Live Task sample: `classify_keywords` completed in 525 ms and `rebuild_keyword_graph` cancellation reached its terminal state in 29 ms.
+- [x] Latest live operational sample with Apps enabled: 166 ms connect/discovery, 35 ms cold and 11 ms warm `tools/list`, and a 63,955-byte catalog response.
+- [x] Latest live Task sample with Apps enabled: `classify_keywords` completed in 512 ms and `rebuild_keyword_graph` cancellation reached its terminal state in 38 ms.
 - [x] Tasks are enabled on the deployed server.
-- [ ] Apps are disabled on the deployed server, as expected from the safe default; resource rendering in a real host therefore remains untested.
+- [x] Apps are enabled on the deployed server; live acceptance verified capability consistency, both `ui://` resources, `text/html;profile=mcp-app`, resource reads, and absence of embedded authorization/API-key material.
+- [x] The restarted Codex connector listed both deployed App resources and read the connection-viewer HTML successfully.
+- [ ] Render both Apps inline in each claimed compatible host and capture screenshots; resource discovery/read alone is not visual host acceptance.
 
 The live suite reads secrets only from process environment variables. The mutation switch is separate so ordinary live checks cannot accidentally start graph maintenance:
 
@@ -1241,7 +1244,7 @@ Mitigation:
 
 - [x] Declare annotations explicitly on each attribute and enforce the reviewed inventory in one endpoint contract test.
 - [x] Do not introduce common structured metadata until repetition proves it useful.
-- [x] Use the three existing typed client-extension tools for the first slice, then add only the bounded `find_connection` graph pilot.
+- [x] Use the three existing typed client-extension tools for the first slice, add the bounded `find_connection` pilot, then expand only to the four reviewed graph-analysis tools in sections 2.4–2.7.
 - [x] Keep `execute_context_workflow` read-only/non-destructive because Application refuses mutating steps.
 - [x] Use `WithTasks` with an execution-mode selector limited to keyword maintenance.
 - [x] Accept and document in-memory task loss on restart for the first single-process release.
@@ -1256,15 +1259,15 @@ Mitigation:
 
 1. [x] Complete the broad local regression and publish-output verification recorded below.
 2. [x] Deploy the finished local batch and index the implementation diff.
-3. [ ] Restart and exercise VS Code, Codex, and Continue against the same server build; install Continue only if it remains a claimed client.
+3. [ ] Exercise VS Code and optional Continue against the same server build; the restarted Codex connector already passes discovery and resource-read checks.
 4. [x] Run task-backed keyword maintenance against real graph data, including cancellation.
-5. [ ] Enable the experimental Apps flag, open both Apps in every host that will be claimed as compatible, and capture evidence.
+5. [ ] Open both enabled Apps in every host that will be claimed as compatible and capture visual evidence; server and Codex resource discovery are already verified.
 6. [ ] Decide on any further structured tools, rate limits, durable Tasks, or parameter-header work only from measured evidence.
 
 ## Overall Success Criteria
 
 - [x] All 62 tools advertise reviewed and correct behavioral annotations.
-- [x] Four bounded tools, including `find_connection`, provide advertised schema-valid structured facts and compatible Markdown.
+- [x] Eight bounded tools, including five graph-analysis tools, provide advertised schema-valid structured facts and compatible Markdown.
 - [ ] Supported clients can continue calling every existing tool.
 - [x] Keyword maintenance can run as a cancellable MCP Task when the client opts in.
 - [x] Discovery responses include an approved safe TTL and cache scope.
@@ -1285,7 +1288,7 @@ Mitigation:
 - [x] Apps are isolated, optional, CSP-constrained, and endpoint-tested.
 - [x] All locally relevant docs and client examples are updated; host-specific claims remain pending live acceptance.
 - [x] Release notes include protocol, SDK, compatibility, and rollback details.
-- [ ] Live acceptance succeeds against the deployed MCP server.
+- [x] Automated live acceptance succeeds against the deployed MCP server, including explicitly enabled graph-maintenance checks.
 
 ## Reference Material
 
@@ -1297,3 +1300,5 @@ Mitigation:
 - [ListToolsResult caching hints](https://csharp.sdk.modelcontextprotocol.io/api/ModelContextProtocol.Protocol.ListToolsResult.html)
 - [MCP request filters](https://csharp.sdk.modelcontextprotocol.io/concepts/filters.html)
 - [VS Code MCP configuration](https://code.visualstudio.com/docs/agents/reference/mcp-configuration)
+- [VS Code MCP server and Apps usage](https://code.visualstudio.com/docs/agent-customization/mcp-servers)
+- [VS Code 1.109 MCP Apps release note](https://code.visualstudio.com/updates/v1_109#_support-for-mcp-apps)

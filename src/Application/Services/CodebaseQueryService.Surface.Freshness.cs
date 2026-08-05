@@ -9,6 +9,13 @@ public partial class CodebaseQueryService
         string? query = null,
         string? projectContext = null,
         int limit = 25,
+        CancellationToken cancellationToken = default) =>
+        (await CheckGraphFreshnessResultAsync(query, projectContext, limit, cancellationToken)).ToMarkdown();
+
+    public async Task<GraphFreshnessResult> CheckGraphFreshnessResultAsync(
+        string? query = null,
+        string? projectContext = null,
+        int limit = 25,
         CancellationToken cancellationToken = default)
     {
         projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
@@ -25,7 +32,18 @@ public partial class CodebaseQueryService
         if (nodes.Length == 0)
         {
             var projectHint = await BuildProjectContextHintAsync(projectContext, cancellationToken);
-            return $"No graph nodes found{(projectContext is not null ? $" in '{projectContext}'" : "")}{(query is not null ? $" for `{query}`" : "")}.{projectHint}";
+            return new GraphFreshnessResult(
+                "1.0",
+                projectContext,
+                query,
+                false,
+                0,
+                0,
+                0,
+                null,
+                [],
+                false,
+                projectHint);
         }
 
         var checks = nodes.Select(BuildFreshness).ToArray();
@@ -34,26 +52,31 @@ public partial class CodebaseQueryService
         var medium = checks.Count(c => c.Confidence == "Medium");
         var low = checks.Count(c => c.Confidence == "Low");
 
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Graph Freshness{(projectContext is not null ? $" - {projectContext}" : "")}");
-        if (!string.IsNullOrWhiteSpace(query))
-            sb.AppendLine($"**Query:** `{query}`");
-        sb.AppendLine($"**Trust summary (node metadata):** {high} High, {medium} Medium, {low} Low confidence");
-        sb.AppendLine($"**Relationship completeness:** {relationshipTrust.Confidence} — {relationshipTrust.Reason}");
-        AppendRelationshipEvidence(sb, relationshipTrust);
-        sb.AppendLine($"**Last full index:** {relationshipTrust.LastFullIndex?.ToString("u") ?? "unknown"}");
-        sb.AppendLine($"**Last incremental index:** {relationshipTrust.LastIncrementalIndex?.ToString("u") ?? "none recorded"}\n");
-        sb.AppendLine("| Confidence | Node | Source verification | Line metadata | Last indexed / content updated | Reason |");
-        sb.AppendLine("|---|---|---|---|---|---|");
+        const int maximumFindings = 200;
+        var findings = checks
+            .Take(maximumFindings)
+            .Select(check => new GraphFreshnessFindingResult(
+                GraphNodeResult.FromNode(check.Node),
+                check.Confidence,
+                check.SourceVerification,
+                check.LineMetadata,
+                check.Node.LastIndexedAt,
+                check.Node.UpdatedAt,
+                check.Reason))
+            .ToArray();
 
-        foreach (var check in checks)
-        {
-            var indexed = check.Node.LastIndexedAt?.ToString("u") ?? "unknown";
-            var updated = check.Node.UpdatedAt?.ToString("u") ?? "unknown";
-            sb.AppendLine($"| {check.Confidence} | `{check.Node.Name}` ({check.Node.Type}) | {check.SourceVerification} | {check.LineMetadata} | indexed {indexed}<br>updated {updated} | {check.Reason} |");
-        }
-
-        return sb.ToString();
+        return new GraphFreshnessResult(
+            "1.0",
+            projectContext,
+            query,
+            true,
+            high,
+            medium,
+            low,
+            ToResult(relationshipTrust),
+            findings,
+            checks.Length > findings.Length,
+            null);
     }
 
     public async Task<string> FindGraphDriftAsync(

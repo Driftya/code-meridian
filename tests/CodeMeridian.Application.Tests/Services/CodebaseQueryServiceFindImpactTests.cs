@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodeMeridian.Application.Services;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
@@ -10,6 +11,45 @@ namespace CodeMeridian.Application.Tests.Services;
 
 public sealed class CodebaseQueryServiceFindImpactTests : CodebaseQueryServiceAnalyticsTestBase
 {
+    [Fact]
+    public async Task FindImpactResultAsync_WithCyclicPath_ReturnsSerializableTypedSegments()
+    {
+        var (sut, graph) = Build();
+        var target = Node("target", "Target", CodeNodeType.Method, "src/Target.cs", 10, "Shop", updatedAt: DateTimeOffset.UtcNow);
+        var caller = Node(
+            "caller",
+            "Caller",
+            CodeNodeType.Method,
+            "src/Caller.cs",
+            20,
+            "Shop",
+            updatedAt: DateTimeOffset.UtcNow,
+            sourceSnippet: "must-not-leak");
+        graph.FindImpactPathsAsync("target", 3, Arg.Any<CancellationToken>())
+            .Returns([
+                new ImpactPath(
+                    caller,
+                    2,
+                    [
+                        new GraphPathStep(caller, "Calls", 1.0),
+                        new GraphPathStep(target, "Calls", 1.0),
+                        new GraphPathStep(caller, null, null)
+                    ])
+            ]);
+
+        var result = await sut.FindImpactResultAsync("target", depth: 3, includeConfidence: true);
+        var json = JsonSerializer.Serialize(result);
+
+        result.ImpactFound.Should().BeTrue();
+        result.Findings.Should().ContainSingle();
+        result.Findings[0].PathSegments.Should().HaveCount(3);
+        result.Findings[0].Classification.Should().Be("Proven");
+        json.Should().Contain("PathSegments");
+        json.Should().NotContain("must-not-leak");
+        json.Should().NotContain("SourceSnippet");
+        json.Should().NotContain("Properties");
+    }
+
     [Fact]
     public async Task FindImpactAsync_WhenNoCallers_ReturnsGuidanceMessage()
     {
@@ -207,4 +247,3 @@ public sealed class CodebaseQueryServiceFindImpactTests : CodebaseQueryServiceAn
 
 
 }
-

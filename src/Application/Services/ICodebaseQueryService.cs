@@ -6,6 +6,7 @@ public interface ICodebaseQueryService
     Task<string> GetOverviewAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> SearchDocumentationAsync(string query, string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindToolDependencyImpactAsync(string? subject = null, bool includeAwarenessOnly = false, CancellationToken cancellationToken = default);
+    Task<ImpactAnalysisResult> FindImpactResultAsync(string nodeId, int depth = 5, bool includeConfidence = false, CancellationToken cancellationToken = default);
     Task<string> FindImpactAsync(string nodeId, int depth = 5, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, bool includeConfidence = false, CancellationToken cancellationToken = default);
     Task<string> FindHotspotsAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<ConnectionAnalysisResult> FindConnectionResultAsync(string fromId, string toId, CancellationToken cancellationToken = default);
@@ -14,10 +15,12 @@ public interface ICodebaseQueryService
     Task<string> FindUnreferencedAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindCrossProjectDependenciesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindCoverageGapsAsync(string? projectContext = null, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
+    Task<TestShieldResult> FindTestShieldResultAsync(string nodeId, string? projectContext = null, int depth = 2, int limit = 20, CancellationToken cancellationToken = default);
     Task<string> FindTestShieldAsync(string nodeId, string? projectContext = null, int depth = 2, int limit = 20, CancellationToken cancellationToken = default);
     Task<string> FindRecentlyChangedAsync(string? projectContext = null, string window = "24h", CancellationToken cancellationToken = default);
     Task<string> FindLargeNodesAsync(string? projectContext = null, int classThreshold = 400, int methodThreshold = 40, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
     Task<string> GetContextForEditingAsync(string nodeId, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
+    Task<MinimalContextResult> BuildMinimalContextResultAsync(string target, string? goal = null, int maxTokens = 3000, bool includeTests = true, bool includeExternalConcepts = true, bool includeSourceSnippets = false, bool explainPaths = false, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
     Task<string> BuildMinimalContextAsync(string target, string? goal = null, int maxTokens = 3000, bool includeTests = true, bool includeExternalConcepts = true, bool includeSourceSnippets = false, bool explainPaths = false, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
     Task<string> FindGodClassesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindStaleKnowledgeAsync(string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
@@ -27,6 +30,7 @@ public interface ICodebaseQueryService
     Task<string> PlanEditRouteAsync(string goal, string? conceptsCsv = null, string? projectContext = null, int limit = 8, CancellationToken cancellationToken = default);
     Task<string> ReplaceSurfaceAsync(string fromDependency, string toDependency, string? projectContext = null, int limit = 20, CancellationToken cancellationToken = default);
     Task<string> ResolveExactSymbolAsync(string symbol, string? filePath = null, int? line = null, string? projectContext = null, int limit = 10, CancellationToken cancellationToken = default);
+    Task<GraphFreshnessResult> CheckGraphFreshnessResultAsync(string? query = null, string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
     Task<string> CheckGraphFreshnessAsync(string? query = null, string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
     Task<string> FindGraphDriftAsync(string? projectContext = null, int limit = 25, CancellationToken cancellationToken = default);
     Task<string> GetArchitectureWeatherReportAsync(string? projectContext = null, CancellationToken cancellationToken = default);

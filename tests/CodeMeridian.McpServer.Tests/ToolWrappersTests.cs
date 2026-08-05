@@ -3,6 +3,7 @@ using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
 using CodeMeridian.McpServer.Tools;
 using FluentAssertions;
+using ModelContextProtocol.Protocol;
 using NSubstitute;
 
 namespace CodeMeridian.McpServer.Tests;
@@ -75,14 +76,25 @@ public sealed class ToolWrappersTests
     public async Task CodebaseTools_FindImpactAsync_ForwardsArguments()
     {
         var queryService = Substitute.For<ICodebaseQueryService>();
-        queryService.FindImpactAsync("node-1", 4, ContextDetailLevel.Full, true, Arg.Any<CancellationToken>())
-            .Returns("impact");
+        queryService.FindImpactResultAsync("node-1", 4, true, Arg.Any<CancellationToken>())
+            .Returns(new ImpactAnalysisResult(
+                "1.0",
+                "node-1",
+                4,
+                false,
+                false,
+                "High",
+                new RelationshipCompletenessResult("High", "complete", null, null, 0, 0, 0, 0, 0, []),
+                [],
+                false));
 
         var sut = new CodebaseTools(queryService);
         var result = await sut.FindImpactAsync("node-1", 4, ContextDetailLevel.Full, includeConfidence: true);
 
-        result.Should().Be("impact");
-        await queryService.Received(1).FindImpactAsync("node-1", 4, ContextDetailLevel.Full, true, Arg.Any<CancellationToken>());
+        result.Content.OfType<TextContentBlock>().Should().ContainSingle()
+            .Which.Text.Should().Contain("No callers found");
+        result.StructuredContent.Should().NotBeNull();
+        await queryService.Received(1).FindImpactResultAsync("node-1", 4, true, Arg.Any<CancellationToken>());
     }
 
     [Fact]

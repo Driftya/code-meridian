@@ -1,0 +1,110 @@
+[
+  {
+    "name": "build_minimal_context",
+    "required": [
+      "contractVersion", "requestedTarget", "goal", "targetFound", "target",
+      "detailLevel", "includeTests", "includeExternalConcepts", "includeSourceSnippets",
+      "explainPaths", "relationshipCompleteness", "budget", "callers", "callees",
+      "interfaces", "impact", "downstream", "coverageGaps", "tests",
+      "suggestedTestCommand", "files", "explainedFiles", "snippets", "degradations",
+      "truncation"
+    ],
+    "properties": [
+      "contractVersion", "requestedTarget", "goal", "targetFound", "target",
+      "detailLevel", "includeTests", "includeExternalConcepts", "includeSourceSnippets",
+      "explainPaths", "relationshipCompleteness", "budget", "callers", "callees",
+      "interfaces", "impact", "downstream", "coverageGaps", "tests",
+      "suggestedTestCommand", "files", "explainedFiles", "snippets", "degradations",
+      "truncation"
+    ],
+    "sha256": "de43f4b092da7abccc4c4cf6565665369bbeadcd3953d8953acdc36bdc86692c"
+  },
+  {
+    "name": "check_graph_freshness",
+    "required": [
+      "contractVersion", "projectContext", "query", "nodesFound", "highConfidenceCount",
+      "mediumConfidenceCount", "lowConfidenceCount", "relationshipCompleteness", "findings",
+      "findingsTruncated", "projectHint"
+    ],
+    "properties": [
+      "contractVersion", "projectContext", "query", "nodesFound", "highConfidenceCount",
+      "mediumConfidenceCount", "lowConfidenceCount", "relationshipCompleteness", "findings",
+      "findingsTruncated", "projectHint"
+    ],
+    "sha256": "be0779b7b2eeb6c6c0c84a39e751c2f1722dd4842d1ec4e167236739aef52ac3"
+  },
+  {
+    "name": "find_connection",
+    "required": [
+      "contractVersion", "fromId", "toId", "maxHops", "pathFound", "hopCount",
+      "truncated", "nodes", "edges", "frontendSignals"
+    ],
+    "properties": [
+      "contractVersion", "fromId", "toId", "maxHops", "pathFound", "hopCount",
+      "truncated", "nodes", "edges", "frontendSignals"
+    ],
+    "sha256": "85f779fae6b2c6ebf51231468443297bc9e4d964665bea47d5d49f5581e73f78"
+  },
+  {
+    "name": "find_impact",
+    "required": [
+      "contractVersion", "targetId", "maxDepth", "impactFound", "classLikeTarget",
+      "overallConfidence", "relationshipCompleteness", "findings", "truncated"
+    ],
+    "properties": [
+      "contractVersion", "targetId", "maxDepth", "impactFound", "classLikeTarget",
+      "overallConfidence", "relationshipCompleteness", "findings", "truncated"
+    ],
+    "sha256": "e21ec03e63998df3ea72c86459615ae504a3940c49feb4089ee73709f9eea790"
+  },
+  {
+    "name": "find_test_shield",
+    "required": [
+      "contractVersion", "requestedNodeId", "projectContext", "pathDepth", "targetFound",
+      "target", "relationshipCompleteness", "directTests", "primaryTests", "secondaryTests",
+      "focusedRecommendations", "unshieldedNodes", "suggestedTestCommand", "truncated"
+    ],
+    "properties": [
+      "contractVersion", "requestedNodeId", "projectContext", "pathDepth", "targetFound",
+      "target", "relationshipCompleteness", "directTests", "primaryTests", "secondaryTests",
+      "focusedRecommendations", "unshieldedNodes", "suggestedTestCommand", "truncated"
+    ],
+    "sha256": "c6a3265942debcbcaa54c57b3ba3a9111ad33c17780aee5e421346af821e254a"
+  },
+  {
+    "name": "get_client_extension_contract",
+    "required": [
+      "version", "extensionOwnership", "graphQlEndpointPath", "authRequirement",
+      "supportedAuthHeaders", "supportedAuthHeaderFormats", "defaultPageSize", "maxPageSize",
+      "maxTraversalDepth", "maxAllowedFields", "maxAllowedRecursionDepth",
+      "executionTimeoutSeconds", "supportedNodeSortFields", "supportedRelationshipSortFields",
+      "documentationPaths", "exampleIds"
+    ],
+    "properties": [
+      "version", "extensionOwnership", "graphQlEndpointPath", "authRequirement",
+      "supportedAuthHeaders", "supportedAuthHeaderFormats", "defaultPageSize", "maxPageSize",
+      "maxTraversalDepth", "maxAllowedFields", "maxAllowedRecursionDepth",
+      "executionTimeoutSeconds", "supportedNodeSortFields", "supportedRelationshipSortFields",
+      "documentationPaths", "exampleIds"
+    ],
+    "sha256": "a18d127d32a24e985a8bf2a4b16801e7711290321e807302e5bb235ff7eef864"
+  },
+  {
+    "name": "get_client_extension_example",
+    "required": [
+      "id", "name", "description", "goal", "graphQlDocumentPath", "graphQlDocument",
+      "variablesTemplate", "expectedResultShape", "notes"
+    ],
+    "properties": [
+      "id", "name", "description", "goal", "graphQlDocumentPath", "graphQlDocument",
+      "variablesTemplate", "expectedResultShape", "notes"
+    ],
+    "sha256": "4ba166a3fa3b83de30d2040d101842548d22666f729ef827531b035195357dfe"
+  },
+  {
+    "name": "list_client_extension_examples",
+    "required": [],
+    "properties": [],
+    "sha256": "d9a3b993180b4da2efe2ba82fee4a80f70b07207beaac9acfb01a53f5a76c840"
+  }
+]

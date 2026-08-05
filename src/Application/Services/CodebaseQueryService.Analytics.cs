@@ -20,41 +20,75 @@ public partial class CodebaseQueryService
         bool includeConfidence = false,
         CancellationToken cancellationToken = default)
     {
+        var result = await FindImpactResultAsync(nodeId, depth, includeConfidence, cancellationToken);
+        return result.ToMarkdown(detailLevel, includeConfidence);
+    }
+
+    public async Task<ImpactAnalysisResult> FindImpactResultAsync(
+        string nodeId,
+        int depth = 5,
+        bool includeConfidence = false,
+        CancellationToken cancellationToken = default)
+    {
         nodeId = await ResolveCanonicalNodeIdAsync(nodeId, cancellationToken: cancellationToken);
         var impactContext = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
         var relationshipTrust = await GetRelationshipTrustAsync(impactContext?.Node?.ProjectContext, cancellationToken);
         if (includeConfidence)
-            return await FindImpactWithConfidenceAsync(nodeId, depth, detailLevel, relationshipTrust, cancellationToken);
-
-        var results = await codeGraph.FindImpactAsync(nodeId, depth, cancellationToken);
-
-        if (results.Count == 0)
-            return $"No callers found for `{nodeId}` within {depth} hops. " +
-                   "The node may not exist in the graph or has no inbound dependencies." +
-                   RelationshipTrustWarning(relationshipTrust);
-
-        if (detailLevel == ContextDetailLevel.Summary)
-            return $"Impact summary for `{nodeId}`: {results.Count} affected graph elements within {depth} hops. " +
-                   $"Nearest distance: {results.Min(r => r.Distance)}. Farthest distance: {results.Max(r => r.Distance)}.";
-
-        if (IsClassLikeNodeId(nodeId) && HasImpactEvidenceBuckets(results))
-            return FormatClassLikeImpactAnalysis(nodeId, depth, detailLevel, results);
-
-        var sb = new StringBuilder();
-        AppendRelationshipTrustWarning(sb, relationshipTrust);
-        sb.AppendLine($"## Impact Analysis — `{nodeId}`");
-        sb.AppendLine($"**{results.Count}** code elements would be affected by changing this (up to {depth} hops):\n");
-        sb.AppendLine("| Distance | Type | Name | File |");
-        sb.AppendLine("|----------|------|------|------|");
-
-        foreach (var (node, dist) in results)
         {
-            var file = node.FilePath is not null ? $"`{node.FilePath}`" : "—";
-            sb.AppendLine($"| {dist} | {node.Type} | `{node.Name}` | {file} |");
+            var impactPaths = await codeGraph.FindImpactPathsAsync(nodeId, depth, cancellationToken);
+            var report = ClassifyImpactPaths(impactPaths);
+            var classifiedFindings = report.Proven.Select(finding => ToImpactFinding(finding, "Proven"))
+                .Concat(report.Heuristic.Select(finding => ToImpactFinding(finding, "Heuristic")))
+                .Concat(report.Unknown.Select(finding => ToImpactFinding(finding, "Unknown")))
+                .ToArray();
+            return new ImpactAnalysisResult(
+                "1.0",
+                nodeId,
+                depth,
+                classifiedFindings.Length > 0,
+                IsClassLikeNodeId(nodeId),
+                report.OverallConfidence,
+                ToResult(relationshipTrust),
+                classifiedFindings,
+                false);
         }
 
-        return sb.ToString();
+        var results = await codeGraph.FindImpactAsync(nodeId, depth, cancellationToken);
+        var findings = results.Select(item => new ImpactFindingResult(
+                GraphNodeResult.FromNode(item.Node),
+                item.Distance,
+                "Unclassified",
+                string.Empty,
+                "—",
+                ReadImpactEvidenceBucket(item.Node),
+                []))
+            .ToArray();
+        return new ImpactAnalysisResult(
+            "1.0",
+            nodeId,
+            depth,
+            findings.Length > 0,
+            IsClassLikeNodeId(nodeId),
+            "NotEvaluated",
+            ToResult(relationshipTrust),
+            findings,
+            false);
     }
+
+    private static ImpactFindingResult ToImpactFinding(ImpactConfidenceFinding finding, string classification) =>
+        new(
+            GraphNodeResult.FromNode(finding.Node),
+            finding.Distance,
+            classification,
+            finding.Note,
+            finding.Path,
+            ReadImpactEvidenceBucket(finding.Node),
+            finding.Steps.Select((step, order) => new ImpactPathSegmentResult(
+                    order,
+                    GraphNodeResult.FromNode(step.Node),
+                    step.RelationshipType,
+                    step.RelationshipConfidence))
+                .ToArray());
 
     private static string FormatClassLikeImpactAnalysis(
         string nodeId,
@@ -256,214 +290,194 @@ public partial class CodebaseQueryService
         string? projectContext = null,
         int depth = 2,
         int limit = 20,
+        CancellationToken cancellationToken = default) =>
+        (await FindTestShieldResultAsync(nodeId, projectContext, depth, limit, cancellationToken)).ToMarkdown();
+
+    public async Task<TestShieldResult> FindTestShieldResultAsync(
+        string nodeId,
+        string? projectContext = null,
+        int depth = 2,
+        int limit = 20,
         CancellationToken cancellationToken = default)
     {
         projectContext = await ResolveProjectContextAsync(projectContext, cancellationToken);
         return await WithResolvedAnalysisOptionsAsync(projectContext, cancellationToken, async () =>
         {
-        nodeId = await ResolveCanonicalNodeIdAsync(nodeId, projectContext, cancellationToken);
-        var ctx = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
-        if (ctx.Node is null)
-            return $"Node `{nodeId}` not found in the graph. Run `query_codebase` or `resolve_exact_symbol` to find the correct target before checking its test shield.";
+            nodeId = await ResolveCanonicalNodeIdAsync(nodeId, projectContext, cancellationToken);
+            var ctx = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
+            if (ctx.Node is null)
+                return new TestShieldResult(
+                    "1.0", nodeId, projectContext, Math.Clamp(depth, 1, 8), false, null, null,
+                    [], [], [], [], [], null, false);
 
-        var scope = ctx.Node.ProjectContext ?? projectContext;
-        var impact = await codeGraph.FindImpactAsync(ctx.Node.Id, Math.Clamp(depth, 1, 8), cancellationToken);
-        var directAndHeuristicTargetTests = await codeGraph.FindRelatedTestsAsync(ctx.Node.Id, scope, cancellationToken);
-        var targetDependencyKeys = BuildDependencyKeys(ctx.Callees.Concat(ctx.Interfaces));
-        var targetPeerTests = directAndHeuristicTargetTests
-            .Select(match => match.Node)
-            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
-            .DistinctBy(node => node.Id)
-            .ToArray();
-
-        var pathNodes = new[] { ctx.Node }
-            .Concat(ctx.Callers)
-            .Concat(impact.Select(i => i.Node))
-            .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && !IsConfiguredTestNode(node))
-            .DistinctBy(node => node.Id)
-            .Take(Math.Clamp(limit * 2, 10, 100))
-            .ToArray();
-
-        var directShieldEntries = directAndHeuristicTargetTests
-            .Where(match => match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
-            .Select(match => CreateShieldEntry(
-                match.Node,
-                ctx.Node,
-                match.MatchType,
-                targetDependencyKeys,
-                targetDependencyKeys,
-                isExactCallerPath: false,
-                peerTestNodes: targetPeerTests))
-            .Where(entry => AllowsProfile(entry.TestNode, AnalysisProfile.TestShield) && IsConfiguredTestNode(entry.TestNode))
-            .DistinctBy(entry => entry.TestNode.Id)
-            .Take(Math.Clamp(limit, 1, 50))
-            .ToArray();
-        var directShield = directShieldEntries
-            .Where(entry => entry.IsPreferredTestCase)
-            .Select(entry => entry.TestNode)
-            .ToArray();
-
-        var primaryShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
-        var secondaryShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
-        foreach (var entry in directShieldEntries.Where(entry => !entry.IsPreferredTestCase))
-            secondaryShield[entry.TestNode.Id] = entry;
-
-        foreach (var match in directAndHeuristicTargetTests.Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase)))
-        {
-            if (!AllowsProfile(match.Node, AnalysisProfile.TestShield) || !IsConfiguredTestNode(match.Node))
-                continue;
-
-            secondaryShield[match.Node.Id] = CreateShieldEntry(
-                match.Node,
-                ctx.Node,
-                "heuristic",
-                targetDependencyKeys,
-                targetDependencyKeys,
-                isExactCallerPath: false,
-                peerTestNodes: targetPeerTests);
-        }
-
-        var unshielded = new List<CodeNode>();
-        foreach (var pathNode in pathNodes)
-        {
-            var pathContext = pathNode.Id == ctx.Node.Id
-                ? ctx
-                : await codeGraph.GetContextForEditingAsync(pathNode.Id, cancellationToken);
-            var relatedTests = pathNode.Id == ctx.Node.Id
-                ? directAndHeuristicTargetTests
-                : await codeGraph.FindRelatedTestsAsync(pathNode.Id, scope, cancellationToken);
-            var relatedPeerTests = relatedTests
+            var scope = ctx.Node.ProjectContext ?? projectContext;
+            var impact = await codeGraph.FindImpactAsync(ctx.Node.Id, Math.Clamp(depth, 1, 8), cancellationToken);
+            var directAndHeuristicTargetTests = await codeGraph.FindRelatedTestsAsync(ctx.Node.Id, scope, cancellationToken);
+            var targetDependencyKeys = BuildDependencyKeys(ctx.Callees.Concat(ctx.Interfaces));
+            var targetPeerTests = directAndHeuristicTargetTests
                 .Select(match => match.Node)
                 .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
                 .DistinctBy(node => node.Id)
                 .ToArray();
 
-            var hasShield = false;
-            foreach (var match in relatedTests)
+            var pathNodes = new[] { ctx.Node }
+                .Concat(ctx.Callers)
+                .Concat(impact.Select(i => i.Node))
+                .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && !IsConfiguredTestNode(node))
+                .DistinctBy(node => node.Id)
+                .Take(Math.Clamp(limit * 2, 10, 100))
+                .ToArray();
+
+            var directShieldEntries = directAndHeuristicTargetTests
+                .Where(match => match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
+                .Select(match => CreateShieldEntry(
+                    match.Node,
+                    ctx.Node,
+                    match.MatchType,
+                    targetDependencyKeys,
+                    targetDependencyKeys,
+                    isExactCallerPath: false,
+                    peerTestNodes: targetPeerTests))
+                .Where(entry => AllowsProfile(entry.TestNode, AnalysisProfile.TestShield) && IsConfiguredTestNode(entry.TestNode))
+                .DistinctBy(entry => entry.TestNode.Id)
+                .Take(Math.Clamp(limit, 1, 50))
+                .ToArray();
+            var directShield = directShieldEntries
+                .Where(entry => entry.IsPreferredTestCase)
+                .Select(entry => entry.TestNode)
+                .ToArray();
+
+            var primaryShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
+            var secondaryShield = new Dictionary<string, ShieldEntry>(StringComparer.Ordinal);
+            foreach (var entry in directShieldEntries.Where(entry => !entry.IsPreferredTestCase))
+                secondaryShield[entry.TestNode.Id] = entry;
+
+            foreach (var match in directAndHeuristicTargetTests.Where(match => !match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase)))
             {
                 if (!AllowsProfile(match.Node, AnalysisProfile.TestShield) || !IsConfiguredTestNode(match.Node))
                     continue;
 
-                hasShield = true;
-                if (pathNode.Id == ctx.Node.Id && match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (directShield.Any(test => test.Id == match.Node.Id))
-                    continue;
-
-                var shieldEntry = CreateShieldEntry(
+                secondaryShield[match.Node.Id] = CreateShieldEntry(
                     match.Node,
-                    pathNode,
-                    match.MatchType,
+                    ctx.Node,
+                    "heuristic",
                     targetDependencyKeys,
-                    BuildDependencyKeys(pathContext.Callees.Concat(pathContext.Interfaces)),
-                    isExactCallerPath: pathNode.Id != ctx.Node.Id,
-                    peerTestNodes: relatedPeerTests);
-                if (!shieldEntry.IsPreferredTestCase)
+                    targetDependencyKeys,
+                    isExactCallerPath: false,
+                    peerTestNodes: targetPeerTests);
+            }
+
+            var unshielded = new List<CodeNode>();
+            foreach (var pathNode in pathNodes)
+            {
+                var pathContext = pathNode.Id == ctx.Node.Id
+                    ? ctx
+                    : await codeGraph.GetContextForEditingAsync(pathNode.Id, cancellationToken);
+                var relatedTests = pathNode.Id == ctx.Node.Id
+                    ? directAndHeuristicTargetTests
+                    : await codeGraph.FindRelatedTestsAsync(pathNode.Id, scope, cancellationToken);
+                var relatedPeerTests = relatedTests
+                    .Select(match => match.Node)
+                    .Where(node => AllowsProfile(node, AnalysisProfile.TestShield) && IsConfiguredTestNode(node))
+                    .DistinctBy(node => node.Id)
+                    .ToArray();
+
+                var hasShield = false;
+                foreach (var match in relatedTests)
                 {
-                    secondaryShield[match.Node.Id] = shieldEntry;
-                    continue;
+                    if (!AllowsProfile(match.Node, AnalysisProfile.TestShield) || !IsConfiguredTestNode(match.Node))
+                        continue;
+
+                    hasShield = true;
+                    if (pathNode.Id == ctx.Node.Id && match.MatchType.Equals("direct", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (directShield.Any(test => test.Id == match.Node.Id))
+                        continue;
+
+                    var shieldEntry = CreateShieldEntry(
+                        match.Node,
+                        pathNode,
+                        match.MatchType,
+                        targetDependencyKeys,
+                        BuildDependencyKeys(pathContext.Callees.Concat(pathContext.Interfaces)),
+                        isExactCallerPath: pathNode.Id != ctx.Node.Id,
+                        peerTestNodes: relatedPeerTests);
+                    if (!shieldEntry.IsPreferredTestCase)
+                    {
+                        secondaryShield[match.Node.Id] = shieldEntry;
+                        continue;
+                    }
+
+                    var targetBucket = IsPrimaryShieldCandidate(shieldEntry)
+                        ? primaryShield
+                        : secondaryShield;
+                    targetBucket[match.Node.Id] = shieldEntry;
+                    if (targetBucket == primaryShield)
+                        secondaryShield.Remove(match.Node.Id);
                 }
 
-                var targetBucket = IsPrimaryShieldCandidate(shieldEntry)
-                    ? primaryShield
-                    : secondaryShield;
-                targetBucket[match.Node.Id] = shieldEntry;
-                if (targetBucket == primaryShield)
-                    secondaryShield.Remove(match.Node.Id);
+                if (!hasShield)
+                    unshielded.Add(pathNode);
             }
 
-            if (!hasShield)
-                unshielded.Add(pathNode);
-        }
+            var rankedPrimaryShield = primaryShield.Values
+                .OrderByDescending(ScoreShieldEntry)
+                .ThenBy(entry => entry.TestNode.Name, StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Clamp(limit, 1, 50))
+                .ToArray();
+            var rankedSecondaryShield = secondaryShield.Values
+                .Where(entry => primaryShield.ContainsKey(entry.TestNode.Id) is false)
+                .OrderByDescending(ScoreShieldEntry)
+                .ThenBy(entry => entry.TestNode.Name, StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Clamp(limit, 1, 50))
+                .ToArray();
+            var focusedRecommendations = BuildFocusedTestRecommendations(ctx.Node, directShield, rankedPrimaryShield, rankedSecondaryShield)
+                .Take(Math.Clamp(limit, 1, 12))
+                .ToArray();
+            var suggestedCommand = BuildSuggestedTestCommand(directShield, rankedPrimaryShield);
+            var relationshipTrust = await GetRelationshipTrustAsync(scope, cancellationToken);
 
-        var rankedPrimaryShield = primaryShield.Values
-            .OrderByDescending(ScoreShieldEntry)
-            .ThenBy(entry => entry.TestNode.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(Math.Clamp(limit, 1, 50))
-            .ToArray();
-        var rankedSecondaryShield = secondaryShield.Values
-            .Where(entry => primaryShield.ContainsKey(entry.TestNode.Id) is false)
-            .OrderByDescending(ScoreShieldEntry)
-            .ThenBy(entry => entry.TestNode.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(Math.Clamp(limit, 1, 50))
-            .ToArray();
-        var focusedRecommendations = BuildFocusedTestRecommendations(ctx.Node, directShield, rankedPrimaryShield, rankedSecondaryShield)
-            .Take(Math.Clamp(limit, 1, 12))
-            .ToArray();
-        var suggestedCommand = BuildSuggestedTestCommand(directShield, rankedPrimaryShield);
-        var relationshipTrust = await GetRelationshipTrustAsync(scope, cancellationToken);
-
-        var sb = new StringBuilder();
-        AppendRelationshipTrustWarning(sb, relationshipTrust);
-        sb.AppendLine($"## Test Shield Map - `{ctx.Node.Name}`");
-        sb.AppendLine($"**Target:** {ctx.Node.Type} `{ctx.Node.Name}`");
-        sb.AppendLine($"**File:** `{ctx.Node.FilePath ?? "—"}`{(ctx.Node.LineNumber.HasValue ? $":{ctx.Node.LineNumber}" : "")}");
-        sb.AppendLine($"**Path depth:** {Math.Clamp(depth, 1, 8)}");
-        sb.AppendLine($"**Shield summary:** {directShield.Length} direct, {rankedPrimaryShield.Length} primary, {rankedSecondaryShield.Length} secondary, {unshielded.Count} unshielded path nodes");
-        sb.AppendLine();
-
-        sb.AppendLine($"### Direct test shield ({directShield.Length})");
-        if (directShield.Length == 0)
-        {
-            sb.AppendLine("- none");
-        }
-        else
-        {
-            foreach (var test in directShield)
-                sb.AppendLine($"- **{test.Type}** `{test.Name}`{FormatLocation(test)} — direct `Calls` edge to `{ctx.Node.Name}`");
-        }
-        sb.AppendLine();
-
-        sb.AppendLine($"### Primary verification tests ({rankedPrimaryShield.Length})");
-        if (rankedPrimaryShield.Length == 0)
-        {
-            sb.AppendLine("- none");
-        }
-        else
-        {
-            foreach (var shield in rankedPrimaryShield)
-            {
-                sb.AppendLine($"- **{shield.TestNode.Type}** `{shield.TestNode.Name}`{FormatLocation(shield.TestNode)} — {shield.Reason}");
-            }
-        }
-        sb.AppendLine();
-
-        AppendFocusedVerificationPlan(sb, focusedRecommendations);
-
-        sb.AppendLine($"### Secondary shield awareness ({rankedSecondaryShield.Length})");
-        if (rankedSecondaryShield.Length == 0)
-        {
-            sb.AppendLine("- none");
-        }
-        else
-        {
-            foreach (var shield in rankedSecondaryShield)
-                sb.AppendLine($"- **{shield.TestNode.Type}** `{shield.TestNode.Name}`{FormatLocation(shield.TestNode)} — {shield.Reason}");
-        }
-        sb.AppendLine();
-
-        sb.AppendLine($"### Unshielded path nodes ({unshielded.Count})");
-        if (unshielded.Count == 0)
-        {
-            sb.AppendLine("- none");
-        }
-        else
-        {
-            foreach (var node in unshielded.Take(Math.Clamp(limit, 1, 50)))
-                sb.AppendLine($"- **{node.Type}** `{node.Name}`{FormatLocation(node)} — no direct or heuristic related tests found");
-        }
-        sb.AppendLine();
-
-        sb.AppendLine("### Suggested test command");
-        sb.AppendLine(suggestedCommand is null ? "- none" : $"- `{suggestedCommand}`");
-        sb.AppendLine();
-
-        sb.AppendLine("> Direct shield means a test directly calls the target. The focused verification plan separates direct regression tests, contract/API forwarding checks, integration-level verification, and heuristic shield tests so the first run stays small. Secondary shield awareness keeps broader matches visible without mixing them into the first-run verification set. Unshielded path nodes are the best seams for new characterization tests before changing behavior.");
-
-        return sb.ToString();
+            var directResults = directShieldEntries
+                .Where(entry => entry.IsPreferredTestCase)
+                .Select(ToShieldFinding)
+                .ToArray();
+            var primaryResults = rankedPrimaryShield.Select(ToShieldFinding).ToArray();
+            var secondaryResults = rankedSecondaryShield.Select(ToShieldFinding).ToArray();
+            var unshieldedResults = unshielded
+                .Take(Math.Clamp(limit, 1, 50))
+                .Select(GraphNodeResult.FromNode)
+                .ToArray();
+            return new TestShieldResult(
+                "1.0",
+                nodeId,
+                scope,
+                Math.Clamp(depth, 1, 8),
+                true,
+                GraphNodeResult.FromNode(ctx.Node),
+                ToResult(relationshipTrust),
+                directResults,
+                primaryResults,
+                secondaryResults,
+                focusedRecommendations.Select(item => new TestRecommendationResult(
+                        GraphNodeResult.FromNode(item.TestNode),
+                        item.Category,
+                        item.Reason,
+                        item.Score))
+                    .ToArray(),
+                unshieldedResults,
+                suggestedCommand,
+                unshielded.Count > unshieldedResults.Length);
         });
     }
+
+    private static TestShieldFindingResult ToShieldFinding(ShieldEntry entry) =>
+        new(
+            GraphNodeResult.FromNode(entry.TestNode),
+            GraphNodeResult.FromNode(entry.ProtectedNode),
+            entry.MatchType,
+            entry.Reason,
+            $"`{entry.TestNode.Id}` -[{entry.MatchType}]-> `{entry.ProtectedNode.Id}`");
 
     public async Task<string> FindRecentlyChangedAsync(
         string? projectContext = null,
@@ -1231,6 +1245,27 @@ public partial class CodebaseQueryService
         bool includeSourceSnippets = false,
         bool explainPaths = false,
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
+        CancellationToken cancellationToken = default) =>
+        (await BuildMinimalContextResultAsync(
+            target,
+            goal,
+            maxTokens,
+            includeTests,
+            includeExternalConcepts,
+            includeSourceSnippets,
+            explainPaths,
+            detailLevel,
+            cancellationToken)).ToMarkdown(detailLevel);
+
+    public async Task<MinimalContextResult> BuildMinimalContextResultAsync(
+        string target,
+        string? goal = null,
+        int maxTokens = 3000,
+        bool includeTests = true,
+        bool includeExternalConcepts = true,
+        bool includeSourceSnippets = false,
+        bool explainPaths = false,
+        ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
     {
         target = await ResolveCanonicalNodeIdAsync(target, cancellationToken: cancellationToken);
@@ -1238,7 +1273,17 @@ public partial class CodebaseQueryService
         var degradations = new List<ContextPackDegradation>();
 
         if (ctx.Node is null)
-            return $"Target `{target}` not found in the graph. Run query_codebase first to find the correct node ID.";
+        {
+            return MinimalContextResult.NotFound(
+                target,
+                goal,
+                maxTokens,
+                includeTests,
+                includeExternalConcepts,
+                includeSourceSnippets,
+                explainPaths,
+                detailLevel);
+        }
 
         var analysisResolution = await analysisOptionsResolver.ResolveAsync(ctx.Node.ProjectContext, cancellationToken);
         using var _ = new AnalysisOptionsScope(this, analysisResolution);
@@ -1274,9 +1319,11 @@ public partial class CodebaseQueryService
             .DistinctBy(node => node.Id)
             .ToArray();
 
-        var relatedCoverageGaps = coverageGaps
+        var allRelatedCoverageGaps = coverageGaps
             .Where(n => SameFile(n, ctx.Node) || SameNamespace(n, ctx.Node) || n.Id == ctx.Node.Id)
             .Where(node => AllowsProfile(node, AnalysisProfile.CoverageGaps))
+            .ToArray();
+        var relatedCoverageGaps = allRelatedCoverageGaps
             .Take(10)
             .ToArray();
         var directRelatedTests = relatedTests
@@ -1304,7 +1351,7 @@ public partial class CodebaseQueryService
                 .Select(item => item.TestNode))
             : null;
 
-        var candidateFiles = new[] { ctx.Node }
+        var allCandidateFiles = new[] { ctx.Node }
             .Concat(ctx.Callers)
             .Concat(ctx.Callees)
             .Concat(ctx.Interfaces)
@@ -1317,6 +1364,8 @@ public partial class CodebaseQueryService
             .OfType<string>()
             .Where(f => !string.IsNullOrWhiteSpace(f))
             .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var candidateFiles = allCandidateFiles
             .Take(20)
             .ToArray();
 
@@ -1342,8 +1391,6 @@ public partial class CodebaseQueryService
         var filteredInterfaces = FilterNodesByProfile(ctx.Interfaces, AnalysisProfile.AgentContext);
         var filteredImpact = FilterNodePairsByProfile(impact, AnalysisProfile.AgentContext);
         var filteredDownstream = FilterNodePairsByProfile(downstream, AnalysisProfile.AgentContext);
-        var sb = new StringBuilder();
-        AppendRelationshipTrustWarning(sb, relationshipTrust);
         var snippetBudget = includeSourceSnippets
             ? Math.Max(0, maxTokens - contextCost.EstimatedTokens + contextCost.SourceSnippetTokens)
             : 0;
@@ -1356,14 +1403,16 @@ public partial class CodebaseQueryService
         {
             try
             {
-                snippets = BuildSourceSnippets(
-                    new[] { ctx.Node }
+                var snippetCandidates = new[] { ctx.Node }
                         .Concat(ctx.Callees)
                         .Concat(ctx.Interfaces)
                         .Concat(directRelatedTests)
                         .Where(node => AllowsProfile(node, AnalysisProfile.AgentContext))
                         .DistinctBy(n => n.Id)
-                        .Take(detailLevel == ContextDetailLevel.Full ? 5 : 3),
+                        .Take(detailLevel == ContextDetailLevel.Full ? 5 : 3)
+                        .ToArray();
+                snippets = BuildSourceSnippets(
+                    snippetCandidates,
                     snippetBudget,
                     detailLevel);
             }
@@ -1374,72 +1423,109 @@ public partial class CodebaseQueryService
             }
         }
 
-        sb.AppendLine($"## Minimal Context Pack — `{ctx.Node.Name}`");
-        if (!string.IsNullOrWhiteSpace(goal))
-            sb.AppendLine($"**Goal:** {goal}");
-        sb.AppendLine($"**Budget:** {maxTokens} tokens | **Estimated:** {contextCost.EstimatedTokens:N0} tokens | **Detail:** {detailLevel}");
-        sb.AppendLine($"**Complexity:** {contextCost.Complexity} | **Model guidance:** {contextCost.ModelGuidance}");
-        sb.AppendLine($"**Expansion risk:** {contextCost.ExpansionRisk} — {contextCost.Reason}");
-        sb.AppendLine($"**Target:** {ctx.Node.Type} `{ctx.Node.Name}`");
-        sb.AppendLine($"**File:** `{ctx.Node.FilePath ?? "—"}`{(ctx.Node.LineNumber.HasValue ? $":{ctx.Node.LineNumber}" : "")}{(ctx.Node.LineCount.HasValue ? $" ({ctx.Node.LineCount} lines)" : "")}");
-        if (!string.IsNullOrWhiteSpace(ctx.Node.Summary))
-            sb.AppendLine($"**Summary:** {ctx.Node.Summary}");
-        sb.AppendLine();
-
-        AppendNodeList(sb, "Direct callers", filteredCallers, detailLevel, "who will be affected by signature or behavior changes");
-        AppendNodeList(sb, "Direct callees", filteredCallees, detailLevel, "dependencies this target relies on");
-        AppendNodeList(sb, "Interfaces", filteredInterfaces, detailLevel, "contracts related to this target");
-        AppendDistanceList(sb, "Near impact", filteredImpact, detailLevel, "transitive callers within 2 hops");
-        AppendDistanceList(sb, "Near downstream", filteredDownstream, detailLevel, "dependencies within 2 hops");
-
-        if (includeTests)
+        IReadOnlyList<MinimalContextExplainedFileResult> explainedFileResults = [];
+        if (candidateFiles.Length > 0 && explainPaths)
         {
-            AppendNodeList(sb, "Relevant coverage gaps", relatedCoverageGaps, detailLevel, "heuristic matches by same file/namespace/target");
-            AppendRelatedTestsList(sb, focusedTestRecommendations, detailLevel, suggestedTestCommand);
-        }
-
-        if (candidateFiles.Length > 0)
-        {
-            if (explainPaths)
+            try
             {
-                try
-                {
-                    var explainedFiles = await BuildExplainedFilesAsync(
-                        ctx.Node,
-                        filteredCallers,
-                        filteredCallees,
-                        filteredInterfaces,
-                        filteredImpact,
-                        filteredDownstream,
-                        directRelatedTests,
-                        heuristicRelatedTests,
-                        relatedCoverageGaps,
-                        cancellationToken);
-
-                    AppendExplainedFiles(sb, explainedFiles);
-                }
-                catch (Exception ex)
-                {
-                    AppendCandidateFiles(sb, candidateFiles);
-                    degradations.Add(new ContextPackDegradation("file_path_explanation", ex));
-                }
+                var explainedFiles = await BuildExplainedFilesAsync(
+                    ctx.Node,
+                    filteredCallers,
+                    filteredCallees,
+                    filteredInterfaces,
+                    filteredImpact,
+                    filteredDownstream,
+                    directRelatedTests,
+                    heuristicRelatedTests,
+                    relatedCoverageGaps,
+                    cancellationToken);
+                explainedFileResults = explainedFiles
+                    .Select(file => new MinimalContextExplainedFileResult(
+                        file.FilePath,
+                        file.Reason,
+                        file.Path,
+                        file.Diagnostics,
+                        file.NearbyTests))
+                    .ToArray();
             }
-            else
+            catch (Exception ex)
             {
-                AppendCandidateFiles(sb, candidateFiles);
+                degradations.Add(new ContextPackDegradation("file_path_explanation", ex));
             }
         }
 
-        if (includeSourceSnippets)
-            AppendSourceSnippets(sb, snippets, snippetBudget);
+        const int maximumStructuredNodesPerCollection = 50;
+        var callerResults = filteredCallers.Take(maximumStructuredNodesPerCollection).Select(GraphNodeResult.FromNode).ToArray();
+        var calleeResults = filteredCallees.Take(maximumStructuredNodesPerCollection).Select(GraphNodeResult.FromNode).ToArray();
+        var interfaceResults = filteredInterfaces.Take(maximumStructuredNodesPerCollection).Select(GraphNodeResult.FromNode).ToArray();
+        var impactResults = filteredImpact.Take(maximumStructuredNodesPerCollection)
+            .Select(item => new MinimalContextDistanceResult(GraphNodeResult.FromNode(item.Node), item.Value))
+            .ToArray();
+        var downstreamResults = filteredDownstream.Take(maximumStructuredNodesPerCollection)
+            .Select(item => new MinimalContextDistanceResult(GraphNodeResult.FromNode(item.Node), item.Value))
+            .ToArray();
+        var coverageGapResults = relatedCoverageGaps.Select(GraphNodeResult.FromNode).ToArray();
+        var testResults = focusedTestRecommendations.Select(item => new TestRecommendationResult(
+                GraphNodeResult.FromNode(item.TestNode),
+                item.Category,
+                item.Reason,
+                item.Score))
+            .ToArray();
+        var snippetResults = snippets.Select(snippet => new MinimalContextSnippetResult(
+                GraphNodeResult.FromNode(snippet.Node),
+                snippet.EstimatedTokens,
+                snippet.Truncated,
+                snippet.Text))
+            .ToArray();
+        var degradationResults = degradations
+            .Select(item => new MinimalContextDegradationResult(item.Step, item.ExceptionType))
+            .ToArray();
 
-        if (includeExternalConcepts)
-            sb.AppendLine("> External concepts are included when present in callers/callees/impact/downstream graph results.");
-
-        AppendDegradedContextSection(sb, degradations);
-        sb.AppendLine($"> Token estimate is approximate. {(contextCost.EstimatedTokens > maxTokens ? "Consider Summary detail, fewer optional sections, or a larger context budget." : "Current pack fits the requested budget.")}");
-
-        return sb.ToString();
+        return new MinimalContextResult(
+            "1.0",
+            target,
+            goal,
+            true,
+            GraphNodeResult.FromNode(ctx.Node),
+            detailLevel.ToString(),
+            includeTests,
+            includeExternalConcepts,
+            includeSourceSnippets,
+            explainPaths,
+            ToResult(relationshipTrust),
+            new MinimalContextBudgetResult(
+                maxTokens,
+                contextCost.EstimatedTokens,
+                snippetBudget,
+                snippets.Sum(snippet => snippet.EstimatedTokens),
+                contextCost.EstimatedTokens <= maxTokens,
+                128 * 1024,
+                contextCost.Complexity,
+                contextCost.ModelGuidance,
+                contextCost.ExpansionRisk,
+                contextCost.Reason),
+            callerResults,
+            calleeResults,
+            interfaceResults,
+            impactResults,
+            downstreamResults,
+            coverageGapResults,
+            testResults,
+            suggestedTestCommand,
+            candidateFiles,
+            explainedFileResults,
+            snippetResults,
+            degradationResults,
+            new MinimalContextTruncationResult(
+                filteredCallers.Count > callerResults.Length,
+                filteredCallees.Count > calleeResults.Length,
+                filteredInterfaces.Count > interfaceResults.Length,
+                filteredImpact.Count > impactResults.Length,
+                filteredDownstream.Count > downstreamResults.Length,
+                allRelatedCoverageGaps.Length > coverageGapResults.Length,
+                directRelatedTests.Length + heuristicRelatedTests.Length > testResults.Length,
+                allCandidateFiles.Length > candidateFiles.Length,
+                snippets.Any(snippet => snippet.Truncated)));
     }
 
     private static async Task<T> TryContextStepAsync<T>(

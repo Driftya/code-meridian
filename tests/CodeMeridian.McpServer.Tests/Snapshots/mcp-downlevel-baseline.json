@@ -4,7 +4,11 @@
   "toolCount": 62,
   "annotationCount": 62,
   "structuredToolNames": [
+    "build_minimal_context",
+    "check_graph_freshness",
     "find_connection",
+    "find_impact",
+    "find_test_shield",
     "get_client_extension_contract",
     "get_client_extension_example",
     "list_client_extension_examples"

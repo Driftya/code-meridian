@@ -8,6 +8,7 @@ using CodeMeridian.McpServer.Tools;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol.Protocol;
 using NSubstitute;
 
 namespace CodeMeridian.McpServer.Tests;
@@ -105,18 +106,31 @@ public sealed class KnowledgeIngestionTests
     public async Task CodebaseTools_CheckGraphFreshnessAsync_ForwardsArguments()
     {
         var queryService = Substitute.For<ICodebaseQueryService>();
-        queryService.CheckGraphFreshnessAsync(
+        queryService.CheckGraphFreshnessResultAsync(
                 "BuildMinimalContextAsync",
                 "CodeMeridian",
                 12,
                 Arg.Any<CancellationToken>())
-            .Returns("freshness");
+            .Returns(new GraphFreshnessResult(
+                "1.0",
+                "CodeMeridian",
+                "BuildMinimalContextAsync",
+                false,
+                0,
+                0,
+                0,
+                null,
+                [],
+                false,
+                null));
 
         var sut = new CodebaseTools(queryService);
         var result = await sut.CheckGraphFreshnessAsync("BuildMinimalContextAsync", "CodeMeridian", 12);
 
-        result.Should().Be("freshness");
-        await queryService.Received(1).CheckGraphFreshnessAsync(
+        result.Content.OfType<TextContentBlock>().Should().ContainSingle()
+            .Which.Text.Should().Contain("No graph nodes found");
+        result.StructuredContent.Should().NotBeNull();
+        await queryService.Received(1).CheckGraphFreshnessResultAsync(
             "BuildMinimalContextAsync",
             "CodeMeridian",
             12,

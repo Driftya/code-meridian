@@ -1,5 +1,7 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Security.Cryptography;
 using CodeMeridian.Application.Services;
 using FluentAssertions;
 using Json.Schema;
@@ -28,6 +30,16 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
         var queryService = Substitute.For<ICodebaseQueryService>();
         queryService.FindConnectionResultAsync("source", "target", Arg.Any<CancellationToken>())
             .Returns(CreateConnection());
+        queryService.CheckGraphFreshnessResultAsync(null, null, 25, Arg.Any<CancellationToken>())
+            .Returns(CreateFreshness());
+        queryService.FindImpactResultAsync("source", 5, false, Arg.Any<CancellationToken>())
+            .Returns(CreateImpact());
+        queryService.FindTestShieldResultAsync("source", null, 2, 20, Arg.Any<CancellationToken>())
+            .Returns(CreateTestShield());
+        queryService.BuildMinimalContextResultAsync(
+                "source", null, 3000, true, true, false, false, ContextDetailLevel.Compact,
+                Arg.Any<CancellationToken>())
+            .Returns(CreateMinimalContext());
 
         using var factory = WithQueryService(queryService);
         using var httpClient = factory.CreateClient();
@@ -35,6 +47,19 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
         var tools = await client.ListToolsAsync();
         var calls = new[]
         {
+            new StructuredCall("check_graph_freshness", []),
+            new StructuredCall("find_impact", new Dictionary<string, object?>
+            {
+                ["nodeId"] = "source"
+            }),
+            new StructuredCall("find_test_shield", new Dictionary<string, object?>
+            {
+                ["nodeId"] = "source"
+            }),
+            new StructuredCall("build_minimal_context", new Dictionary<string, object?>
+            {
+                ["target"] = "source"
+            }),
             new StructuredCall("find_connection", new Dictionary<string, object?>
             {
                 ["fromId"] = "source",
@@ -112,6 +137,84 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
             .Which.Text.Should().Contain("No path found");
     }
 
+    [Fact]
+    public async Task MinimalContextResult_KeepsSnippetBodiesOutOfStructuredContent()
+    {
+        const string snippetBody = "private api key shaped source body";
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        var minimalContext = CreateMinimalContext() with
+        {
+            IncludeSourceSnippets = true,
+            Budget = CreateMinimalContext().Budget with
+            {
+                SourceSnippetBudgetTokens = 100,
+                SourceSnippetEstimatedTokens = 7
+            },
+            Snippets =
+            [
+                new MinimalContextSnippetResult(
+                    Node(), 7, false, snippetBody)
+            ]
+        };
+        queryService.BuildMinimalContextResultAsync(
+                "source", null, 3000, true, true, false, false, ContextDetailLevel.Compact,
+                Arg.Any<CancellationToken>())
+            .Returns(minimalContext);
+
+        using var factory = WithQueryService(queryService);
+        using var httpClient = factory.CreateClient();
+        await using var client = await McpTestClient.CreateAsync(httpClient);
+        var result = await client.CallToolAsync(
+            "build_minimal_context",
+            new Dictionary<string, object?> { ["target"] = "source" });
+        var structuredJson = result.StructuredContent!.Value.GetRawText();
+
+        structuredJson.Should().NotContain(snippetBody);
+        structuredJson.Should().NotContain("markdownText");
+        structuredJson.Should().NotContain("\"sourceSnippet\":");
+        structuredJson.Should().NotContain("\"properties\":");
+        result.Content.OfType<TextContentBlock>().Should().ContainSingle()
+            .Which.Text.Should().Contain(snippetBody);
+    }
+
+    [Fact]
+    public async Task AdvertisedStructuredSchemas_MatchBoundedFingerprintSnapshot()
+    {
+        using var httpClient = _factory.CreateClient();
+        await using var client = await McpTestClient.CreateAsync(httpClient);
+        var schemas = (await client.ListToolsAsync())
+            .Where(tool => tool.ProtocolTool.OutputSchema is not null)
+            .OrderBy(tool => tool.Name, StringComparer.Ordinal)
+            .Select(tool =>
+            {
+                var schema = tool.ProtocolTool.OutputSchema!.Value;
+                var required = schema.TryGetProperty("required", out var requiredElement)
+                    ? requiredElement.EnumerateArray().Select(value => value.GetString()).ToArray()
+                    : [];
+                var properties = schema.TryGetProperty("properties", out var propertiesElement)
+                    ? propertiesElement.EnumerateObject().Select(property => property.Name).ToArray()
+                    : [];
+
+                return new
+                {
+                    name = tool.Name,
+                    required,
+                    properties,
+                    sha256 = Convert.ToHexStringLower(
+                        SHA256.HashData(Encoding.UTF8.GetBytes(schema.GetRawText())))
+                };
+            })
+            .ToArray();
+        var actual = JsonSerializer.SerializeToNode(schemas);
+        var snapshotPath = Path.Combine(
+            AppContext.BaseDirectory, "Snapshots", "mcp-structured-schema-baseline.json");
+        var expected = JsonNode.Parse(await File.ReadAllTextAsync(snapshotPath));
+
+        JsonNode.DeepEquals(actual, expected).Should().BeTrue(
+            "structured schema changes must be reviewed intentionally; " +
+            $"actual: {actual?.ToJsonString(new JsonSerializerOptions { WriteIndented = true })}");
+    }
+
     private WebApplicationFactory<Program> WithQueryService(ICodebaseQueryService queryService) =>
         _factory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -133,6 +236,51 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
              new ConnectionNodeResult(1, "target", "Target", "Method", "Example", "src/Target.cs", 20, "Example")],
             [new ConnectionEdgeResult(0, "source", "target", "Calls")],
             []);
+
+    private static GraphFreshnessResult CreateFreshness() =>
+        new(
+            "1.0",
+            "Example",
+            null,
+            true,
+            1,
+            0,
+            0,
+            Relationship(),
+            [new GraphFreshnessFindingResult(Node(), "High", "checksum indexed", "present", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "fresh")],
+            false,
+            null);
+
+    private static ImpactAnalysisResult CreateImpact() =>
+        new(
+            "1.0",
+            "source",
+            5,
+            true,
+            false,
+            "NotEvaluated",
+            Relationship(),
+            [new ImpactFindingResult(Node(), 1, "Unclassified", string.Empty, "—", "direct-class", [])],
+            false);
+
+    private static TestShieldResult CreateTestShield() =>
+        new(
+            "1.0", "source", "Example", 2, true, Node(), Relationship(),
+            [], [], [], [], [], null, false);
+
+    private static MinimalContextResult CreateMinimalContext() =>
+        new(
+            "1.0", "source", null, true, Node(), ContextDetailLevel.Compact.ToString(),
+            true, true, false, false, Relationship(),
+            new MinimalContextBudgetResult(3000, 400, 0, 0, true, MaximumStructuredPayloadBytes, "Low", "Small model", "Low", "bounded"),
+            [], [], [], [], [], [], [], null, ["src/Source.cs"], [], [], [],
+            new MinimalContextTruncationResult(false, false, false, false, false, false, false, false, false));
+
+    private static GraphNodeResult Node() =>
+        new("source", "Source", "Method", "Example", "src/Source.cs", 10, 12, "Example", "Bounded summary");
+
+    private static RelationshipCompletenessResult Relationship() =>
+        new("High", "complete", DateTimeOffset.UnixEpoch, null, 0, 0, 0, 0, 0, []);
 
     private sealed record StructuredCall(
         string Name,

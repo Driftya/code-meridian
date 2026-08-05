@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodeMeridian.Application.Services;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
@@ -193,11 +194,22 @@ public sealed class CodebaseQueryServiceBuildMinimalContextTests : CodebaseQuery
         graph.FindRelatedTestsAsync(target.Id, "Shop", Arg.Any<CancellationToken>())
              .Returns([]);
 
-        var result = await sut.BuildMinimalContextAsync(
+        var facts = await sut.BuildMinimalContextResultAsync(
             target: "Method:Shop.Orders.OrderService.PlaceOrder",
             maxTokens: 800,
             includeSourceSnippets: true);
+        var result = facts.ToMarkdown(ContextDetailLevel.Compact);
+        var json = JsonSerializer.Serialize(facts);
 
+        facts.ContractVersion.Should().Be("1.0");
+        facts.Snippets.Should().ContainSingle();
+        facts.Budget.StructuredPayloadLimitBytes.Should().Be(128 * 1024);
+        facts.Budget.SourceSnippetEstimatedTokens.Should().BeGreaterThan(0);
+        json.Should().Contain("EstimatedTokens");
+        json.Should().NotContain("ValidateOrder();");
+        json.Should().NotContain("MarkdownText");
+        json.Should().NotContain("\"SourceSnippet\":");
+        json.Should().NotContain("\"Properties\":");
         result.Should().Contain("### Source snippets");
         result.Should().Contain("PlaceOrder");
         result.Should().Contain("ValidateOrder();");
@@ -484,4 +496,3 @@ public sealed class CodebaseQueryServiceBuildMinimalContextTests : CodebaseQuery
 
 
 }
-

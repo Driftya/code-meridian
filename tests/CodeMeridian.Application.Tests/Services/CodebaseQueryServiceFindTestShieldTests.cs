@@ -36,8 +36,16 @@ public sealed class CodebaseQueryServiceFindTestShieldTests : CodebaseQueryServi
         graph.FindRelatedTestsAsync(frontendCaller.Id, "Shop", Arg.Any<CancellationToken>())
              .Returns([]);
 
-        var result = await sut.FindTestShieldAsync(target.Id, depth: 2);
+        var facts = await sut.FindTestShieldResultAsync(target.Id, depth: 2);
+        var result = facts.ToMarkdown();
 
+        facts.ContractVersion.Should().Be("1.0");
+        facts.DirectTests.Should().ContainSingle();
+        facts.PrimaryTests.Should().ContainSingle();
+        facts.SecondaryTests.Should().BeEmpty();
+        facts.UnshieldedNodes.Should().ContainSingle();
+        facts.FocusedRecommendations.Should().HaveCount(2);
+        facts.DirectTests[0].EvidencePath.Should().Contain("-[direct]->");
         result.Should().Contain("## Test Shield Map");
         result.Should().Contain("1 direct, 1 primary, 0 secondary, 1 unshielded path nodes");
         result.Should().Contain("### Direct test shield (1)");
@@ -310,4 +318,3 @@ public sealed class CodebaseQueryServiceFindTestShieldTests : CodebaseQueryServi
 
 
 }
-

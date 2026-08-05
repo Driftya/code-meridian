@@ -19,6 +19,10 @@ public sealed class McpLiveAcceptanceTests
     private const string ProjectContext = "CodeMeridian";
     private static readonly HashSet<string> StructuredToolNames =
     [
+        "check_graph_freshness",
+        "find_impact",
+        "find_test_shield",
+        "build_minimal_context",
         "find_connection",
         "get_client_extension_contract",
         "list_client_extension_examples",
@@ -71,6 +75,7 @@ public sealed class McpLiveAcceptanceTests
             new Dictionary<string, object?> { ["projectContext"] = ProjectContext });
 
         freshness.IsError.Should().NotBeTrue();
+        freshness.StructuredContent.Should().NotBeNull();
         var freshnessText = freshness.Content.OfType<TextContentBlock>().Should().ContainSingle()
             .Which.Text;
         freshnessText.Should().NotBeNullOrWhiteSpace();
@@ -95,6 +100,23 @@ public sealed class McpLiveAcceptanceTests
         var tools = await client.ListToolsAsync();
         var calls = new[]
         {
+            new StructuredCall("check_graph_freshness", new Dictionary<string, object?>
+            {
+                ["projectContext"] = ProjectContext
+            }),
+            new StructuredCall("find_impact", new Dictionary<string, object?>
+            {
+                ["nodeId"] = "__live_acceptance_missing_target__"
+            }),
+            new StructuredCall("find_test_shield", new Dictionary<string, object?>
+            {
+                ["nodeId"] = "__live_acceptance_missing_target__",
+                ["projectContext"] = ProjectContext
+            }),
+            new StructuredCall("build_minimal_context", new Dictionary<string, object?>
+            {
+                ["target"] = "__live_acceptance_missing_target__"
+            }),
             new StructuredCall("find_connection", new Dictionary<string, object?>
             {
                 ["fromId"] = "__live_acceptance_missing_source__",

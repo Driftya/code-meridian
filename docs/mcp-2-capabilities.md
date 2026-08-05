@@ -35,9 +35,13 @@ Annotations are client hints. Authentication, validation, and server-side policy
 
 ## Structured Results
 
-Four tools advertise an `outputSchema`, return camel-case `structuredContent`, and preserve useful Markdown in a text content block:
+Eight tools advertise an `outputSchema`, return camel-case `structuredContent`, and preserve useful Markdown in a text content block:
 
+- `build_minimal_context`
+- `check_graph_freshness`
 - `find_connection`
+- `find_impact`
+- `find_test_shield`
 - `get_client_extension_contract`
 - `list_client_extension_examples`
 - `get_client_extension_example`
@@ -52,11 +56,18 @@ The three client-extension tools retain their existing `v1` contract. `find_conn
 | `edges` | Ordered, non-null array of source, target, and relationship facts. |
 | `frontendSignals` | Non-null array of bounded frontend relationship summaries. |
 
-The connection payload deliberately excludes source snippets and arbitrary graph properties. Empty results use stable empty arrays rather than `null`. Declared nullable properties are serialized even when `null` so actual payloads continue matching the advertised schema.
+The four additional graph contracts use `contractVersion: "1.0"`:
+
+- `check_graph_freshness` exposes bounded node findings, confidence counts, index timestamps, and relationship completeness.
+- `find_impact` exposes bounded impacted nodes and non-recursive path segments while preserving confidence classification, depth, and truncation.
+- `find_test_shield` exposes direct, primary, secondary, recommended, and unshielded findings with confidence, evidence paths, and suggested commands.
+- `build_minimal_context` exposes bounded graph collections, files, snippet metadata, token-budget facts, degradation notes, and per-collection truncation flags.
+
+Structured graph payloads deliberately exclude source bodies and arbitrary graph property dictionaries. Minimal-context snippet bodies remain available only in the compatible Markdown block, avoiding duplication and leakage into `structuredContent`. Empty results use stable empty arrays rather than `null`. Declared nullable properties are serialized even when `null` so actual payloads continue matching the advertised schema.
 
 Both structured data and Markdown are produced from the same protocol-neutral Application record. MCP response construction and SDK attributes stay in `McpServer`; no MCP package dependency enters `Application` or `Core`.
 
-Endpoint tests validate every implemented structured response against its advertised JSON Schema, reject an invalid connection shape, enforce a 128 KiB pilot payload ceiling, and exercise the down-level text fallback.
+Endpoint tests validate every implemented structured response against its advertised JSON Schema, snapshot bounded schema fingerprints, reject an invalid connection shape, enforce a 128 KiB pilot payload ceiling, verify source-body exclusion, and exercise the down-level text fallback.
 
 The schema returned by authenticated `tools/list` is the authoritative machine-readable contract. Any removal or incompatible property/type change is breaking within its declared result version; additive nullable fields require compatibility review.
 

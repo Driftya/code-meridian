@@ -163,6 +163,19 @@ public partial class CodebaseQueryService
             builder.AppendLine($"**Relationship failure samples:** {string.Join("; ", trust.Samples)}");
     }
 
+    private static RelationshipCompletenessResult ToResult(RelationshipTrust trust) =>
+        new(
+            trust.Confidence,
+            trust.Reason,
+            trust.LastFullIndex,
+            trust.LastIncrementalIndex,
+            trust.ExternalOrUnindexedCount,
+            trust.UnresolvedLocalCount,
+            trust.IndeterminateCount,
+            trust.DuplicateCount,
+            trust.SyntheticCount,
+            trust.Samples);
+
     private static ParsedIndexRun ParseIndexRun(CodeNode node)
     {
         var properties = node.Properties;
