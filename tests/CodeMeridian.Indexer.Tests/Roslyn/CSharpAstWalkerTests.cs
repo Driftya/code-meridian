@@ -7,6 +7,141 @@ namespace CodeMeridian.Indexer.Tests.Roslyn;
 public sealed class CSharpAstWalkerTests
 {
     [Fact]
+    public void PredefinedStaticReceiver_PreservesTypedReceiverEvidence()
+    {
+        const string source = """
+            namespace Demo;
+
+            public sealed class Host
+            {
+                public bool HasValue(string? value) => string.IsNullOrEmpty(value);
+            }
+            """;
+
+        var (_, edges) = ExtractGraph(source, "src/Host.cs");
+
+        var call = edges.Should().ContainSingle(edge =>
+            edge.RelationshipType == "Calls"
+            && edge.CallName == "IsNullOrEmpty").Which;
+        call.Properties.Should().Contain("receiverKind", "TypedOrStatic");
+        call.Properties.Should().Contain("receiverTypeHint", "string");
+    }
+
+    [Fact]
+    public void ExplicitLambdaParameter_PreservesTypedReceiverEvidence()
+    {
+        const string source = """
+            namespace Demo;
+
+            public interface IRunner
+            {
+                void Run();
+            }
+
+            public sealed class Host
+            {
+                public void Execute()
+                {
+                    System.Action<IRunner> action = (IRunner runner) => runner.Run();
+                }
+            }
+            """;
+
+        var (_, edges) = ExtractGraph(source, "src/Host.cs");
+
+        var call = edges.Should().ContainSingle(edge =>
+            edge.RelationshipType == "Calls"
+            && edge.CallName == "Run").Which;
+        call.Properties.Should().Contain("receiverKind", "TypedOrStatic");
+        call.Properties.Should().Contain("receiverTypeHint", "IRunner");
+    }
+
+    [Fact]
+    public void ExtensionMethodWithParams_RecordsResolutionMetadata()
+    {
+        const string source = """
+            namespace Demo;
+
+            public interface IRunner;
+
+            public static class RunnerExtensions
+            {
+                public static void RunAll(this IRunner runner, params string[] names)
+                {
+                }
+            }
+            """;
+
+        var nodes = ExtractNodes(source, "src/RunnerExtensions.cs");
+
+        var method = nodes.Single(node => node.Type == "Method" && node.Name == "RunAll(IRunner,string[])");
+        method.Properties.Should().Contain("hasParamsParameter", "True");
+        method.Properties.Should().Contain("isExtensionMethod", "True");
+        method.Properties.Should().Contain("extensionReceiverType", "IRunner");
+    }
+
+    [Fact]
+    public void GenericInvocationAndMethod_RecordGenericAritySeparately()
+    {
+        const string source = """
+            namespace Demo;
+
+            public sealed class Host
+            {
+                public void Execute() => Target<string>("value");
+
+                private void Target<T>(T value)
+                {
+                }
+            }
+            """;
+
+        var (nodes, edges) = ExtractGraph(source, "src/Host.cs");
+
+        nodes.Single(node => node.Type == "Method" && node.Name == "Target(T)")
+            .Properties.Should().Contain("genericParameterCount", "1");
+        edges.Single(edge => edge.RelationshipType == "Calls" && edge.CallName == "Target")
+            .Properties.Should().Contain("genericArity", "1");
+    }
+
+    [Fact]
+    public void ThisMemberAndDeclarationPattern_PreserveTypedReceiverEvidence()
+    {
+        const string source = """
+            namespace Demo;
+
+            public interface IRunner
+            {
+                void RunField();
+                void RunPattern();
+            }
+
+            public sealed class Host
+            {
+                private readonly IRunner runner;
+
+                public Host(IRunner runner) => this.runner = runner;
+
+                public void Execute(object candidate)
+                {
+                    this.runner.RunField();
+                    if (candidate is IRunner matched)
+                        matched.RunPattern();
+                }
+            }
+            """;
+
+        var (_, edges) = ExtractGraph(source, "src/Host.cs");
+
+        var calls = edges.Where(edge => edge.RelationshipType == "Calls"
+            && edge.CallName is "RunField" or "RunPattern").ToArray();
+        calls.Should().HaveCount(2);
+        calls.Should().OnlyContain(call =>
+            call.Properties!["receiverKind"] == "TypedOrStatic"
+            && call.Properties["receiverTypeHint"] == "IRunner");
+    }
+
+    [Fact]
     public void ConditionalAccessInvocation_PreservesTypedReceiverEvidence()
     {
         const string source = """

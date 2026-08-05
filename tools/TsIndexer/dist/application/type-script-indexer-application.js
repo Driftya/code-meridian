@@ -18,7 +18,7 @@ export class TypeScriptIndexerApplication {
         }
         const batch = readIndexerBatchFile(options.rootPath, options.batchFilePath);
         console.log(`  Batch size: ${batch.files.length} file(s)`);
-        const { nodes, edges, relationshipHealth } = walkTypeScript(options.rootPath, options.projectName, batch.files, relativePath => batch.fileRoles.get(relativePath));
+        const { nodes, edges, relationshipHealth, usedFullResolutionCatalog } = walkTypeScript(options.rootPath, options.projectName, batch.files, relativePath => batch.fileRoles.get(relativePath), undefined, Boolean(options.isIncremental));
         console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
         console.log(`  Relationship outcomes: ${formatOutcomes('calls', relationshipHealth.calls)}; `
             + `${formatOutcomes('type references', relationshipHealth.typeReferences)}`);
@@ -46,11 +46,11 @@ export class TypeScriptIndexerApplication {
             },
         });
         console.log(`  Ingested ${edgeResult.successCount} edges${edgeResult.errorCount > 0 ? ` (${edgeResult.errorCount} errors)` : ''}`);
-        await persistIndexRun(client, options, batch.files.length, nodeResult.successCount, edgeResult.successCount, relationshipHealth);
+        await persistIndexRun(client, options, batch.files.length, nodeResult.successCount, edgeResult.successCount, relationshipHealth, !options.isIncremental || usedFullResolutionCatalog);
         console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
     }
 }
-async function persistIndexRun(client, options, scannedFileCount, ingestedNodeCount, ingestedEdgeCount, health) {
+async function persistIndexRun(client, options, scannedFileCount, ingestedNodeCount, ingestedEdgeCount, health, usedFullResolutionCatalog) {
     const mode = options.isIncremental ? 'incremental' : 'full';
     const normalizedScope = path.resolve(options.rootPath).replace(/\\/g, '/');
     const scopeId = createHash('sha256').update(normalizedScope.toLowerCase()).digest('hex').slice(0, 16);
@@ -81,7 +81,7 @@ async function persistIndexRun(client, options, scannedFileCount, ingestedNodeCo
         duplicateRelationshipCount: (calls.duplicateEdges + references.duplicateEdges).toString(),
         syntheticRelationshipCount: '0',
         relationshipFailureSamples: JSON.stringify([...calls.samples, ...references.samples]),
-        usedFullResolutionCatalog: (!options.isIncremental).toString(),
+        usedFullResolutionCatalog: usedFullResolutionCatalog.toString(),
     };
     await client.ingestNode({
         id: `${options.projectName}::IndexRun::typescript::${scopeId}::${mode}`,

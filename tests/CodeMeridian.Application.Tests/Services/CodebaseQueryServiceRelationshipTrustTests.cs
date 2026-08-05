@@ -100,6 +100,8 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
 
         result.Should().Contain("Relationship completeness is low");
         result.Should().Contain("2 unresolved local relationship(s)");
+        result.Should().Contain("top call reasons: unresolved_local:missing_local_target=2");
+        result.Should().Contain("5.4% of calls");
         result.Should().Contain("src/Service.cs:12");
     }
 
@@ -182,6 +184,14 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
             ["externalOrUnindexedRelationshipCount"] = external.ToString(),
             ["unresolvedLocalRelationshipCount"] = unresolvedLocal.ToString(),
             ["indeterminateRelationshipCount"] = indeterminate.ToString(),
+            ["callRelationshipOutcomes"] = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Reasons = new Dictionary<string, int>
+                {
+                    ["unresolved_local:missing_local_target"] = unresolvedLocal,
+                    ["indeterminate:unknown_member_receiver"] = indeterminate
+                }
+            }),
             ["relationshipFailureSamples"] = """[{"FilePath":"src/Service.cs","LineNumber":12,"Reason":"missing_local_target"}]""",
             ["usedFullResolutionCatalog"] = "true"
         }

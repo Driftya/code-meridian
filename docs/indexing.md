@@ -188,6 +188,8 @@ Changed and deleted files are removed from the project graph before re-indexing,
 
 For C#, node ingestion and relationship resolution have separate scopes. Only changed files own and upsert their file-backed nodes, but every current C# file participates in the resolution catalog. `Contains` and declaration edges are owned by their source file. Cross-file `Calls`, `Uses`, `Implements`, and inheritance edges are reconstructed from the surviving source declarations, so deleting or changing a target cannot permanently erase an incoming edge from an unchanged source. Synthetic targets without a file are ingested only when a changed source reaches them.
 
+TypeScript incremental indexing also separates emission from resolution. The changed-file batch controls which nodes and outgoing edges are ingested, while all current TypeScript files in that project root supply the method, type, import, and inheritance catalog used to resolve those edges. This permits a changed source to retain a proven edge to an unchanged target without re-ingesting the unchanged target node. Generated, dependency, build, cache, and declaration-file paths remain excluded by project discovery.
+
 C# and TypeScript index runs record relationship-health metadata using mutually exclusive candidate outcomes: resolved locally, external or outside the indexed scope, unresolved locally, and indeterminate. Duplicate resolved candidates and synthetic implementation edges are reported separately and do not distort candidate accounting. A full catalog with only resolved and external outcomes remains High confidence; indeterminate syntax-only cases lower confidence to Medium, while known local failures or a partial catalog lower it to Low. Legacy runs remain readable, but their old attempted-minus-resolved value is labeled as an estimate.
 
 Relationship resolution is best effort and intentionally does not create graph nodes for every framework or installed-package method. Bounded deterministic failure samples appear in freshness/drift evidence to make remaining local resolver cases reproducible without storing source bodies or argument values.
@@ -195,6 +197,8 @@ Relationship resolution is best effort and intentionally does not create graph n
 ## C# Indexing
 
 The C# indexer uses Roslyn syntax trees. It does not require a successful project build.
+
+Syntax-only call evidence recognizes predefined static receivers, typed parameters and members, explicit lambda/anonymous-method parameters, `foreach` and `catch` variables, declaration patterns, casts, parenthesized and null-forgiving receivers, conditional access, and object creation. Candidate selection accounts for optional and `params` parameters, explicit generic arity, extension-method receiver syntax, exact declaring types, and indexed local base/interface types. Calls that might come from an unindexed external base remain indeterminate rather than being forced onto an unrelated local method.
 
 It extracts:
 

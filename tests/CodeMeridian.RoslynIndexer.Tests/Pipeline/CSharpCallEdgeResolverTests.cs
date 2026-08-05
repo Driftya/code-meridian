@@ -6,6 +6,252 @@ namespace CodeMeridian.RoslynIndexer.Tests.Pipeline;
 public sealed class CSharpCallEdgeResolverTests
 {
     [Fact]
+    public void Resolve_PrefersTheCallingDeclaringTypeForUnqualifiedCalls()
+    {
+        var sourceId = "Project::Method::Demo.Service::Caller()";
+        var expectedTargetId = "Project::Method::Demo.Service::Target()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(sourceId, "Caller()", "Method", "Demo", "src/Caller.cs", 10, null,
+                Properties: new() { ["declaringTypeShortName"] = "Service" }),
+            new(expectedTargetId, "Target()", "Method", "Demo", "src/Service.cs", 20, null,
+                Properties: new() { ["declaringTypeShortName"] = "Service" }),
+            new("Project::Method::Demo.OtherService::Target()", "Target()", "Method", "Demo", "src/OtherService.cs", 20, null,
+                Properties: new() { ["declaringTypeShortName"] = "OtherService" })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: "Target", ParamCount: 0,
+                Properties: new() { ["receiverKind"] = "Unqualified" })
+        };
+
+        var result = CSharpCallEdgeResolver.Resolve(nodes, edges);
+
+        result.Should().ContainSingle(edge => edge.TargetId == expectedTargetId);
+    }
+
+    [Fact]
+    public void Resolve_AllowsAdditionalArgumentsForParamsParameters()
+    {
+        var sourceId = "Project::Method::Demo.Service::Caller()";
+        var targetId = "Project::Method::Demo.Service::Target(string[])";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(sourceId, "Caller()", "Method", "Demo", "src/Service.cs", 10, null,
+                Properties: new() { ["declaringTypeShortName"] = "Service" }),
+            new(targetId, "Target(string[])", "Method", "Demo", "src/Service.cs", 20, null,
+                Properties: new()
+                {
+                    ["declaringTypeShortName"] = "Service",
+                    ["requiredParameterCount"] = "0",
+                    ["totalParameterCount"] = "1",
+                    ["hasParamsParameter"] = "True"
+                })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: "Target", ParamCount: 3,
+                Properties: new() { ["receiverKind"] = "Unqualified" })
+        };
+
+        var result = CSharpCallEdgeResolver.Resolve(nodes, edges);
+
+        result.Should().ContainSingle(edge => edge.TargetId == targetId);
+    }
+
+    [Fact]
+    public void Resolve_AdjustsExtensionReceiverAndParamsArityForInstanceSyntax()
+    {
+        var sourceId = "Project::Method::Demo.Host::Caller()";
+        var targetId = "Project::Method::Demo.RunnerExtensions::RunAll(IRunner,string[])";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(sourceId, "Caller()", "Method", "Demo", "src/Host.cs", 10, null,
+                Properties: new() { ["declaringTypeShortName"] = "Host" }),
+            new(targetId, "RunAll(IRunner,string[])", "Method", "Demo", "src/RunnerExtensions.cs", 20, null,
+                Properties: new()
+                {
+                    ["declaringTypeShortName"] = "RunnerExtensions",
+                    ["requiredParameterCount"] = "1",
+                    ["totalParameterCount"] = "2",
+                    ["hasParamsParameter"] = "True",
+                    ["isExtensionMethod"] = "True",
+                    ["extensionReceiverType"] = "IRunner"
+                })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: "RunAll", ParamCount: 3,
+                Properties: new()
+                {
+                    ["receiverKind"] = "TypedOrStatic",
+                    ["receiverTypeHint"] = "IRunner"
+                })
+        };
+
+        var result = CSharpCallEdgeResolver.Resolve(nodes, edges);
+
+        result.Should().ContainSingle(edge => edge.TargetId == targetId);
+    }
+
+    [Fact]
+    public void Resolve_UsesExplicitGenericArityToSelectAnOverload()
+    {
+        var sourceId = "Project::Method::Demo.Service::Caller()";
+        var genericTargetId = "Project::Method::Demo.Service::Target(T)";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(sourceId, "Caller()", "Method", "Demo", "src/Service.cs", 10, null,
+                Properties: new() { ["declaringTypeShortName"] = "Service" }),
+            new("Project::Method::Demo.Service::Target(string)", "Target(string)", "Method", "Demo", "src/Service.cs", 20, null,
+                Properties: new()
+                {
+                    ["declaringTypeShortName"] = "Service",
+                    ["requiredParameterCount"] = "1",
+                    ["totalParameterCount"] = "1",
+                    ["genericParameterCount"] = "0"
+                }),
+            new(genericTargetId, "Target(T)", "Method", "Demo", "src/Service.cs", 25, null,
+                Properties: new()
+                {
+                    ["declaringTypeShortName"] = "Service",
+                    ["requiredParameterCount"] = "1",
+                    ["totalParameterCount"] = "1",
+                    ["genericParameterCount"] = "1"
+                })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: "Target", ParamCount: 1,
+                Properties: new()
+                {
+                    ["receiverKind"] = "Unqualified",
+                    ["genericArity"] = "1"
+                })
+        };
+
+        var result = CSharpCallEdgeResolver.Resolve(nodes, edges);
+
+        result.Should().ContainSingle(edge => edge.TargetId == genericTargetId);
+    }
+
+    [Fact]
+    public void Resolve_SelectsAMemberDeclaredOnAnExactLocalBaseType()
+    {
+        var sourceId = "Project::Method::Demo.Host::Caller()";
+        var baseTargetId = "Project::Method::Demo.BaseHost::Target()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new("Project::Class::Demo.Host", "Host", "Class", "Demo", "src/Host.cs", 1, null),
+            new("Project::Class::Demo.BaseHost", "BaseHost", "Class", "Demo", "src/BaseHost.cs", 1, null),
+            new("Project::Class::Demo.OtherHost", "OtherHost", "Class", "Demo", "src/OtherHost.cs", 1, null),
+            new(sourceId, "Caller()", "Method", "Demo", "src/Host.cs", 10, null,
+                Properties: new()
+                {
+                    ["declaringTypeId"] = "Project::Class::Demo.Host",
+                    ["declaringTypeShortName"] = "Host"
+                }),
+            new(baseTargetId, "Target()", "Method", "Demo", "src/BaseHost.cs", 20, null,
+                Properties: new()
+                {
+                    ["declaringTypeId"] = "Project::Class::Demo.BaseHost",
+                    ["declaringTypeShortName"] = "BaseHost"
+                }),
+            new("Project::Method::Demo.OtherHost::Target()", "Target()", "Method", "Demo", "src/OtherHost.cs", 20, null,
+                Properties: new()
+                {
+                    ["declaringTypeId"] = "Project::Class::Demo.OtherHost",
+                    ["declaringTypeShortName"] = "OtherHost"
+                })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new("Project::Class::Demo.Host", "Project::Class::BaseHost", "Inherits",
+                TargetName: "BaseHost", TargetType: "Class"),
+            new(sourceId, string.Empty, "Calls", CallName: "Target", ParamCount: 0,
+                Properties: new()
+                {
+                    ["receiverKind"] = "ThisOrBase",
+                    ["receiverTypeHint"] = "Host"
+                })
+        };
+
+        var result = CSharpCallEdgeResolver.Resolve(nodes, edges);
+
+        result.Should().ContainSingle(edge => edge.RelationshipType == "Calls" && edge.TargetId == baseTargetId);
+    }
+
+    [Fact]
+    public void Resolve_DoesNotUseAUniqueUnrelatedMethodForThisReceiver()
+    {
+        var sourceId = "Project::Method::Demo.Host::Caller()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new("Project::Class::Demo.Host", "Host", "Class", "Demo", "src/Host.cs", 1, null),
+            new(sourceId, "Caller()", "Method", "Demo", "src/Host.cs", 10, null,
+                Properties: new()
+                {
+                    ["declaringTypeId"] = "Project::Class::Demo.Host",
+                    ["declaringTypeShortName"] = "Host"
+                }),
+            new("Project::Method::Demo.OtherHost::Target()", "Target()", "Method", "Demo", "src/OtherHost.cs", 20, null,
+                Properties: new()
+                {
+                    ["declaringTypeId"] = "Project::Class::Demo.OtherHost",
+                    ["declaringTypeShortName"] = "OtherHost"
+                })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: "Target", ParamCount: 0,
+                Properties: new()
+                {
+                    ["receiverKind"] = "ThisOrBase",
+                    ["receiverTypeHint"] = "Host"
+                })
+        };
+
+        var result = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+
+        result.Edges.Should().BeEmpty();
+        result.UnresolvedByReason.Should().Contain("ambiguous_local_target", 1);
+    }
+
+    [Fact]
+    public void Resolve_ClassifiesPossibleExternalBaseMemberAsIndeterminate()
+    {
+        var sourceId = "Project::Method::Demo.Factory::Caller()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new("Project::Class::Demo.Factory", "Factory", "Class", "Demo", "src/Factory.cs", 1, null),
+            new(sourceId, "Caller()", "Method", "Demo", "src/Factory.cs", 10, null,
+                Properties: new()
+                {
+                    ["declaringTypeId"] = "Project::Class::Demo.Factory",
+                    ["declaringTypeShortName"] = "Factory"
+                })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new("Project::Class::Demo.Factory", "Project::Class::ExternalFactory", "Inherits",
+                TargetName: "ExternalFactory", TargetType: "Class"),
+            new(sourceId, string.Empty, "Calls", CallName: "CreateClient", ParamCount: 0,
+                Properties: new()
+                {
+                    ["receiverKind"] = "ThisOrBase",
+                    ["receiverTypeHint"] = "Factory"
+                })
+        };
+
+        var result = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+
+        result.Edges.Should().ContainSingle(edge => edge.RelationshipType == "Inherits");
+        result.UnresolvedByReason.Should().Contain("external_base_member_possible", 1);
+        result.Stats.Indeterminate.Should().Be(1);
+        result.Stats.UnresolvedLocal.Should().Be(0);
+    }
+
+    [Fact]
     public void Resolve_SelectsBestCandidateByNamespaceWhenFileDiffers()
     {
         var nodes = new List<IngestNodeRequest>

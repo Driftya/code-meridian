@@ -1,6 +1,6 @@
 # MCP 2 Capability Adoption Plan
 
-- Status: implementation, deployed SDK/real-graph acceptance, and current Codex connector discovery are complete; interactive VS Code/Continue and App-host rendering evidence remain
+- Status: implementation, all eight deployed structured contracts, real-graph acceptance, and current Codex connector discovery are complete; interactive VS Code/Continue and App-host rendering evidence remain
 - Date: 2026-08-04
 - Scope: adopt the MCP 2026-07-28 / C# SDK 2.x capabilities that materially improve CodeMeridian's safety, machine-readability, long-running operations, client experience, and operability
 - Primary host: `src/McpServer`
@@ -1059,7 +1059,7 @@ npm run build
 - [x] Connect with Codex using the same Streamable HTTP endpoint. After restart, the current connector lists both App resources and reads the connection-viewer resource successfully.
 - [ ] Connect with Continue using `streamable-http`. Continue is not installed on the acceptance workstation.
 - [x] Capture negotiated protocol version: `2026-07-28` through `server/discover`; pinned fallback `2025-11-25` through `initialize`.
-- [x] List all 62 tools and verify object input schemas, titles/annotations, and the deployed build's four advertised output schemas. The next deployment will advertise the four newly completed graph contracts as well.
+- [x] List all 62 tools and verify object input schemas, titles/annotations, and all eight deployed output schemas.
 - [x] Call every structured-output pilot and validate each payload against its advertised JSON Schema.
 - [x] Start and poll `classify_keywords`, then start and cancel `rebuild_keyword_graph`, against the real `CodeMeridian` graph.
 - [x] Verify private five-minute `tools/list` cache hints with the SDK client.
@@ -1078,6 +1078,17 @@ npm run build
 - [x] Tasks are enabled on the deployed server.
 - [x] Apps are enabled on the deployed server; live acceptance verified capability consistency, both `ui://` resources, `text/html;profile=mcp-app`, resource reads, and absence of embedded authorization/API-key material.
 - [x] The restarted Codex connector listed both deployed App resources and read the connection-viewer HTML successfully.
+
+#### Structured-pilot deployment evidence (2026-08-05)
+
+- [x] A fresh modern SDK client negotiated successfully and read the indexed graph.
+- [x] A pinned `2025-11-25` client retained useful text fallback behavior.
+- [x] The deployed `tools/list` advertised all eight structured tools, including `check_graph_freshness`, `find_impact`, `find_test_shield`, and `build_minimal_context`.
+- [x] Every deployed structured result validated against its advertised JSON Schema.
+- [x] The current Codex connector returned typed structured content plus useful text from `check_graph_freshness`, `find_impact`, `find_test_shield`, and `build_minimal_context` for the newly indexed `GraphFreshnessResult` symbol.
+- [x] The latest incremental index was recorded at `2026-08-05 07:46:29Z`; `GraphFreshnessResult` had High metadata confidence with checksum and line metadata present.
+- [ ] Relationship completeness remains Low: the latest graph reports 995 unresolved-local, 6,765 indeterminate, 4,777 external/unindexed, 130 duplicate-candidate, and 193 synthetic relationships.
+- [x] Four non-mutating live acceptance tests passed with zero failures. The two graph-maintenance Task tests were intentionally skipped because mutating acceptance was not enabled for this deployment check.
 - [ ] Render both Apps inline in each claimed compatible host and capture screenshots; resource discovery/read alone is not visual host acceptance.
 
 The live suite reads secrets only from process environment variables. The mutation switch is separate so ordinary live checks cannot accidentally start graph maintenance:

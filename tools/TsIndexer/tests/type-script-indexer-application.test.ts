@@ -103,9 +103,13 @@ describe('TypeScriptIndexerApplication', () => {
       .filter(body => body.type === 'Diagnostic' && body.properties?.externalKind !== 'IndexRun')).toEqual([]);
   });
 
-  it('marks incremental TypeScript relationship metadata as partial-catalog evidence', async () => {
+  it('uses a full relationship catalog for incremental TypeScript indexing', async () => {
     project.writeFile('tsconfig.json', '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}');
-    project.writeFile('src/service.ts', 'export function run() { console.log("ok"); }\n');
+    project.writeFile('src/helper.ts', 'export function helper() { return 1; }\n');
+    project.writeFile(
+      'src/service.ts',
+      'import { helper } from "./helper";\nexport function run() { return helper(); }\n',
+    );
 
     const rootPath = project.getRootPath();
     const batchFilePath = path.join(rootPath, 'batch.json');
@@ -132,8 +136,18 @@ describe('TypeScriptIndexerApplication', () => {
     expect(indexRun?.properties).toEqual(expect.objectContaining({
       language: 'TypeScript',
       mode: 'incremental',
-      usedFullResolutionCatalog: 'false',
+      usedFullResolutionCatalog: 'true',
     }));
+
+    const indexedNodes = readBodies(requests, '/api/v1/knowledge/nodes/bulk');
+    expect(indexedNodes.some(body => body.filePath === 'src/helper.ts')).toBe(false);
+    expect(readBodies(requests, '/api/v1/knowledge/nodes/edges/bulk')).toContainEqual(
+      expect.objectContaining({
+        sourceId: 'CodeMeridian:Method:src_service.ts:run',
+        targetId: 'CodeMeridian:Method:src_helper.ts:helper',
+        type: 'Calls',
+      }),
+    );
   });
 
   it('indexes batch entries without a file role', async () => {

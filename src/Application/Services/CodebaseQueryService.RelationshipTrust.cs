@@ -96,6 +96,9 @@ public partial class CodebaseQueryService
                 warnings.Add($"{scope} has a legacy unresolved estimate of {run.LegacyUnresolvedEstimate}; external and local failures were not distinguished");
             }
 
+            AppendTopReasonWarning(warnings, scope, "call", run.CallReasons, run.AttemptedCalls);
+            AppendTopReasonWarning(warnings, scope, "reference", run.ReferenceReasons, run.AttemptedReferences);
+
             var latestFull = parsedRuns.FirstOrDefault(candidate =>
                 candidate.Language == run.Language
                 && candidate.ResolutionScope == run.ResolutionScope
@@ -181,6 +184,8 @@ public partial class CodebaseQueryService
         var properties = node.Properties;
         var mode = Read("mode") ?? (node.Name.StartsWith("incremental", StringComparison.OrdinalIgnoreCase) ? "incremental" : "full");
         var attempted = ReadInt("attemptedCallEdges") + ReadInt("attemptedReferenceEdges");
+        var attemptedCalls = ReadInt("attemptedCallEdges");
+        var attemptedReferences = ReadInt("attemptedReferenceEdges");
         var resolved = ReadInt("resolvedCallEdges") + ReadInt("resolvedReferenceEdges");
         var schemaVersion = ReadInt("relationshipHealthSchemaVersion");
         return new ParsedIndexRun(
@@ -192,12 +197,16 @@ public partial class CodebaseQueryService
             ReadInt("scannedFileCount"),
             ReadInt("ingestedFileCount"),
             resolved,
+            attemptedCalls,
+            attemptedReferences,
             ReadInt("externalOrUnindexedRelationshipCount"),
             ReadInt("unresolvedLocalRelationshipCount"),
             ReadInt("indeterminateRelationshipCount"),
             ReadInt("duplicateRelationshipCount"),
             ReadInt("syntheticRelationshipCount"),
             schemaVersion >= 2 ? 0 : Math.Max(0, attempted - resolved),
+            ReadReasonCounts(Read("callRelationshipOutcomes")),
+            ReadReasonCounts(Read("referenceRelationshipOutcomes")),
             ReadSamples(Read("relationshipFailureSamples")),
             node.LastIndexedAt ?? node.UpdatedAt ?? node.CreatedAt);
 
@@ -230,6 +239,54 @@ public partial class CodebaseQueryService
         {
             return [];
         }
+    }
+
+    private static IReadOnlyDictionary<string, int> ReadReasonCounts(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return new Dictionary<string, int>(StringComparer.Ordinal);
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("Reasons", out var reasons)
+                && !root.TryGetProperty("reasons", out reasons))
+            {
+                return new Dictionary<string, int>(StringComparer.Ordinal);
+            }
+
+            return reasons.EnumerateObject()
+                .Where(property => property.Value.TryGetInt32(out _))
+                .ToDictionary(
+                    property => property.Name,
+                    property => property.Value.GetInt32(),
+                    StringComparer.Ordinal);
+        }
+        catch (JsonException)
+        {
+            return new Dictionary<string, int>(StringComparer.Ordinal);
+        }
+    }
+
+    private static void AppendTopReasonWarning(
+        ICollection<string> warnings,
+        string scope,
+        string edgeKind,
+        IReadOnlyDictionary<string, int> reasons,
+        int attempted)
+    {
+        var topReasons = reasons
+            .Where(item => item.Value > 0)
+            .OrderByDescending(item => item.Value)
+            .ThenBy(item => item.Key, StringComparer.Ordinal)
+            .Take(3)
+            .Select(item => attempted > 0
+                ? $"{item.Key}={item.Value} ({(item.Value * 100d / attempted).ToString("0.0", CultureInfo.InvariantCulture)}% of {edgeKind}s)"
+                : $"{item.Key}={item.Value}")
+            .ToArray();
+        if (topReasons.Length > 0)
+            warnings.Add($"{scope} top {edgeKind} reasons: {string.Join(", ", topReasons)}");
     }
 
     private static string? ReadJsonString(JsonElement element, string name) =>
@@ -269,12 +326,16 @@ public partial class CodebaseQueryService
         int ScannedFiles,
         int IngestedFiles,
         int ResolvedRelationships,
+        int AttemptedCalls,
+        int AttemptedReferences,
         int ExternalOrUnindexedCount,
         int UnresolvedLocalCount,
         int IndeterminateCount,
         int DuplicateCount,
         int SyntheticCount,
         int LegacyUnresolvedEstimate,
+        IReadOnlyDictionary<string, int> CallReasons,
+        IReadOnlyDictionary<string, int> ReferenceReasons,
         IReadOnlyList<string> Samples,
         DateTimeOffset? Timestamp);
 }

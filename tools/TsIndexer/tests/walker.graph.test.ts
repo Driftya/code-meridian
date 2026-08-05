@@ -5,6 +5,49 @@ import { useTempProject } from './walker-test-helpers.js';
 const project = useTempProject();
 
 describe('walkTypeScript graph indexing', () => {
+  it('uses unchanged files as an incremental resolution catalog without emitting their nodes', () => {
+    project.writeFile(
+      'target.ts',
+      `export function target() {
+  return 1;
+}
+`,
+    );
+    project.writeFile(
+      'caller.ts',
+      `import { target } from './target';
+
+export function caller() {
+  return target();
+}
+`,
+    );
+
+    const callerPath = project.listTypeScriptFiles()
+      .find(file => file.endsWith('caller.ts'))!;
+    const result = walkTypeScript(
+      project.getRootPath(),
+      'Proj',
+      [callerPath],
+      undefined,
+      undefined,
+      true,
+    );
+
+    expect(result.usedFullResolutionCatalog).toBe(true);
+    expect(result.nodes).toContainEqual(expect.objectContaining({
+      id: 'Proj:Method:caller.ts:caller',
+    }));
+    expect(result.nodes).not.toContainEqual(expect.objectContaining({
+      id: 'Proj:Method:target.ts:target',
+    }));
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:caller.ts:caller',
+      targetId: 'Proj:Method:target.ts:target',
+      type: 'Calls',
+    });
+  });
+
   it('classifies every call candidate exactly once and reports duplicate emitted edges', () => {
     project.writeFile(
       'health.ts',

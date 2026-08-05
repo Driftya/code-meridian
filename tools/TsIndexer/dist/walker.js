@@ -6,11 +6,13 @@ import { collectDatabaseTracingEdges, collectDatabaseTracingNodes } from './walk
 import { loadDatabaseTracingOptions } from './walker/database-tracing-options.js';
 import { collectEdges, collectNodes } from './walker/graph.js';
 import { collectRouteEdges, collectRouteNodes } from './walker/routes.js';
+import { discoverTypeScriptFiles } from './services/project-discovery.js';
 import { RelationshipOutcomeCollector, } from './relationship-health.js';
-export function walkTypeScript(rootPath, projectName, files, resolveFileRole, databaseTracingOptions) {
+export function walkTypeScript(rootPath, projectName, files, resolveFileRole, databaseTracingOptions, loadFullResolutionCatalog = false) {
     const nodes = [];
     const edges = [];
-    const knownIds = new Set();
+    const catalogNodes = [];
+    const catalogKnownIds = new Set();
     const methodIndex = new Map();
     const callOutcomes = new RelationshipOutcomeCollector('Calls');
     const typeReferenceOutcomes = new RelationshipOutcomeCollector('TypeReferences');
@@ -21,26 +23,39 @@ export function walkTypeScript(rootPath, projectName, files, resolveFileRole, da
         skipAddingFilesFromTsConfig: true,
         skipFileDependencyResolution: true,
     });
-    if (files.length > 0) {
-        tsProject.addSourceFilesAtPaths(files.map(file => path.resolve(file).replace(/\\/g, '/')));
+    const resolutionFiles = loadFullResolutionCatalog
+        ? discoverTypeScriptFiles(rootPath)
+        : files;
+    const projectFiles = [...new Set([...resolutionFiles, ...files].map(normalizeFilePath))];
+    if (projectFiles.length > 0) {
+        tsProject.addSourceFilesAtPaths(projectFiles);
     }
     const sourceFiles = tsProject.getSourceFiles();
+    const emittedFilePaths = new Set(files.map(file => normalizeFilePath(file).toLowerCase()));
+    const emittedSourceFiles = sourceFiles.filter(sourceFile => emittedFilePaths.has(normalizeFilePath(sourceFile.getFilePath()).toLowerCase()));
     for (const sourceFile of sourceFiles) {
-        collectNodes(sourceFile, rootPath, projectName, nodes, knownIds, resolveFileRole);
+        collectNodes(sourceFile, rootPath, projectName, catalogNodes, catalogKnownIds, resolveFileRole);
     }
     for (const sourceFile of sourceFiles) {
-        collectRouteNodes(sourceFile, rootPath, projectName, nodes, knownIds, resolveFileRole);
+        collectRouteNodes(sourceFile, rootPath, projectName, catalogNodes, catalogKnownIds, resolveFileRole);
     }
     for (const sourceFile of sourceFiles) {
-        collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, knownIds, resolveFileRole);
+        collectConfigurationNodes(sourceFile, rootPath, projectName, catalogNodes, catalogKnownIds, resolveFileRole);
     }
     for (const sourceFile of sourceFiles) {
-        collectDatabaseTracingNodes(sourceFile, rootPath, projectName, nodes, knownIds, tracingOptions, resolveFileRole);
+        collectDatabaseTracingNodes(sourceFile, rootPath, projectName, catalogNodes, catalogKnownIds, tracingOptions, resolveFileRole);
     }
-    indexMethods(nodes, methodIndex);
-    for (const sourceFile of sourceFiles) {
-        collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds, methodIndex, callOutcomes, typeReferenceOutcomes);
-        collectRouteEdges(sourceFile, rootPath, projectName, edges, knownIds);
+    indexMethods(catalogNodes, methodIndex);
+    const emittedKnownIds = new Set();
+    for (const sourceFile of emittedSourceFiles) {
+        collectNodes(sourceFile, rootPath, projectName, nodes, emittedKnownIds, resolveFileRole);
+        collectRouteNodes(sourceFile, rootPath, projectName, nodes, emittedKnownIds, resolveFileRole);
+        collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, emittedKnownIds, resolveFileRole);
+        collectDatabaseTracingNodes(sourceFile, rootPath, projectName, nodes, emittedKnownIds, tracingOptions, resolveFileRole);
+    }
+    for (const sourceFile of emittedSourceFiles) {
+        collectEdges(sourceFile, rootPath, projectName, catalogNodes, edges, catalogKnownIds, methodIndex, callOutcomes, typeReferenceOutcomes);
+        collectRouteEdges(sourceFile, rootPath, projectName, edges, catalogKnownIds);
         collectConfigurationEdges(sourceFile, rootPath, projectName, edges);
         collectDatabaseTracingEdges(sourceFile, rootPath, projectName, edges, tracingOptions);
     }
@@ -52,7 +67,11 @@ export function walkTypeScript(rootPath, projectName, files, resolveFileRole, da
             calls: callOutcomes.build(),
             typeReferences: typeReferenceOutcomes.build(),
         },
+        usedFullResolutionCatalog: loadFullResolutionCatalog,
     };
+}
+function normalizeFilePath(filePath) {
+    return path.resolve(filePath).replace(/\\/g, '/');
 }
 function indexMethods(nodes, methodIndex) {
     for (const node of nodes) {

@@ -28,11 +28,13 @@ export class TypeScriptIndexerApplication {
     const batch = readIndexerBatchFile(options.rootPath, options.batchFilePath);
     console.log(`  Batch size: ${batch.files.length} file(s)`);
 
-    const { nodes, edges, relationshipHealth } = walkTypeScript(
+    const { nodes, edges, relationshipHealth, usedFullResolutionCatalog } = walkTypeScript(
       options.rootPath,
       options.projectName,
       batch.files,
       relativePath => batch.fileRoles.get(relativePath),
+      undefined,
+      Boolean(options.isIncremental),
     );
 
     console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
@@ -79,6 +81,7 @@ export class TypeScriptIndexerApplication {
       nodeResult.successCount,
       edgeResult.successCount,
       relationshipHealth,
+      !options.isIncremental || usedFullResolutionCatalog,
     );
 
     console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
@@ -92,6 +95,7 @@ async function persistIndexRun(
   ingestedNodeCount: number,
   ingestedEdgeCount: number,
   health: TypeScriptRelationshipHealth,
+  usedFullResolutionCatalog: boolean,
 ): Promise<void> {
   const mode = options.isIncremental ? 'incremental' : 'full';
   const normalizedScope = path.resolve(options.rootPath).replace(/\\/g, '/');
@@ -123,7 +127,7 @@ async function persistIndexRun(
     duplicateRelationshipCount: (calls.duplicateEdges + references.duplicateEdges).toString(),
     syntheticRelationshipCount: '0',
     relationshipFailureSamples: JSON.stringify([...calls.samples, ...references.samples]),
-    usedFullResolutionCatalog: (!options.isIncremental).toString(),
+    usedFullResolutionCatalog: usedFullResolutionCatalog.toString(),
   };
 
   await client.ingestNode({

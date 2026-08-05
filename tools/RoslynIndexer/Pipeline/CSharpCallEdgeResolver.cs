@@ -23,13 +23,20 @@ internal static class CSharpCallEdgeResolver
                 MethodName(n.Name),
                 RequiredParameterCount(n),
                 TotalParameterCount(n),
-                ReadProperty(n.Properties, "declaringTypeShortName")))
+                ReadProperty(n.Properties, "declaringTypeId"),
+                ReadProperty(n.Properties, "declaringTypeShortName"),
+                ReadBooleanProperty(n.Properties, "hasParamsParameter"),
+                ReadBooleanProperty(n.Properties, "isExtensionMethod"),
+                ReadProperty(n.Properties, "extensionReceiverType"),
+                TryReadIntProperty(n.Properties, "genericParameterCount") ?? 0))
             .GroupBy(n => n.Name, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
         var localTypeNames = nodes
             .Where(node => node.Type is "Class" or "Interface" or "Struct" or "Record")
             .Select(node => node.Name)
             .ToHashSet(StringComparer.Ordinal);
+        var localTypeHierarchy = BuildLocalTypeHierarchy(nodes, edges);
+        var typesWithUnindexedBases = FindTypesWithUnindexedBases(nodes, edges);
 
         var resolved = new List<IngestEdgeRequest>(edges.Count);
         var outcomes = new RelationshipResolutionCollector("Calls");
@@ -62,16 +69,31 @@ internal static class CSharpCallEdgeResolver
 
             var receiverTypeHint = ReadProperty(edge, "receiverTypeHint");
             var receiverKind = ReadProperty(edge, "receiverKind");
+            var genericArity = TryReadIntProperty(edge.Properties, "genericArity");
             if (!methodCandidates.TryGetValue(edge.CallName, out var candidates))
             {
+                if (IsPossibleExternalBaseMember(source, receiverKind, typesWithUnindexedBases))
+                {
+                    outcomes.Record(
+                        RelationshipResolutionDisposition.Indeterminate,
+                        "external_base_member_possible",
+                        source,
+                        edge);
+                    continue;
+                }
+
                 var disposition = ClassifyMissingTarget(receiverKind, receiverTypeHint, localTypeNames);
                 outcomes.Record(disposition, MissingTargetReason(disposition), source, edge);
                 continue;
             }
 
             var compatibleCandidates = candidates
-                .Where(candidate => candidate.RequiredParameterCount <= edge.ParamCount.Value
-                    && edge.ParamCount.Value <= candidate.TotalParameterCount)
+                .Where(candidate => HasCompatibleArity(
+                    candidate,
+                    edge.ParamCount.Value,
+                    receiverTypeHint,
+                    receiverKind,
+                    genericArity))
                 .ToArray();
             if (compatibleCandidates.Length == 0)
             {
@@ -98,7 +120,12 @@ internal static class CSharpCallEdgeResolver
                 continue;
             }
 
-            var selected = SelectBestCandidate(source, compatibleCandidates, receiverTypeHint, receiverKind);
+            var selected = SelectBestCandidate(
+                source,
+                compatibleCandidates,
+                receiverTypeHint,
+                receiverKind,
+                localTypeHierarchy);
             if (selected is not null)
             {
                 var resolvedEdge = edge with { TargetId = selected.Id };
@@ -107,6 +134,16 @@ internal static class CSharpCallEdgeResolver
             }
             else
             {
+                if (IsPossibleExternalBaseMember(source, receiverKind, typesWithUnindexedBases))
+                {
+                    outcomes.Record(
+                        RelationshipResolutionDisposition.Indeterminate,
+                        "external_base_member_possible",
+                        source,
+                        edge);
+                    continue;
+                }
+
                 var disposition = IsKnownExternalReceiver(receiverKind, receiverTypeHint, localTypeNames)
                     ? RelationshipResolutionDisposition.ExternalOrUnindexed
                     : RelationshipResolutionDisposition.UnresolvedLocal;
@@ -178,18 +215,49 @@ internal static class CSharpCallEdgeResolver
         IngestNodeRequest source,
         IReadOnlyList<MethodCandidate> candidates,
         string? receiverTypeHint,
-        string? receiverKind)
+        string? receiverKind,
+        IReadOnlyDictionary<string, IReadOnlySet<string>> localTypeHierarchy)
     {
         if (!string.IsNullOrWhiteSpace(receiverTypeHint))
         {
             var exactReceiverMatches = candidates
-                .Where(candidate => string.Equals(candidate.DeclaringTypeShortName, receiverTypeHint, StringComparison.Ordinal))
+                .Where(candidate => string.Equals(candidate.DeclaringTypeShortName, receiverTypeHint, StringComparison.Ordinal)
+                    || IsExtensionReceiverMatch(candidate, receiverTypeHint))
                 .ToArray();
             if (exactReceiverMatches.Length == 1)
                 return exactReceiverMatches[0];
 
             if (string.Equals(receiverKind, "TypedOrStatic", StringComparison.Ordinal))
                 return null;
+        }
+
+        var sourceDeclaringTypeId = ReadProperty(source.Properties, "declaringTypeId");
+        if (receiverKind is "Unqualified" or "ThisOrBase")
+        {
+            var sourceDeclaringType = ReadProperty(source.Properties, "declaringTypeShortName");
+            var exactDeclaringTypeMatches = candidates
+                .Where(candidate => string.Equals(
+                    candidate.DeclaringTypeShortName,
+                    sourceDeclaringType,
+                    StringComparison.Ordinal))
+                .ToArray();
+            if (exactDeclaringTypeMatches.Length == 1)
+                return exactDeclaringTypeMatches[0];
+        }
+
+        if (sourceDeclaringTypeId is not null
+            && receiverKind is "Unqualified" or "ThisOrBase")
+        {
+            var relatedTypeIds = localTypeHierarchy.GetValueOrDefault(sourceDeclaringTypeId)
+                ?? new HashSet<string>([sourceDeclaringTypeId], StringComparer.Ordinal);
+            var sameTypeOrBase = candidates
+                .Where(candidate => candidate.DeclaringTypeId is not null
+                    && relatedTypeIds.Contains(candidate.DeclaringTypeId))
+                .ToArray();
+            if (sameTypeOrBase.Length == 1)
+                return sameTypeOrBase[0];
+
+            return null;
         }
 
         if (candidates.Count == 1)
@@ -278,6 +346,135 @@ internal static class CSharpCallEdgeResolver
 
     private static int RequiredParameterCount(IngestNodeRequest node) =>
         TryReadIntProperty(node.Properties, "requiredParameterCount") ?? TotalParameterCount(node);
+
+    private static bool HasCompatibleArity(
+        MethodCandidate candidate,
+        int argumentCount,
+        string? receiverTypeHint,
+        string? receiverKind,
+        int? genericArity)
+    {
+        if (genericArity is > 0 && candidate.GenericParameterCount != genericArity.Value)
+            return false;
+
+        var receiverAdjustment = UsesExtensionInstanceSyntax(candidate, receiverTypeHint, receiverKind) ? 1 : 0;
+        var requiredCount = Math.Max(0, candidate.RequiredParameterCount - receiverAdjustment);
+        var totalCount = Math.Max(0, candidate.TotalParameterCount - receiverAdjustment);
+        return requiredCount <= argumentCount
+            && (candidate.HasParamsParameter || argumentCount <= totalCount);
+    }
+
+    private static bool UsesExtensionInstanceSyntax(
+        MethodCandidate candidate,
+        string? receiverTypeHint,
+        string? receiverKind) =>
+        candidate.IsExtensionMethod
+        && string.Equals(receiverKind, "TypedOrStatic", StringComparison.Ordinal)
+        && IsExtensionReceiverMatch(candidate, receiverTypeHint);
+
+    private static bool IsExtensionReceiverMatch(MethodCandidate candidate, string? receiverTypeHint) =>
+        candidate.IsExtensionMethod
+        && !string.IsNullOrWhiteSpace(receiverTypeHint)
+        && string.Equals(candidate.ExtensionReceiverType, receiverTypeHint, StringComparison.Ordinal);
+
+    private static bool ReadBooleanProperty(Dictionary<string, string>? properties, string key) =>
+        ReadProperty(properties, key) is { } rawValue
+        && bool.TryParse(rawValue, out var value)
+        && value;
+
+    private static IReadOnlyDictionary<string, IReadOnlySet<string>> BuildLocalTypeHierarchy(
+        IReadOnlyList<IngestNodeRequest> nodes,
+        IReadOnlyList<IngestEdgeRequest> edges)
+    {
+        var typeNodes = nodes
+            .Where(node => node.Type is "Class" or "Interface" or "Struct" or "Record")
+            .ToArray();
+        var typeIds = typeNodes.Select(node => node.Id).ToHashSet(StringComparer.Ordinal);
+        var typeIdsByName = typeNodes
+            .GroupBy(node => node.Name, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Select(node => node.Id).ToArray(), StringComparer.Ordinal);
+        var directBases = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+
+        foreach (var edge in edges.Where(edge => edge.RelationshipType is "Inherits" or "Implements"))
+        {
+            if (!typeIds.Contains(edge.SourceId))
+                continue;
+
+            var targetId = typeIds.Contains(edge.TargetId)
+                ? edge.TargetId
+                : edge.TargetName is not null
+                    && typeIdsByName.TryGetValue(edge.TargetName, out var matches)
+                    && matches.Length == 1
+                        ? matches[0]
+                        : null;
+            if (targetId is null)
+                continue;
+
+            if (!directBases.TryGetValue(edge.SourceId, out var bases))
+            {
+                bases = new HashSet<string>(StringComparer.Ordinal);
+                directBases[edge.SourceId] = bases;
+            }
+            bases.Add(targetId);
+        }
+
+        return typeIds.ToDictionary(
+            typeId => typeId,
+            typeId => (IReadOnlySet<string>)CollectTypeClosure(typeId, directBases),
+            StringComparer.Ordinal);
+    }
+
+    private static HashSet<string> CollectTypeClosure(
+        string typeId,
+        IReadOnlyDictionary<string, HashSet<string>> directBases)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal) { typeId };
+        var pending = new Stack<string>();
+        pending.Push(typeId);
+        while (pending.TryPop(out var current))
+        {
+            if (!directBases.TryGetValue(current, out var bases))
+                continue;
+
+            foreach (var baseId in bases)
+            {
+                if (result.Add(baseId))
+                    pending.Push(baseId);
+            }
+        }
+
+        return result;
+    }
+
+    private static IReadOnlySet<string> FindTypesWithUnindexedBases(
+        IReadOnlyList<IngestNodeRequest> nodes,
+        IReadOnlyList<IngestEdgeRequest> edges)
+    {
+        var localTypeIds = nodes
+            .Where(node => node.Type is "Class" or "Interface" or "Struct" or "Record")
+            .Select(node => node.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var localTypeNames = nodes
+            .Where(node => node.Type is "Class" or "Interface" or "Struct" or "Record")
+            .Select(node => node.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        return edges
+            .Where(edge => edge.RelationshipType == "Inherits"
+                && localTypeIds.Contains(edge.SourceId)
+                && !localTypeIds.Contains(edge.TargetId)
+                && (edge.TargetName is null || !localTypeNames.Contains(edge.TargetName)))
+            .Select(edge => edge.SourceId)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static bool IsPossibleExternalBaseMember(
+        IngestNodeRequest source,
+        string? receiverKind,
+        IReadOnlySet<string> typesWithUnindexedBases) =>
+        string.Equals(receiverKind, "ThisOrBase", StringComparison.Ordinal)
+        && ReadProperty(source.Properties, "declaringTypeId") is { } declaringTypeId
+        && typesWithUnindexedBases.Contains(declaringTypeId);
 
     private static int? TryReadIntProperty(Dictionary<string, string>? properties, string key) =>
         ReadProperty(properties, key) is { } rawValue && int.TryParse(rawValue, out var value)

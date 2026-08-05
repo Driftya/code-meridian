@@ -14,7 +14,7 @@ Package, protocol, compatibility, and rollback changes are summarized in [the lo
 | C# SDK pinned down-level | Local and deployed | Negotiates `2025-11-25` through `initialize`; tools, annotations, structured results, Tasks, cache hints, and text fallbacks remain available. |
 | Non-App MCP clients | Yes | Apps are disabled by default, and App-backed tools retain ordinary text and structured results. |
 | VS Code | Pending interactive acceptance | Workspace configuration uses `type: "http"` against the existing `/sse` path; the acceptance workstation has VS Code 1.127.0. |
-| Codex | Pending connector restart | A fresh SDK connection passes. The connection opened before deployment retains `Mcp-Session-Id`; restart the extension before host acceptance. |
+| Codex | Protocol and resource discovery verified | The restarted connector reads the deployed resources and returns typed freshness, impact, test-shield, and minimal-context structured content. Inline App rendering remains host-dependent. |
 | Continue | Not tested | Continue is not installed on the acceptance workstation. |
 
 The local modern and down-level baselines intentionally lock stable contract facts rather than entire response bodies: negotiated version, handshake path, tool count, annotation count, structured-tool inventory, capability flags, and discovery cache policy. Descriptions remain outside strict snapshots so documentation improvements do not cause protocol churn.
@@ -192,17 +192,17 @@ The SDK upgrade, stateless transport, safety annotations, and versioned result c
 
 The following work is intentionally not claimed as complete:
 
-- restart the Codex extension and run the final interactive VS Code/Codex matrix against the updated deployed server
+- run the final interactive VS Code matrix against the updated deployed server
 - install and test Continue only if it remains a supported-client claim
 - capture host-specific screenshots and confirm which hosts render MCP Apps
 - add principal-aware authorization if more than one authenticated identity is introduced
 - select durable/shared task storage before any multi-replica deployment
 - define phase/percentage progress and host-shutdown drain/cancel semantics
 - measure production tool latency and concurrency before adding tool-aware rate limits
-- decide from client evidence whether additional graph tools justify structured conversion or another App
-- enable Apps in an experimental deployment before collecting real-host resource/rendering evidence
+- decide from client evidence whether any graph tools beyond the five implemented pilots justify structured conversion or another App
+- collect real-host rendering evidence for the enabled experimental Apps
 
-The deployed SDK, structured-output, cache, graph-read, Task-completion, and Task-cancellation checks pass. No further graph index rebuild is required for the implementation and test work above.
+The deployed SDK, all eight structured outputs, cache, graph-read, Task-completion, and Task-cancellation checks pass. The 2026-08-05 incremental index includes the four new graph result contracts; no further graph index rebuild is required for this implementation.
 
 ## Local Verification
 

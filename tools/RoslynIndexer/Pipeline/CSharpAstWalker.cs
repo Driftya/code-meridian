@@ -429,7 +429,7 @@ internal sealed class CSharpAstWalker(
         var span = node.GetLocation().GetLineSpan();
         var line = span.StartLinePosition.Line + 1;
         var lineCount = span.EndLinePosition.Line - span.StartLinePosition.Line + 1;
-        var properties = BuildMemberProperties(containerId, parameters);
+        var properties = BuildMemberProperties(containerId, parameters, GetGenericParameterCount(node));
 
         nodes.Add(new IngestNodeRequest(id, signature, "Method",
             _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node), HashSource(node.ToFullString()), properties));
@@ -482,7 +482,10 @@ internal sealed class CSharpAstWalker(
             : memberName;
     }
 
-    private static Dictionary<string, string>? BuildMemberProperties(string containerId, IEnumerable<ParameterSyntax>? parameters = null)
+    private static Dictionary<string, string>? BuildMemberProperties(
+        string containerId,
+        IEnumerable<ParameterSyntax>? parameters = null,
+        int genericParameterCount = 0)
     {
         Dictionary<string, string>? properties = null;
 
@@ -502,8 +505,27 @@ internal sealed class CSharpAstWalker(
         properties ??= new Dictionary<string, string>(StringComparer.Ordinal);
         properties["totalParameterCount"] = parameterArray.Length.ToString();
         properties["requiredParameterCount"] = CountRequiredParameters(parameterArray).ToString();
+        properties["hasParamsParameter"] = parameterArray
+            .Any(parameter => parameter.Modifiers.Any(SyntaxKind.ParamsKeyword))
+            .ToString();
+
+        var extensionReceiver = parameterArray.FirstOrDefault(parameter =>
+            parameter.Modifiers.Any(SyntaxKind.ThisKeyword));
+        properties["isExtensionMethod"] = (extensionReceiver is not null).ToString();
+        if (extensionReceiver?.Type is not null && CleanTypeName(extensionReceiver.Type.ToString()) is { } receiverType)
+            properties["extensionReceiverType"] = receiverType;
+        properties["genericParameterCount"] = genericParameterCount.ToString();
+
         return properties;
     }
+
+    private static int GetGenericParameterCount(SyntaxNode node) =>
+        node switch
+        {
+            MethodDeclarationSyntax method => method.TypeParameterList?.Parameters.Count ?? 0,
+            LocalFunctionStatementSyntax localFunction => localFunction.TypeParameterList?.Parameters.Count ?? 0,
+            _ => 0
+        };
 
     private static int CountRequiredParameters(IEnumerable<ParameterSyntax> parameters) =>
         parameters.Count(parameter =>
@@ -585,17 +607,25 @@ internal sealed class CSharpAstWalker(
 
     private void AddInvocationEdges(SyntaxNode node, string sourceId)
     {
+        var currentTypeShortName = TryGetDeclaringTypeInfo(
+            _currentTypeId ?? string.Empty,
+            out _,
+            out var resolvedCurrentTypeShortName)
+                ? resolvedCurrentTypeShortName
+                : null;
+        IReadOnlyDictionary<string, string> scopedTypes = _identifierTypeScopes.Count > 0
+            ? _identifierTypeScopes.Peek()
+            : new Dictionary<string, string>(StringComparer.Ordinal);
         var invocations = node.DescendantNodes()
             .OfType<InvocationExpressionSyntax>()
-            .Where(invocation => ReferenceEquals(FindOwningCallable(invocation), node))
-            .Select(invocation => new
-            {
-                Name = ExtractCalleeName(invocation),
-                ParamCount = invocation.ArgumentList.Arguments.Count,
-                ReceiverTypeHint = ResolveReceiverTypeHint(invocation),
-                ReceiverKind = ClassifyReceiver(invocation)
-            })
-            .Where(call => call.Name is not null)
+            .Select(invocation => CSharpInvocationEvidenceExtractor.Extract(
+                invocation,
+                node,
+                currentTypeShortName,
+                scopedTypes,
+                _currentTypeMemberTypes))
+            .Where(evidence => evidence is not null)
+            .Select(evidence => evidence!)
             .Distinct();
 
         foreach (var callee in invocations)
@@ -605,24 +635,15 @@ internal sealed class CSharpAstWalker(
                 TargetId: string.Empty,
                 RelationshipType: "Calls",
                 CallName: callee.Name,
-                ParamCount: callee.ParamCount,
-                Properties: BuildCallProperties(callee.ReceiverTypeHint, callee.ReceiverKind)));
+                ParamCount: callee.ParameterCount,
+                Properties: BuildCallProperties(callee.ReceiverTypeHint, callee.ReceiverKind, callee.GenericArity)));
         }
     }
 
-    private static SyntaxNode? FindOwningCallable(InvocationExpressionSyntax invocation) =>
-        invocation.Ancestors().FirstOrDefault(ancestor => ancestor is
-            MethodDeclarationSyntax or
-            ConstructorDeclarationSyntax or
-            LocalFunctionStatementSyntax or
-            IndexerDeclarationSyntax or
-            OperatorDeclarationSyntax or
-            ConversionOperatorDeclarationSyntax or
-            PropertyDeclarationSyntax or
-            EventDeclarationSyntax or
-            FieldDeclarationSyntax);
-
-    private static Dictionary<string, string> BuildCallProperties(string? receiverTypeHint, string receiverKind)
+    private static Dictionary<string, string> BuildCallProperties(
+        string? receiverTypeHint,
+        string receiverKind,
+        int genericArity)
     {
         var properties = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -630,58 +651,11 @@ internal sealed class CSharpAstWalker(
         };
         if (receiverTypeHint is not null)
             properties["receiverTypeHint"] = receiverTypeHint;
+        properties["genericArity"] = genericArity.ToString();
 
         return properties;
     }
 
-    private string ClassifyReceiver(InvocationExpressionSyntax invocation)
-    {
-        var receiver = GetReceiverExpression(invocation);
-        if (receiver is null)
-            return "Unqualified";
-
-        if (receiver is ThisExpressionSyntax or BaseExpressionSyntax)
-            return "ThisOrBase";
-
-        return ResolveReceiverTypeHint(invocation) is not null
-            ? "TypedOrStatic"
-            : "UnknownMember";
-    }
-
-    private string? ResolveReceiverTypeHint(InvocationExpressionSyntax invocation)
-    {
-        var receiver = GetReceiverExpression(invocation);
-        if (receiver is null)
-            return null;
-
-        return receiver switch
-        {
-            ThisExpressionSyntax => TryGetDeclaringTypeInfo(_currentTypeId ?? string.Empty, out _, out var currentTypeShortName)
-                ? currentTypeShortName
-                : null,
-            BaseExpressionSyntax => null,
-            IdentifierNameSyntax identifierName when _identifierTypeScopes.Count > 0
-                && _identifierTypeScopes.Peek().TryGetValue(identifierName.Identifier.Text, out var scopedType) => scopedType,
-            IdentifierNameSyntax identifierName when _currentTypeMemberTypes.TryGetValue(identifierName.Identifier.Text, out var memberType) => memberType,
-            IdentifierNameSyntax identifierName when char.IsUpper(identifierName.Identifier.Text.FirstOrDefault()) => identifierName.Identifier.Text,
-            ObjectCreationExpressionSyntax objectCreation => CleanTypeName(objectCreation.Type.ToString()),
-            _ => null
-        };
-    }
-
-    private static ExpressionSyntax? GetReceiverExpression(InvocationExpressionSyntax invocation)
-    {
-        if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
-            return memberAccess.Expression;
-
-        if (invocation.Expression is not MemberBindingExpressionSyntax)
-            return null;
-
-        return invocation.Ancestors()
-            .OfType<ConditionalAccessExpressionSyntax>()
-            .FirstOrDefault(conditional => conditional.WhenNotNull.Span.Contains(invocation.Span))
-            ?.Expression;
-    }
 
     private void AddParameterTypeUseEdges(SeparatedSyntaxList<ParameterSyntax> parameters, string sourceId)
     {
@@ -756,15 +730,6 @@ internal sealed class CSharpAstWalker(
             .Select(l => l.TrimStart().TrimStart('/', ' ').Trim())
             .Where(l => l.Length > 0));
     }
-
-    private static string? ExtractCalleeName(InvocationExpressionSyntax invocation) =>
-        invocation.Expression switch
-        {
-            MemberAccessExpressionSyntax m => m.Name.Identifier.Text,
-            MemberBindingExpressionSyntax m => m.Name.Identifier.Text,
-            IdentifierNameSyntax i => i.Identifier.Text,
-            _ => null
-        };
 
     private static string? CleanTypeName(string? rawType)
     {
