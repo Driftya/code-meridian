@@ -881,7 +881,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <table>
 <tr>
 <th>Covered lines:</th>
-<td class="limit-width right" title="52">52</td>
+<td class="limit-width right" title="67">67</td>
 </tr>
 <tr>
 <th>Uncovered lines:</th>
@@ -889,7 +889,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Coverable lines:</th>
-<td class="limit-width right" title="52">52</td>
+<td class="limit-width right" title="67">67</td>
 </tr>
 <tr>
 <th>Total lines:</th>
@@ -897,7 +897,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Line coverage:</th>
-<td class="limit-width right" title="52 of 52">100%</td>
+<td class="limit-width right" title="67 of 67">100%</td>
 </tr>
 </table>
 </div>
@@ -906,20 +906,20 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Branch coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar20">80%</div>
+<div class="large cardpercentagebar cardpercentagebar18">81%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered branches:</th>
-<td class="limit-width right" title="16">16</td>
+<td class="limit-width right" title="18">18</td>
 </tr>
 <tr>
 <th>Total branches:</th>
-<td class="limit-width right" title="20">20</td>
+<td class="limit-width right" title="22">22</td>
 </tr>
 <tr>
 <th>Branch coverage:</th>
-<td class="limit-width right" title="16 of 20">80%</td>
+<td class="limit-width right" title="18 of 22">81.8%</td>
 </tr>
 </table>
 </div>
@@ -944,10 +944,12 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <thead><tr><th>Method</th></tr></thead>
 <tbody>
 <tr><td title="walkFrontend()V"><a href="#file0_line7" class="navigatetohash">walkFrontend()</a></td></tr>
-<tr><td title="walkTypeScript()V"><a href="#file0_line21" class="navigatetohash">walkTypeScript()</a></td></tr>
-<tr><td title="(anonymous_1)()V"><a href="#file0_line44" class="navigatetohash">(anonymous_1)()V</a></td></tr>
-<tr><td title="indexMethods()V"><a href="#file0_line91" class="navigatetohash">indexMethods()</a></td></tr>
-<tr><td title="methodShortName()V"><a href="#file0_line101" class="navigatetohash">methodShortName()</a></td></tr>
+<tr><td title="walkTypeScript()V"><a href="#file0_line23" class="navigatetohash">walkTypeScript()</a></td></tr>
+<tr><td title="(anonymous_1)()V"><a href="#file0_line56" class="navigatetohash">(anonymous_1)()V</a></td></tr>
+<tr><td title="(anonymous_2)()V"><a href="#file0_line57" class="navigatetohash">(anonymous_2)()V</a></td></tr>
+<tr><td title="normalizeFilePath()V"><a href="#file0_line111" class="navigatetohash">normalizeFilePath()</a></td></tr>
+<tr><td title="indexMethods()V"><a href="#file0_line115" class="navigatetohash">indexMethods()</a></td></tr>
+<tr><td title="methodShortName()V"><a href="#file0_line125" class="navigatetohash">methodShortName()</a></td></tr>
 </tbody>
 </table>
 </div>
@@ -977,36 +979,38 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line18"></a><code>18</code></td><td></td><td class="lightgray"><code></code></td></tr>
 <tr class="coverableline" title="Covered (4 visits)" data-coverage="{'AllTestMethods': {'VC': '4', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">4</td><td class="rightmargin right"><a id="file0_line19"></a><code>19</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;for&nbsp;(let&nbsp;index&nbsp;=&nbsp;0;&nbsp;index&nbsp;&lt;&nbsp;files.length;&nbsp;index++)&nbsp;{</code></td></tr>
 <tr class="coverableline" title="Covered (9 visits)" data-coverage="{'AllTestMethods': {'VC': '9', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">9</td><td class="rightmargin right"><a id="file0_line20"></a><code>20</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;file&nbsp;=&nbsp;files[index];</code></td></tr>
-<tr class="coverableline" title="Covered (61 visits)" data-coverage="{'AllTestMethods': {'VC': '61', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">61</td><td class="rightmargin right"><a id="file0_line21"></a><code>21</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;extension&nbsp;=&nbsp;path.extname(file).toLowerCase();</code></td></tr>
+<tr class="coverableline" title="Covered (9 visits)" data-coverage="{'AllTestMethods': {'VC': '9', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">9</td><td class="rightmargin right"><a id="file0_line21"></a><code>21</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;extension&nbsp;=&nbsp;path.extname(file).toLowerCase();</code></td></tr>
 <tr class="coverableline" title="Covered (9 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '9', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">9</td><td class="rightmargin right"><a id="file0_line22"></a><code>22</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(extension&nbsp;===&nbsp;&#39;.html&#39;)&nbsp;{</code></td></tr>
-<tr class="coverableline" title="Covered (3 visits)" data-coverage="{'AllTestMethods': {'VC': '3', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">3</td><td class="rightmargin right"><a id="file0_line23"></a><code>23</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;collectHtmlArtifacts(rootPath,&nbsp;projectName,&nbsp;file,&nbsp;nodes,&nbsp;edges,&nbsp;knownIds,&nbsp;resolveFileRole);</code></td></tr>
+<tr class="coverableline" title="Covered (56 visits)" data-coverage="{'AllTestMethods': {'VC': '56', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">56</td><td class="rightmargin right"><a id="file0_line23"></a><code>23</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;collectHtmlArtifacts(rootPath,&nbsp;projectName,&nbsp;file,&nbsp;nodes,&nbsp;edges,&nbsp;knownIds,&nbsp;resolveFileRole);</code></td></tr>
 <tr class="coverableline" title="Covered (6 visits, 4 of 4 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line24"></a><code>24</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;}&nbsp;else&nbsp;if&nbsp;(extension&nbsp;===&nbsp;&#39;.css&#39;&nbsp;||&nbsp;extension&nbsp;===&nbsp;&#39;.scss&#39;)&nbsp;{</code></td></tr>
 <tr class="coverableline" title="Covered (4 visits)" data-coverage="{'AllTestMethods': {'VC': '4', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">4</td><td class="rightmargin right"><a id="file0_line25"></a><code>25</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;collectStyleArtifacts(rootPath,&nbsp;projectName,&nbsp;file,&nbsp;nodes,&nbsp;edges,&nbsp;knownIds,&nbsp;resolveFileRole);</code></td></tr>
 <tr class="coverableline" title="Partially covered (2 visits, 2 of 4 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line26"></a><code>26</code></td><td class="percentagebar percentagebar50"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;}&nbsp;else&nbsp;if&nbsp;(extension&nbsp;===&nbsp;&#39;.tsx&#39;&nbsp;||&nbsp;extension&nbsp;===&nbsp;&#39;.jsx&#39;)&nbsp;{</code></td></tr>
 <tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line27"></a><code>27</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;collectTsxArtifacts(rootPath,&nbsp;projectName,&nbsp;file,&nbsp;nodes,&nbsp;edges,&nbsp;knownIds,&nbsp;resolveFileRole);</code></td></tr>
-<tr class="coverableline" title="Covered (52 visits)" data-coverage="{'AllTestMethods': {'VC': '52', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">52</td><td class="rightmargin right"><a id="file0_line28"></a><code>28</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
-<tr class="coverableline" title="Covered (52 visits)" data-coverage="{'AllTestMethods': {'VC': '52', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">52</td><td class="rightmargin right"><a id="file0_line29"></a><code>29</code></td><td></td><td class="lightgreen"><code></code></td></tr>
-<tr class="coverableline" title="Covered (61 visits)" data-coverage="{'AllTestMethods': {'VC': '61', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">61</td><td class="rightmargin right"><a id="file0_line30"></a><code>30</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;onProgress?.({</code></td></tr>
-<tr class="coverableline" title="Covered (52 visits)" data-coverage="{'AllTestMethods': {'VC': '52', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">52</td><td class="rightmargin right"><a id="file0_line31"></a><code>31</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;processedFiles:&nbsp;index&nbsp;+&nbsp;1,</code></td></tr>
-<tr class="coverableline" title="Covered (52 visits)" data-coverage="{'AllTestMethods': {'VC': '52', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">52</td><td class="rightmargin right"><a id="file0_line32"></a><code>32</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;totalFiles,</code></td></tr>
-<tr class="coverableline" title="Covered (52 visits)" data-coverage="{'AllTestMethods': {'VC': '52', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">52</td><td class="rightmargin right"><a id="file0_line33"></a><code>33</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;currentFile:&nbsp;file,</code></td></tr>
-<tr class="coverableline" title="Covered (52 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '52', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">52</td><td class="rightmargin right"><a id="file0_line34"></a><code>34</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;});</code></td></tr>
-<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line35"></a><code>35</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;}</code></td></tr>
-<tr class="coverableline" title="Covered (52 visits)" data-coverage="{'AllTestMethods': {'VC': '52', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">52</td><td class="rightmargin right"><a id="file0_line36"></a><code>36</code></td><td></td><td class="lightgreen"><code></code></td></tr>
-<tr class="coverableline" title="Covered (56 visits)" data-coverage="{'AllTestMethods': {'VC': '56', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">56</td><td class="rightmargin right"><a id="file0_line37"></a><code>37</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;return&nbsp;{&nbsp;nodes,&nbsp;edges&nbsp;};</code></td></tr>
-<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line38"></a><code>38</code></td><td></td><td class="lightgray"><code>}</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line28"></a><code>28</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line29"></a><code>29</code></td><td></td><td class="lightgray"><code></code></td></tr>
+<tr class="coverableline" title="Covered (9 visits)" data-coverage="{'AllTestMethods': {'VC': '9', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">9</td><td class="rightmargin right"><a id="file0_line30"></a><code>30</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;onProgress?.({</code></td></tr>
+<tr class="coverableline" title="Covered (53 visits)" data-coverage="{'AllTestMethods': {'VC': '53', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">53</td><td class="rightmargin right"><a id="file0_line31"></a><code>31</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;processedFiles:&nbsp;index&nbsp;+&nbsp;1,</code></td></tr>
+<tr class="coverableline" title="Covered (53 visits)" data-coverage="{'AllTestMethods': {'VC': '53', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">53</td><td class="rightmargin right"><a id="file0_line32"></a><code>32</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;totalFiles,</code></td></tr>
+<tr class="coverableline" title="Covered (53 visits)" data-coverage="{'AllTestMethods': {'VC': '53', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">53</td><td class="rightmargin right"><a id="file0_line33"></a><code>33</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;currentFile:&nbsp;file,</code></td></tr>
+<tr class="coverableline" title="Covered (53 visits)" data-coverage="{'AllTestMethods': {'VC': '53', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">53</td><td class="rightmargin right"><a id="file0_line34"></a><code>34</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;});</code></td></tr>
+<tr class="coverableline" title="Covered (53 visits)" data-coverage="{'AllTestMethods': {'VC': '53', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">53</td><td class="rightmargin right"><a id="file0_line35"></a><code>35</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;}</code></td></tr>
+<tr class="coverableline" title="Covered (53 visits)" data-coverage="{'AllTestMethods': {'VC': '53', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">53</td><td class="rightmargin right"><a id="file0_line36"></a><code>36</code></td><td></td><td class="lightgreen"><code></code></td></tr>
+<tr class="coverableline" title="Covered (57 visits)" data-coverage="{'AllTestMethods': {'VC': '57', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">57</td><td class="rightmargin right"><a id="file0_line37"></a><code>37</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;return&nbsp;{&nbsp;nodes,&nbsp;edges&nbsp;};</code></td></tr>
+<tr class="coverableline" title="Covered (53 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '53', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">53</td><td class="rightmargin right"><a id="file0_line38"></a><code>38</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>}</code></td></tr>
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.11.0<br />08/05/2026 - 07:47:01<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.11.0<br />08/05/2026 - 11:32:05<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>
 <a href="#file0_line7" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - walkFrontend()V"><i class="icon-cube"></i>walkFrontend()V</a><br />
-<a href="#file0_line21" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - walkTypeScript()V"><i class="icon-cube"></i>walkTypeScript()V</a><br />
-<a href="#file0_line44" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - (anonymous_1)()V"><i class="icon-cube"></i>(anonymous_1)()V</a><br />
-<a href="#file0_line91" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - indexMethods()V"><i class="icon-cube"></i>indexMethods()V</a><br />
-<a href="#file0_line101" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - methodShortName()V"><i class="icon-cube"></i>methodShortName()V</a><br />
+<a href="#file0_line23" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - walkTypeScript()V"><i class="icon-cube"></i>walkTypeScript()V</a><br />
+<a href="#file0_line56" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - (anonymous_1)()V"><i class="icon-cube"></i>(anonymous_1)()V</a><br />
+<a href="#file0_line57" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - (anonymous_2)()V"><i class="icon-cube"></i>(anonymous_2)()V</a><br />
+<a href="#file0_line111" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - normalizeFilePath()V"><i class="icon-cube"></i>normalizeFilePath()V</a><br />
+<a href="#file0_line115" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - indexMethods()V"><i class="icon-cube"></i>indexMethods()V</a><br />
+<a href="#file0_line125" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - methodShortName()V"><i class="icon-cube"></i>methodShortName()V</a><br />
 <br/></div>
 </div></div>
 <script type="text/javascript">/* <![CDATA[ */ /* Chartist.js 0.11.4
