@@ -30,6 +30,15 @@ public partial class CodebaseQueryService
                 Limit = 200
             },
             cancellationToken);
+        var scopeCatalogs = await codeGraph.QueryNodesAsync(
+            new CodeGraphQuery
+            {
+                TypeFilter = CodeNodeType.Diagnostic,
+                NameFilter = "relationship scope catalog",
+                ProjectContext = projectContext,
+                Limit = 20
+            },
+            cancellationToken);
         var parsedRuns = nativeRuns
             .Concat(compatibleRuns)
             .Where(IsRelationshipIndexRun)
@@ -37,6 +46,15 @@ public partial class CodebaseQueryService
             .Select(ParseIndexRun)
             .OrderByDescending(run => run.Timestamp)
             .ToArray();
+        var activeTypeScriptScopes = ReadActiveTypeScriptScopes(scopeCatalogs);
+        if (activeTypeScriptScopes is not null)
+        {
+            parsedRuns = parsedRuns
+                .Where(run => !string.Equals(run.Language, "TypeScript", StringComparison.OrdinalIgnoreCase)
+                    || activeTypeScriptScopes.Contains(NormalizeResolutionScope(run.ResolutionScope)))
+                .ToArray();
+        }
+
         if (parsedRuns.Length == 0)
         {
             return new RelationshipTrust(
@@ -228,10 +246,22 @@ public partial class CodebaseQueryService
                 {
                     var reason = ReadJsonString(element, "Reason") ?? ReadJsonString(element, "reason") ?? "unknown reason";
                     var file = ReadJsonString(element, "FilePath") ?? ReadJsonString(element, "filePath");
+                    var fileRole = ReadJsonString(element, "FileRole") ?? ReadJsonString(element, "fileRole");
+                    var receiverShape = ReadJsonString(element, "ReceiverKind")
+                        ?? ReadJsonString(element, "receiverKind")
+                        ?? ReadJsonString(element, "receiverShape");
                     var line = ReadJsonInt(element, "LineNumber") ?? ReadJsonInt(element, "lineNumber");
+                    var rolePrefix = fileRole switch
+                    {
+                        "Source" => "production ",
+                        "Test" => "test ",
+                        { Length: > 0 } => $"{fileRole.ToLowerInvariant()} ",
+                        _ => string.Empty
+                    };
+                    var detail = receiverShape is null ? reason : $"{reason}; receiver={receiverShape}";
                     return string.IsNullOrWhiteSpace(file)
-                        ? reason
-                        : $"{file}{(line is > 0 ? $":{line}" : "")} ({reason})";
+                        ? detail
+                        : $"{rolePrefix}{file}{(line is > 0 ? $":{line}" : "")} ({detail})";
                 })
                 .ToArray();
         }
@@ -300,10 +330,46 @@ public partial class CodebaseQueryService
             : null;
 
     private static bool IsRelationshipIndexRun(CodeNode node) =>
-        node.Type == CodeNodeType.IndexRun
+        (node.Type == CodeNodeType.IndexRun
         || (node.Type == CodeNodeType.Diagnostic
             && node.Properties.TryGetValue("externalKind", out var externalKind)
-            && string.Equals(externalKind, "IndexRun", StringComparison.Ordinal));
+            && string.Equals(externalKind, "IndexRun", StringComparison.Ordinal)))
+        && (!node.Properties.TryGetValue("indexRunKind", out var indexRunKind)
+            || !string.Equals(indexRunKind, "IndexScopeCatalog", StringComparison.Ordinal));
+
+    private static HashSet<string>? ReadActiveTypeScriptScopes(IEnumerable<CodeNode> nodes)
+    {
+        var catalog = nodes
+            .Where(node => node.Type == CodeNodeType.Diagnostic
+                && node.Properties.TryGetValue("externalKind", out var externalKind)
+                && string.Equals(externalKind, "IndexRun", StringComparison.Ordinal)
+                && node.Properties.TryGetValue("indexRunKind", out var indexRunKind)
+                && string.Equals(indexRunKind, "IndexScopeCatalog", StringComparison.Ordinal)
+                && node.Properties.TryGetValue("language", out var language)
+                && string.Equals(language, "TypeScript", StringComparison.OrdinalIgnoreCase))
+            .MaxBy(node => node.LastIndexedAt ?? node.UpdatedAt ?? node.CreatedAt);
+        if (catalog is null
+            || !catalog.Properties.TryGetValue("resolutionScopes", out var scopesJson)
+            || string.IsNullOrWhiteSpace(scopesJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            var scopes = JsonSerializer.Deserialize<string[]>(scopesJson) ?? [];
+            return scopes
+                .Select(NormalizeResolutionScope)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string NormalizeResolutionScope(string scope) =>
+        scope.Replace('\\', '/').TrimEnd('/');
 
     private sealed record RelationshipTrust(
         string Confidence,

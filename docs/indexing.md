@@ -190,9 +190,13 @@ For C#, node ingestion and relationship resolution have separate scopes. Only ch
 
 TypeScript incremental indexing also separates emission from resolution. The changed-file batch controls which nodes and outgoing edges are ingested, while all current TypeScript files in that project root supply the method, type, import, and inheritance catalog used to resolve those edges. This permits a changed source to retain a proven edge to an unchanged target without re-ingesting the unchanged target node. Generated, dependency, build, cache, and declaration-file paths remain excluded by project discovery.
 
+The unified indexer also persists the current set of active TypeScript resolution scopes. Relationship-confidence readers use that catalog to ignore historical index-run records for roots that are no longer discovered. The catalog uses index-run compatibility metadata so diagnostics replacement preserves it and does not count it as an ordinary diagnostic.
+
 C# and TypeScript index runs record relationship-health metadata using mutually exclusive candidate outcomes: resolved locally, external or outside the indexed scope, unresolved locally, and indeterminate. Duplicate resolved candidates and synthetic implementation edges are reported separately and do not distort candidate accounting. A full catalog with only resolved and external outcomes remains High confidence; indeterminate syntax-only cases lower confidence to Medium, while known local failures or a partial catalog lower it to Low. Legacy runs remain readable, but their old attempted-minus-resolved value is labeled as an estimate.
 
 Relationship resolution is best effort and intentionally does not create graph nodes for every framework or installed-package method. Bounded deterministic failure samples appear in freshness/drift evidence to make remaining local resolver cases reproducible without storing source bodies or argument values.
+
+Use `codemeridian report relationship-health --project <name>` for a read-only table of the latest relationship outcomes per language, scope, and mode. Add `--format json` for normalized automation output. The report includes call/reference reason histograms, file-role failure counts, and TypeScript catalog load/file/heap evidence; it intentionally excludes source bodies, credentials, and arbitrary graph properties.
 
 ## C# Indexing
 
@@ -311,6 +315,8 @@ The report includes:
 - bridge nodes from betweenness centrality when GDS is available
 - untested methods/classes from coverage-gap analysis
 - graph freshness confidence
+
+`codemeridian report relationship-health` is the narrower relationship-resolution report. It reads persisted index-run evidence directly and is useful for comparing full and incremental catalog completeness, outcome rates, reason families, and TypeScript catalog cost.
 
 ## `codemeridian check-drift`
 

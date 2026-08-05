@@ -392,7 +392,11 @@ public sealed class IndexCommandHandlerTests
             Options.Create(settings),
             new ProjectDiscoveryService(),
             new IndexerStoragePathService(),
-            new DiagnosticsCommand(new ProjectDiscoveryService()));
+            new DiagnosticsCommand(new ProjectDiscoveryService()),
+            new TypeScriptScopeCatalogWriter((url, _) => new HttpClient(new SuccessfulHandler())
+            {
+                BaseAddress = new Uri(url)
+            }));
 
     private static ResolvedIndexerSettings CreateSettings(
         DirectoryInfo root,
@@ -432,6 +436,14 @@ public sealed class IndexCommandHandlerTests
         };
 
     private sealed record TypeScriptBatchEntry(string Path, string FileRole);
+
+    private sealed class SuccessfulHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+    }
 
     private sealed class TestWorkspace : IDisposable
     {

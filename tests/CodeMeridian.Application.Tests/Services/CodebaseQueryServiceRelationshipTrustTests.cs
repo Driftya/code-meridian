@@ -105,6 +105,53 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
         result.Should().Contain("src/Service.cs:12");
     }
 
+    [Fact]
+    public async Task CheckGraphFreshnessAsync_WithOneUnresolvedLocalRelationship_ReportsLowTrust()
+    {
+        var (sut, graph) = Build();
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == null),
+                Arg.Any<CancellationToken>())
+            .Returns([SourceNode()]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.IndexRun),
+                Arg.Any<CancellationToken>())
+            .Returns([V2IndexRun(external: 0, unresolvedLocal: 1, indeterminate: 0)]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "Project");
+
+        result.Should().Contain("**Relationship completeness:** Low");
+        result.Should().Contain("reported 1 unresolved local relationship(s)");
+    }
+
+    [Fact]
+    public async Task CheckGraphFreshnessAsync_WithTypeScriptScopeCatalog_IgnoresRemovedScopes()
+    {
+        var (sut, graph) = Build();
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == null),
+                Arg.Any<CancellationToken>())
+            .Returns([SourceNode()]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.IndexRun),
+                Arg.Any<CancellationToken>())
+            .Returns([
+                V2IndexRun(external: 3, unresolvedLocal: 0, indeterminate: 0, language: "TypeScript", scope: "J:/repo/active"),
+                V2IndexRun(external: 0, unresolvedLocal: 9, indeterminate: 0, language: "TypeScript", scope: "J:/repo/removed")
+            ]);
+        graph.QueryNodesAsync(
+                Arg.Is<CodeGraphQuery>(query => query.TypeFilter == CodeNodeType.Diagnostic
+                    && query.NameFilter == "relationship scope catalog"),
+                Arg.Any<CancellationToken>())
+            .Returns([TypeScriptScopeCatalog("J:/repo/active")]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "Project");
+
+        result.Should().Contain("**Relationship completeness:** High");
+        result.Should().NotContain("9 unresolved local");
+        result.Should().Contain("classified 3 relationship(s)");
+    }
+
     private static (CodebaseQueryService Sut, ICodeGraphRepository Graph) Build()
     {
         var graph = Substitute.For<ICodeGraphRepository>();
@@ -160,10 +207,12 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
         int external,
         int unresolvedLocal,
         int indeterminate,
-        bool compatible = false) => new()
+        bool compatible = false,
+        string language = "CSharp",
+        string scope = "project") => new()
     {
-        Id = "Project::IndexRun::v2",
-        Name = "full C# index run",
+        Id = $"Project::IndexRun::v2::{language}::{scope}",
+        Name = $"full {language} index run",
         Type = compatible ? CodeNodeType.Diagnostic : CodeNodeType.IndexRun,
         ProjectContext = "Project",
         UpdatedAt = DateTimeOffset.Parse("2026-07-22T10:00:00Z"),
@@ -172,8 +221,8 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
         {
             ["externalKind"] = "IndexRun",
             ["relationshipHealthSchemaVersion"] = "2",
-            ["language"] = "CSharp",
-            ["resolutionScope"] = "project",
+            ["language"] = language,
+            ["resolutionScope"] = scope,
             ["mode"] = "full",
             ["scannedFileCount"] = "40",
             ["ingestedFileCount"] = "40",
@@ -194,6 +243,23 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
             }),
             ["relationshipFailureSamples"] = """[{"FilePath":"src/Service.cs","LineNumber":12,"Reason":"missing_local_target"}]""",
             ["usedFullResolutionCatalog"] = "true"
+        }
+    };
+
+    private static CodeNode TypeScriptScopeCatalog(params string[] scopes) => new()
+    {
+        Id = "Project::IndexScopeCatalog::typescript",
+        Name = "TypeScript relationship scope catalog",
+        Type = CodeNodeType.Diagnostic,
+        ProjectContext = "Project",
+        UpdatedAt = DateTimeOffset.Parse("2026-07-23T10:00:00Z"),
+        LastIndexedAt = DateTimeOffset.Parse("2026-07-23T10:00:00Z"),
+        Properties = new Dictionary<string, string>
+        {
+            ["externalKind"] = "IndexRun",
+            ["indexRunKind"] = "IndexScopeCatalog",
+            ["language"] = "TypeScript",
+            ["resolutionScopes"] = System.Text.Json.JsonSerializer.Serialize(scopes)
         }
     };
 }

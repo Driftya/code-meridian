@@ -35,10 +35,13 @@ internal sealed record MethodCandidate(
     int TotalParameterCount,
     string? DeclaringTypeId,
     string? DeclaringTypeShortName,
+    string? DeclaringTypeCanonicalName,
     bool HasParamsParameter,
     bool IsExtensionMethod,
     string? ExtensionReceiverType,
-    int GenericParameterCount);
+    string? ExtensionReceiverCanonicalType,
+    int GenericParameterCount,
+    bool HasExactParameterMetadata);
 
 internal sealed record TypeCandidate(string Id, string Type, string? Namespace, string? FilePath, string Name, string ShortName);
 

@@ -206,9 +206,10 @@ export function collectNodes(sourceFile, rootPath, projectName, nodes, knownIds,
         }, classifyFileRole);
     }
 }
-export function collectEdges(sourceFile, rootPath, projectName, _nodes, edges, knownIds, methodIndex, callOutcomes, typeReferenceOutcomes) {
+export function collectEdges(sourceFile, rootPath, projectName, nodes, edges, knownIds, methodIndex, callOutcomes, typeReferenceOutcomes) {
     const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
     const fId = fileId(projectName, relPath);
+    const sourceFileRole = nodes.find(node => node.id === fId)?.fileRole;
     for (const cls of sourceFile.getClasses()) {
         const name = cls.getName() ?? '<anonymous>';
         const cId = nodeId(projectName, relPath, name, 'Class');
@@ -221,8 +222,9 @@ export function collectEdges(sourceFile, rootPath, projectName, _nodes, edges, k
             addCallEdges(projectName, rootPath, knownIds, mId, method.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
                 filePath: relPath,
                 className: name,
+                fileRole: sourceFileRole,
             });
-            addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds, typeReferenceOutcomes);
+            addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
         }
         for (const ctor of cls.getConstructors()) {
             const ctorId = nodeId(projectName, relPath, `${name}.constructor`, 'Method');
@@ -231,14 +233,15 @@ export function collectEdges(sourceFile, rootPath, projectName, _nodes, edges, k
             addCallEdges(projectName, rootPath, knownIds, ctorId, ctor.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
                 filePath: relPath,
                 className: name,
+                fileRole: sourceFileRole,
             });
-            addTypeUseEdges(projectName, rootPath, relPath, ctor, ctorId, edges, knownIds, typeReferenceOutcomes);
+            addTypeUseEdges(projectName, rootPath, relPath, ctor, ctorId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
         }
         for (const prop of cls.getProperties()) {
             const pId = nodeId(projectName, relPath, `${name}.${prop.getName()}`, 'Property');
             if (knownIds.has(pId))
                 edges.push({ sourceId: cId, targetId: pId, type: 'Contains' });
-            addTypeUseEdges(projectName, rootPath, relPath, prop, pId, edges, knownIds, typeReferenceOutcomes);
+            addTypeUseEdges(projectName, rootPath, relPath, prop, pId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
         }
         const baseClass = cls.getBaseClass();
         if (baseClass) {
@@ -262,7 +265,7 @@ export function collectEdges(sourceFile, rootPath, projectName, _nodes, edges, k
             const mId = nodeId(projectName, relPath, `${name}.${method.getName()}`, 'Method');
             if (knownIds.has(mId))
                 edges.push({ sourceId: iId, targetId: mId, type: 'Contains' });
-            addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds, typeReferenceOutcomes);
+            addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
         }
         for (const ext of iface.getExtends()) {
             const matchingId = resolveHeritageTargetId(projectName, rootPath, ext, knownIds);
@@ -277,8 +280,9 @@ export function collectEdges(sourceFile, rootPath, projectName, _nodes, edges, k
             edges.push({ sourceId: fId, targetId: fnId, type: 'Contains' });
         addCallEdges(projectName, rootPath, knownIds, fnId, fn.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
             filePath: relPath,
+            fileRole: sourceFileRole,
         });
-        addTypeUseEdges(projectName, rootPath, relPath, fn, fnId, edges, knownIds, typeReferenceOutcomes);
+        addTypeUseEdges(projectName, rootPath, relPath, fn, fnId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
     }
     for (const variable of getTopLevelFunctionVariables(sourceFile)) {
         const variableId = nodeId(projectName, relPath, variable.getName(), 'Method');
@@ -290,20 +294,21 @@ export function collectEdges(sourceFile, rootPath, projectName, _nodes, edges, k
             continue;
         addCallEdges(projectName, rootPath, knownIds, variableId, initializer.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
             filePath: relPath,
+            fileRole: sourceFileRole,
         });
-        addTypeUseEdges(projectName, rootPath, relPath, variable, variableId, edges, knownIds, typeReferenceOutcomes);
+        addTypeUseEdges(projectName, rootPath, relPath, variable, variableId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
     }
     for (const typeAlias of sourceFile.getTypeAliases()) {
         const aliasId = nodeId(projectName, relPath, typeAlias.getName(), 'Interface');
         if (knownIds.has(aliasId))
             edges.push({ sourceId: fId, targetId: aliasId, type: 'Contains' });
-        addTypeUseEdges(projectName, rootPath, relPath, typeAlias, aliasId, edges, knownIds, typeReferenceOutcomes);
+        addTypeUseEdges(projectName, rootPath, relPath, typeAlias, aliasId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
     }
     for (const testCase of extractIndexedTestCases(sourceFile, projectName, relPath)) {
         if (knownIds.has(testCase.id)) {
             edges.push({ sourceId: fId, targetId: testCase.id, type: 'Contains' });
         }
-        addCallEdges(projectName, rootPath, knownIds, testCase.id, testCase.callback.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, { filePath: relPath });
+        addCallEdges(projectName, rootPath, knownIds, testCase.id, testCase.callback.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, { filePath: relPath, fileRole: sourceFileRole });
     }
     for (const enumDecl of sourceFile.getEnums()) {
         const eId = nodeId(projectName, relPath, enumDecl.getName(), 'Enum');
@@ -355,7 +360,7 @@ function addCallEdges(projectName, rootPath, knownIds, sourceId, calls, edges, m
         }
         const calleeName = calleeShortName(call);
         if (!calleeName) {
-            outcomes.record('indeterminate', 'missing_call_name', relationshipSample(call, sourceId, source.filePath));
+            outcomes.record('indeterminate', 'missing_call_name', relationshipSample(call, sourceId, source.filePath, undefined, source.fileRole));
             continue;
         }
         const candidates = methodIndex.get(calleeName) ?? [];
@@ -371,7 +376,7 @@ function addCallEdges(projectName, rootPath, knownIds, sourceId, calls, edges, m
             continue;
         }
         const classification = classifyUnresolvedCall(call, rootPath, candidates.length > 0);
-        outcomes.record(classification.disposition, classification.reason, relationshipSample(call, sourceId, source.filePath, calleeName));
+        outcomes.record(classification.disposition, classification.reason, relationshipSample(call, sourceId, source.filePath, calleeName, source.fileRole));
     }
 }
 function resolveCallTargetId(projectName, rootPath, call, knownIds) {
@@ -471,7 +476,7 @@ function findInterfaceId(shortName, projectName, knownIds) {
     }
     return undefined;
 }
-function addTypeUseEdges(projectName, rootPath, relPath, node, sourceId, edges, knownIds, outcomes) {
+function addTypeUseEdges(projectName, rootPath, relPath, node, sourceId, edges, knownIds, outcomes, fileRole) {
     const typeReferences = node.getDescendantsOfKind(SyntaxKind.TypeReference);
     for (const typeRef of typeReferences) {
         const targetId = resolveTypeReference(projectName, rootPath, relPath, typeRef, knownIds);
@@ -486,7 +491,7 @@ function addTypeUseEdges(projectName, rootPath, relPath, node, sourceId, edges, 
             continue;
         }
         const classification = classifyUnresolvedSymbol(typeRef.getTypeName().getSymbol(), rootPath);
-        outcomes.record(classification.disposition, classification.reason, relationshipSample(typeRef, sourceId, relPath, typeRef.getText()));
+        outcomes.record(classification.disposition, classification.reason, relationshipSample(typeRef, sourceId, relPath, typeRef.getText(), fileRole));
     }
 }
 function resolveTypeReference(projectName, rootPath, _relPath, typeRef, knownIds) {
@@ -744,12 +749,16 @@ function isPathWithinRoot(filePath, normalizedRoot) {
     const normalizedFile = path.resolve(filePath).toLowerCase();
     return normalizedFile === normalizedRoot || normalizedFile.startsWith(`${normalizedRoot}${path.sep}`);
 }
-function relationshipSample(node, sourceId, filePath, targetName) {
+function relationshipSample(node, sourceId, filePath, targetName, fileRole) {
     return {
         sourceId,
         filePath,
+        ...(fileRole ? { fileRole } : {}),
         lineNumber: node.getStartLineNumber(),
         ...(targetName ? { targetName } : {}),
+        ...(node.getKind() === SyntaxKind.CallExpression
+            ? { receiverShape: node.asKindOrThrow(SyntaxKind.CallExpression).getExpression().getKindName() }
+            : {}),
     };
 }
 function sanitizeNamespace(value) {

@@ -25,15 +25,20 @@ internal static class CSharpCallEdgeResolver
                 TotalParameterCount(n),
                 ReadProperty(n.Properties, "declaringTypeId"),
                 ReadProperty(n.Properties, "declaringTypeShortName"),
+                ReadProperty(n.Properties, "declaringTypeCanonicalName"),
                 ReadBooleanProperty(n.Properties, "hasParamsParameter"),
                 ReadBooleanProperty(n.Properties, "isExtensionMethod"),
                 ReadProperty(n.Properties, "extensionReceiverType"),
-                TryReadIntProperty(n.Properties, "genericParameterCount") ?? 0))
+                ReadProperty(n.Properties, "extensionReceiverCanonicalType"),
+                TryReadIntProperty(n.Properties, "genericParameterCount") ?? 0,
+                string.Equals(ReadProperty(n.Properties, "parameterMetadata"), "exact-syntax", StringComparison.Ordinal)))
             .GroupBy(n => n.Name, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
         var localTypeNames = nodes
             .Where(node => node.Type is "Class" or "Interface" or "Struct" or "Record")
-            .Select(node => node.Name)
+            .Select(node => CSharpTypeIdentityNormalizer.Normalize(node.Name)?.ShortName)
+            .Where(name => name is not null)
+            .Select(name => name!)
             .ToHashSet(StringComparer.Ordinal);
         var localTypeHierarchy = BuildLocalTypeHierarchy(nodes, edges);
         var typesWithUnindexedBases = FindTypesWithUnindexedBases(nodes, edges);
@@ -67,7 +72,10 @@ internal static class CSharpCallEdgeResolver
                 continue;
             }
 
-            var receiverTypeHint = ReadProperty(edge, "receiverTypeHint");
+            var receiverIdentity = CSharpTypeIdentityNormalizer.Normalize(
+                ReadProperty(edge, "receiverCanonicalTypeHint") ?? ReadProperty(edge, "receiverTypeHint"));
+            var receiverTypeHint = receiverIdentity?.ShortName;
+            var receiverCanonicalTypeHint = receiverIdentity?.CanonicalName;
             var receiverKind = ReadProperty(edge, "receiverKind");
             var genericArity = TryReadIntProperty(edge.Properties, "genericArity");
             if (!methodCandidates.TryGetValue(edge.CallName, out var candidates))
@@ -97,12 +105,37 @@ internal static class CSharpCallEdgeResolver
                 .ToArray();
             if (compatibleCandidates.Length == 0)
             {
+                if (candidates.Any(candidate => !candidate.HasExactParameterMetadata))
+                {
+                    outcomes.Record(
+                        RelationshipResolutionDisposition.Indeterminate,
+                        "insufficient_arity_metadata",
+                        source,
+                        edge);
+                    continue;
+                }
+
                 var disposition = IsKnownExternalReceiver(receiverKind, receiverTypeHint, localTypeNames)
                     ? RelationshipResolutionDisposition.ExternalOrUnindexed
                     : RelationshipResolutionDisposition.UnresolvedLocal;
                 outcomes.Record(disposition, disposition == RelationshipResolutionDisposition.ExternalOrUnindexed
                     ? "external_receiver_incompatible_arity"
                     : "local_target_incompatible_arity", source, edge);
+                continue;
+            }
+
+            if (string.Equals(receiverKind, "Chained", StringComparison.Ordinal))
+            {
+                var disposition = IsKnownLocalReceiver(receiverTypeHint, localTypeNames)
+                    ? RelationshipResolutionDisposition.Indeterminate
+                    : RelationshipResolutionDisposition.ExternalOrUnindexed;
+                outcomes.Record(
+                    disposition,
+                    disposition == RelationshipResolutionDisposition.Indeterminate
+                        ? "chained_receiver_return_unknown"
+                        : "external_chain_root",
+                    source,
+                    edge);
                 continue;
             }
 
@@ -124,6 +157,7 @@ internal static class CSharpCallEdgeResolver
                 source,
                 compatibleCandidates,
                 receiverTypeHint,
+                receiverCanonicalTypeHint,
                 receiverKind,
                 localTypeHierarchy);
             if (selected is not null)
@@ -171,6 +205,13 @@ internal static class CSharpCallEdgeResolver
         if (string.Equals(receiverKind, "UnknownMember", StringComparison.Ordinal))
             return RelationshipResolutionDisposition.Indeterminate;
 
+        if (string.Equals(receiverKind, "Chained", StringComparison.Ordinal))
+        {
+            return IsKnownLocalReceiver(receiverTypeHint, localTypeNames)
+                ? RelationshipResolutionDisposition.Indeterminate
+                : RelationshipResolutionDisposition.ExternalOrUnindexed;
+        }
+
         if (string.Equals(receiverKind, "ThisOrBase", StringComparison.Ordinal)
             || IsKnownLocalReceiver(receiverTypeHint, localTypeNames))
         {
@@ -215,14 +256,15 @@ internal static class CSharpCallEdgeResolver
         IngestNodeRequest source,
         IReadOnlyList<MethodCandidate> candidates,
         string? receiverTypeHint,
+        string? receiverCanonicalTypeHint,
         string? receiverKind,
         IReadOnlyDictionary<string, IReadOnlySet<string>> localTypeHierarchy)
     {
         if (!string.IsNullOrWhiteSpace(receiverTypeHint))
         {
             var exactReceiverMatches = candidates
-                .Where(candidate => string.Equals(candidate.DeclaringTypeShortName, receiverTypeHint, StringComparison.Ordinal)
-                    || IsExtensionReceiverMatch(candidate, receiverTypeHint))
+                .Where(candidate => IsDeclaringTypeMatch(candidate, receiverTypeHint, receiverCanonicalTypeHint)
+                    || IsExtensionReceiverMatch(candidate, receiverTypeHint, receiverCanonicalTypeHint))
                 .ToArray();
             if (exactReceiverMatches.Length == 1)
                 return exactReceiverMatches[0];
@@ -370,12 +412,31 @@ internal static class CSharpCallEdgeResolver
         string? receiverKind) =>
         candidate.IsExtensionMethod
         && string.Equals(receiverKind, "TypedOrStatic", StringComparison.Ordinal)
-        && IsExtensionReceiverMatch(candidate, receiverTypeHint);
+        && IsExtensionReceiverMatch(candidate, receiverTypeHint, receiverCanonicalTypeHint: null);
 
-    private static bool IsExtensionReceiverMatch(MethodCandidate candidate, string? receiverTypeHint) =>
+    private static bool IsExtensionReceiverMatch(
+        MethodCandidate candidate,
+        string? receiverTypeHint,
+        string? receiverCanonicalTypeHint) =>
         candidate.IsExtensionMethod
         && !string.IsNullOrWhiteSpace(receiverTypeHint)
-        && string.Equals(candidate.ExtensionReceiverType, receiverTypeHint, StringComparison.Ordinal);
+        && (HasQualifiedIdentity(receiverCanonicalTypeHint)
+            && candidate.ExtensionReceiverCanonicalType is not null
+                ? string.Equals(candidate.ExtensionReceiverCanonicalType, receiverCanonicalTypeHint, StringComparison.Ordinal)
+                : string.Equals(candidate.ExtensionReceiverType, receiverTypeHint, StringComparison.Ordinal));
+
+    private static bool IsDeclaringTypeMatch(
+        MethodCandidate candidate,
+        string receiverTypeHint,
+        string? receiverCanonicalTypeHint) =>
+        HasQualifiedIdentity(receiverCanonicalTypeHint)
+        && candidate.DeclaringTypeCanonicalName is not null
+            ? string.Equals(candidate.DeclaringTypeCanonicalName, receiverCanonicalTypeHint, StringComparison.Ordinal)
+            : string.Equals(candidate.DeclaringTypeShortName, receiverTypeHint, StringComparison.Ordinal);
+
+    private static bool HasQualifiedIdentity(string? typeName) =>
+        typeName?.Contains('.', StringComparison.Ordinal) == true
+        || typeName?.Contains('+', StringComparison.Ordinal) == true;
 
     private static bool ReadBooleanProperty(Dictionary<string, string>? properties, string key) =>
         ReadProperty(properties, key) is { } rawValue
@@ -391,7 +452,7 @@ internal static class CSharpCallEdgeResolver
             .ToArray();
         var typeIds = typeNodes.Select(node => node.Id).ToHashSet(StringComparer.Ordinal);
         var typeIdsByName = typeNodes
-            .GroupBy(node => node.Name, StringComparer.Ordinal)
+            .GroupBy(node => CSharpTypeIdentityNormalizer.Normalize(node.Name)?.ShortName ?? node.Name, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Select(node => node.Id).ToArray(), StringComparer.Ordinal);
         var directBases = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 
@@ -456,7 +517,7 @@ internal static class CSharpCallEdgeResolver
             .ToHashSet(StringComparer.Ordinal);
         var localTypeNames = nodes
             .Where(node => node.Type is "Class" or "Interface" or "Struct" or "Record")
-            .Select(node => node.Name)
+            .Select(node => CSharpTypeIdentityNormalizer.Normalize(node.Name)?.ShortName ?? node.Name)
             .ToHashSet(StringComparer.Ordinal);
 
         return edges

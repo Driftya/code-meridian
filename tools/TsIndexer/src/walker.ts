@@ -18,6 +18,15 @@ export interface WalkResult {
   edges: CodeEdgeDto[];
   relationshipHealth: TypeScriptRelationshipHealth;
   usedFullResolutionCatalog: boolean;
+  resolutionCatalog: ResolutionCatalogEvidence;
+}
+
+export interface ResolutionCatalogEvidence {
+  completeness: 'full' | 'partial' | 'batch';
+  reason?: 'tsconfig_load_failed' | 'project_discovery_failed' | 'resolution_catalog_load_failed';
+  sourceFileCount: number;
+  loadDurationMs: number;
+  heapUsedBytes: number;
 }
 
 export function walkTypeScript(
@@ -37,19 +46,34 @@ export function walkTypeScript(
   const typeReferenceOutcomes = new RelationshipOutcomeCollector('TypeReferences');
   const tracingOptions = databaseTracingOptions ?? loadDatabaseTracingOptions(rootPath);
 
+  const catalogStartedAt = performance.now();
   const tsConfigPath = path.join(rootPath, 'tsconfig.json');
-  const tsProject = new Project({
-    ...(fs.existsSync(tsConfigPath) ? { tsConfigFilePath: tsConfigPath } : {}),
-    skipAddingFilesFromTsConfig: true,
-    skipFileDependencyResolution: true,
-  });
+  let catalogReason: ResolutionCatalogEvidence['reason'];
+  let tsProject: Project;
+  try {
+    tsProject = createProject(tsConfigPath);
+  } catch {
+    catalogReason = 'tsconfig_load_failed';
+    tsProject = createProject();
+  }
 
-  const resolutionFiles = loadFullResolutionCatalog
-    ? discoverTypeScriptFiles(rootPath)
-    : files;
+  let resolutionFiles = files;
+  if (loadFullResolutionCatalog) {
+    try {
+      resolutionFiles = discoverTypeScriptFiles(rootPath);
+    } catch {
+      catalogReason ??= 'project_discovery_failed';
+    }
+  }
   const projectFiles = [...new Set([...resolutionFiles, ...files].map(normalizeFilePath))];
-  if (projectFiles.length > 0) {
-    tsProject.addSourceFilesAtPaths(projectFiles);
+  try {
+    if (projectFiles.length > 0) {
+      tsProject.addSourceFilesAtPaths(projectFiles);
+    }
+  } catch {
+    catalogReason ??= 'resolution_catalog_load_failed';
+    tsProject = createProject();
+    tsProject.addSourceFilesAtPaths([...new Set(files.map(normalizeFilePath))]);
   }
 
   const sourceFiles = tsProject.getSourceFiles();
@@ -104,8 +128,25 @@ export function walkTypeScript(
       calls: callOutcomes.build(),
       typeReferences: typeReferenceOutcomes.build(),
     },
-    usedFullResolutionCatalog: loadFullResolutionCatalog,
+    usedFullResolutionCatalog: loadFullResolutionCatalog && catalogReason === undefined,
+    resolutionCatalog: {
+      completeness: catalogReason !== undefined
+        ? 'partial'
+        : loadFullResolutionCatalog ? 'full' : 'batch',
+      ...(catalogReason !== undefined ? { reason: catalogReason } : {}),
+      sourceFileCount: sourceFiles.length,
+      loadDurationMs: Math.max(0, Math.round(performance.now() - catalogStartedAt)),
+      heapUsedBytes: process.memoryUsage().heapUsed,
+    },
   };
+}
+
+function createProject(tsConfigPath?: string): Project {
+  return new Project({
+    ...(tsConfigPath && fs.existsSync(tsConfigPath) ? { tsConfigFilePath: tsConfigPath } : {}),
+    skipAddingFilesFromTsConfig: true,
+    skipFileDependencyResolution: true,
+  });
 }
 
 function normalizeFilePath(filePath: string): string {

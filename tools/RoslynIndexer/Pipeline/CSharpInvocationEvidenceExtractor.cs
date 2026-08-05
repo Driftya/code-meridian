@@ -9,16 +9,30 @@ internal sealed record CSharpInvocationEvidence(
     int ParameterCount,
     string ReceiverKind,
     string? ReceiverTypeHint,
-    int GenericArity);
+    string? ReceiverCanonicalTypeHint,
+    string? DeclaringTypeHint,
+    int GenericArity,
+    string EvidenceSource,
+    string EvidenceConfidence);
 
 internal static class CSharpInvocationEvidenceExtractor
 {
+    private static readonly IReadOnlySet<string> KnownFrameworkTypeNames = new HashSet<string>(
+        [
+            "Activator", "ArgumentException", "ArgumentNullException", "Array", "Console", "Convert",
+            "DateTime", "DateTimeOffset", "Enum", "Environment", "Guid", "Math", "TimeSpan",
+            "Task", "ValueTask", "Enumerable", "StringComparer"
+        ],
+        StringComparer.Ordinal);
+
     public static CSharpInvocationEvidence? Extract(
         InvocationExpressionSyntax invocation,
         SyntaxNode owningCallable,
         string? currentTypeShortName,
         IReadOnlyDictionary<string, string> scopedTypes,
-        IReadOnlyDictionary<string, string> memberTypes)
+        IReadOnlyDictionary<string, string> memberTypes,
+        IReadOnlySet<string> knownTypeNames,
+        IReadOnlyDictionary<string, string> typeAliases)
     {
         if (!ReferenceEquals(FindOwningCallable(invocation), owningCallable))
             return null;
@@ -28,32 +42,182 @@ internal static class CSharpInvocationEvidenceExtractor
             return null;
 
         var receiver = GetReceiverExpression(invocation);
-        var receiverTypeHint = receiver is null
-            ? null
-            : ResolveReceiverExpressionType(
+        var receiverEvidence = receiver is null
+            ? new ReceiverEvidence("Unqualified", null, "syntax-unqualified", "Exact")
+            : ResolveReceiverEvidence(
                 receiver,
                 invocation,
                 currentTypeShortName,
                 scopedTypes,
-                memberTypes);
-        var receiverKind = receiver switch
-        {
-            null => "Unqualified",
-            ThisExpressionSyntax or BaseExpressionSyntax => "ThisOrBase",
-            _ when receiverTypeHint is not null => "TypedOrStatic",
-            _ => "UnknownMember"
-        };
+                memberTypes,
+                knownTypeNames,
+                typeAliases);
 
         return new CSharpInvocationEvidence(
             name,
             invocation.ArgumentList.Arguments.Count,
-            receiverKind,
-            receiverTypeHint,
-            GetGenericArity(invocation));
+            receiverEvidence.Kind,
+            receiverEvidence.Type?.ShortName,
+            receiverEvidence.Type?.CanonicalName,
+            currentTypeShortName,
+            GetGenericArity(invocation),
+            receiverEvidence.Source,
+            receiverEvidence.Confidence);
     }
 
-    private static SyntaxNode? FindOwningCallable(InvocationExpressionSyntax invocation) =>
-        invocation.Ancestors().FirstOrDefault(ancestor => ancestor is
+    private static ReceiverEvidence ResolveReceiverEvidence(
+        ExpressionSyntax receiver,
+        InvocationExpressionSyntax invocation,
+        string? currentTypeShortName,
+        IReadOnlyDictionary<string, string> scopedTypes,
+        IReadOnlyDictionary<string, string> memberTypes,
+        IReadOnlySet<string> knownTypeNames,
+        IReadOnlyDictionary<string, string> typeAliases)
+    {
+        switch (receiver)
+        {
+            case ThisExpressionSyntax:
+                return Exact(currentTypeShortName, "syntax-this");
+            case BaseExpressionSyntax:
+                return Exact(currentTypeShortName, "syntax-base", "ThisOrBase");
+            case PredefinedTypeSyntax predefinedType:
+                return Exact(predefinedType.Keyword.Text, "syntax-predefined");
+            case IdentifierNameSyntax identifier:
+                return ResolveIdentifierEvidence(
+                    identifier.Identifier.Text,
+                    invocation,
+                    scopedTypes,
+                    memberTypes,
+                    knownTypeNames,
+                    typeAliases);
+            case ObjectCreationExpressionSyntax objectCreation:
+                return Exact(objectCreation.Type.ToString(), "syntax-object-creation");
+            case CastExpressionSyntax cast:
+                return Exact(cast.Type.ToString(), "syntax-cast");
+            case BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.AsExpression):
+                return Exact(binary.Right.ToString(), "syntax-as-cast");
+            case MemberAccessExpressionSyntax memberAccess
+                when memberAccess.Expression is ThisExpressionSyntax
+                && memberTypes.TryGetValue(memberAccess.Name.Identifier.Text, out var memberType):
+                return Exact(memberType, "syntax-this-member");
+            case ParenthesizedExpressionSyntax parenthesized:
+                return ResolveReceiverEvidence(
+                    parenthesized.Expression,
+                    invocation,
+                    currentTypeShortName,
+                    scopedTypes,
+                    memberTypes,
+                    knownTypeNames,
+                    typeAliases);
+            case PostfixUnaryExpressionSyntax postfix when postfix.IsKind(SyntaxKind.SuppressNullableWarningExpression):
+                return ResolveReceiverEvidence(
+                    postfix.Operand,
+                    invocation,
+                    currentTypeShortName,
+                    scopedTypes,
+                    memberTypes,
+                    knownTypeNames,
+                    typeAliases);
+            case ConditionalExpressionSyntax conditional:
+            {
+                var whenTrue = ResolveReceiverEvidence(
+                    conditional.WhenTrue,
+                    invocation,
+                    currentTypeShortName,
+                    scopedTypes,
+                    memberTypes,
+                    knownTypeNames,
+                    typeAliases);
+                var whenFalse = ResolveReceiverEvidence(
+                    conditional.WhenFalse,
+                    invocation,
+                    currentTypeShortName,
+                    scopedTypes,
+                    memberTypes,
+                    knownTypeNames,
+                    typeAliases);
+                if (whenTrue.Type is not null
+                    && string.Equals(whenTrue.Type.CanonicalName, whenFalse.Type?.CanonicalName, StringComparison.Ordinal))
+                {
+                    return whenTrue with { Source = "syntax-conditional", Confidence = "Exact" };
+                }
+                break;
+            }
+            case MemberAccessExpressionSyntax qualified
+                when TryResolveQualifiedStaticType(qualified, knownTypeNames, out var qualifiedType):
+                return new ReceiverEvidence("TypedOrStatic", qualifiedType, "syntax-qualified-type", "Exact");
+        }
+
+        var chainRoot = ResolveChainRoot(
+            receiver,
+            invocation,
+            currentTypeShortName,
+            scopedTypes,
+            memberTypes,
+            knownTypeNames,
+            typeAliases);
+        return chainRoot.Type is null
+            ? new ReceiverEvidence("UnknownMember", null, "syntax-unknown", "Unknown")
+            : new ReceiverEvidence("Chained", chainRoot.Type, "syntax-chain-root", "RootOnly");
+    }
+
+    private static ReceiverEvidence ResolveIdentifierEvidence(
+        string identifier,
+        InvocationExpressionSyntax invocation,
+        IReadOnlyDictionary<string, string> scopedTypes,
+        IReadOnlyDictionary<string, string> memberTypes,
+        IReadOnlySet<string> knownTypeNames,
+        IReadOnlyDictionary<string, string> typeAliases)
+    {
+        if (CSharpLexicalTypeResolver.Resolve(invocation, identifier) is { } lexicalType)
+            return Exact(lexicalType, "syntax-lexical-variable");
+        if (scopedTypes.TryGetValue(identifier, out var scopedType))
+            return Exact(scopedType, "syntax-parameter");
+        if (memberTypes.TryGetValue(identifier, out var memberType))
+            return Exact(memberType, "syntax-member");
+        if (typeAliases.TryGetValue(identifier, out var aliasedType))
+            return Exact(aliasedType, "syntax-using-alias");
+        if (knownTypeNames.Contains(identifier))
+            return Exact(identifier, "syntax-local-type-catalog");
+        if (KnownFrameworkTypeNames.Contains(identifier))
+            return Exact(identifier, "syntax-framework-type-catalog");
+
+        return new ReceiverEvidence("UnknownMember", null, "syntax-unbound-identifier", "Unknown");
+    }
+
+    private static ReceiverEvidence ResolveChainRoot(
+        ExpressionSyntax receiver,
+        InvocationExpressionSyntax invocation,
+        string? currentTypeShortName,
+        IReadOnlyDictionary<string, string> scopedTypes,
+        IReadOnlyDictionary<string, string> memberTypes,
+        IReadOnlySet<string> knownTypeNames,
+        IReadOnlyDictionary<string, string> typeAliases)
+    {
+        ExpressionSyntax? root = receiver switch
+        {
+            InvocationExpressionSyntax nestedInvocation => GetReceiverExpression(nestedInvocation),
+            MemberAccessExpressionSyntax memberAccess => memberAccess.Expression,
+            ConditionalAccessExpressionSyntax conditionalAccess => conditionalAccess.Expression,
+            ElementAccessExpressionSyntax elementAccess => elementAccess.Expression,
+            AwaitExpressionSyntax awaitExpression => awaitExpression.Expression,
+            _ => null
+        };
+        if (root is null || ReferenceEquals(root, receiver))
+            return new ReceiverEvidence("UnknownMember", null, "syntax-unknown", "Unknown");
+
+        return ResolveReceiverEvidence(
+            root,
+            invocation,
+            currentTypeShortName,
+            scopedTypes,
+            memberTypes,
+            knownTypeNames,
+            typeAliases);
+    }
+
+    private static SyntaxNode? FindOwningCallable(SyntaxNode node) =>
+        node.Ancestors().FirstOrDefault(ancestor => ancestor is
             MethodDeclarationSyntax or
             ConstructorDeclarationSyntax or
             LocalFunctionStatementSyntax or
@@ -63,90 +227,6 @@ internal static class CSharpInvocationEvidenceExtractor
             PropertyDeclarationSyntax or
             EventDeclarationSyntax or
             FieldDeclarationSyntax);
-
-    private static string? ResolveReceiverExpressionType(
-        ExpressionSyntax receiver,
-        InvocationExpressionSyntax invocation,
-        string? currentTypeShortName,
-        IReadOnlyDictionary<string, string> scopedTypes,
-        IReadOnlyDictionary<string, string> memberTypes) =>
-        receiver switch
-        {
-            ThisExpressionSyntax => currentTypeShortName,
-            BaseExpressionSyntax => null,
-            PredefinedTypeSyntax predefinedType => predefinedType.Keyword.Text,
-            IdentifierNameSyntax identifier when scopedTypes.TryGetValue(identifier.Identifier.Text, out var scopedType) => scopedType,
-            IdentifierNameSyntax identifier when memberTypes.TryGetValue(identifier.Identifier.Text, out var memberType) => memberType,
-            IdentifierNameSyntax identifier when ResolveContextualIdentifierType(invocation, identifier.Identifier.Text) is { } contextualType => contextualType,
-            IdentifierNameSyntax identifier when char.IsUpper(identifier.Identifier.Text.FirstOrDefault()) => identifier.Identifier.Text,
-            ObjectCreationExpressionSyntax objectCreation => CleanTypeName(objectCreation.Type.ToString()),
-            CastExpressionSyntax cast => CleanTypeName(cast.Type.ToString()),
-            MemberAccessExpressionSyntax memberAccess
-                when memberAccess.Expression is ThisExpressionSyntax
-                && memberTypes.TryGetValue(memberAccess.Name.Identifier.Text, out var memberType) => memberType,
-            ParenthesizedExpressionSyntax parenthesized => ResolveReceiverExpressionType(
-                parenthesized.Expression,
-                invocation,
-                currentTypeShortName,
-                scopedTypes,
-                memberTypes),
-            PostfixUnaryExpressionSyntax postfix when postfix.IsKind(SyntaxKind.SuppressNullableWarningExpression) =>
-                ResolveReceiverExpressionType(
-                    postfix.Operand,
-                    invocation,
-                    currentTypeShortName,
-                    scopedTypes,
-                    memberTypes),
-            _ => null
-        };
-
-    private static string? ResolveContextualIdentifierType(
-        InvocationExpressionSyntax invocation,
-        string identifier)
-    {
-        foreach (var ancestor in invocation.Ancestors())
-        {
-            var parameter = ancestor switch
-            {
-                SimpleLambdaExpressionSyntax simpleLambda
-                    when simpleLambda.Parameter.Identifier.Text == identifier => simpleLambda.Parameter,
-                ParenthesizedLambdaExpressionSyntax parenthesizedLambda => parenthesizedLambda.ParameterList.Parameters
-                    .FirstOrDefault(candidate => candidate.Identifier.Text == identifier),
-                AnonymousMethodExpressionSyntax anonymousMethod => anonymousMethod.ParameterList?.Parameters
-                    .FirstOrDefault(candidate => candidate.Identifier.Text == identifier),
-                _ => null
-            };
-            if (parameter?.Type is not null)
-                return CleanTypeName(parameter.Type.ToString());
-
-            if (ancestor is ForEachStatementSyntax forEach
-                && forEach.Identifier.Text == identifier)
-            {
-                return CleanTypeName(forEach.Type.ToString());
-            }
-
-            if (ancestor is CatchClauseSyntax { Declaration: { } declaration }
-                && declaration.Identifier.Text == identifier)
-            {
-                return CleanTypeName(declaration.Type.ToString());
-            }
-
-            if (ancestor is IfStatementSyntax ifStatement)
-            {
-                var declarationPattern = ifStatement.Condition.DescendantNodesAndSelf()
-                    .OfType<DeclarationPatternSyntax>()
-                    .FirstOrDefault(pattern => pattern.Designation is SingleVariableDesignationSyntax designation
-                        && designation.Identifier.Text == identifier);
-                if (declarationPattern is not null)
-                    return CleanTypeName(declarationPattern.Type.ToString());
-            }
-
-            if (ancestor is MethodDeclarationSyntax or ConstructorDeclarationSyntax or LocalFunctionStatementSyntax)
-                break;
-        }
-
-        return null;
-    }
 
     private static ExpressionSyntax? GetReceiverExpression(InvocationExpressionSyntax invocation)
     {
@@ -160,6 +240,23 @@ internal static class CSharpInvocationEvidenceExtractor
             .OfType<ConditionalAccessExpressionSyntax>()
             .FirstOrDefault(conditional => conditional.WhenNotNull.Span.Contains(invocation.Span))
             ?.Expression;
+    }
+
+    private static bool TryResolveQualifiedStaticType(
+        MemberAccessExpressionSyntax expression,
+        IReadOnlySet<string> knownTypeNames,
+        out CSharpTypeIdentity? type)
+    {
+        type = null;
+        var text = expression.ToString();
+        if (!text.StartsWith("System.", StringComparison.Ordinal)
+            && !knownTypeNames.Contains(expression.Name.Identifier.Text))
+        {
+            return false;
+        }
+
+        type = CSharpTypeIdentityNormalizer.Normalize(text);
+        return type is not null;
     }
 
     private static int GetGenericArity(InvocationExpressionSyntax invocation) =>
@@ -183,20 +280,15 @@ internal static class CSharpInvocationEvidenceExtractor
             _ => null
         };
 
-    private static string? CleanTypeName(string? rawType)
-    {
-        if (string.IsNullOrWhiteSpace(rawType))
-            return null;
+    private static ReceiverEvidence Exact(
+        string? rawType,
+        string source,
+        string kind = "TypedOrStatic") =>
+        new(kind, CSharpTypeIdentityNormalizer.Normalize(rawType), source, "Exact");
 
-        var name = rawType.Trim().TrimEnd('?');
-        if (name.EndsWith("[]", StringComparison.Ordinal))
-            name = name[..^2];
-
-        var genericStart = name.IndexOf('<');
-        if (genericStart >= 0)
-            name = name[..genericStart];
-
-        var dot = name.LastIndexOf('.');
-        return dot >= 0 ? name[(dot + 1)..] : name;
-    }
+    private sealed record ReceiverEvidence(
+        string Kind,
+        CSharpTypeIdentity? Type,
+        string Source,
+        string Confidence);
 }

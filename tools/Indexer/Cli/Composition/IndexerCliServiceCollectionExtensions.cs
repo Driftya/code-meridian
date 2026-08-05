@@ -21,6 +21,8 @@ internal static class IndexerCliServiceCollectionExtensions
         services.AddTransient<ClearCommand>();
         services.AddTransient<ServeCommand>();
         services.AddTransient<StatusCommand>();
+        services.AddTransient<RelationshipHealthReportCommand>();
+        services.AddTransient<TypeScriptScopeCatalogWriter>();
         services.AddTransient<PrContextReportCommand>();
         services.AddTransient<SessionEvaluationCommand>();
         services.AddTransient<SessionUsefulnessEvaluator>();

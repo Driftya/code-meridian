@@ -19,7 +19,8 @@ internal sealed class IndexCommandHandler(
     IOptions<ResolvedIndexerSettings> settings,
     IProjectDiscoveryService projectDiscoveryService,
     IIndexerStoragePathService storagePathService,
-    DiagnosticsCommand diagnosticsCommand)
+    DiagnosticsCommand diagnosticsCommand,
+    TypeScriptScopeCatalogWriter typeScriptScopeCatalogWriter)
 {
     private readonly ResolvedIndexerSettings _settings = settings.Value;
 
@@ -57,6 +58,15 @@ internal sealed class IndexCommandHandler(
 
         if (!context.HasCSharp && !context.HasTypeScript && !context.HasHtmlCss && !context.HasConfiguration && !_settings.IncludeDocs)
         {
+            if (!_settings.DryRun && !_settings.SkipTypeScript)
+            {
+                await typeScriptScopeCatalogWriter.WriteAsync(
+                    _settings.Project,
+                    _settings.CodeMeridianUrl,
+                    _settings.ApiKey,
+                    context.TypeScriptRoots);
+            }
+
             Console.WriteLine("No enabled indexers found matching this project.");
             Console.WriteLine("Use --list-capabilities to inspect available indexers.");
             return 0;
@@ -70,6 +80,15 @@ internal sealed class IndexCommandHandler(
 
         if (_settings.Incremental && !_settings.Clear && !context.IncrementalPlan.HasChanges)
         {
+            if (!_settings.SkipTypeScript)
+            {
+                await typeScriptScopeCatalogWriter.WriteAsync(
+                    _settings.Project,
+                    _settings.CodeMeridianUrl,
+                    _settings.ApiKey,
+                    context.TypeScriptRoots);
+            }
+
             Console.WriteLine("No file changes detected since the last successful index run.");
             return 0;
         }
@@ -205,6 +224,15 @@ internal sealed class IndexCommandHandler(
                 _settings.AllowRepoScripts);
             if (exitCode != 0)
                 return exitCode;
+        }
+
+        if (!_settings.SkipTypeScript)
+        {
+            await typeScriptScopeCatalogWriter.WriteAsync(
+                _settings.Project,
+                _settings.CodeMeridianUrl,
+                _settings.ApiKey,
+                context.TypeScriptRoots);
         }
 
         if (_settings.RebuildKeywords)

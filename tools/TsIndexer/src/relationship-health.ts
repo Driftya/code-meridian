@@ -10,8 +10,10 @@ export interface RelationshipResolutionSample {
   reason: string;
   sourceId: string;
   filePath?: string;
+  fileRole?: string;
   lineNumber?: number;
   targetName?: string;
+  receiverShape?: string;
 }
 
 export interface RelationshipOutcomeStats {
@@ -24,6 +26,7 @@ export interface RelationshipOutcomeStats {
   syntheticEdges: number;
   uniqueResolvedEdges: number;
   reasons: Record<string, number>;
+  failureCountsByFileRole: Record<string, number>;
   samples: RelationshipResolutionSample[];
 }
 
@@ -42,6 +45,7 @@ export class RelationshipOutcomeCollector {
   private duplicateEdges = 0;
   private readonly emittedEdgeKeys = new Set<string>();
   private readonly reasons = new Map<string, number>();
+  private readonly failureCountsByFileRole = new Map<string, number>();
   private readonly samples: RelationshipResolutionSample[] = [];
 
   constructor(
@@ -75,14 +79,25 @@ export class RelationshipOutcomeCollector {
     const reasonKey = `${disposition}:${reason}`;
     this.reasons.set(reasonKey, (this.reasons.get(reasonKey) ?? 0) + 1);
 
-    if (disposition !== 'external_or_unindexed'
-      && this.samples.filter(item => item.disposition === disposition && item.reason === reason).length < this.sampleLimitPerReason) {
-      this.samples.push({
+    if (disposition !== 'external_or_unindexed') {
+      const roleKey = `${disposition}:${sample.fileRole ?? 'Unknown'}`;
+      this.failureCountsByFileRole.set(roleKey, (this.failureCountsByFileRole.get(roleKey) ?? 0) + 1);
+      const candidate: RelationshipResolutionSample = {
         edgeKind: this.edgeKind,
         disposition,
         reason,
         ...sample,
-      });
+      };
+      const existingIndex = this.samples.findIndex(item =>
+        item.disposition === disposition
+        && item.reason === reason
+        && item.fileRole === candidate.fileRole
+        && item.receiverShape === candidate.receiverShape);
+      if (existingIndex < 0) {
+        this.samples.push(candidate);
+      } else if (compareSamples(candidate, this.samples[existingIndex]!) < 0) {
+        this.samples[existingIndex] = candidate;
+      }
     }
   }
 
@@ -97,11 +112,10 @@ export class RelationshipOutcomeCollector {
       syntheticEdges: 0,
       uniqueResolvedEdges: this.emittedEdgeKeys.size,
       reasons: Object.fromEntries([...this.reasons.entries()].sort(([left], [right]) => left.localeCompare(right))),
-      samples: [...this.samples].sort((left, right) =>
-        left.disposition.localeCompare(right.disposition)
-        || left.reason.localeCompare(right.reason)
-        || left.sourceId.localeCompare(right.sourceId)
-        || (left.targetName ?? '').localeCompare(right.targetName ?? '')),
+      failureCountsByFileRole: Object.fromEntries(
+        [...this.failureCountsByFileRole.entries()].sort(([left], [right]) => left.localeCompare(right)),
+      ),
+      samples: selectDiverseSamples(this.samples, this.sampleLimitPerReason),
     };
 
     if (result.attempted !== result.resolvedLocal
@@ -113,6 +127,68 @@ export class RelationshipOutcomeCollector {
 
     return result;
   }
+}
+
+function selectDiverseSamples(
+  candidates: RelationshipResolutionSample[],
+  limitPerReason: number,
+): RelationshipResolutionSample[] {
+  const groups = new Map<string, RelationshipResolutionSample[]>();
+  for (const candidate of candidates) {
+    const key = `${candidate.disposition}|${candidate.reason}`;
+    const group = groups.get(key) ?? [];
+    group.push(candidate);
+    groups.set(key, group);
+  }
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .flatMap(([, group]) => selectGroupSamples(group, limitPerReason));
+}
+
+function selectGroupSamples(
+  candidates: RelationshipResolutionSample[],
+  limit: number,
+): RelationshipResolutionSample[] {
+  const ordered = [...candidates].sort(compareSamples);
+  const selected: RelationshipResolutionSample[] = [];
+  addFirstBy(ordered, selected, sample => sample.fileRole ?? 'Unknown', limit, fileRolePriority);
+  addFirstBy(ordered, selected, sample => sample.receiverShape ?? 'Unknown', limit);
+  selected.push(...ordered.filter(candidate => !selected.includes(candidate)).slice(0, limit - selected.length));
+  return selected;
+}
+
+function addFirstBy(
+  ordered: RelationshipResolutionSample[],
+  selected: RelationshipResolutionSample[],
+  keySelector: (sample: RelationshipResolutionSample) => string,
+  limit: number,
+  priority: (key: string) => number = () => 0,
+): void {
+  const firstByKey = new Map<string, RelationshipResolutionSample>();
+  for (const candidate of ordered) {
+    const key = keySelector(candidate);
+    if (!firstByKey.has(key)) firstByKey.set(key, candidate);
+  }
+
+  for (const [key, candidate] of [...firstByKey.entries()]
+    .sort(([left], [right]) => priority(left) - priority(right) || left.localeCompare(right))) {
+    if (selected.length === limit) return;
+    if (!selected.includes(candidate)) selected.push(candidate);
+  }
+}
+
+function compareSamples(left: RelationshipResolutionSample, right: RelationshipResolutionSample): number {
+  return (left.filePath ?? '').localeCompare(right.filePath ?? '')
+    || (left.lineNumber ?? 0) - (right.lineNumber ?? 0)
+    || left.sourceId.localeCompare(right.sourceId)
+    || (left.targetName ?? '').localeCompare(right.targetName ?? '');
+}
+
+function fileRolePriority(fileRole: string): number {
+  if (fileRole === 'Source') return 0;
+  if (fileRole === 'Test') return 1;
+  return 2;
 }
 
 export function relationshipEdgeKey(sourceId: string, targetId: string, edgeKind: string): string {

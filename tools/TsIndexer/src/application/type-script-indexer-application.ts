@@ -28,16 +28,24 @@ export class TypeScriptIndexerApplication {
     const batch = readIndexerBatchFile(options.rootPath, options.batchFilePath);
     console.log(`  Batch size: ${batch.files.length} file(s)`);
 
-    const { nodes, edges, relationshipHealth, usedFullResolutionCatalog } = walkTypeScript(
+    const { nodes, edges, relationshipHealth, usedFullResolutionCatalog, resolutionCatalog } = walkTypeScript(
       options.rootPath,
       options.projectName,
       batch.files,
       relativePath => batch.fileRoles.get(relativePath),
       undefined,
-      Boolean(options.isIncremental),
+      true,
     );
 
     console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
+    console.log(
+      `  Resolution catalog: ${resolutionCatalog.completeness}, `
+      + `${resolutionCatalog.sourceFileCount} source file(s), `
+      + `${resolutionCatalog.loadDurationMs} ms, ${resolutionCatalog.heapUsedBytes} heap bytes`,
+    );
+    if (resolutionCatalog.reason) {
+      console.warn(`  Resolution catalog fallback: ${resolutionCatalog.reason}`);
+    }
     console.log(
       `  Relationship outcomes: ${formatOutcomes('calls', relationshipHealth.calls)}; `
       + `${formatOutcomes('type references', relationshipHealth.typeReferences)}`,
@@ -81,7 +89,8 @@ export class TypeScriptIndexerApplication {
       nodeResult.successCount,
       edgeResult.successCount,
       relationshipHealth,
-      !options.isIncremental || usedFullResolutionCatalog,
+      resolutionCatalog.reason === undefined && (!options.isIncremental || usedFullResolutionCatalog),
+      resolutionCatalog,
     );
 
     console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
@@ -96,6 +105,13 @@ async function persistIndexRun(
   ingestedEdgeCount: number,
   health: TypeScriptRelationshipHealth,
   usedFullResolutionCatalog: boolean,
+  resolutionCatalog: {
+    completeness: 'full' | 'partial' | 'batch';
+    reason?: string;
+    sourceFileCount: number;
+    loadDurationMs: number;
+    heapUsedBytes: number;
+  },
 ): Promise<void> {
   const mode = options.isIncremental ? 'incremental' : 'full';
   const normalizedScope = path.resolve(options.rootPath).replace(/\\/g, '/');
@@ -128,7 +144,14 @@ async function persistIndexRun(
     syntheticRelationshipCount: '0',
     relationshipFailureSamples: JSON.stringify([...calls.samples, ...references.samples]),
     usedFullResolutionCatalog: usedFullResolutionCatalog.toString(),
+    resolutionCatalogCompleteness: usedFullResolutionCatalog ? 'full' : 'partial',
+    resolutionCatalogFileCount: resolutionCatalog.sourceFileCount.toString(),
+    resolutionCatalogLoadDurationMs: resolutionCatalog.loadDurationMs.toString(),
+    resolutionCatalogHeapUsedBytes: resolutionCatalog.heapUsedBytes.toString(),
   };
+  if (resolutionCatalog.reason) {
+    properties.resolutionCatalogReason = resolutionCatalog.reason;
+  }
 
   await client.ingestNode({
     id: `${options.projectName}::IndexRun::typescript::${scopeId}::${mode}`,

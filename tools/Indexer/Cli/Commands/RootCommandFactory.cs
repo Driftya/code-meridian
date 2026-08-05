@@ -19,6 +19,7 @@ internal sealed class RootCommandFactory(
     ClearCommand clearCommand,
     ServeCommand serveCommand,
     StatusCommand statusCommand,
+    RelationshipHealthReportCommand relationshipHealthReportCommand,
     PrContextReportCommand prContextReportCommand,
     SessionEvaluationCommand sessionEvaluationCommand)
 {
@@ -357,6 +358,12 @@ internal sealed class RootCommandFactory(
         var includeDocsOption = new Option<bool>("--include-docs") { DefaultValueFactory = _ => true, Description = "Include keyword-matched Markdown documents in the report." };
         var formatOption = new Option<string>("--format") { DefaultValueFactory = _ => "markdown", Description = "Output format: markdown or json." };
         var outputOption = new Option<string?>("--output") { Description = "Optional file path to write the rendered report." };
+        var relationshipHealthCommand = new Command("relationship-health", "Print bounded per-language and per-scope relationship outcome evidence.");
+        var healthPathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults." };
+        var healthProjectOption = new Option<string?>("--project") { Description = "Project context name." };
+        var healthUrlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
+        healthUrlOption.Aliases.Add("--CodeMeridian");
+        var healthFormatOption = new Option<string>("--format") { DefaultValueFactory = _ => "text", Description = "Output format: text or json." };
 
         command.Add(pathArgument);
         command.Add(projectOption);
@@ -369,6 +376,10 @@ internal sealed class RootCommandFactory(
         prContextCommand.Add(includeDocsOption);
         prContextCommand.Add(formatOption);
         prContextCommand.Add(outputOption);
+        relationshipHealthCommand.Add(healthPathArgument);
+        relationshipHealthCommand.Add(healthProjectOption);
+        relationshipHealthCommand.Add(healthUrlOption);
+        relationshipHealthCommand.Add(healthFormatOption);
 
         prContextCommand.SetAction(async parseResult =>
         {
@@ -391,6 +402,23 @@ internal sealed class RootCommandFactory(
                 parseResult.GetValue(outputOption)));
         });
         command.Add(prContextCommand);
+
+        relationshipHealthCommand.SetAction(async parseResult =>
+        {
+            var format = parseResult.GetRequiredValue(healthFormatOption);
+            if (!format.Equals("text", StringComparison.OrdinalIgnoreCase)
+                && !format.Equals("json", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine("error: Invalid --format value. Use text or json.");
+                return 1;
+            }
+
+            var context = configurationService.CreateContext(parseResult.GetValue(healthPathArgument));
+            var project = configurationService.ResolveProject(context, parseResult.GetValue(healthProjectOption));
+            var codeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, parseResult.GetValue(healthUrlOption));
+            return await relationshipHealthReportCommand.RunAsync(project, codeMeridianUrl, context.ApiKey, format);
+        });
+        command.Add(relationshipHealthCommand);
 
         command.SetAction(async parseResult =>
         {

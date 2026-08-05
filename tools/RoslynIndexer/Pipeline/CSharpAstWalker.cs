@@ -18,9 +18,32 @@ internal sealed class CSharpAstWalker(
     private string? _currentTypeId;
     private string? _currentMemberId;
     private Dictionary<string, string> _currentTypeMemberTypes = new(StringComparer.Ordinal);
+    private IReadOnlySet<string> _knownTypeNames = new HashSet<string>(StringComparer.Ordinal);
+    private IReadOnlyDictionary<string, string> _typeAliases = new Dictionary<string, string>(StringComparer.Ordinal);
 
     public override void VisitCompilationUnit(CompilationUnitSyntax node)
     {
+        _knownTypeNames = node.DescendantNodes()
+            .Select(declaration => declaration switch
+            {
+                BaseTypeDeclarationSyntax typeDeclaration => typeDeclaration.Identifier.Text,
+                DelegateDeclarationSyntax delegateDeclaration => delegateDeclaration.Identifier.Text,
+                _ => null
+            })
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!)
+            .GroupBy(name => name, StringComparer.Ordinal)
+            .Where(group => group.Count() == 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        _typeAliases = node.Usings
+            .Where(usingDirective => usingDirective.Alias is not null && usingDirective.Name is not null)
+            .Select(usingDirective => (
+                Alias: usingDirective.Alias!.Name.Identifier.Text,
+                Type: CSharpTypeIdentityNormalizer.Normalize(usingDirective.Name!.ToString())?.CanonicalName))
+            .Where(item => item.Type is not null)
+            .ToDictionary(item => item.Alias, item => item.Type!, StringComparer.Ordinal);
+
         nodes.Add(new IngestNodeRequest(_fileId, Path.GetFileName(filePath), "File",
             null, filePath, 1, null, GetLineCount(node), SourceHash: HashSource(node.ToFullString())));
 
@@ -285,12 +308,6 @@ internal sealed class CSharpAstWalker(
 
     public override void VisitLocalDeclarationStatement(LocalDeclarationStatementSyntax node)
     {
-        if (_identifierTypeScopes.Count > 0)
-        {
-            foreach (var variable in node.Declaration.Variables)
-                RememberType(_identifierTypeScopes.Peek(), variable.Identifier.Text, ResolveVariableType(node.Declaration.Type, variable.Initializer?.Value));
-        }
-
         base.VisitLocalDeclarationStatement(node);
     }
 
@@ -429,7 +446,11 @@ internal sealed class CSharpAstWalker(
         var span = node.GetLocation().GetLineSpan();
         var line = span.StartLinePosition.Line + 1;
         var lineCount = span.EndLinePosition.Line - span.StartLinePosition.Line + 1;
-        var properties = BuildMemberProperties(containerId, parameters, GetGenericParameterCount(node));
+        var properties = BuildMemberProperties(
+            containerId,
+            parameters,
+            GetGenericParameterCount(node),
+            GetReturnType(node));
 
         nodes.Add(new IngestNodeRequest(id, signature, "Method",
             _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node), HashSource(node.ToFullString()), properties));
@@ -485,7 +506,8 @@ internal sealed class CSharpAstWalker(
     private static Dictionary<string, string>? BuildMemberProperties(
         string containerId,
         IEnumerable<ParameterSyntax>? parameters = null,
-        int genericParameterCount = 0)
+        int genericParameterCount = 0,
+        string? returnType = null)
     {
         Dictionary<string, string>? properties = null;
 
@@ -494,7 +516,8 @@ internal sealed class CSharpAstWalker(
             properties = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["declaringTypeId"] = containerId,
-                ["declaringTypeShortName"] = declaringTypeShortName
+                ["declaringTypeShortName"] = declaringTypeShortName,
+                ["declaringTypeCanonicalName"] = DeclaringTypeNameFromId(containerId) ?? declaringTypeShortName
             };
         }
 
@@ -505,6 +528,7 @@ internal sealed class CSharpAstWalker(
         properties ??= new Dictionary<string, string>(StringComparer.Ordinal);
         properties["totalParameterCount"] = parameterArray.Length.ToString();
         properties["requiredParameterCount"] = CountRequiredParameters(parameterArray).ToString();
+        properties["parameterMetadata"] = "exact-syntax";
         properties["hasParamsParameter"] = parameterArray
             .Any(parameter => parameter.Modifiers.Any(SyntaxKind.ParamsKeyword))
             .ToString();
@@ -512,9 +536,18 @@ internal sealed class CSharpAstWalker(
         var extensionReceiver = parameterArray.FirstOrDefault(parameter =>
             parameter.Modifiers.Any(SyntaxKind.ThisKeyword));
         properties["isExtensionMethod"] = (extensionReceiver is not null).ToString();
-        if (extensionReceiver?.Type is not null && CleanTypeName(extensionReceiver.Type.ToString()) is { } receiverType)
-            properties["extensionReceiverType"] = receiverType;
+        if (extensionReceiver?.Type is not null
+            && CSharpTypeIdentityNormalizer.Normalize(extensionReceiver.Type.ToString()) is { } receiverType)
+        {
+            properties["extensionReceiverType"] = receiverType.ShortName;
+            properties["extensionReceiverCanonicalType"] = receiverType.CanonicalName;
+        }
         properties["genericParameterCount"] = genericParameterCount.ToString();
+        if (CSharpTypeIdentityNormalizer.Normalize(returnType) is { } normalizedReturnType)
+        {
+            properties["returnType"] = normalizedReturnType.ShortName;
+            properties["returnCanonicalType"] = normalizedReturnType.CanonicalName;
+        }
 
         return properties;
     }
@@ -525,6 +558,15 @@ internal sealed class CSharpAstWalker(
             MethodDeclarationSyntax method => method.TypeParameterList?.Parameters.Count ?? 0,
             LocalFunctionStatementSyntax localFunction => localFunction.TypeParameterList?.Parameters.Count ?? 0,
             _ => 0
+        };
+
+    private static string? GetReturnType(SyntaxNode node) =>
+        node switch
+        {
+            MethodDeclarationSyntax method => method.ReturnType.ToString(),
+            LocalFunctionStatementSyntax localFunction => localFunction.ReturnType.ToString(),
+            ConstructorDeclarationSyntax constructor => constructor.Identifier.Text,
+            _ => null
         };
 
     private static int CountRequiredParameters(IEnumerable<ParameterSyntax> parameters) =>
@@ -552,6 +594,11 @@ internal sealed class CSharpAstWalker(
         declaringTypeShortName = string.Empty;
         return false;
     }
+
+    private static string? DeclaringTypeNameFromId(string containerId) =>
+        TryGetDeclaringTypeInfo(containerId, out var declaringTypeFullName, out _)
+            ? declaringTypeFullName
+            : null;
 
     private static Dictionary<string, string> BuildTypeMemberTypeMap(SeparatedSyntaxList<ParameterSyntax>? parameters)
     {
@@ -582,24 +629,11 @@ internal sealed class CSharpAstWalker(
 
     private static void RememberType(Dictionary<string, string> target, string identifier, string? rawType)
     {
-        var typeName = CleanTypeName(rawType);
-        if (typeName is null)
+        var type = CSharpTypeIdentityNormalizer.Normalize(rawType);
+        if (type is null)
             return;
 
-        target[identifier] = typeName;
-    }
-
-    private static string? ResolveVariableType(TypeSyntax declarationType, ExpressionSyntax? initializer)
-    {
-        if (!declarationType.IsVar)
-            return declarationType.ToString();
-
-        return initializer switch
-        {
-            ObjectCreationExpressionSyntax objectCreation => objectCreation.Type.ToString(),
-            CastExpressionSyntax cast => cast.Type.ToString(),
-            _ => null
-        };
+        target[identifier] = type.CanonicalName;
     }
 
     private static string InferTargetType(string typeName) =>
@@ -623,7 +657,9 @@ internal sealed class CSharpAstWalker(
                 node,
                 currentTypeShortName,
                 scopedTypes,
-                _currentTypeMemberTypes))
+                _currentTypeMemberTypes,
+                _knownTypeNames,
+                _typeAliases))
             .Where(evidence => evidence is not null)
             .Select(evidence => evidence!)
             .Distinct();
@@ -636,22 +672,26 @@ internal sealed class CSharpAstWalker(
                 RelationshipType: "Calls",
                 CallName: callee.Name,
                 ParamCount: callee.ParameterCount,
-                Properties: BuildCallProperties(callee.ReceiverTypeHint, callee.ReceiverKind, callee.GenericArity)));
+                Properties: BuildCallProperties(callee)));
         }
     }
 
-    private static Dictionary<string, string> BuildCallProperties(
-        string? receiverTypeHint,
-        string receiverKind,
-        int genericArity)
+    private static Dictionary<string, string> BuildCallProperties(CSharpInvocationEvidence evidence)
     {
         var properties = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["receiverKind"] = receiverKind
+            ["receiverKind"] = evidence.ReceiverKind,
+            ["genericArity"] = evidence.GenericArity.ToString(),
+            ["parameterMetadata"] = "exact-syntax",
+            ["receiverEvidenceSource"] = evidence.EvidenceSource,
+            ["receiverEvidenceConfidence"] = evidence.EvidenceConfidence
         };
-        if (receiverTypeHint is not null)
-            properties["receiverTypeHint"] = receiverTypeHint;
-        properties["genericArity"] = genericArity.ToString();
+        if (evidence.ReceiverTypeHint is not null)
+            properties["receiverTypeHint"] = evidence.ReceiverTypeHint;
+        if (evidence.ReceiverCanonicalTypeHint is not null)
+            properties["receiverCanonicalTypeHint"] = evidence.ReceiverCanonicalTypeHint;
+        if (evidence.DeclaringTypeHint is not null)
+            properties["declaringTypeHint"] = evidence.DeclaringTypeHint;
 
         return properties;
     }
@@ -732,21 +772,7 @@ internal sealed class CSharpAstWalker(
     }
 
     private static string? CleanTypeName(string? rawType)
-    {
-        if (string.IsNullOrWhiteSpace(rawType))
-            return null;
-
-        var name = rawType.Trim().TrimEnd('?');
-        if (name.EndsWith("[]", StringComparison.Ordinal))
-            name = name[..^2];
-
-        var genericStart = name.IndexOf('<');
-        if (genericStart >= 0)
-            name = name[..genericStart];
-
-        var dot = name.LastIndexOf('.');
-        return dot >= 0 ? name[(dot + 1)..] : name;
-    }
+        => CSharpTypeIdentityNormalizer.Normalize(rawType)?.ShortName;
 
     private static bool IsBuiltInType(string typeName) =>
         typeName is "string" or "int" or "long" or "short" or "byte" or "bool" or "decimal"

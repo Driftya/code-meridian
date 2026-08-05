@@ -40,6 +40,7 @@ codemeridian index . --watch
 
 codemeridian doctor --project CodeMeridian
 codemeridian report --project CodeMeridian
+codemeridian report relationship-health --project CodeMeridian --format json
 codemeridian report pr-context --project CodeMeridian --base origin/main --head HEAD --format markdown --output artifacts/pr-context.md
 codemeridian check-drift --project CodeMeridian --fail-on high
 codemeridian evaluate-session . --project MyApp --session .meridian/sessions/session.jsonl
@@ -63,6 +64,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Can query the backend for a `doctor` status report without talking to Neo4j directly from the client.
 - Can print an architecture weather report with graph counts, risks, bridge nodes, coverage gaps, and freshness.
 - Can generate CI-friendly PR context reports as Markdown or JSON without requiring an interactive assistant.
+- Can print bounded relationship-health evidence per language, scope, and mode without exposing source bodies or arbitrary persisted properties.
 - Can verify graph drift with `codemeridian check-drift` or `codemeridian index --verify`.
 - Can evaluate whether CodeMeridian helped an implementation session by comparing provider-neutral session evidence with git changes, then write `.meridian/precision-feedback.json` for future ranking feedback.
 - Can create local runtime files and start the backend stack with `codemeridian serve`.
@@ -87,6 +89,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Use `CodeMeridian_Project` in `.env` when you want the same project context applied automatically.
 - Use `codemeridian doctor --project <name>` to ask the backend for graph health, drift, and counts.
 - Use `codemeridian report --project <name>` for a compact architecture weather report.
+- Use `codemeridian report relationship-health --project <name>` to inspect relationship outcomes, reason percentages, file-role failures, and TypeScript resolution-catalog performance. Add `--format json` for normalized automation output.
 - Use `codemeridian trace-endpoint "POST /api/orders" --project <name>` when you want a graph-only route trace through indexed database and messaging paths. Database tracing is driven by `.meridian/database-tracing.json` and currently ships starter presets for EF Core, Dapper, raw SQL, Prisma, Knex, and Neo4j Cypher. `trace_endpoint` is an alias if you prefer the MCP-style name.
 - Use `codemeridian report pr-context --base <git-ref> --head <git-ref>` when you want a deterministic PR review summary with changed graph nodes, impact hints, missing-test warnings, hotspot/churn warnings, and related docs. Add `--format json` for automation and `--output <path>` for CI artifacts.
 - Use `codemeridian check-drift --project <name> --fail-on high` for a drift gate that exits non-zero in CI when the graph is too stale.
@@ -107,7 +110,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 - Use `--no-incremental` or `--force-full` to scan all files without clearing the project.
 - Prefer `--force-full` for routine relationship refreshes. Reserve `--clear` for stale canonical IDs after moves, renames, or graph-contract changes.
 - C# and TypeScript relationship-health metadata separates expected external/unindexed targets from unresolved local and indeterminate candidates. External targets do not lower confidence; partial catalogs and local failures do.
-- Normal TypeScript incremental runs load the complete current project-root catalog for relationship resolution while emitting only the changed-file nodes and outgoing edges. The persisted run reports a full catalog only when that catalog-loading path was used.
+- Normal TypeScript incremental runs load the complete current project-root catalog for relationship resolution while emitting only the changed-file nodes and outgoing edges. The persisted run reports a full catalog only when that catalog-loading path was used, and an active-scope catalog prevents removed roots from contributing stale trust warnings.
 - Diagnostics replacement is project-scoped and verified after ingestion. Ordinary diagnostic queries and `doctor` counts exclude preserved relationship-health `IndexRun` compatibility nodes.
 - Use `codemeridian init .` to create or refresh `meridian.json` for a project and then step through prompts for `.vscode`, `.continue`, `.codex`, and `meridian-agent-capabilities`. When `meridian.json` already exists, `init` merges missing defaults, bumps the config `version`, and writes `meridian.json.bak` before replacing the file. The generated `meridian.json` enables `allowRepoScripts` by default for trusted repos.
 - Use `codemeridian init --global --url http://localhost:5100` to create a user-level fallback config when you want the CLI to work across many repos without project-local config. Global init also seeds `.meridian/architecture.json`, `.meridian/keyword-classification.json`, `.meridian/database-tracing.json`, `.meridian/architectures/`, and `meridian-agent-capabilities/` under the global config root.

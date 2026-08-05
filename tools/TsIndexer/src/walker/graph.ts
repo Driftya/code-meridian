@@ -237,7 +237,7 @@ export function collectEdges(
   sourceFile: SourceFile,
   rootPath: string,
   projectName: string,
-  _nodes: CodeNodeDto[],
+  nodes: CodeNodeDto[],
   edges: CodeEdgeDto[],
   knownIds: Set<string>,
   methodIndex: Map<string, string[]>,
@@ -246,6 +246,7 @@ export function collectEdges(
 ): void {
   const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
   const fId = fileId(projectName, relPath);
+  const sourceFileRole = nodes.find(node => node.id === fId)?.fileRole;
 
   for (const cls of sourceFile.getClasses()) {
     const name = cls.getName() ?? '<anonymous>';
@@ -258,8 +259,9 @@ export function collectEdges(
       addCallEdges(projectName, rootPath, knownIds, mId, method.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
         filePath: relPath,
         className: name,
+        fileRole: sourceFileRole,
       });
-      addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds, typeReferenceOutcomes);
+      addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
     }
 
     for (const ctor of cls.getConstructors()) {
@@ -268,14 +270,15 @@ export function collectEdges(
       addCallEdges(projectName, rootPath, knownIds, ctorId, ctor.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
         filePath: relPath,
         className: name,
+        fileRole: sourceFileRole,
       });
-      addTypeUseEdges(projectName, rootPath, relPath, ctor, ctorId, edges, knownIds, typeReferenceOutcomes);
+      addTypeUseEdges(projectName, rootPath, relPath, ctor, ctorId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
     }
 
     for (const prop of cls.getProperties()) {
       const pId = nodeId(projectName, relPath, `${name}.${prop.getName()}`, 'Property');
       if (knownIds.has(pId)) edges.push({ sourceId: cId, targetId: pId, type: 'Contains' });
-      addTypeUseEdges(projectName, rootPath, relPath, prop, pId, edges, knownIds, typeReferenceOutcomes);
+      addTypeUseEdges(projectName, rootPath, relPath, prop, pId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
     }
 
     const baseClass = cls.getBaseClass();
@@ -299,7 +302,7 @@ export function collectEdges(
     for (const method of iface.getMethods()) {
       const mId = nodeId(projectName, relPath, `${name}.${method.getName()}`, 'Method');
       if (knownIds.has(mId)) edges.push({ sourceId: iId, targetId: mId, type: 'Contains' });
-      addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds, typeReferenceOutcomes);
+      addTypeUseEdges(projectName, rootPath, relPath, method, mId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
     }
 
     for (const ext of iface.getExtends()) {
@@ -314,8 +317,9 @@ export function collectEdges(
     if (knownIds.has(fnId)) edges.push({ sourceId: fId, targetId: fnId, type: 'Contains' });
     addCallEdges(projectName, rootPath, knownIds, fnId, fn.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
       filePath: relPath,
+      fileRole: sourceFileRole,
     });
-    addTypeUseEdges(projectName, rootPath, relPath, fn, fnId, edges, knownIds, typeReferenceOutcomes);
+    addTypeUseEdges(projectName, rootPath, relPath, fn, fnId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
   }
 
   for (const variable of getTopLevelFunctionVariables(sourceFile)) {
@@ -327,14 +331,15 @@ export function collectEdges(
 
     addCallEdges(projectName, rootPath, knownIds, variableId, initializer.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
       filePath: relPath,
+      fileRole: sourceFileRole,
     });
-    addTypeUseEdges(projectName, rootPath, relPath, variable, variableId, edges, knownIds, typeReferenceOutcomes);
+    addTypeUseEdges(projectName, rootPath, relPath, variable, variableId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
   }
 
   for (const typeAlias of sourceFile.getTypeAliases()) {
     const aliasId = nodeId(projectName, relPath, typeAlias.getName(), 'Interface');
     if (knownIds.has(aliasId)) edges.push({ sourceId: fId, targetId: aliasId, type: 'Contains' });
-    addTypeUseEdges(projectName, rootPath, relPath, typeAlias, aliasId, edges, knownIds, typeReferenceOutcomes);
+    addTypeUseEdges(projectName, rootPath, relPath, typeAlias, aliasId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
   }
 
   for (const testCase of extractIndexedTestCases(sourceFile, projectName, relPath)) {
@@ -351,7 +356,7 @@ export function collectEdges(
       edges,
       methodIndex,
       callOutcomes,
-      { filePath: relPath },
+      { filePath: relPath, fileRole: sourceFileRole },
     );
   }
 
@@ -399,7 +404,7 @@ function addCallEdges(
   edges: CodeEdgeDto[],
   methodIndex: Map<string, string[]>,
   outcomes: RelationshipOutcomeCollector,
-  source: { filePath: string; className?: string },
+  source: { filePath: string; className?: string; fileRole?: string },
 ): void {
   for (const call of calls) {
     const symbolTargetId = resolveCallTargetId(projectName, rootPath, call, knownIds);
@@ -416,7 +421,7 @@ function addCallEdges(
 
     const calleeName = calleeShortName(call);
     if (!calleeName) {
-      outcomes.record('indeterminate', 'missing_call_name', relationshipSample(call, sourceId, source.filePath));
+      outcomes.record('indeterminate', 'missing_call_name', relationshipSample(call, sourceId, source.filePath, undefined, source.fileRole));
       continue;
     }
 
@@ -434,7 +439,7 @@ function addCallEdges(
     }
 
     const classification = classifyUnresolvedCall(call, rootPath, candidates.length > 0);
-    outcomes.record(classification.disposition, classification.reason, relationshipSample(call, sourceId, source.filePath, calleeName));
+    outcomes.record(classification.disposition, classification.reason, relationshipSample(call, sourceId, source.filePath, calleeName, source.fileRole));
   }
 }
 
@@ -576,6 +581,7 @@ function addTypeUseEdges(
   edges: CodeEdgeDto[],
   knownIds: Set<string>,
   outcomes: RelationshipOutcomeCollector,
+  fileRole?: string,
 ): void {
   const typeReferences = node.getDescendantsOfKind(SyntaxKind.TypeReference);
   for (const typeRef of typeReferences) {
@@ -595,7 +601,7 @@ function addTypeUseEdges(
     outcomes.record(
       classification.disposition,
       classification.reason,
-      relationshipSample(typeRef, sourceId, relPath, typeRef.getText()),
+      relationshipSample(typeRef, sourceId, relPath, typeRef.getText(), fileRole),
     );
   }
 }
@@ -948,12 +954,24 @@ function relationshipSample(
   sourceId: string,
   filePath: string,
   targetName?: string,
-): { sourceId: string; filePath: string; lineNumber: number; targetName?: string } {
+  fileRole?: string,
+): {
+  sourceId: string;
+  filePath: string;
+  fileRole?: string;
+  lineNumber: number;
+  targetName?: string;
+  receiverShape?: string;
+} {
   return {
     sourceId,
     filePath,
+    ...(fileRole ? { fileRole } : {}),
     lineNumber: node.getStartLineNumber(),
     ...(targetName ? { targetName } : {}),
+    ...(node.getKind() === SyntaxKind.CallExpression
+      ? { receiverShape: node.asKindOrThrow(SyntaxKind.CallExpression).getExpression().getKindName() }
+      : {}),
   };
 }
 

@@ -24,6 +24,7 @@ public sealed record RelationshipResolutionSample(
     string Reason,
     string SourceId,
     string? FilePath,
+    string? FileRole,
     int? LineNumber,
     string? TargetName,
     int? ParameterCount,
@@ -41,6 +42,7 @@ public sealed record RelationshipResolutionStats(
     int UniqueResolvedEdges,
     IReadOnlyDictionary<string, int> Reasons,
     IReadOnlyDictionary<string, int> LegacyUnresolvedByReason,
+    IReadOnlyDictionary<string, int> FailureCountsByFileRole,
     IReadOnlyList<RelationshipResolutionSample> Samples)
 {
     public bool HasValidAccounting =>
@@ -51,6 +53,7 @@ internal sealed class RelationshipResolutionCollector(string edgeKind, int sampl
 {
     private readonly Dictionary<string, int> _reasons = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _legacyUnresolved = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _failureCountsByFileRole = new(StringComparer.Ordinal);
     private readonly List<RelationshipResolutionSample> _samples = [];
     private readonly HashSet<string> _resolvedEdgeIds = new(StringComparer.Ordinal);
     private int _attempted;
@@ -95,20 +98,28 @@ internal sealed class RelationshipResolutionCollector(string edgeKind, int sampl
         _reasons[reasonKey] = _reasons.GetValueOrDefault(reasonKey) + 1;
         _legacyUnresolved[reason] = _legacyUnresolved.GetValueOrDefault(reason) + 1;
 
-        if (disposition is RelationshipResolutionDisposition.UnresolvedLocal or RelationshipResolutionDisposition.Indeterminate
-            && _samples.Count(sample => sample.Disposition == dispositionName && sample.Reason == reason) < sampleLimitPerReason)
+        if (disposition is RelationshipResolutionDisposition.UnresolvedLocal or RelationshipResolutionDisposition.Indeterminate)
         {
-            _samples.Add(new RelationshipResolutionSample(
+            var role = source?.Properties is not null && source.Properties.TryGetValue("fileRole", out var sourceRole)
+                ? sourceRole
+                : "Unknown";
+            var roleKey = $"{dispositionName}:{role}";
+            _failureCountsByFileRole[roleKey] = _failureCountsByFileRole.GetValueOrDefault(roleKey) + 1;
+            var candidate = new RelationshipResolutionSample(
                 edgeKind,
                 dispositionName,
                 reason,
                 edge.SourceId,
                 source?.FilePath,
+                source?.Properties is not null && source.Properties.TryGetValue("fileRole", out var fileRole)
+                    ? fileRole
+                    : null,
                 source?.LineNumber,
                 edge.CallName ?? edge.TargetName,
                 edge.ParamCount,
                 ReadProperty(edge, "receiverKind"),
-                ReadProperty(edge, "receiverTypeHint")));
+                ReadProperty(edge, "receiverTypeHint"));
+            AddDeterministicBucketCandidate(candidate);
         }
     }
 
@@ -127,18 +138,95 @@ internal sealed class RelationshipResolutionCollector(string edgeKind, int sampl
                 .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal),
             _legacyUnresolved.OrderBy(item => item.Key, StringComparer.Ordinal)
                 .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal),
-            _samples
-                .OrderBy(sample => sample.Disposition, StringComparer.Ordinal)
-                .ThenBy(sample => sample.Reason, StringComparer.Ordinal)
-                .ThenBy(sample => sample.SourceId, StringComparer.Ordinal)
-                .ThenBy(sample => sample.TargetName, StringComparer.Ordinal)
-                .ToArray());
+            _failureCountsByFileRole.OrderBy(item => item.Key, StringComparer.Ordinal)
+                .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal),
+            SelectDiverseSamples());
 
         if (!stats.HasValidAccounting)
             throw new InvalidOperationException($"Invalid {edgeKind} relationship accounting.");
 
         return stats;
     }
+
+    private void AddDeterministicBucketCandidate(RelationshipResolutionSample candidate)
+    {
+        var existingIndex = _samples.FindIndex(sample =>
+            sample.Disposition == candidate.Disposition
+            && sample.Reason == candidate.Reason
+            && string.Equals(sample.FileRole, candidate.FileRole, StringComparison.Ordinal)
+            && string.Equals(sample.ReceiverKind, candidate.ReceiverKind, StringComparison.Ordinal));
+        if (existingIndex < 0)
+        {
+            _samples.Add(candidate);
+            return;
+        }
+
+        if (CompareSamples(candidate, _samples[existingIndex]) < 0)
+            _samples[existingIndex] = candidate;
+    }
+
+    private RelationshipResolutionSample[] SelectDiverseSamples() =>
+        _samples
+            .GroupBy(sample => (sample.Disposition, sample.Reason))
+            .OrderBy(group => group.Key.Disposition, StringComparer.Ordinal)
+            .ThenBy(group => group.Key.Reason, StringComparer.Ordinal)
+            .SelectMany(group => SelectDiverseSamples(group, sampleLimitPerReason))
+            .ToArray();
+
+    private static IReadOnlyList<RelationshipResolutionSample> SelectDiverseSamples(
+        IEnumerable<RelationshipResolutionSample> candidates,
+        int limit)
+    {
+        var ordered = candidates.Order(Comparer<RelationshipResolutionSample>.Create(CompareSamples)).ToArray();
+        var selected = new List<RelationshipResolutionSample>(limit);
+
+        foreach (var candidate in ordered
+            .GroupBy(sample => sample.FileRole ?? "Unknown", StringComparer.Ordinal)
+            .OrderBy(group => FileRolePriority(group.Key))
+            .ThenBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => group.First()))
+        {
+            if (selected.Count == limit)
+                return selected;
+            selected.Add(candidate);
+        }
+
+        foreach (var candidate in ordered
+            .Where(candidate => !selected.Contains(candidate))
+            .GroupBy(sample => sample.ReceiverKind ?? "Unknown", StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => group.First()))
+        {
+            if (selected.Count == limit)
+                return selected;
+            selected.Add(candidate);
+        }
+
+        selected.AddRange(ordered.Where(candidate => !selected.Contains(candidate)).Take(limit - selected.Count));
+        return selected;
+    }
+
+    private static int CompareSamples(RelationshipResolutionSample left, RelationshipResolutionSample right)
+    {
+        var fileComparison = StringComparer.Ordinal.Compare(left.FilePath, right.FilePath);
+        if (fileComparison != 0)
+            return fileComparison;
+        var lineComparison = Nullable.Compare(left.LineNumber, right.LineNumber);
+        if (lineComparison != 0)
+            return lineComparison;
+        var sourceComparison = StringComparer.Ordinal.Compare(left.SourceId, right.SourceId);
+        return sourceComparison != 0
+            ? sourceComparison
+            : StringComparer.Ordinal.Compare(left.TargetName, right.TargetName);
+    }
+
+    private static int FileRolePriority(string fileRole) =>
+        fileRole switch
+        {
+            "Source" => 0,
+            "Test" => 1,
+            _ => 2
+        };
 
     private static string BuildEdgeIdentity(IngestEdgeRequest edge) =>
         $"{edge.SourceId}|{edge.TargetId}|{edge.RelationshipType}";
