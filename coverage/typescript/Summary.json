@@ -1,55 +1,55 @@
 {
   "summary": {
-    "generatedon": "2026-08-05T11:32:05Z",
+    "generatedon": "2026-08-05T21:05:05Z",
     "parser": "MultiReport (3x Cobertura)",
     "assemblies": 9,
     "classes": 21,
     "files": 21,
-    "coveredlines": 1492,
-    "uncoveredlines": 347,
-    "coverablelines": 1839,
-    "totallines": 4473,
-    "linecoverage": 81.1,
-    "coveredbranches": 623,
-    "totalbranches": 1025,
-    "branchcoverage": 60.7,
-    "coveredmethods": 249,
-    "fullcoveredmethods": 249,
-    "totalmethods": 294,
-    "methodcoverage": 84.6,
-    "fullmethodcoverage": 84.6
+    "coveredlines": 1549,
+    "uncoveredlines": 352,
+    "coverablelines": 1901,
+    "totallines": 4590,
+    "linecoverage": 81.4,
+    "coveredbranches": 652,
+    "totalbranches": 1056,
+    "branchcoverage": 61.7,
+    "coveredmethods": 263,
+    "fullcoveredmethods": 263,
+    "totalmethods": 308,
+    "methodcoverage": 85.3,
+    "fullmethodcoverage": 85.3
  },
   "coverage": {
     "assemblies": [
       { "name": "main", "classes": 2, "coverage": 68.2, "coveredlines": 71, "coverablelines": 104, "totallines": 244, "branchcoverage": 47.5, "coveredbranches": 19, "totalbranches": 40, "methodcoverage": 60, "fullmethodcoverage": 60, "coveredmethods": 12, "fullcoveredmethods": 12, "totalmethods": 20, "classesinassembly": [
         { "name": "batch-file.ts", "coverage": 100, "coveredlines": 16, "coverablelines": 16, "totallines": 40, "branchcoverage": 100, "coveredbranches": 8, "totalbranches": 8, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
         { "name": "client.ts", "coverage": 62.5, "coveredlines": 55, "coverablelines": 88, "totallines": 204, "branchcoverage": 34.3, "coveredbranches": 11, "totalbranches": 32, "methodcoverage": 57.8, "fullmethodcoverage": 57.8, "coveredmethods": 11, "fullcoveredmethods": 11, "totalmethods": 19 } ] },
-      { "name": "src", "classes": 3, "coverage": 99.1, "coveredlines": 115, "coverablelines": 116, "totallines": 171, "branchcoverage": 84.3, "coveredbranches": 43, "totalbranches": 51, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 15, "fullcoveredmethods": 15, "totalmethods": 15, "classesinassembly": [
+      { "name": "src", "classes": 3, "coverage": 96.5, "coveredlines": 166, "coverablelines": 172, "totallines": 247, "branchcoverage": 85.8, "coveredbranches": 67, "totalbranches": 78, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 28, "fullcoveredmethods": 28, "totalmethods": 28, "classesinassembly": [
         { "name": "index.ts", "coverage": 100, "coveredlines": 8, "coverablelines": 8, "totallines": 13, "branchcoverage": 50, "coveredbranches": 1, "totalbranches": 2, "methodcoverage": null, "fullmethodcoverage": null, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 0 },
-        { "name": "relationship-health.ts", "coverage": 97.5, "coveredlines": 40, "coverablelines": 41, "totallines": 120, "branchcoverage": 88.8, "coveredbranches": 24, "totalbranches": 27, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 8, "fullcoveredmethods": 8, "totalmethods": 8 },
-        { "name": "walker.ts", "coverage": 100, "coveredlines": 67, "coverablelines": 67, "totallines": 38, "branchcoverage": 81.8, "coveredbranches": 18, "totalbranches": 22, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 7, "fullcoveredmethods": 7, "totalmethods": 7 } ] },
+        { "name": "relationship-health.ts", "coverage": 97.5, "coveredlines": 79, "coverablelines": 81, "totallines": 196, "branchcoverage": 88.8, "coveredbranches": 48, "totalbranches": 54, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 20, "fullcoveredmethods": 20, "totalmethods": 20 },
+        { "name": "walker.ts", "coverage": 95.1, "coveredlines": 79, "coverablelines": 83, "totallines": 38, "branchcoverage": 81.8, "coveredbranches": 18, "totalbranches": 22, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 8, "fullcoveredmethods": 8, "totalmethods": 8 } ] },
       { "name": "src.analysis", "classes": 1, "coverage": 100, "coveredlines": 8, "coverablelines": 8, "totallines": 36, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 4, "fullcoveredmethods": 4, "totalmethods": 4, "classesinassembly": [
         { "name": "type-script-boundaries.ts", "coverage": 100, "coveredlines": 8, "coverablelines": 8, "totallines": 36, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 4, "fullcoveredmethods": 4, "totalmethods": 4 } ] },
-      { "name": "src.application", "classes": 2, "coverage": 94.1, "coveredlines": 80, "coverablelines": 85, "totallines": 242, "branchcoverage": 63.3, "coveredbranches": 19, "totalbranches": 30, "methodcoverage": 88.8, "fullmethodcoverage": 88.8, "coveredmethods": 16, "fullcoveredmethods": 16, "totalmethods": 18, "classesinassembly": [
+      { "name": "src.application", "classes": 2, "coverage": 94.4, "coveredlines": 85, "coverablelines": 90, "totallines": 265, "branchcoverage": 67.6, "coveredbranches": 23, "totalbranches": 34, "methodcoverage": 88.8, "fullmethodcoverage": 88.8, "coveredmethods": 16, "fullcoveredmethods": 16, "totalmethods": 18, "classesinassembly": [
         { "name": "html-css-indexer-application.ts", "coverage": 93, "coveredlines": 40, "coverablelines": 43, "totallines": 92, "branchcoverage": 62.5, "coveredbranches": 10, "totalbranches": 16, "methodcoverage": 90, "fullmethodcoverage": 90, "coveredmethods": 9, "fullcoveredmethods": 9, "totalmethods": 10 },
-        { "name": "type-script-indexer-application.ts", "coverage": 95.2, "coveredlines": 40, "coverablelines": 42, "totallines": 150, "branchcoverage": 64.2, "coveredbranches": 9, "totalbranches": 14, "methodcoverage": 87.5, "fullmethodcoverage": 87.5, "coveredmethods": 7, "fullcoveredmethods": 7, "totalmethods": 8 } ] },
+        { "name": "type-script-indexer-application.ts", "coverage": 95.7, "coveredlines": 45, "coverablelines": 47, "totallines": 173, "branchcoverage": 72.2, "coveredbranches": 13, "totalbranches": 18, "methodcoverage": 87.5, "fullmethodcoverage": 87.5, "coveredmethods": 7, "fullcoveredmethods": 7, "totalmethods": 8 } ] },
       { "name": "src.cli", "classes": 1, "coverage": 92.8, "coveredlines": 26, "coverablelines": 28, "totallines": 60, "branchcoverage": 75, "coveredbranches": 9, "totalbranches": 12, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 7, "fullcoveredmethods": 7, "totalmethods": 7, "classesinassembly": [
         { "name": "program.ts", "coverage": 92.8, "coveredlines": 26, "coverablelines": 28, "totallines": 60, "branchcoverage": 75, "coveredbranches": 9, "totalbranches": 12, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 7, "fullcoveredmethods": 7, "totalmethods": 7 } ] },
       { "name": "src.diagnostics", "classes": 1, "coverage": 37.2, "coveredlines": 35, "coverablelines": 94, "totallines": 251, "branchcoverage": 27.2, "coveredbranches": 12, "totalbranches": 44, "methodcoverage": 28.5, "fullmethodcoverage": 28.5, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 21, "classesinassembly": [
         { "name": "type-script-diagnostics.ts", "coverage": 37.2, "coveredlines": 35, "coverablelines": 94, "totallines": 251, "branchcoverage": 27.2, "coveredbranches": 12, "totalbranches": 44, "methodcoverage": 28.5, "fullmethodcoverage": 28.5, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 21 } ] },
       { "name": "src.services", "classes": 1, "coverage": 82.2, "coveredlines": 65, "coverablelines": 79, "totallines": 163, "branchcoverage": 74.5, "coveredbranches": 38, "totalbranches": 51, "methodcoverage": 70.3, "fullmethodcoverage": 70.3, "coveredmethods": 19, "fullcoveredmethods": 19, "totalmethods": 27, "classesinassembly": [
         { "name": "project-discovery.ts", "coverage": 82.2, "coveredlines": 65, "coverablelines": 79, "totallines": 163, "branchcoverage": 74.5, "coveredbranches": 38, "totalbranches": 51, "methodcoverage": 70.3, "fullmethodcoverage": 70.3, "coveredmethods": 19, "fullcoveredmethods": 19, "totalmethods": 27 } ] },
-      { "name": "src.walker", "classes": 9, "coverage": 82, "coveredlines": 1057, "coverablelines": 1289, "totallines": 3232, "branchcoverage": 60.2, "coveredbranches": 472, "totalbranches": 784, "methodcoverage": 93, "fullmethodcoverage": 93, "coveredmethods": 160, "fullcoveredmethods": 160, "totalmethods": 172, "classesinassembly": [
+      { "name": "src.walker", "classes": 9, "coverage": 82, "coveredlines": 1058, "coverablelines": 1290, "totallines": 3250, "branchcoverage": 60.2, "coveredbranches": 472, "totalbranches": 784, "methodcoverage": 93, "fullmethodcoverage": 93, "coveredmethods": 161, "fullcoveredmethods": 161, "totalmethods": 173, "classesinassembly": [
         { "name": "common.ts", "coverage": 93.1, "coveredlines": 54, "coverablelines": 58, "totallines": 77, "branchcoverage": 81, "coveredbranches": 30, "totalbranches": 37, "methodcoverage": 96, "fullmethodcoverage": 96, "coveredmethods": 24, "fullcoveredmethods": 24, "totalmethods": 25 },
         { "name": "configuration.ts", "coverage": 60.3, "coveredlines": 61, "coverablelines": 101, "totallines": 261, "branchcoverage": 35.8, "coveredbranches": 24, "totalbranches": 67, "methodcoverage": 66.6, "fullmethodcoverage": 66.6, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 15 },
         { "name": "css.ts", "coverage": 81.4, "coveredlines": 127, "coverablelines": 156, "totallines": 454, "branchcoverage": 50, "coveredbranches": 29, "totalbranches": 58, "methodcoverage": 93.7, "fullmethodcoverage": 93.7, "coveredmethods": 15, "fullcoveredmethods": 15, "totalmethods": 16 },
         { "name": "database-tracing-options.ts", "coverage": 81, "coveredlines": 47, "coverablelines": 58, "totallines": 164, "branchcoverage": 71.4, "coveredbranches": 30, "totalbranches": 42, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 14, "fullcoveredmethods": 14, "totalmethods": 14 },
         { "name": "database-tracing.ts", "coverage": 76.1, "coveredlines": 172, "coverablelines": 226, "totallines": 556, "branchcoverage": 51, "coveredbranches": 75, "totalbranches": 147, "methodcoverage": 95.2, "fullmethodcoverage": 95.2, "coveredmethods": 40, "fullcoveredmethods": 40, "totalmethods": 42 },
-        { "name": "graph.ts", "coverage": 81.2, "coveredlines": 330, "coverablelines": 406, "totallines": 962, "branchcoverage": 59, "coveredbranches": 156, "totalbranches": 264, "methodcoverage": 90.9, "fullmethodcoverage": 90.9, "coveredmethods": 30, "fullcoveredmethods": 30, "totalmethods": 33 },
+        { "name": "graph.ts", "coverage": 81.3, "coveredlines": 331, "coverablelines": 407, "totallines": 980, "branchcoverage": 59, "coveredbranches": 156, "totalbranches": 264, "methodcoverage": 91.1, "fullmethodcoverage": 91.1, "coveredmethods": 31, "fullcoveredmethods": 31, "totalmethods": 34 },
         { "name": "markup.ts", "coverage": 88.2, "coveredlines": 90, "coverablelines": 102, "totallines": 330, "branchcoverage": 58.8, "coveredbranches": 20, "totalbranches": 34, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 9, "fullcoveredmethods": 9, "totalmethods": 9 },
         { "name": "routes.ts", "coverage": 96.8, "coveredlines": 152, "coverablelines": 157, "totallines": 367, "branchcoverage": 78.2, "coveredbranches": 90, "totalbranches": 115, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 15, "fullcoveredmethods": 15, "totalmethods": 15 },
         { "name": "test-discovery.ts", "coverage": 96, "coveredlines": 24, "coverablelines": 25, "totallines": 61, "branchcoverage": 90, "coveredbranches": 18, "totalbranches": 20, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 3, "fullcoveredmethods": 3, "totalmethods": 3 } ] },
-      { "name": "tests", "classes": 1, "coverage": 97.2, "coveredlines": 35, "coverablelines": 36, "totallines": 74, "branchcoverage": 84.6, "coveredbranches": 11, "totalbranches": 13, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 10, "classesinassembly": [
-        { "name": "walker-test-helpers.ts", "coverage": 97.2, "coveredlines": 35, "coverablelines": 36, "totallines": 74, "branchcoverage": 84.6, "coveredbranches": 11, "totalbranches": 13, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 10 } ] } ]
+      { "name": "tests", "classes": 1, "coverage": 97.2, "coveredlines": 35, "coverablelines": 36, "totallines": 74, "branchcoverage": 92.3, "coveredbranches": 12, "totalbranches": 13, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 10, "classesinassembly": [
+        { "name": "walker-test-helpers.ts", "coverage": 97.2, "coveredlines": 35, "coverablelines": 36, "totallines": 74, "branchcoverage": 92.3, "coveredbranches": 12, "totalbranches": 13, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 10 } ] } ]
   }
 }
