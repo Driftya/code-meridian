@@ -267,6 +267,7 @@ public sealed class Neo4jCodeGraphRepositoryConfigurationIntegrationTests : IAsy
     public async Task DeleteConfigurationAsync_PreservesConfigurationUsageEdges()
     {
         var projectContext = $"Integration.ConfigDelete.{Guid.NewGuid():N}";
+        var otherProjectContext = $"{projectContext}.Other";
         var keyNode = ConfigNode($"{projectContext}.Key", "Neo4j:Uri", CodeNodeType.ConfigurationKey, projectContext)
             with
             {
@@ -276,6 +277,8 @@ public sealed class Neo4jCodeGraphRepositoryConfigurationIntegrationTests : IAsy
                     ["normalizedKey"] = "neo4j:uri"
                 }
             };
+        var orphanedKey = ConfigNode($"{projectContext}.OrphanedKey", "Unused", CodeNodeType.ConfigurationKey, projectContext);
+        var otherProjectKey = ConfigNode($"{otherProjectContext}.Key", "Keep", CodeNodeType.ConfigurationKey, otherProjectContext);
         var reader = ConfigNode($"{projectContext}.Reader", "Read", CodeNodeType.Method, projectContext, $"src/{projectContext}/Reader.cs");
         var configFile = ConfigNode($"{projectContext}.File", "appsettings.json", CodeNodeType.ConfigurationFile, projectContext, "appsettings.json");
         var configEntry = ConfigNode($"{projectContext}.Entry", "Neo4j:Uri", CodeNodeType.ConfigurationEntry, projectContext, "appsettings.json")
@@ -292,6 +295,8 @@ public sealed class Neo4jCodeGraphRepositoryConfigurationIntegrationTests : IAsy
         try
         {
             await _repository!.UpsertNodeAsync(keyNode);
+            await _repository.UpsertNodeAsync(orphanedKey);
+            await _repository.UpsertNodeAsync(otherProjectKey);
             await _repository.UpsertNodeAsync(reader);
             await _repository.UpsertNodeAsync(configFile);
             await _repository.UpsertNodeAsync(configEntry);
@@ -336,16 +341,31 @@ public sealed class Neo4jCodeGraphRepositoryConfigurationIntegrationTests : IAsy
 
             var usage = await _repository.FindConfigUsageAsync("Neo4j:Uri", projectContext);
             var definitions = await _repository.FindConfigDefinitionsAsync("Neo4j:Uri", projectContext);
+            var remainingProjectNodes = await _repository.QueryNodesAsync(new CodeGraphQuery
+            {
+                ProjectContext = projectContext,
+                Limit = 20
+            });
+            var otherProjectNodes = await _repository.QueryNodesAsync(new CodeGraphQuery
+            {
+                ProjectContext = otherProjectContext,
+                Limit = 20
+            });
 
             usage.Should().ContainSingle(item =>
                 item.RelationshipType == "ReadsConfig" &&
                 item.ConsumerNode.Id == reader.Id &&
                 item.KeyNode.Id == keyNode.Id);
             definitions.Should().BeEmpty();
+            remainingProjectNodes.Should().Contain(node => node.Id == keyNode.Id);
+            remainingProjectNodes.Should().NotContain(node => node.Id == orphanedKey.Id);
+            remainingProjectNodes.Should().NotContain(node => node.Id == configFile.Id || node.Id == configEntry.Id);
+            otherProjectNodes.Should().Contain(node => node.Id == otherProjectKey.Id);
         }
         finally
         {
             await _repository!.DeleteProjectAsync(projectContext);
+            await _repository.DeleteProjectAsync(otherProjectContext);
         }
     }
 

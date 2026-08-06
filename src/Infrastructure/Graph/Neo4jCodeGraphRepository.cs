@@ -16,6 +16,8 @@ namespace CodeMeridian.Infrastructure.Graph;
 /// </summary>
 public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAsyncDisposable
 {
+    private const int ConfigurationDeleteBatchSize = 500;
+
     private readonly IDriver _driver;
     private readonly ILogger<Neo4jCodeGraphRepository> _logger;
     private readonly int _embeddingDimensions;
@@ -497,26 +499,29 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
     {
         await using var session = _driver.AsyncSession();
 
-        const string cypher = """
+        const string deleteConfigurationNodesCypher = """
             MATCH (n:CodeNode)
             WHERE n.projectContextNormalized = $projectContextNormalized
               AND n.type IN ['ConfigurationFile', 'ConfigurationEntry']
+            WITH n LIMIT $batchSize
             DETACH DELETE n
+            RETURN count(*) AS deletedCount
+            """;
 
-            WITH $projectContextNormalized AS projectContextNormalized
+        const string deleteOrphanedKeysCypher = """
             MATCH (key:CodeNode)
-            WHERE key.projectContextNormalized = projectContextNormalized
+            WHERE key.projectContextNormalized = $projectContextNormalized
               AND key.type = 'ConfigurationKey'
               AND NOT (key)<-[:DefinesConfig|OverridesConfig]-(:CodeNode)
               AND NOT (:CodeNode)-[:ReadsConfig|BindsConfig]->(key)
+            WITH key LIMIT $batchSize
             DETACH DELETE key
+            RETURN count(*) AS deletedCount
             """;
 
-        await session.ExecuteWriteAsync(async tx =>
-        {
-            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Normalize(projectContext) });
-            await cursor.ConsumeAsync();
-        });
+        var projectContextNormalized = Normalize(projectContext);
+        await DeleteInBatchesAsync(session, deleteConfigurationNodesCypher, projectContextNormalized, cancellationToken);
+        await DeleteInBatchesAsync(session, deleteOrphanedKeysCypher, projectContextNormalized, cancellationToken);
     }
 
     public async Task DeleteAllAsync(CancellationToken cancellationToken = default)
@@ -619,6 +624,30 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    private static async Task DeleteInBatchesAsync(
+        IAsyncSession session,
+        string cypher,
+        string? projectContextNormalized,
+        CancellationToken cancellationToken)
+    {
+        long deletedCount;
+        do
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            deletedCount = await session.ExecuteWriteAsync(async tx =>
+            {
+                var cursor = await tx.RunAsync(cypher, new
+                {
+                    projectContextNormalized,
+                    batchSize = ConfigurationDeleteBatchSize
+                });
+                var record = await cursor.SingleAsync();
+                return record["deletedCount"].As<long>();
+            });
+        }
+        while (deletedCount == ConfigurationDeleteBatchSize);
+    }
 
     private static async Task<IReadOnlyList<CodeNode>> FullTextSearchAsync(
         IAsyncSession session,
