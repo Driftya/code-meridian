@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Json.Schema;
 using Microsoft.Extensions.Configuration;
 
 namespace CodeMeridian.Tooling.Configuration;
@@ -18,6 +19,8 @@ public sealed class CodeMeridianConfigFileStore
 
     private const string MeridianSampleFileName = "meridian.sample.json";
     private const string ConfigFileName = "meridian.json";
+    private const string ConfigSchemaResourceName = "CodeMeridian.Tooling.meridian.schema.json";
+    private static readonly Lazy<JsonSchema> ConfigSchema = new(LoadConfigSchema);
     private static readonly string[] ArchitectureTemplateFileNames =
     [
         "architecture.clean.template.json",
@@ -172,15 +175,18 @@ public sealed class CodeMeridianConfigFileStore
         return result;
     }
 
-    private CodeMeridianConfigSnapshot? LoadFile(FileInfo configFile, bool ignoreProject)
+    private CodeMeridianConfigSnapshot LoadFile(FileInfo configFile, bool ignoreProject)
     {
         try
         {
             var directoryPath = configFile.DirectoryName;
             if (string.IsNullOrWhiteSpace(directoryPath))
-                return null;
+                throw new InvalidOperationException("The configuration file has no parent directory.");
 
-            var root = ParseRequiredObject(File.ReadAllText(configFile.FullName), configFile.FullName);
+            var json = File.ReadAllText(configFile.FullName);
+            using var document = ParseRequiredDocument(json, configFile.FullName);
+            var root = ParseRequiredObject(document.RootElement, configFile.FullName);
+            ValidateAgainstSchema(document.RootElement);
 
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(directoryPath)
@@ -189,7 +195,7 @@ public sealed class CodeMeridianConfigFileStore
 
             var options = configuration.Get<CodeMeridianConfigFileOptions>();
             if (options is null)
-                return null;
+                throw new InvalidOperationException("The configuration could not be mapped to supported options.");
 
             return new CodeMeridianConfigSnapshot(
                 ignoreProject ? null : NormalizeOptionalString(options.Project),
@@ -202,10 +208,55 @@ public sealed class CodeMeridianConfigFileStore
                 ReadVersion(root),
                 options.Embedding?.Enabled);
         }
-        catch
+        catch (Exception ex)
         {
-            return null;
+            throw new InvalidOperationException(
+                $"Invalid CodeMeridian configuration file '{configFile.FullName}': {ex.Message}",
+                ex);
         }
+    }
+
+    private static void ValidateAgainstSchema(JsonElement root)
+    {
+        var result = ConfigSchema.Value.Evaluate(
+            root,
+            new EvaluationOptions { OutputFormat = OutputFormat.List });
+        if (result.IsValid)
+            return;
+
+        throw new InvalidOperationException(
+            $"The configuration does not match meridian.schema.json. {DescribeSchemaFailure(result)}");
+    }
+
+    private static string DescribeSchemaFailure(EvaluationResults result)
+    {
+        if (result.Errors is { Count: > 0 })
+        {
+            var location = result.InstanceLocation.ToString();
+            var displayLocation = string.IsNullOrEmpty(location) ? "$" : $"${location}";
+            return $"{displayLocation}: {string.Join("; ", result.Errors.Values)}";
+        }
+
+        if (result.Details is null)
+            return "No further validation details were provided.";
+
+        foreach (var detail in result.Details)
+        {
+            if (!detail.IsValid)
+                return DescribeSchemaFailure(detail);
+        }
+
+        return "No further validation details were provided.";
+    }
+
+    private static JsonSchema LoadConfigSchema()
+    {
+        using var stream = typeof(CodeMeridianConfigFileStore).Assembly
+            .GetManifestResourceStream(ConfigSchemaResourceName)
+            ?? throw new InvalidOperationException(
+                $"Embedded configuration schema '{ConfigSchemaResourceName}' was not found.");
+        using var reader = new StreamReader(stream);
+        return JsonSchema.FromText(reader.ReadToEnd());
     }
 
     private static JsonObject BuildMeridianConfigRoot(string? project, string codeMeridianUrl, bool useGlobalCache)
@@ -385,21 +436,74 @@ public sealed class CodeMeridianConfigFileStore
 
     private static JsonObject ParseRequiredObject(string json, string sourceName)
     {
+        using var document = ParseRequiredDocument(json, sourceName);
+        return ParseRequiredObject(document.RootElement, sourceName);
+    }
+
+    private static JsonDocument ParseRequiredDocument(string json, string sourceName)
+    {
         try
         {
-            return JsonNode.Parse(
+            var document = JsonDocument.Parse(
                 json,
-                new JsonNodeOptions { PropertyNameCaseInsensitive = false },
                 new JsonDocumentOptions
                 {
                     AllowTrailingCommas = true,
                     CommentHandling = JsonCommentHandling.Skip,
-                })?.AsObject()
-                   ?? throw new InvalidOperationException($"Config file must contain a JSON object: {sourceName}");
+                });
+            ValidateNoDuplicateProperties(document.RootElement, "$", sourceName);
+            return document;
         }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        catch (JsonException ex)
         {
-            throw new InvalidOperationException($"Config file is not valid JSON: {sourceName}", ex);
+            throw new InvalidOperationException(
+                $"Config file is not valid JSON: {sourceName}. {ex.Message}",
+                ex);
+        }
+    }
+
+    private static JsonObject ParseRequiredObject(JsonElement root, string sourceName)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException($"Config file must contain a JSON object: {sourceName}");
+
+        return JsonNode.Parse(
+            root.GetRawText(),
+            new JsonNodeOptions { PropertyNameCaseInsensitive = false },
+            new JsonDocumentOptions
+            {
+                AllowTrailingCommas = true,
+                CommentHandling = JsonCommentHandling.Skip,
+            })!.AsObject();
+    }
+
+    private static void ValidateNoDuplicateProperties(JsonElement element, string path, string sourceName)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            var properties = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var property in element.EnumerateObject())
+            {
+                if (!properties.Add(property.Name))
+                {
+                    throw new InvalidOperationException(
+                        $"Config file contains duplicate property '{property.Name}' at {path}: {sourceName}");
+                }
+
+                ValidateNoDuplicateProperties(property.Value, $"{path}.{property.Name}", sourceName);
+            }
+
+            return;
+        }
+
+        if (element.ValueKind != JsonValueKind.Array)
+            return;
+
+        var index = 0;
+        foreach (var item in element.EnumerateArray())
+        {
+            ValidateNoDuplicateProperties(item, $"{path}[{index}]", sourceName);
+            index++;
         }
     }
 

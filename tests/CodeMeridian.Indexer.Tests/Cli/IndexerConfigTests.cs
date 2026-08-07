@@ -108,13 +108,15 @@ public sealed class IndexerConfigTests : IDisposable
     }
 
     [Fact]
-    public void Load_ReturnsNullWhenJsonIsInvalid()
+    public void Load_ThrowsWhenJsonIsInvalid()
     {
-        File.WriteAllText(Path.Combine(_root, "meridian.json"), "{ invalid json");
+        var configPath = Path.Combine(_root, "meridian.json");
+        File.WriteAllText(configPath, "{ invalid json");
 
-        var result = _store.LoadLocal(new DirectoryInfo(_root));
+        var act = () => _store.LoadLocal(new DirectoryInfo(_root));
 
-        result.Should().BeNull();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*Invalid CodeMeridian configuration file '{configPath}'*");
     }
 
     [Fact]
@@ -466,7 +468,7 @@ public sealed class IndexerConfigTests : IDisposable
         var act = () => _store.Write(new DirectoryInfo(_root), "MyApi", "http://localhost:5100", overwrite: false);
 
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"Config file is not valid JSON: {configPath}");
+            .WithMessage($"Config file is not valid JSON: {configPath}.*");
         File.ReadAllText(configPath).Should().Be("{ invalid json");
         File.Exists($"{configPath}.bak").Should().BeFalse();
     }

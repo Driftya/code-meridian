@@ -227,21 +227,65 @@ public sealed class CodeMeridianConfigFileStoreTests : IDisposable
     }
 
     [Fact]
-    public void LoadLocal_InvalidJson_ReturnsNull()
+    public void LoadLocal_InvalidJson_ThrowsClearError()
     {
         var child = Directory.CreateDirectory(Path.Combine(_root.FullName, "invalid", "src"));
-        File.WriteAllText(Path.Combine(_root.FullName, "invalid", "meridian.json"), "{ invalid json");
+        var configPath = Path.Combine(_root.FullName, "invalid", "meridian.json");
+        File.WriteAllText(configPath, "{ invalid json");
 
-        var result = new CodeMeridianConfigFileStore().LoadLocal(child);
+        var act = () => new CodeMeridianConfigFileStore().LoadLocal(child);
 
-        result.Should().BeNull();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*Invalid CodeMeridian configuration file '{configPath}'*")
+            .WithMessage("*not valid JSON*");
     }
 
     [Fact]
-    public void LoadGlobal_NonObjectJson_ReturnsNull()
+    public void LoadLocal_DuplicateProperty_ThrowsClearError()
+    {
+        var child = Directory.CreateDirectory(Path.Combine(_root.FullName, "duplicate", "src"));
+        var configPath = Path.Combine(_root.FullName, "duplicate", "meridian.json");
+        File.WriteAllText(configPath, """
+            {
+              "version": 2,
+              "project": "LocalProject",
+              "version": 1
+            }
+            """);
+
+        var act = () => new CodeMeridianConfigFileStore().LoadLocal(child);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*Invalid CodeMeridian configuration file '{configPath}'*")
+            .WithMessage("*duplicate property 'version' at $*");
+    }
+
+    [Fact]
+    public void LoadLocal_SchemaViolation_ThrowsPropertyPathAndReason()
+    {
+        var child = Directory.CreateDirectory(Path.Combine(_root.FullName, "schema-invalid", "src"));
+        var configPath = Path.Combine(_root.FullName, "schema-invalid", "meridian.json");
+        File.WriteAllText(configPath, """
+            {
+              "version": 2,
+              "configurationFiles": ".env"
+            }
+            """);
+
+        var act = () => new CodeMeridianConfigFileStore().LoadLocal(child);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*Invalid CodeMeridian configuration file '{configPath}'*")
+            .WithMessage("*does not match meridian.schema.json*")
+            .WithMessage("*configurationFiles*");
+    }
+
+    [Fact]
+    public void LoadGlobal_NonObjectJson_ThrowsClearError()
     {
         var globalRoot = Directory.CreateDirectory(Path.Combine(_root.FullName, "global-invalid"));
-        File.WriteAllText(Path.Combine(globalRoot.FullName, "meridian.json"), """
+        var configPath = Path.Combine(globalRoot.FullName, "meridian.json");
+        File.WriteAllText(configPath, """
             [
               {
                 "project": "invalid"
@@ -249,9 +293,11 @@ public sealed class CodeMeridianConfigFileStoreTests : IDisposable
             ]
             """);
 
-        var result = new CodeMeridianConfigFileStore().LoadGlobal(globalRoot);
+        var act = () => new CodeMeridianConfigFileStore().LoadGlobal(globalRoot);
 
-        result.Should().BeNull();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*Invalid CodeMeridian configuration file '{configPath}'*")
+            .WithMessage("*must contain a JSON object*");
     }
 
     [Fact]

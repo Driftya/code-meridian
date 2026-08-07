@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Indexer.Tests.Cli;
 
+[Collection(EnvironmentVariableTestCollection.Name)]
 public sealed class ToolConfigurationServiceTests : IDisposable
 {
     private readonly string _root = Path.Combine(
@@ -197,6 +198,43 @@ public sealed class ToolConfigurationServiceTests : IDisposable
             Environment.SetEnvironmentVariable("CodeMeridian_Project", originalProject);
             Environment.SetEnvironmentVariable("CodeMeridian_Url", originalUrl);
             Environment.SetEnvironmentVariable("CodeMeridian_Auth_ApiKey", originalApiKey);
+        }
+    }
+
+    [Fact]
+    public void CreateContext_InvalidLocalConfig_DoesNotFallBackToGlobalConfig()
+    {
+        var localRoot = Directory.CreateDirectory(Path.Combine(_root, "local"));
+        var globalRoot = Directory.CreateDirectory(Path.Combine(_root, "global"));
+        var localConfigPath = Path.Combine(localRoot.FullName, "meridian.json");
+        File.WriteAllText(localConfigPath, """
+            {
+              "version": 2,
+              "project": "LocalProject",
+              "version": 1
+            }
+            """);
+        File.WriteAllText(Path.Combine(globalRoot.FullName, "meridian.json"), """
+            {
+              "version": 2,
+              "project": "GlobalProject"
+            }
+            """);
+
+        var originalConfigHome = Environment.GetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME");
+        try
+        {
+            Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", globalRoot.FullName);
+
+            var act = () => CreateSut().CreateContext(localRoot.FullName);
+
+            act.Should().Throw<InvalidOperationException>()
+                .WithMessage($"*Invalid CodeMeridian configuration file '{localConfigPath}'*")
+                .WithMessage("*duplicate property 'version'*");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CODEMERIDIAN_CONFIG_HOME", originalConfigHome);
         }
     }
 
