@@ -16,7 +16,7 @@ namespace CodeMeridian.Infrastructure.Graph;
 /// </summary>
 public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAsyncDisposable
 {
-    private const int ConfigurationDeleteBatchSize = 500;
+    private const int DeleteBatchSize = 500;
 
     private readonly IDriver _driver;
     private readonly ILogger<Neo4jCodeGraphRepository> _logger;
@@ -430,14 +430,12 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         const string cypher = """
             MATCH (n:CodeNode)
             WHERE n.projectContextNormalized = $projectContextNormalized
+            WITH n LIMIT $batchSize
             DETACH DELETE n
+            RETURN count(*) AS deletedCount
             """;
 
-        await session.ExecuteWriteAsync(async tx =>
-        {
-            var cursor = await tx.RunAsync(cypher, new { projectContextNormalized = Normalize(projectContext) });
-            await cursor.ConsumeAsync();
-        });
+        await DeleteInBatchesAsync(session, cypher, Normalize(projectContext), cancellationToken);
     }
 
     public async Task DeleteFileAsync(
@@ -640,13 +638,13 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 var cursor = await tx.RunAsync(cypher, new
                 {
                     projectContextNormalized,
-                    batchSize = ConfigurationDeleteBatchSize
+                    batchSize = DeleteBatchSize
                 });
                 var record = await cursor.SingleAsync();
                 return record["deletedCount"].As<long>();
             });
         }
-        while (deletedCount == ConfigurationDeleteBatchSize);
+        while (deletedCount == DeleteBatchSize);
     }
 
     private static async Task<IReadOnlyList<CodeNode>> FullTextSearchAsync(
