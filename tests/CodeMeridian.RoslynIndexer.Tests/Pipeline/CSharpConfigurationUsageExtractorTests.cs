@@ -55,6 +55,37 @@ public sealed class CSharpConfigurationUsageExtractorTests : IDisposable
     }
 
     [Fact]
+    public async Task IndexAsync_MultiArgumentElementAccess_DoesNotSkipLaterConfigurationReads()
+    {
+        var file = WriteFile(
+            "src/SettingsReader.cs",
+            """
+            namespace Demo;
+
+            public sealed class SettingsReader
+            {
+                public string Read(
+                    string[,] values,
+                    Microsoft.Extensions.Configuration.IConfiguration configuration)
+                {
+                    _ = values[0, 0];
+                    return configuration["CodeMeridian:Auth:ApiKey"] ?? string.Empty;
+                }
+            }
+            """);
+
+        var handler = new RecordingHandler();
+        var client = new CodeMeridianClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") });
+        var sut = new CSharpIndexer(client, NullLogger<CSharpIndexer>.Instance);
+
+        await sut.IndexAsync([file], "CodeMeridian", _root);
+
+        handler.Requests.Should().Contain(request =>
+            request.Path == "/api/v1/knowledge/nodes"
+            && request.Body.GetProperty("id").GetString() == "CodeMeridian::ConfigurationKey::CodeMeridian:Auth:ApiKey");
+    }
+
+    [Fact]
     public async Task IndexAsync_ExtractsTypedConfigurationBindings()
     {
         var file = WriteFile(

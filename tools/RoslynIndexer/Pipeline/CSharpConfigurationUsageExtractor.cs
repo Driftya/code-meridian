@@ -15,7 +15,9 @@ internal static class CSharpConfigurationUsageExtractor
     {
         foreach (var access in root.DescendantNodes().OfType<ElementAccessExpressionSyntax>())
         {
-            var rawKey = ResolveStringExpression(access.ArgumentList.Arguments.SingleOrDefault()?.Expression, constants);
+            var rawKey = access.ArgumentList.Arguments.Count == 1
+                ? ResolveStringExpression(access.ArgumentList.Arguments[0].Expression, constants)
+                : null;
             if (rawKey is null || !LooksLikeConfigurationAccessor(access.Expression))
                 continue;
 
