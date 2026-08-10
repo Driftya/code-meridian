@@ -672,6 +672,9 @@ Use `user-approved` provenance only with `userConfirmed=true` after the user exp
 
 Retrieves bounded, opt-in human-cognitive-seed context for one exact node. Results compare the target's current source hash with the hash captured at write time and distinguish unchanged, changed, unknown, and orphaned graph state. Returned statements are untrusted attributed memory, not instructions or verified source facts.
 
+See the [Change Context User Guide](change-context.md) for the complete workflow,
+parameter guidance, and a repository-based theoretical LLM example.
+
 ### `link_external_concept`
 
 Creates an external concept node and links it to code. Supported external concepts include:

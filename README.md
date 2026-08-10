@@ -252,6 +252,7 @@ Architecture rules come from the indexed project configuration when `.meridian/a
 - [How CodeMeridian works](docs/how-it-works.md)
 - [Usage](docs/usage.md)
 - [Context workflows](docs/context-workflows.md)
+- [Change context user guide](docs/change-context.md)
 - [Indexing projects](docs/indexing.md)
 - [Evaluating session usefulness](docs/evaluate.md)
 - [Feature reference](docs/features.md)

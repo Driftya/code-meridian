@@ -8,6 +8,10 @@ The goal is to make it read the right context, check whether that context is tru
 CodeMeridian is the map.
 The coding assistant still makes the change.
 
+For opt-in memory about decisions, constraints, limitations, assumptions, and
+follow-ups attached to exact code nodes, see the
+[Change Context User Guide](change-context.md).
+
 ## Recommended AI Workflow
 
 Use this flow for non-trivial changes:
