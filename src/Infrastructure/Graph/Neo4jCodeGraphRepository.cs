@@ -341,6 +341,10 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 n.changeCount    = CASE WHEN contentChanged THEN coalesce(n.changeCount, 0) + 1 ELSE coalesce(n.changeCount, 0) END,
                 n.updatedAt      = CASE WHEN contentChanged THEN $now ELSE n.updatedAt END
             SET n += $properties
+            WITH n
+            OPTIONAL MATCH (context:KnowledgeDocument:HumanCognitiveSeedContext {targetNodeId: $id})
+            FOREACH (contextNode IN CASE WHEN context IS NULL THEN [] ELSE [context] END |
+                MERGE (contextNode)-[:Mentions]->(n))
             """;
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

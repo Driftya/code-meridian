@@ -14,6 +14,7 @@ The files in `meridian-agent-capabilities/` are intentionally provider-neutral w
 | Frontend Skill | `docs/agent-capabilities/skills/codemeridian-frontend/SKILL.md` | Route HTML/CSS/SCSS work through frontend-aware generic tools and bounded frontend-specific analysis. |
 | Refactor Skill | `docs/agent-capabilities/skills/codemeridian-refactor/SKILL.md` | Plan safer refactors with impact, tests, and dependency risk. |
 | Test Planning Skill | `docs/agent-capabilities/skills/codemeridian-test-planning/SKILL.md` | Find relevant tests and coverage gaps before behavior changes. |
+| Human Cognitive Seed Skill | `docs/agent-capabilities/skills/human-cognitive-seed/SKILL.md` | Strengthen human-led reasoning and preserve justified durable change context with explicit provenance. |
 | Context Agent | `docs/agent-capabilities/agents/codemeridian-context-agent.md` | Specialist agent for gathering CodeMeridian context. |
 | Architecture Review Agent | `docs/agent-capabilities/agents/codemeridian-architecture-review-agent.md` | Specialist reviewer for architecture, impact, tests, and quality risks. |
 
@@ -30,6 +31,8 @@ Use the context skill before:
 * reviewing impact or architecture risk
 
 When a feature likely follows an existing slice, pair the context skill with `find_implementation_patterns` so the agent sees reusable entry/service/repository/test shapes before editing.
+
+Use the human cognitive seed skill for reasoning-heavy design, learning, strategy, interpretation, and consequential choices. It preserves the user's starting model, adds evidence and alternatives, scales challenge depth to the stakes, and returns value-dependent judgment to the user. When CodeMeridian exposes `record_change_context` and `get_change_context`, the skill may preserve one compact durable decision, constraint, limitation, assumption, or follow-up against an exact node for future changes. Provenance remains explicit, and only an exact user-approved summary may be marked confirmed. It should not activate or record memory for routine implementation or clerical work. CodeMeridian supplies graph-grounded evidence and attributed storage; the skill governs how an agent reasons with them.
 
 Use the frontend skill when the task touches HTML, CSS, SCSS, selectors, style imports, or CSS variables. It keeps the default routing generic by preferring `build_minimal_context`, `find_connection`, `find_impact`, and `find_implementation_surface` before using frontend-only analysis such as `find_frontend_cascade_conflicts`.
 

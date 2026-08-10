@@ -21,10 +21,10 @@ The local modern and down-level baselines intentionally lock stable contract fac
 
 ## Tool Safety Metadata
 
-All 62 registered tools advertise an explicit title and reviewed `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint` values.
+All 64 registered tools advertise an explicit title and reviewed `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint` values.
 
-- 54 tools are read-only.
-- Eight tools can mutate CodeMeridian-controlled state.
+- 55 tools are read-only.
+- Nine tools can mutate CodeMeridian-controlled state.
 - `clear_project_knowledge` and `clear_code_graph` are the two destructive tools.
 - All tools use `openWorldHint: false`; none contacts an unpredictable external service.
 - Mutating tools use conservative idempotency hints unless their repeated effect is known to be safe.
@@ -35,13 +35,14 @@ Annotations are client hints. Authentication, validation, and server-side policy
 
 ## Structured Results
 
-Eight tools advertise an `outputSchema`, return camel-case `structuredContent`, and preserve useful Markdown in a text content block:
+Nine tools advertise an `outputSchema`, return camel-case `structuredContent`, and preserve useful Markdown in a text content block:
 
 - `build_minimal_context`
 - `check_graph_freshness`
 - `find_connection`
 - `find_impact`
 - `find_test_shield`
+- `get_change_context`
 - `get_client_extension_contract`
 - `list_client_extension_examples`
 - `get_client_extension_example`
@@ -56,12 +57,13 @@ The three client-extension tools retain their existing `v1` contract. `find_conn
 | `edges` | Ordered, non-null array of source, target, and relationship facts. |
 | `frontendSignals` | Non-null array of bounded frontend relationship summaries. |
 
-The four additional graph contracts use `contractVersion: "1.0"`:
+The four additional graph contracts and the human-cognitive-seed context contract use `contractVersion: "1.0"`:
 
 - `check_graph_freshness` exposes bounded node findings, confidence counts, index timestamps, and relationship completeness.
 - `find_impact` exposes bounded impacted nodes and non-recursive path segments while preserving confidence classification, depth, and truncation.
 - `find_test_shield` exposes direct, primary, secondary, recommended, and unshielded findings with confidence, evidence paths, and suggested commands.
 - `build_minimal_context` exposes bounded graph collections, files, snippet metadata, token-budget facts, degradation notes, and per-collection truncation flags.
+- `get_change_context` exposes bounded attributed memory, exact target state, confirmation metadata, and source-hash/orphan status without treating statements as instructions or canonical source facts.
 
 Structured graph payloads deliberately exclude source bodies and arbitrary graph property dictionaries. Minimal-context snippet bodies remain available only in the compatible Markdown block, avoiding duplication and leakage into `structuredContent`. Empty results use stable empty arrays rather than `null`. Declared nullable properties are serialized even when `null` so actual payloads continue matching the advertised schema.
 
@@ -199,16 +201,16 @@ The following work is intentionally not claimed as complete:
 - select durable/shared task storage before any multi-replica deployment
 - define phase/percentage progress and host-shutdown drain/cancel semantics
 - measure production tool latency and concurrency before adding tool-aware rate limits
-- decide from client evidence whether any graph tools beyond the five implemented pilots justify structured conversion or another App
+- decide from client evidence whether additional graph tools justify structured conversion or another App
 - collect real-host rendering evidence for the enabled experimental Apps
 
-The deployed SDK, all eight structured outputs, cache, graph-read, Task-completion, and Task-cancellation checks pass. The 2026-08-05 incremental index includes the four new graph result contracts; no further graph index rebuild is required for this implementation.
+The deployed SDK and its eight existing structured outputs pass cache, graph-read, Task-completion, and Task-cancellation checks. The ninth local structured contract is `get_change_context` and requires deployment before the live claim can include it.
 
 ## Local Verification
 
 Permanent coverage includes:
 
-- exact 62-tool inventory, titles, and behavior annotations
+- exact 64-tool inventory, titles, and behavior annotations
 - object input schemas and the absence of an incompatible optional parameter-header mirror
 - modern and pinned `2025-11-25` raw-wire contract baselines
 - schema-valid structured content, invalid-schema rejection, payload bounds, empty collections, and text fallback

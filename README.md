@@ -238,6 +238,8 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `find_smell_paths` | Show shortest forbidden architectural dependency paths |
 | `find_stale_knowledge` | Detect stale docs, weak mentions, orphaned external concepts, and orphaned code references |
 | `knowledge_decay` | Alias of `find_stale_knowledge` for graph-native stale-knowledge review |
+| `record_change_context` | Preserve one bounded attributed human-cognitive-seed decision or constraint against an exact code node |
+| `get_change_context` | Retrieve opt-in human-cognitive-seed context with current hash/orphan status |
 | `resolve_exact_symbol` | Resolve symbol/file/line hints to canonical node IDs before editing |
 | `clear_project_knowledge` | Clear one project's indexed graph and docs before rebuilding |
 | `clear_code_graph` | Clear all indexed code graph nodes while preserving docs |

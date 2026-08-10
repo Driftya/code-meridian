@@ -1,0 +1,4 @@
+interface:
+  display_name: "Human Cognitive Seed"
+  short_description: "Strengthen human-led reasoning with AI"
+  default_prompt: "Use $human-cognitive-seed to expand and challenge my reasoning, then preserve only justified durable context with explicit provenance."

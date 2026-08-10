@@ -72,6 +72,16 @@
     "sha256": "c6a3265942debcbcaa54c57b3ba3a9111ad33c17780aee5e421346af821e254a"
   },
   {
+    "name": "get_change_context",
+    "required": [
+      "contractVersion", "nodeId", "targetFound", "items", "truncated", "trustNotice"
+    ],
+    "properties": [
+      "contractVersion", "nodeId", "targetFound", "items", "truncated", "trustNotice"
+    ],
+    "sha256": "86d8ce310f1ae2d7638ee97583c83a4b963914cd7900119912e99823e47704b3"
+  },
+  {
     "name": "get_client_extension_contract",
     "required": [
       "version", "extensionOwnership", "graphQlEndpointPath", "authRequirement",

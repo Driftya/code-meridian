@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddSingleton<Neo4jCodeGraphRepository>();
         services.AddSingleton<Neo4jGraphReadRepository>();
         services.AddSingleton<Neo4jKeywordGraphRepository>();
+        services.AddSingleton<Neo4jChangeContextRepository>();
         services.AddSingleton<Neo4jVectorRepository>();
 
         // Expose via domain interfaces
@@ -33,6 +34,8 @@ public static class DependencyInjection
             sp.GetRequiredService<Neo4jGraphReadRepository>());
         services.AddSingleton<IKeywordGraphRepository>(sp =>
             sp.GetRequiredService<Neo4jKeywordGraphRepository>());
+        services.AddSingleton<IChangeContextRepository>(sp =>
+            sp.GetRequiredService<Neo4jChangeContextRepository>());
         services.AddSingleton<IVectorRepository>(sp =>
             sp.GetRequiredService<Neo4jVectorRepository>());
 

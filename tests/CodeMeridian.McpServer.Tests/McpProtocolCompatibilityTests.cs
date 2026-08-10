@@ -30,7 +30,7 @@ public sealed class McpProtocolCompatibilityTests : IClassFixture<GraphQlWebAppl
         await using var client = await McpTestClient.CreateAsync(httpClient);
 
         client.NegotiatedProtocolVersion.Should().Be(ModernProtocolVersion);
-        (await client.ListToolsAsync()).Should().HaveCount(62);
+        (await client.ListToolsAsync()).Should().HaveCount(64);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class McpProtocolCompatibilityTests : IClassFixture<GraphQlWebAppl
         var tools = await client.ListToolsAsync();
 
         client.NegotiatedProtocolVersion.Should().Be(DownLevelProtocolVersion);
-        tools.Should().HaveCount(62);
+        tools.Should().HaveCount(64);
         tools.Should().OnlyContain(tool => tool.ProtocolTool.InputSchema.ValueKind == JsonValueKind.Object);
         tools.Should().OnlyContain(tool => tool.ProtocolTool.Annotations != null);
         tools.Single(tool => tool.Name == "find_connection").ProtocolTool.OutputSchema.Should().NotBeNull();

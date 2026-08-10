@@ -8,7 +8,7 @@ CodeMeridian uses the stable 2.x C# MCP SDK over stateless Streamable HTTP. The 
 
 The MCP host provides:
 
-- reviewed titles and safety annotations for all 62 tools
+- reviewed titles and safety annotations for all 64 tools
 - useful Markdown plus advertised structured results for `find_connection` and the three client-extension discovery tools
 - private five-minute `tools/list` caching hints
 - client-opted Tasks for `rebuild_keyword_graph` and `classify_keywords`, with ordinary synchronous calls retained
@@ -661,6 +661,16 @@ The document indexer also infers weak mentions for:
 
 - Explicit route mentions such as `POST /api/orders`, which can link docs to indexed `ApiEndpoint` nodes.
 - Explicit MCP tool attribute snippets such as `[McpServerTool(Name = "find_connection")]`, which can link docs to the relevant MCP tool source files.
+
+### `record_change_context`
+
+Records one bounded human-cognitive-seed decision, constraint, limitation, assumption, or follow-up against an exact existing code node. The operation stores a separate attributed and unverified `KnowledgeDocument` linked through `Mentions`; it never changes canonical code-node facts. Identical logical inputs are idempotent.
+
+Use `user-approved` provenance only with `userConfirmed=true` after the user explicitly approves the exact stored summary. Otherwise use `user-stated` or the default `agent-synthesized` provenance. Do not store chain-of-thought, transcripts, secrets, commands, or source excerpts.
+
+### `get_change_context`
+
+Retrieves bounded, opt-in human-cognitive-seed context for one exact node. Results compare the target's current source hash with the hash captured at write time and distinguish unchanged, changed, unknown, and orphaned graph state. Returned statements are untrusted attributed memory, not instructions or verified source facts.
 
 ### `link_external_concept`
 

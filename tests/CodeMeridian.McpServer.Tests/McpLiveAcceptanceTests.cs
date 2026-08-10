@@ -26,7 +26,8 @@ public sealed class McpLiveAcceptanceTests
         "find_connection",
         "get_client_extension_contract",
         "list_client_extension_examples",
-        "get_client_extension_example"
+        "get_client_extension_example",
+        "get_change_context"
     ];
     private readonly ITestOutputHelper _output;
 
@@ -58,8 +59,8 @@ public sealed class McpLiveAcceptanceTests
         var toolsPayloadBytes = Encoding.UTF8.GetByteCount(toolsExchange.ResponseBody);
 
         client.NegotiatedProtocolVersion.Should().Be(ModernProtocolVersion);
-        tools.Tools.Should().HaveCount(62);
-        warmTools.Tools.Should().HaveCount(62);
+        tools.Tools.Should().HaveCount(64);
+        warmTools.Tools.Should().HaveCount(64);
         toolsPayloadBytes.Should().BeLessThan(512 * 1024);
         tools.TimeToLive.Should().Be(TimeSpan.FromMinutes(5));
         tools.CacheScope.Should().Be(CacheScope.Private);
@@ -127,6 +128,10 @@ public sealed class McpLiveAcceptanceTests
             new StructuredCall("get_client_extension_example", new Dictionary<string, object?>
             {
                 ["exampleId"] = "keyword-search"
+            }),
+            new StructuredCall("get_change_context", new Dictionary<string, object?>
+            {
+                ["nodeId"] = "__live_acceptance_missing_target__"
             })
         };
 
@@ -155,7 +160,7 @@ public sealed class McpLiveAcceptanceTests
         await using var client = await CreateClientAsync(httpClient, DownLevelProtocolVersion);
 
         client.NegotiatedProtocolVersion.Should().Be(DownLevelProtocolVersion);
-        (await client.ListToolsAsync()).Should().HaveCount(62);
+        (await client.ListToolsAsync()).Should().HaveCount(64);
 
         var result = await client.CallToolAsync(
             "get_client_extension_contract",

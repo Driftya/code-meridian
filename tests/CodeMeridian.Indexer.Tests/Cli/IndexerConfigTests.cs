@@ -286,6 +286,8 @@ public sealed class IndexerConfigTests : IDisposable
         File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "agent-capabilities.md")).Should().BeTrue();
         File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "agents", "codemeridian-context-agent.md")).Should().BeTrue();
         File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "skills", "codemeridian-context", "SKILL.md")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "skills", "human-cognitive-seed", "SKILL.md")).Should().BeTrue();
+        File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "skills", "human-cognitive-seed", "agents", "openai.yaml")).Should().BeTrue();
         File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "codex-scripts", "install-codex-skills.ps1")).Should().BeTrue();
         File.Exists(Path.Combine(_root, "meridian-agent-capabilities", "codex-scripts", "install-codex-agents.ps1")).Should().BeTrue();
     }

@@ -1,14 +1,15 @@
 {
   "protocolVersion": "2025-11-25",
   "handshakeMethod": "initialize",
-  "toolCount": 62,
-  "annotationCount": 62,
+  "toolCount": 64,
+  "annotationCount": 64,
   "structuredToolNames": [
     "build_minimal_context",
     "check_graph_freshness",
     "find_connection",
     "find_impact",
     "find_test_shield",
+    "get_change_context",
     "get_client_extension_contract",
     "get_client_extension_example",
     "list_client_extension_examples"

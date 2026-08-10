@@ -70,6 +70,7 @@ mcpServerBuilder
     .WithTools<CodebaseTools>()
     .WithTools<KeywordTools>()
     .WithTools<KnowledgeTools>()
+    .WithTools<HumanCognitiveSeedTools>()
     .WithTools<ClientExtensionTools>()
     .WithTools<ExtensionTools>();
 

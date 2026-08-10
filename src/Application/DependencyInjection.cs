@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddTransient<ICodebaseQueryService, CodebaseQueryService>();
         services.AddTransient<ICodebaseStatusService, CodebaseStatusService>();
         services.AddTransient<IPrContextReportService, PrContextReportService>();
+        services.AddTransient<IHumanCognitiveSeedContextService, HumanCognitiveSeedContextService>();
         services.AddSingleton<IKeywordExtractionService, DefaultKeywordExtractionService>();
         services.AddTransient<IKeywordGraphService, KeywordGraphService>();
         services.AddSingleton<IKeywordGraphJobService, KeywordGraphJobService>();

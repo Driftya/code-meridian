@@ -191,6 +191,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         const string cypher = """
             MATCH (d:KnowledgeDocument)
             WHERE ($projectContextNormalized IS NULL OR d.projectContextNormalized = $projectContextNormalized)
+              AND coalesce(d.metadataKind, '') <> $excludedMetadataKind
             RETURN d
             ORDER BY d.updatedAt DESC, d.id
             LIMIT $limit
@@ -199,6 +200,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         var cursor = await session.RunAsync(cypher, new
         {
             projectContextNormalized = (object?)Neo4jVectorRepositoryHelpers.Normalize(projectContext),
+            excludedMetadataKind = ChangeContextEntry.MetadataKind,
             limit
         });
 
@@ -216,10 +218,15 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         const string cypher = """
             MATCH (d:KnowledgeDocument)
             WHERE ($projectContextNormalized IS NULL OR d.projectContextNormalized = $projectContextNormalized)
+              AND coalesce(d.metadataKind, '') <> $excludedMetadataKind
             RETURN count(d) AS count
             """;
 
-        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Neo4jVectorRepositoryHelpers.Normalize(projectContext) });
+        var cursor = await session.RunAsync(cypher, new
+        {
+            projectContextNormalized = (object?)Neo4jVectorRepositoryHelpers.Normalize(projectContext),
+            excludedMetadataKind = ChangeContextEntry.MetadataKind
+        });
         var record = await cursor.SingleAsync();
         return record["count"].As<long>();
     }
@@ -236,6 +243,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             CALL db.index.vector.queryNodes($indexName, $topK, $embedding)
             YIELD node, score
             WHERE ($projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
+              AND coalesce(node.metadataKind, '') <> $excludedMetadataKind
             RETURN node, score
             ORDER BY score DESC
             """;
@@ -245,7 +253,8 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             indexName = IndexName,
             topK,
             embedding = queryEmbedding,
-            projectContextNormalized = (object?)Neo4jVectorRepositoryHelpers.Normalize(projectContext)
+            projectContextNormalized = (object?)Neo4jVectorRepositoryHelpers.Normalize(projectContext),
+            excludedMetadataKind = ChangeContextEntry.MetadataKind
         });
 
         var results = new List<KnowledgeDocument>();
@@ -272,6 +281,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
             CALL db.index.fulltext.queryNodes('knowledge_fulltext', $query)
             YIELD node, score
             WHERE ($projectContextNormalized IS NULL OR node.projectContextNormalized = $projectContextNormalized)
+              AND coalesce(node.metadataKind, '') <> $excludedMetadataKind
             RETURN node, score
             ORDER BY score DESC
             LIMIT $topK
@@ -281,6 +291,7 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
         {
             query = luceneQuery,
             projectContextNormalized = (object?)Neo4jVectorRepositoryHelpers.Normalize(projectContext),
+            excludedMetadataKind = ChangeContextEntry.MetadataKind,
             topK
         });
 

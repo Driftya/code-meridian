@@ -72,7 +72,9 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
         "get_client_extension_contract",
         "list_client_extension_examples",
         "get_client_extension_example",
-        "link_external_concept"
+        "link_external_concept",
+        "record_change_context",
+        "get_change_context"
     ];
 
     private static readonly HashSet<string> MutatingToolNames =
@@ -84,13 +86,19 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
         "ingest_document",
         "clear_project_knowledge",
         "clear_code_graph",
-        "link_external_concept"
+        "link_external_concept",
+        "record_change_context"
     ];
 
     private static readonly HashSet<string> DestructiveToolNames =
     [
         "clear_project_knowledge",
         "clear_code_graph"
+    ];
+
+    private static readonly HashSet<string> IdempotentMutatingToolNames =
+    [
+        "record_change_context"
     ];
 
     private static readonly HashSet<string> StructuredToolNames =
@@ -102,7 +110,8 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
         "find_connection",
         "get_client_extension_contract",
         "list_client_extension_examples",
-        "get_client_extension_example"
+        "get_client_extension_example",
+        "get_change_context"
     ];
 
     private readonly GraphQlWebApplicationFactory _factory;
@@ -153,7 +162,9 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
                 DestructiveToolNames.Contains(tool.Name),
                 $"{tool.Name} must advertise its actual destructive behavior");
             annotations.IdempotentHint.Should().Be(
-                !MutatingToolNames.Contains(tool.Name) || DestructiveToolNames.Contains(tool.Name),
+                !MutatingToolNames.Contains(tool.Name)
+                || DestructiveToolNames.Contains(tool.Name)
+                || IdempotentMutatingToolNames.Contains(tool.Name),
                 $"{tool.Name} must advertise a conservative retry contract");
             annotations.OpenWorldHint.Should().BeFalse(
                 $"{tool.Name} only operates on CodeMeridian-controlled state");
