@@ -17,12 +17,12 @@
   "devDependencies": {
     "@types/node": "^26.1.2",
     "@vitest/coverage-v8": "^4.1.8",
-    "tsx": "^4.23.1",
+    "tsx": "^4.23.7",
     "typescript": "^7.0.2",
     "vitest": "^4.1.8"
   },
   "optionalDependencies": {
-    "@rolldown/binding-linux-x64-gnu": "^1.2.0",
-    "@rolldown/binding-win32-x64-msvc": "^1.2.0"
+    "@rolldown/binding-linux-x64-gnu": "^1.2.2",
+    "@rolldown/binding-win32-x64-msvc": "^1.2.2"
   }
 }
