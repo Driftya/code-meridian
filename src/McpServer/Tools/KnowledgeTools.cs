@@ -45,6 +45,11 @@ public sealed class KnowledgeTools(
         string? embeddingCsv = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ArgumentException("Node ID is required.", nameof(id));
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Node name is required.", nameof(name));
+
         if (!Enum.TryParse<CodeNodeType>(type, ignoreCase: true, out var nodeType))
             return $"Unknown node type '{type}'. Valid values: {string.Join(", ", Enum.GetNames<CodeNodeType>())}";
 
@@ -102,6 +107,11 @@ public sealed class KnowledgeTools(
         double? confidence = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(sourceId))
+            throw new ArgumentException("Source node ID is required.", nameof(sourceId));
+        if (string.IsNullOrWhiteSpace(targetId))
+            throw new ArgumentException("Target node ID is required.", nameof(targetId));
+
         if (!Enum.TryParse<CodeEdgeType>(relationshipType, ignoreCase: true, out var edgeType))
             return $"Unknown relationship type '{relationshipType}'. Valid values: {string.Join(", ", Enum.GetNames<CodeEdgeType>())}";
 
@@ -137,16 +147,19 @@ public sealed class KnowledgeTools(
         string? relatedNodeIdsCsv = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(content))
+            throw new ArgumentException("Document content is required.", nameof(content));
+
         var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrWhiteSpace(relatedNodeIdsCsv))
             metadata["relatedNodeIds"] = relatedNodeIdsCsv;
 
         var document = new KnowledgeDocument
         {
-            Id = id ?? Guid.NewGuid().ToString("N"),
+            Id = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N") : id,
             Content = content,
-            Source = source,
-            ProjectContext = projectContext,
+            Source = string.IsNullOrWhiteSpace(source) ? null : source,
+            ProjectContext = string.IsNullOrWhiteSpace(projectContext) ? null : projectContext,
             Metadata = metadata
         };
 
@@ -163,6 +176,9 @@ public sealed class KnowledgeTools(
         string projectContext,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(projectContext))
+            throw new ArgumentException("Project context is required.", nameof(projectContext));
+
         await Task.WhenAll(
             codeGraph.DeleteProjectAsync(projectContext, cancellationToken),
             vectorStore.DeleteProjectAsync(projectContext, cancellationToken));

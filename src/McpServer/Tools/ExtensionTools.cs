@@ -35,8 +35,22 @@ public sealed class ExtensionTools(ICodeGraphRepository codeGraph)
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(codeNodeId))
+            throw new ArgumentException("Code node ID is required.", nameof(codeNodeId));
+        if (string.IsNullOrWhiteSpace(externalConceptId))
+            throw new ArgumentException("External concept ID is required.", nameof(externalConceptId));
+        if (string.IsNullOrWhiteSpace(externalConceptName))
+            throw new ArgumentException("External concept name is required.", nameof(externalConceptName));
+
         if (!Enum.TryParse<CodeNodeType>(conceptType, ignoreCase: true, out var nodeType))
             nodeType = CodeNodeType.ExternalConcept;
+
+        if (!Enum.TryParse<CodeEdgeType>(relationshipType, ignoreCase: true, out var edgeType))
+            return $"Unknown relationship type '{relationshipType}'. Valid values: Reads, Writes, Calls, PublishesTo, SubscribesTo, DependsOn.";
+
+        if (!direction.Equals("incoming", StringComparison.OrdinalIgnoreCase) &&
+            !direction.Equals("outgoing", StringComparison.OrdinalIgnoreCase))
+            return $"Unknown direction '{direction}'. Valid values: incoming, outgoing.";
 
         var externalNode = new CodeNode
         {
@@ -52,9 +66,6 @@ public sealed class ExtensionTools(ICodeGraphRepository codeGraph)
         var (sourceId, targetId) = direction.Equals("incoming", StringComparison.OrdinalIgnoreCase)
             ? (externalConceptId, codeNodeId)
             : (codeNodeId, externalConceptId);
-
-        if (!Enum.TryParse<CodeEdgeType>(relationshipType, ignoreCase: true, out var edgeType))
-            edgeType = CodeEdgeType.DependsOn;
 
         var edge = new CodeEdge
         {

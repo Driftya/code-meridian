@@ -184,6 +184,21 @@ public sealed class ToolWrappersTests
         await codeGraph.DidNotReceive().UpsertNodeAsync(Arg.Any<CodeNode>(), Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData("", "OrderService")]
+    [InlineData("node-1", "   ")]
+    public async Task KnowledgeTools_IngestCodeNodeAsync_RejectsBlankIdentity(string id, string name)
+    {
+        var codeGraph = Substitute.For<ICodeGraphRepository>();
+        var vectorStore = Substitute.For<IVectorRepository>();
+        var sut = new KnowledgeTools(codeGraph, vectorStore);
+
+        var action = () => sut.IngestCodeNodeAsync(id, name, "Class");
+
+        await action.Should().ThrowAsync<ArgumentException>();
+        await codeGraph.DidNotReceiveWithAnyArgs().UpsertNodeAsync(default!, default);
+    }
+
     [Fact]
     public async Task KnowledgeTools_IngestRelationshipAsync_ValidatesRelationshipType()
     {
@@ -195,6 +210,21 @@ public sealed class ToolWrappersTests
 
         result.Should().Contain("Unknown relationship type");
         await codeGraph.DidNotReceive().UpsertEdgeAsync(Arg.Any<CodeEdge>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("", "target")]
+    [InlineData("source", "   ")]
+    public async Task KnowledgeTools_IngestRelationshipAsync_RejectsBlankEndpointIds(string sourceId, string targetId)
+    {
+        var codeGraph = Substitute.For<ICodeGraphRepository>();
+        var vectorStore = Substitute.For<IVectorRepository>();
+        var sut = new KnowledgeTools(codeGraph, vectorStore);
+
+        var action = () => sut.IngestRelationshipAsync(sourceId, targetId, "Calls");
+
+        await action.Should().ThrowAsync<ArgumentException>();
+        await codeGraph.DidNotReceiveWithAnyArgs().UpsertEdgeAsync(default!, default);
     }
 
     [Fact]
@@ -211,6 +241,59 @@ public sealed class ToolWrappersTests
         await codeGraph.Received(1).DeleteAllAsync(Arg.Any<CancellationToken>());
         await codeGraph.Received(1).DeleteProjectAsync("CodeMeridian", Arg.Any<CancellationToken>());
         await vectorStore.Received(1).DeleteProjectAsync("CodeMeridian", Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task KnowledgeTools_ClearProjectKnowledgeAsync_RejectsBlankProjectContext(string projectContext)
+    {
+        var codeGraph = Substitute.For<ICodeGraphRepository>();
+        var vectorStore = Substitute.For<IVectorRepository>();
+        var sut = new KnowledgeTools(codeGraph, vectorStore);
+
+        var action = () => sut.ClearProjectKnowledgeAsync(projectContext);
+
+        await action.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName(nameof(projectContext));
+        await codeGraph.DidNotReceiveWithAnyArgs().DeleteProjectAsync(default!, default);
+        await vectorStore.DidNotReceiveWithAnyArgs().DeleteProjectAsync(default!, default);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task KnowledgeTools_IngestDocumentAsync_RejectsBlankContent(string content)
+    {
+        var codeGraph = Substitute.For<ICodeGraphRepository>();
+        var vectorStore = Substitute.For<IVectorRepository>();
+        var sut = new KnowledgeTools(codeGraph, vectorStore);
+
+        var action = () => sut.IngestDocumentAsync(content, projectContext: "CodeMeridian");
+
+        await action.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName(nameof(content));
+        await vectorStore.DidNotReceiveWithAnyArgs().UpsertAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task KnowledgeTools_IngestDocumentAsync_TreatsBlankOptionalValuesAsMissing()
+    {
+        var codeGraph = Substitute.For<ICodeGraphRepository>();
+        var vectorStore = Substitute.For<IVectorRepository>();
+        KnowledgeDocument? captured = null;
+        vectorStore.UpsertAsync(
+                Arg.Do<KnowledgeDocument>(document => captured = document),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+        var sut = new KnowledgeTools(codeGraph, vectorStore);
+
+        await sut.IngestDocumentAsync("content", source: " ", projectContext: " ", id: " ");
+
+        captured.Should().NotBeNull();
+        captured!.Id.Should().NotBeNullOrWhiteSpace();
+        captured.Source.Should().BeNull();
+        captured.ProjectContext.Should().BeNull();
     }
 
     [Fact]
@@ -243,5 +326,47 @@ public sealed class ToolWrappersTests
                 edge.TargetId == "Method:OrderService.SaveAsync" &&
                 edge.Type == CodeEdgeType.Reads),
             Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("", "db:orders", "orders table")]
+    [InlineData("Method:OrderService.SaveAsync", "", "orders table")]
+    [InlineData("Method:OrderService.SaveAsync", "db:orders", "   ")]
+    public async Task ExtensionTools_LinkExternalConceptAsync_RejectsBlankRequiredValues(
+        string codeNodeId,
+        string externalConceptId,
+        string externalConceptName)
+    {
+        var codeGraph = Substitute.For<ICodeGraphRepository>();
+        var sut = new ExtensionTools(codeGraph);
+
+        var action = () => sut.LinkExternalConceptAsync(codeNodeId, externalConceptId, externalConceptName);
+
+        await action.Should().ThrowAsync<ArgumentException>();
+        await codeGraph.DidNotReceiveWithAnyArgs().UpsertNodeAsync(default!, default);
+        await codeGraph.DidNotReceiveWithAnyArgs().UpsertEdgeAsync(default!, default);
+    }
+
+    [Theory]
+    [InlineData("Nope", "outgoing", "Unknown relationship type")]
+    [InlineData("Reads", "sideways", "Unknown direction")]
+    public async Task ExtensionTools_LinkExternalConceptAsync_RejectsInvalidEdgeOptionsBeforeMutation(
+        string relationshipType,
+        string direction,
+        string expectedMessage)
+    {
+        var codeGraph = Substitute.For<ICodeGraphRepository>();
+        var sut = new ExtensionTools(codeGraph);
+
+        var result = await sut.LinkExternalConceptAsync(
+            "Method:OrderService.SaveAsync",
+            "db:orders",
+            "orders table",
+            relationshipType: relationshipType,
+            direction: direction);
+
+        result.Should().Contain(expectedMessage);
+        await codeGraph.DidNotReceiveWithAnyArgs().UpsertNodeAsync(default!, default);
+        await codeGraph.DidNotReceiveWithAnyArgs().UpsertEdgeAsync(default!, default);
     }
 }
