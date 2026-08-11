@@ -1,23 +1,23 @@
 {
   "summary": {
-    "generatedon": "2026-08-11T13:51:15Z",
+    "generatedon": "2026-08-11T20:38:16Z",
     "parser": "MultiReport (3x Cobertura)",
     "assemblies": 9,
     "classes": 21,
     "files": 21,
-    "coveredlines": 1557,
-    "uncoveredlines": 351,
-    "coverablelines": 1908,
-    "totallines": 4603,
-    "linecoverage": 81.6,
-    "coveredbranches": 664,
-    "totalbranches": 1067,
-    "branchcoverage": 62.2,
-    "coveredmethods": 263,
-    "fullcoveredmethods": 263,
-    "totalmethods": 308,
-    "methodcoverage": 85.3,
-    "fullmethodcoverage": 85.3
+    "coveredlines": 1565,
+    "uncoveredlines": 357,
+    "coverablelines": 1922,
+    "totallines": 4628,
+    "linecoverage": 81.4,
+    "coveredbranches": 675,
+    "totalbranches": 1081,
+    "branchcoverage": 62.4,
+    "coveredmethods": 264,
+    "fullcoveredmethods": 264,
+    "totalmethods": 311,
+    "methodcoverage": 84.8,
+    "fullmethodcoverage": 84.8
  },
   "coverage": {
     "assemblies": [
@@ -39,15 +39,15 @@
         { "name": "type-script-diagnostics.ts", "coverage": 37.2, "coveredlines": 35, "coverablelines": 94, "totallines": 251, "branchcoverage": 27.2, "coveredbranches": 12, "totalbranches": 44, "methodcoverage": 28.5, "fullmethodcoverage": 28.5, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 21 } ] },
       { "name": "src.services", "classes": 1, "coverage": 83.5, "coveredlines": 66, "coverablelines": 79, "totallines": 169, "branchcoverage": 77.7, "coveredbranches": 42, "totalbranches": 54, "methodcoverage": 70.3, "fullmethodcoverage": 70.3, "coveredmethods": 19, "fullcoveredmethods": 19, "totalmethods": 27, "classesinassembly": [
         { "name": "project-discovery.ts", "coverage": 83.5, "coveredlines": 66, "coverablelines": 79, "totallines": 169, "branchcoverage": 77.7, "coveredbranches": 42, "totalbranches": 54, "methodcoverage": 70.3, "fullmethodcoverage": 70.3, "coveredmethods": 19, "fullcoveredmethods": 19, "totalmethods": 27 } ] },
-      { "name": "src.walker", "classes": 9, "coverage": 82, "coveredlines": 1058, "coverablelines": 1290, "totallines": 3254, "branchcoverage": 60.2, "coveredbranches": 472, "totalbranches": 784, "methodcoverage": 93, "fullmethodcoverage": 93, "coveredmethods": 161, "fullcoveredmethods": 161, "totalmethods": 173, "classesinassembly": [
+      { "name": "src.walker", "classes": 9, "coverage": 81.7, "coveredlines": 1066, "coverablelines": 1304, "totallines": 3279, "branchcoverage": 60.5, "coveredbranches": 483, "totalbranches": 798, "methodcoverage": 92, "fullmethodcoverage": 92, "coveredmethods": 162, "fullcoveredmethods": 162, "totalmethods": 176, "classesinassembly": [
         { "name": "common.ts", "coverage": 93.1, "coveredlines": 54, "coverablelines": 58, "totallines": 77, "branchcoverage": 81, "coveredbranches": 30, "totalbranches": 37, "methodcoverage": 96, "fullmethodcoverage": 96, "coveredmethods": 24, "fullcoveredmethods": 24, "totalmethods": 25 },
         { "name": "configuration.ts", "coverage": 60.3, "coveredlines": 61, "coverablelines": 101, "totallines": 261, "branchcoverage": 35.8, "coveredbranches": 24, "totalbranches": 67, "methodcoverage": 66.6, "fullmethodcoverage": 66.6, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 15 },
         { "name": "css.ts", "coverage": 81.4, "coveredlines": 127, "coverablelines": 156, "totallines": 454, "branchcoverage": 50, "coveredbranches": 29, "totalbranches": 58, "methodcoverage": 93.7, "fullmethodcoverage": 93.7, "coveredmethods": 15, "fullcoveredmethods": 15, "totalmethods": 16 },
         { "name": "database-tracing-options.ts", "coverage": 81, "coveredlines": 47, "coverablelines": 58, "totallines": 164, "branchcoverage": 71.4, "coveredbranches": 30, "totalbranches": 42, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 14, "fullcoveredmethods": 14, "totalmethods": 14 },
         { "name": "database-tracing.ts", "coverage": 76.1, "coveredlines": 172, "coverablelines": 226, "totallines": 556, "branchcoverage": 51, "coveredbranches": 75, "totalbranches": 147, "methodcoverage": 95.2, "fullmethodcoverage": 95.2, "coveredmethods": 40, "fullcoveredmethods": 40, "totalmethods": 42 },
-        { "name": "graph.ts", "coverage": 81.3, "coveredlines": 331, "coverablelines": 407, "totallines": 984, "branchcoverage": 59, "coveredbranches": 156, "totalbranches": 264, "methodcoverage": 91.1, "fullmethodcoverage": 91.1, "coveredmethods": 31, "fullcoveredmethods": 31, "totalmethods": 34 },
+        { "name": "graph.ts", "coverage": 80.5, "coveredlines": 339, "coverablelines": 421, "totallines": 1009, "branchcoverage": 59.7, "coveredbranches": 166, "totalbranches": 278, "methodcoverage": 86.4, "fullmethodcoverage": 86.4, "coveredmethods": 32, "fullcoveredmethods": 32, "totalmethods": 37 },
         { "name": "markup.ts", "coverage": 88.2, "coveredlines": 90, "coverablelines": 102, "totallines": 330, "branchcoverage": 58.8, "coveredbranches": 20, "totalbranches": 34, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 9, "fullcoveredmethods": 9, "totalmethods": 9 },
-        { "name": "routes.ts", "coverage": 96.8, "coveredlines": 152, "coverablelines": 157, "totallines": 367, "branchcoverage": 78.2, "coveredbranches": 90, "totalbranches": 115, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 15, "fullcoveredmethods": 15, "totalmethods": 15 },
+        { "name": "routes.ts", "coverage": 96.8, "coveredlines": 152, "coverablelines": 157, "totallines": 367, "branchcoverage": 79.1, "coveredbranches": 91, "totalbranches": 115, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 15, "fullcoveredmethods": 15, "totalmethods": 15 },
         { "name": "test-discovery.ts", "coverage": 96, "coveredlines": 24, "coverablelines": 25, "totallines": 61, "branchcoverage": 90, "coveredbranches": 18, "totalbranches": 20, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 3, "fullcoveredmethods": 3, "totalmethods": 3 } ] },
       { "name": "tests", "classes": 1, "coverage": 97.2, "coveredlines": 35, "coverablelines": 36, "totallines": 75, "branchcoverage": 93.3, "coveredbranches": 14, "totalbranches": 15, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 10, "classesinassembly": [
         { "name": "walker-test-helpers.ts", "coverage": 97.2, "coveredlines": 35, "coverablelines": 36, "totallines": 75, "branchcoverage": 93.3, "coveredbranches": 14, "totalbranches": 15, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 10 } ] } ]
