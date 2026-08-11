@@ -31,8 +31,12 @@ describe('project discovery', () => {
     expect(resolveProjectName(rootPath)).toBe('my-web');
   });
 
-  it('detects ignored paths and ts source files', () => {
+  it('detects TypeScript and JavaScript source files', () => {
     expect(isTypeScriptSourceFile(path.join(rootPath, 'index.ts'))).toBe(true);
+    expect(isTypeScriptSourceFile(path.join(rootPath, 'component.tsx'))).toBe(true);
+    expect(isTypeScriptSourceFile(path.join(rootPath, 'index.js'))).toBe(true);
+    expect(isTypeScriptSourceFile(path.join(rootPath, 'component.jsx'))).toBe(true);
+    expect(isTypeScriptSourceFile(path.join(rootPath, 'INDEX.JS'))).toBe(true);
     expect(isTypeScriptSourceFile(path.join(rootPath, 'types.d.ts'))).toBe(false);
 
     const ignoredPath = path.join(rootPath, 'node_modules', 'left-pad', 'index.ts');
@@ -55,6 +59,19 @@ describe('project discovery', () => {
     expect(findTypeScriptRoots(rootPath)).toEqual([path.join(rootPath, 'apps', 'web')]);
   });
 
+  it('finds JavaScript roots from jsconfig files', () => {
+    writeFile('apps/web/jsconfig.json', '{}');
+    writeFile('apps/web/src/index.jsx', 'export function App() { return <main />; }');
+
+    expect(findTypeScriptRoots(rootPath)).toEqual([path.join(rootPath, 'apps', 'web')]);
+  });
+
+  it('falls back to the repository root for JavaScript without a config file', () => {
+    writeFile('src/index.js', 'export const app = true;');
+
+    expect(findTypeScriptRoots(rootPath)).toEqual([rootPath]);
+  });
+
   it('detects matching files by extension', () => {
     writeFile('src/index.ts', 'export const app = true;');
     writeFile('src/types.d.ts', 'export interface User {}');
@@ -64,18 +81,23 @@ describe('project discovery', () => {
 
   it('discovers source files without ignored directories or declaration files', () => {
     writeFile('src/index.ts', 'export const app = true;');
+    writeFile('src/component.jsx', 'export function Component() { return <main />; }');
     writeFile('src/types.d.ts', 'export interface User {}');
     writeFile('node_modules/pkg/index.ts', 'export const ignored = true;');
+    writeFile('dist/index.js', 'export const ignored = true;');
     writeFile('.meridian/cache/state.ts', 'export const ignored = true;');
 
     expect(discoverTypeScriptFiles(rootPath).map(file => path.relative(rootPath, file).replace(/\\/g, '/')))
-      .toEqual(['src/index.ts']);
+      .toEqual(['src/component.jsx', 'src/index.ts']);
   });
 
   it('builds ts-morph glob patterns from the shared ignored-directory policy', () => {
     expect(buildTypeScriptSourceFileGlobs(rootPath)).toContain(`!${path.join(rootPath, '**/.meridian/**').replace(/\\/g, '/')}`);
     expect(buildTypeScriptSourceFileGlobs(rootPath)).toContain(`!${path.join(rootPath, '**/node_modules/**').replace(/\\/g, '/')}`);
+    expect(buildTypeScriptSourceFileGlobs(rootPath)).toContain(`!${path.join(rootPath, '**/dist/**').replace(/\\/g, '/')}`);
     expect(buildTypeScriptSourceFileGlobs(rootPath)).toContain(`!${path.join(rootPath, '**/*.d.ts').replace(/\\/g, '/')}`);
+    expect(buildTypeScriptSourceFileGlobs(rootPath)).toContain(path.join(rootPath, '**/*.js').replace(/\\/g, '/'));
+    expect(buildTypeScriptSourceFileGlobs(rootPath)).toContain(path.join(rootPath, '**/*.jsx').replace(/\\/g, '/'));
   });
 
 });

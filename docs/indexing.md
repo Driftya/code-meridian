@@ -1,6 +1,6 @@
 # Indexing Projects
 
-The unified indexer CLI scans a target directory and runs the available language indexers. It currently supports C#, TypeScript/TSX, and documentation ingestion.
+The unified indexer CLI scans a target directory and runs the available language indexers. It currently supports C#, TypeScript/JavaScript/TSX/JSX, and documentation ingestion.
 
 ## Start the Server
 
@@ -160,7 +160,7 @@ codemeridian index . --verify --project CodeMeridian --fail-on moderate
 | `--url <url>` / `--CodeMeridian <url>` | CodeMeridian server URL. Default: `CodeMeridian_Url` from `.env`, or `http://localhost:5100` |
 | `--clear` | Wipe this project's existing graph data before indexing |
 | `--skip-csharp` | Skip C# indexing |
-| `--skip-typescript` | Skip TypeScript / TSX indexing |
+| `--skip-typescript` | Skip TypeScript / JavaScript / TSX / JSX indexing |
 | `--no-docs` / `--skip-docs` | Skip documentation ingestion |
 | `--dry-run` | Show what would be indexed without ingesting anything |
 | `--list-capabilities` | Show available indexers on the current machine |
@@ -188,7 +188,7 @@ Changed and deleted files are removed from the project graph before re-indexing,
 
 For C#, node ingestion and relationship resolution have separate scopes. Only changed files own and upsert their file-backed nodes, but every current C# file participates in the resolution catalog. `Contains` and declaration edges are owned by their source file. Cross-file `Calls`, `Uses`, `Implements`, and inheritance edges are reconstructed from the surviving source declarations, so deleting or changing a target cannot permanently erase an incoming edge from an unchanged source. Synthetic targets without a file are ingested only when a changed source reaches them.
 
-TypeScript incremental indexing also separates emission from resolution. The changed-file batch controls which nodes and outgoing edges are ingested, while all current TypeScript files in that project root supply the method, type, import, and inheritance catalog used to resolve those edges. This permits a changed source to retain a proven edge to an unchanged target without re-ingesting the unchanged target node. Generated, dependency, build, cache, and declaration-file paths remain excluded by project discovery.
+TypeScript/JavaScript incremental indexing also separates emission from resolution. The changed-file batch controls which nodes and outgoing edges are ingested, while all current `.ts`, `.tsx`, `.js`, and `.jsx` files in that project root supply the method, type, import, and inheritance catalog used to resolve those edges. This permits a changed source to retain a proven edge to an unchanged target without re-ingesting the unchanged target node. Generated, dependency, build, and cache paths—including `dist`, `build`, `coverage`, `node_modules`, and `.meridian`—remain excluded by project discovery, as do TypeScript declaration files.
 
 The unified indexer also persists the current set of active TypeScript resolution scopes. Relationship-confidence readers use that catalog to ignore historical index-run records for roots that are no longer discovered. The catalog uses index-run compatibility metadata so diagnostics replacement preserves it and does not count it as an ordinary diagnostic.
 
@@ -217,9 +217,9 @@ It extracts:
 - Inheritance and implementation relationships
 - Best-effort call relationships
 
-## TypeScript / TSX Indexing
+## TypeScript / JavaScript / TSX / JSX Indexing
 
-The TypeScript indexer uses ts-morph. The packaged .NET tool includes the TypeScript indexer source and restores its npm dependencies on the first TypeScript indexing run if needed.
+The shared TypeScript/JavaScript indexer uses ts-morph. It discovers `tsconfig.json` and `jsconfig.json` project roots and falls back to the requested repository root for projects without either file. The packaged .NET tool includes the indexer source and restores its npm dependencies on the first indexing run if needed.
 
 It extracts:
 
@@ -233,7 +233,9 @@ It extracts:
 - Inheritance and implementation relationships
 - File-to-class/function containment
 
-Node.js 18+ is required for TypeScript / TSX indexing.
+JavaScript graphs have less type evidence than TypeScript graphs. ES module relationships have the strongest support; CommonJS and runtime-computed module relationships are best effort. Dynamic property access and runtime mutation remain conservative or indeterminate. See the [TypeScript and JavaScript indexer support reference](../tools/TsIndexer/supports.md) for the detailed limitations.
+
+Node.js 18+ is required for TypeScript / JavaScript / TSX / JSX indexing.
 
 ## Documentation Ingestion
 

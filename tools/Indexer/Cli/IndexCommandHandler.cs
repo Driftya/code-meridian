@@ -667,7 +667,7 @@ internal sealed class IndexCommandHandler(
               Documentation    yes
             """);
 
-        Console.WriteLine($"  TypeScript/TSX   {(tsIndexerRoot is null ? "no - assets not found" : "yes")}");
+        Console.WriteLine($"  TS/JS/TSX/JSX   {(tsIndexerRoot is null ? "no - assets not found" : "yes")}");
         Console.WriteLine($"  HTML/CSS/SCSS    {(ResolveHtmlCssIndexerRoot() is null ? "no - assets not found" : "yes - placeholder worker")}");
         Console.WriteLine("  Diagnostics      yes - skip with --skip-diagnostics");
         Console.WriteLine();

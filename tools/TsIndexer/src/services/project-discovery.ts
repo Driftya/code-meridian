@@ -67,10 +67,11 @@ export function discoverTypeScriptFiles(rootPath: string): string[] {
 export function findTypeScriptRoots(rootPath: string): string[] {
   const directories = enumerateDirectories(rootPath);
   const roots = directories.filter(directory =>
-    fs.existsSync(path.join(directory, 'tsconfig.json')) && containsFile(directory, '.ts', '.tsx'),
+    (fs.existsSync(path.join(directory, 'tsconfig.json')) || fs.existsSync(path.join(directory, 'jsconfig.json'))) &&
+      containsFile(directory, '.ts', '.tsx', '.js', '.jsx'),
   );
 
-  if (roots.length === 0 && containsFile(rootPath, '.ts', '.tsx')) {
+  if (roots.length === 0 && containsFile(rootPath, '.ts', '.tsx', '.js', '.jsx')) {
     return [rootPath];
   }
 
@@ -86,7 +87,10 @@ export function resolveInputFile(rootPath: string, filePath: string): string {
 }
 
 export function isTypeScriptSourceFile(filePath: string): boolean {
-  return (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) && !filePath.endsWith('.d.ts');
+  const normalizedPath = filePath.toLowerCase();
+  return (normalizedPath.endsWith('.ts') || normalizedPath.endsWith('.tsx') ||
+    normalizedPath.endsWith('.js') || normalizedPath.endsWith('.jsx')) &&
+    !normalizedPath.endsWith('.d.ts');
 }
 
 export function isDocumentationFile(filePath: string): boolean {
@@ -104,6 +108,8 @@ export function buildTypeScriptSourceFileGlobs(rootPath: string): string[] {
   return [
     path.join(normalizedRoot, '**/*.ts').replace(/\\/g, '/'),
     path.join(normalizedRoot, '**/*.tsx').replace(/\\/g, '/'),
+    path.join(normalizedRoot, '**/*.js').replace(/\\/g, '/'),
+    path.join(normalizedRoot, '**/*.jsx').replace(/\\/g, '/'),
     ...Array.from(ignoredDirectoryNames, directoryName =>
       `!${path.join(normalizedRoot, `**/${directoryName}/**`).replace(/\\/g, '/')}`),
     `!${path.join(normalizedRoot, '**/*.d.ts').replace(/\\/g, '/')}`,

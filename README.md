@@ -104,10 +104,10 @@ CI now publishes a GitHub Actions coverage summary plus separate `.NET` and Type
 CodeMeridian currently supports:
 
 - C# via a Roslyn indexer
-- TypeScript / TSX via a ts-morph indexer
+- TypeScript / JavaScript / TSX / JSX via a shared ts-morph indexer
 - HTML, CSS, and SCSS via a static frontend relationship indexer
 - README and documentation files
-- Configuration files such as `.env`, `.env.local`, `appsettings.json`, `appsettings.*.json`, `app.config`, `web.config`, `NuGet.config`, `host.json`, `local.settings.json`, `global.json`, `launchSettings.json`, `package.json`, `tsconfig.json`, `vite.config.ts`, `eslint.config.js`, `function.json`, `meridian.json`, and Docker Compose YAML
+- Configuration files such as `.env`, `.env.local`, `appsettings.json`, `appsettings.*.json`, `app.config`, `web.config`, `NuGet.config`, `host.json`, `local.settings.json`, `global.json`, `launchSettings.json`, `package.json`, `tsconfig.json`, `jsconfig.json`, `vite.config.ts`, `eslint.config.js`, `function.json`, `meridian.json`, and Docker Compose YAML
 - **Optional vector embeddings** for semantic code similarity (find duplicate patterns, refactoring opportunities)
 
 The frontend support is intentionally bounded and static: CodeMeridian can index markup, selectors, stylesheet imports, CSS variables, and some explainable selector/cascade metadata, but it does not try to emulate the full browser runtime.
@@ -121,7 +121,7 @@ Prerequisites:
 - Docker Desktop
 - .NET 10 SDK
 - GitHub Copilot in VS Code
-- Node.js 18+ when indexing TypeScript / TSX or HTML/CSS/SCSS frontend files
+- Node.js 18+ when indexing TypeScript / JavaScript / TSX / JSX or HTML/CSS/SCSS frontend files
 
 Install the CLI:
 
@@ -296,7 +296,7 @@ You can override which files count as configuration sources in `meridian.json` w
 
 ```json
 {
-  "configurationFiles": [".env", ".env.local", "appsettings.json", "appsettings.*.json", "app.config", "web.config", "NuGet.config", "host.json", "local.settings.json", "global.json", "launchSettings.json", "package.json", "tsconfig.json", "vite.config.ts", "eslint.config.js", "function.json", "meridian.json", "docker-compose*.yaml"]
+  "configurationFiles": [".env", ".env.local", "appsettings.json", "appsettings.*.json", "app.config", "web.config", "NuGet.config", "host.json", "local.settings.json", "global.json", "launchSettings.json", "package.json", "tsconfig.json", "jsconfig.json", "vite.config.ts", "eslint.config.js", "function.json", "meridian.json", "docker-compose*.yaml"]
 }
 ```
 
@@ -314,7 +314,7 @@ src/
 tools/
   Indexer/          Unified indexer CLI
   RoslynIndexer/    C# Roslyn indexer
-  TsIndexer/        TypeScript / TSX indexer
+  TsIndexer/        TypeScript / JavaScript / TSX / JSX indexer
   HtmlCssIndexer/   HTML / CSS / SCSS frontend indexer
 docs/
   features.md
@@ -326,7 +326,7 @@ docs/
 
 ## Status
 
-CodeMeridian is early but usable. It already indexes C#, TypeScript/TSX, and bounded HTML/CSS/SCSS frontend relationships, persists the graph in Neo4j, and exposes MCP tools for Copilot, Codex, and other compatible clients. The roadmap is tracked in [TODO.md](TODO.md).
+CodeMeridian is early but usable. It already indexes C#, TypeScript/JavaScript/TSX/JSX, and bounded HTML/CSS/SCSS frontend relationships, persists the graph in Neo4j, and exposes MCP tools for Copilot, Codex, and other compatible clients. The roadmap is tracked in [TODO.md](TODO.md).
 
 ## Contributing
 

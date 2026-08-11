@@ -19,6 +19,7 @@ public sealed class IndexingExclusionPolicyTests : IDisposable
     [InlineData(".git")]
     [InlineData(".GIT")]
     [InlineData("node_modules")]
+    [InlineData("dist")]
     [InlineData("coverage")]
     public void IsIgnoredDirectoryName_MatchesKnownNamesCaseInsensitively(string directoryName)
     {
@@ -40,6 +41,7 @@ public sealed class IndexingExclusionPolicyTests : IDisposable
     [InlineData("src/Feature.generated.cs")]
     [InlineData("Properties/AssemblyInfo.cs")]
     [InlineData("node_modules/pkg/index.ts")]
+    [InlineData("dist/index.js")]
     [InlineData(".meridian/cache/index.json")]
     public void IsIgnoredRelativePath_DetectsIgnoredPatterns(string relativePath)
     {

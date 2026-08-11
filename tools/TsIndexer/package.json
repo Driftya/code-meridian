@@ -1,7 +1,7 @@
 {
   "name": "codemeridian-ts-indexer",
   "version": "1.0.12",
-  "description": "Internal TypeScript worker for CodeMeridian.Indexer.",
+  "description": "Internal TypeScript and JavaScript worker for CodeMeridian.Indexer.",
   "private": true,
   "type": "module",
   "scripts": {

@@ -76,7 +76,11 @@ public sealed class FileRolePatternOptions
         "**/*.test.ts",
         "**/*.spec.ts",
         "**/*.test.tsx",
-        "**/*.spec.tsx"
+        "**/*.spec.tsx",
+        "**/*.test.js",
+        "**/*.spec.js",
+        "**/*.test.jsx",
+        "**/*.spec.jsx"
     ];
 
     private static readonly string[] CSharpMigrationPatterns =
@@ -143,7 +147,23 @@ public sealed class FileRolePatternOptions
         "**/*Config.tsx",
         "**/*Configs.tsx",
         "**/*Setting.tsx",
-        "**/*Settings.tsx"
+        "**/*Settings.tsx",
+        "**/*Options.js",
+        "**/*Option.js",
+        "**/*Configuration.js",
+        "**/*Configurations.js",
+        "**/*Config.js",
+        "**/*Configs.js",
+        "**/*Setting.js",
+        "**/*Settings.js",
+        "**/*Options.jsx",
+        "**/*Option.jsx",
+        "**/*Configuration.jsx",
+        "**/*Configurations.jsx",
+        "**/*Config.jsx",
+        "**/*Configs.jsx",
+        "**/*Setting.jsx",
+        "**/*Settings.jsx"
     ];
 
     private static readonly string[] TypeScriptConfigurationDotfilePatterns =
@@ -163,6 +183,22 @@ public sealed class FileRolePatternOptions
         "**/*.option.tsx",
         "**/*.options.tsx",
         "**/*.setting.tsx",
-        "**/*.settings.tsx"
+        "**/*.settings.tsx",
+        "**/*.config.js",
+        "**/*.configs.js",
+        "**/*.configuration.js",
+        "**/*.configurations.js",
+        "**/*.option.js",
+        "**/*.options.js",
+        "**/*.setting.js",
+        "**/*.settings.js",
+        "**/*.config.jsx",
+        "**/*.configs.jsx",
+        "**/*.configuration.jsx",
+        "**/*.configurations.jsx",
+        "**/*.option.jsx",
+        "**/*.options.jsx",
+        "**/*.setting.jsx",
+        "**/*.settings.jsx"
     ];
 }

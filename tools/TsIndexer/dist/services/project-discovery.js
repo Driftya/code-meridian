@@ -55,8 +55,9 @@ export function discoverTypeScriptFiles(rootPath) {
 }
 export function findTypeScriptRoots(rootPath) {
     const directories = enumerateDirectories(rootPath);
-    const roots = directories.filter(directory => fs.existsSync(path.join(directory, 'tsconfig.json')) && containsFile(directory, '.ts', '.tsx'));
-    if (roots.length === 0 && containsFile(rootPath, '.ts', '.tsx')) {
+    const roots = directories.filter(directory => (fs.existsSync(path.join(directory, 'tsconfig.json')) || fs.existsSync(path.join(directory, 'jsconfig.json'))) &&
+        containsFile(directory, '.ts', '.tsx', '.js', '.jsx'));
+    if (roots.length === 0 && containsFile(rootPath, '.ts', '.tsx', '.js', '.jsx')) {
         return [rootPath];
     }
     return roots.filter(candidate => !roots.some(other => other !== candidate && isSubdirectoryOf(candidate, other)));
@@ -67,7 +68,10 @@ export function resolveInputFile(rootPath, filePath) {
         : path.resolve(rootPath, filePath);
 }
 export function isTypeScriptSourceFile(filePath) {
-    return (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) && !filePath.endsWith('.d.ts');
+    const normalizedPath = filePath.toLowerCase();
+    return (normalizedPath.endsWith('.ts') || normalizedPath.endsWith('.tsx') ||
+        normalizedPath.endsWith('.js') || normalizedPath.endsWith('.jsx')) &&
+        !normalizedPath.endsWith('.d.ts');
 }
 export function isDocumentationFile(filePath) {
     const name = path.basename(filePath).toLowerCase();
@@ -83,6 +87,8 @@ export function buildTypeScriptSourceFileGlobs(rootPath) {
     return [
         path.join(normalizedRoot, '**/*.ts').replace(/\\/g, '/'),
         path.join(normalizedRoot, '**/*.tsx').replace(/\\/g, '/'),
+        path.join(normalizedRoot, '**/*.js').replace(/\\/g, '/'),
+        path.join(normalizedRoot, '**/*.jsx').replace(/\\/g, '/'),
         ...Array.from(ignoredDirectoryNames, directoryName => `!${path.join(normalizedRoot, `**/${directoryName}/**`).replace(/\\/g, '/')}`),
         `!${path.join(normalizedRoot, '**/*.d.ts').replace(/\\/g, '/')}`,
     ];

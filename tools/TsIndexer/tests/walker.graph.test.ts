@@ -5,6 +5,49 @@ import { useTempProject } from './walker-test-helpers.js';
 const project = useTempProject();
 
 describe('walkTypeScript graph indexing', () => {
+  it('indexes JavaScript and JSX files through the TypeScript graph walker', () => {
+    project.writeFile(
+      'jsconfig.json',
+      '{"compilerOptions":{"baseUrl":".","paths":{"@/*":["src/*"]},"jsx":"react-jsx"}}',
+    );
+    project.writeFile(
+      'src/service.js',
+      `export function loadOrders() { return []; }
+
+export class OrderService {
+  list() {
+    return loadOrders();
+  }
+}
+`,
+    );
+    project.writeFile(
+      'src/Orders.jsx',
+      `import { loadOrders } from '@/service.js';
+
+export function Orders() {
+  const handleClick = () => loadOrders();
+  return <button onClick={handleClick}>Load</button>;
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+
+    expect(result.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'Proj:File:src_service.js', filePath: 'src/service.js', type: 'File' }),
+      expect.objectContaining({ id: 'Proj:Method:src_service.js:loadOrders', type: 'Method' }),
+      expect.objectContaining({ id: 'Proj:Class:src_service.js:OrderService', type: 'Class' }),
+      expect.objectContaining({ id: 'Proj:File:src_Orders.jsx', filePath: 'src/Orders.jsx', type: 'File' }),
+      expect.objectContaining({ id: 'Proj:Method:src_Orders.jsx:Orders', type: 'Method' }),
+    ]));
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:src_Orders.jsx:Orders',
+      targetId: 'Proj:Method:src_service.js:loadOrders',
+      type: 'Calls',
+    });
+  });
+
   it('classifies every call candidate exactly once and reports duplicate emitted edges', () => {
     project.writeFile(
       'health.ts',

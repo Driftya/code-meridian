@@ -20,7 +20,7 @@ export class TypeScriptIndexerApplication {
     client: CodeMeridianClient,
   ): Promise<void> {
     const workspaceRootPath = options.workspaceRootPath ?? options.rootPath;
-    console.log(`Indexing TypeScript batch in ${workspaceRootPath}...`);
+    console.log(`Indexing TypeScript/JavaScript batch in ${workspaceRootPath}...`);
     const boundaries = analyzeTypeScriptBoundaries(workspaceRootPath);
     if (boundaries.length > 0) {
       console.log(`  Detected ${boundaries.length} TypeScript project boundary/boundaries`);

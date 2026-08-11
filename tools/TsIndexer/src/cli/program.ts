@@ -6,7 +6,7 @@ import type { IndexCommandOptions, ResolvedIndexCommandOptions } from '../../../
 export async function parseCommandLine(argv: string[]): Promise<ResolvedIndexCommandOptions> {
   const program = new Command()
     .name('codemeridian-ts-indexer')
-    .description('Internal TypeScript worker for CodeMeridian.Indexer.')
+    .description('Internal TypeScript and JavaScript worker for CodeMeridian.Indexer.')
     .argument('<path>', 'Repository root used for stable graph file paths')
     .option('--workspace-root <path>', 'TypeScript project root used for tsconfig and source resolution')
     .requiredOption('--project <name>', 'Project context name.')

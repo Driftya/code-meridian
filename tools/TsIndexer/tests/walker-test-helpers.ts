@@ -69,6 +69,7 @@ function isIgnoredDirectory(name: string): boolean {
 
 function isTypeScriptSourceFile(name: string): boolean {
   const normalizedName = name.toLowerCase();
-  return (normalizedName.endsWith('.ts') || normalizedName.endsWith('.tsx')) &&
+  return (normalizedName.endsWith('.ts') || normalizedName.endsWith('.tsx') ||
+    normalizedName.endsWith('.js') || normalizedName.endsWith('.jsx')) &&
     !normalizedName.endsWith('.d.ts');
 }

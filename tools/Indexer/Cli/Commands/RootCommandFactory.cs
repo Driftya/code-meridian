@@ -66,7 +66,7 @@ internal sealed class RootCommandFactory(
         var dryRunOption = new Option<bool>("--dry-run") { Description = "Show what would be indexed without ingesting anything." };
         var listCapabilitiesOption = new Option<bool>("--list-capabilities") { Description = "Show available indexers on this machine." };
         var skipCSharpOption = new Option<bool>("--skip-csharp") { Description = "Skip C# indexing." };
-        var skipTypeScriptOption = new Option<bool>("--skip-typescript") { Description = "Skip TypeScript/TSX indexing." };
+        var skipTypeScriptOption = new Option<bool>("--skip-typescript") { Description = "Skip TypeScript/JavaScript/TSX/JSX indexing." };
         var skipConfigurationOption = new Option<bool>("--skip-config") { Description = "Skip configuration indexing." };
         var skipDiagnosticsOption = new Option<bool>("--skip-diagnostics") { Description = "Skip project-native compiler, TypeScript, and lint diagnostics indexing." };
         var allowRepoScriptsOption = new Option<bool>("--allow-repo-scripts") { Description = "Allow repo-controlled build and lint commands during diagnostics." };

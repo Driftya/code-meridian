@@ -43,14 +43,15 @@ public sealed class ProjectDiscoveryService : IProjectDiscoveryService
             if (ShouldSkipDirectory(directory))
                 continue;
 
-            if (File.Exists(Path.Combine(directory.FullName, "tsconfig.json"))
-                && ContainsFile(directory, ".ts", ".tsx"))
+            if ((File.Exists(Path.Combine(directory.FullName, "tsconfig.json"))
+                 || File.Exists(Path.Combine(directory.FullName, "jsconfig.json")))
+                && ContainsFile(directory, ".ts", ".tsx", ".js", ".jsx"))
             {
                 roots.Add(directory);
             }
         }
 
-        if (roots.Count == 0 && ContainsFile(root, ".ts", ".tsx"))
+        if (roots.Count == 0 && ContainsFile(root, ".ts", ".tsx", ".js", ".jsx"))
             roots.Add(root);
 
         return roots

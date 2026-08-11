@@ -21,6 +21,8 @@ public sealed class FileRolePolicyTests
     [InlineData("tools/TsIndexer/tests/walker-test-helpers.ts", IndexedFileRole.Test)]
     [InlineData("services/api/test/fixtures.tsx", IndexedFileRole.Test)]
     [InlineData("packages/ui/__tests__/render-helper.jsx", IndexedFileRole.Test)]
+    [InlineData("src/web/orders.test.js", IndexedFileRole.Test)]
+    [InlineData("src/web/orders.spec.jsx", IndexedFileRole.Test)]
     [InlineData("services/api/tests/ApiFixture.cs", IndexedFileRole.Test)]
     [InlineData("src/MyApp.Infrastructure/Migrations/20260101000000_CreateUsers.cs", IndexedFileRole.Migration)]
     [InlineData("src/MyApp.Infrastructure/Migrations/MyDbContextModelSnapshot.cs", IndexedFileRole.Snapshot)]
@@ -32,6 +34,9 @@ public sealed class FileRolePolicyTests
     [InlineData("src/web/app.config.ts", IndexedFileRole.Configuration)]
     [InlineData("src/web/orders.options.ts", IndexedFileRole.Configuration)]
     [InlineData("src/web/AppConfig.tsx", IndexedFileRole.Configuration)]
+    [InlineData("src/web/app.config.js", IndexedFileRole.Configuration)]
+    [InlineData("src/web/AppConfig.jsx", IndexedFileRole.Configuration)]
+    [InlineData("dist/app.js", IndexedFileRole.BuildArtifact)]
     public void Classify_DefaultPatterns_ReturnExpectedRole(string path, IndexedFileRole expected)
     {
         Classifier.Classify(path).Should().Be(expected);

@@ -88,6 +88,17 @@ public sealed class IndexerDiscoveryTests : IDisposable
     }
 
     [Fact]
+    public void ContainsFile_SkipsJavaScriptInDistDirectories()
+    {
+        var dist = Directory.CreateDirectory(Path.Combine(_root, "dist"));
+        File.WriteAllText(Path.Combine(dist.FullName, "index.js"), "export const ignored = true;");
+
+        var result = _service.ContainsFile(new DirectoryInfo(_root), ".js");
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
     public void ContainsFile_SkipsMeridianCacheDirectories()
     {
         var meridianCache = Directory.CreateDirectory(Path.Combine(_root, ".meridian", "cache"));
@@ -132,6 +143,30 @@ public sealed class IndexerDiscoveryTests : IDisposable
     public void FindTypeScriptRoots_FallsBackToRootWhenNoTsconfigExists()
     {
         File.WriteAllText(Path.Combine(_root, "index.ts"), "export const root = true;");
+
+        var result = _service.FindTypeScriptRoots(new DirectoryInfo(_root));
+
+        result.Should().ContainSingle();
+        result[0].FullName.Should().Be(_root);
+    }
+
+    [Fact]
+    public void FindTypeScriptRoots_FindsJavaScriptOnlyJsconfigRoot()
+    {
+        var app = Directory.CreateDirectory(Path.Combine(_root, "apps", "web"));
+        File.WriteAllText(Path.Combine(app.FullName, "jsconfig.json"), "{}");
+        File.WriteAllText(Path.Combine(app.FullName, "index.jsx"), "export function App() { return <main />; }");
+
+        var result = _service.FindTypeScriptRoots(new DirectoryInfo(_root));
+
+        result.Should().ContainSingle();
+        result[0].FullName.Should().Be(app.FullName);
+    }
+
+    [Fact]
+    public void FindTypeScriptRoots_FallsBackToRootForJavaScriptWithoutConfig()
+    {
+        File.WriteAllText(Path.Combine(_root, "index.js"), "export const root = true;");
 
         var result = _service.FindTypeScriptRoots(new DirectoryInfo(_root));
 

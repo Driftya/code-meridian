@@ -19,7 +19,7 @@ Your codebase
    Scans source code and documentation, extracts structural elements, and pushes nodes and relationships into CodeMeridian.
 
 2. **Language indexers**
-   The current indexers support C# with Roslyn and TypeScript/TSX with ts-morph. Future language indexers can write into the same graph model.
+   The current indexers support C# with Roslyn and TypeScript/JavaScript/TSX/JSX with ts-morph. Future language indexers can write into the same graph model.
 
 3. **Neo4j**
    Stores code nodes, relationships, documentation, timestamps, and optional embeddings. The graph persists across sessions and container restarts.

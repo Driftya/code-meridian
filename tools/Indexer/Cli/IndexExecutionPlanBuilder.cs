@@ -64,7 +64,9 @@ internal static class IndexExecutionPlanBuilder
 
     public static bool IsTypeScriptSourceFile(FileInfo file) =>
         (file.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
-         file.Extension.Equals(".tsx", StringComparison.OrdinalIgnoreCase)) &&
+         file.Extension.Equals(".tsx", StringComparison.OrdinalIgnoreCase) ||
+         file.Extension.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+         file.Extension.Equals(".jsx", StringComparison.OrdinalIgnoreCase)) &&
         !file.Name.EndsWith(".d.ts", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsHtmlCssSourceFile(FileInfo file) =>

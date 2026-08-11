@@ -388,6 +388,36 @@ public sealed class IndexCommandHandlerTests
         htmlCssRoots[0].FullName.Should().Be(workspace.Root.FullName);
     }
 
+    [Fact]
+    public void BuildExecutionContext_FindsJavaScriptOnlyRoot()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.WriteFile("jsconfig.json", "{}");
+        workspace.WriteFile("src/app.js", "export const app = true;");
+
+        var handler = CreateHandler(CreateSettings(workspace.Root, clear: false, incremental: true));
+        var buildExecutionContext = typeof(IndexCommandHandler).GetMethod(
+            "BuildExecutionContext",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        buildExecutionContext.Should().NotBeNull();
+        var context = buildExecutionContext!.Invoke(handler, [false]);
+
+        context.Should().NotBeNull();
+        var hasTypeScript = (bool)context!
+            .GetType()
+            .GetProperty("HasTypeScript", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .GetValue(context)!;
+        var roots = (IReadOnlyList<DirectoryInfo>)context
+            .GetType()
+            .GetProperty("TypeScriptRoots", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .GetValue(context)!;
+
+        hasTypeScript.Should().BeTrue();
+        roots.Should().ContainSingle();
+        roots[0].FullName.Should().Be(workspace.Root.FullName);
+    }
+
     private static IndexCommandHandler CreateHandler(ResolvedIndexerSettings settings)
         => new(
             Options.Create(settings),

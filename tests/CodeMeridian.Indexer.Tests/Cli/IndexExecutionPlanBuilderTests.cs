@@ -56,6 +56,38 @@ public sealed class IndexExecutionPlanBuilderTests
         IndexExecutionPlanBuilder.IsTypeScriptSourceFile(file).Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData("src/app.ts")]
+    [InlineData("src/Card.tsx")]
+    [InlineData("src/app.js")]
+    [InlineData("src/Card.jsx")]
+    public void IsTypeScriptSourceFile_RecognizesTypeScriptAndJavaScript(string path)
+    {
+        var file = new FileInfo(Path.Combine("C:", "repo", path.Replace('/', Path.DirectorySeparatorChar)));
+
+        IndexExecutionPlanBuilder.IsTypeScriptSourceFile(file).Should().BeTrue();
+    }
+
+    [Fact]
+    public void EnumerateIndexableFiles_IncludesJavaScriptAndExcludesDist()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.WriteFile("src/app.js", "export const app = true;");
+        workspace.WriteFile("src/Card.jsx", "export function Card() { return <main />; }");
+        workspace.WriteFile("dist/app.js", "export const generated = true;");
+
+        var result = IndexExecutionPlanBuilder.EnumerateIndexableFiles(
+            workspace.Root,
+            includeCSharp: false,
+            includeTypeScript: true,
+            includeDocs: false,
+            includeConfiguration: false);
+
+        result.Select(file => Path.GetRelativePath(workspace.Root.FullName, file.FullName).Replace('\\', '/'))
+            .Should()
+            .BeEquivalentTo(["src/app.js", "src/Card.jsx"]);
+    }
+
     [Fact]
     public void IsHtmlCssSourceFile_RecognizesFrontendMarkupAndStyles()
     {

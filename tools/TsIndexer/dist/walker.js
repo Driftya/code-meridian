@@ -19,10 +19,12 @@ export function walkTypeScript(rootPath, projectName, files, resolveFileRole, da
     const tracingOptions = databaseTracingOptions ?? loadDatabaseTracingOptions(workspaceRootPath);
     const catalogStartedAt = performance.now();
     const tsConfigPath = path.join(workspaceRootPath, 'tsconfig.json');
+    const jsConfigPath = path.join(workspaceRootPath, 'jsconfig.json');
+    const projectConfigPath = fs.existsSync(tsConfigPath) ? tsConfigPath : jsConfigPath;
     let catalogReason;
     let tsProject;
     try {
-        tsProject = createProject(tsConfigPath);
+        tsProject = createProject(projectConfigPath);
     }
     catch {
         catalogReason = 'tsconfig_load_failed';
@@ -100,6 +102,7 @@ export function walkTypeScript(rootPath, projectName, files, resolveFileRole, da
 function createProject(tsConfigPath) {
     return new Project({
         ...(tsConfigPath && fs.existsSync(tsConfigPath) ? { tsConfigFilePath: tsConfigPath } : {}),
+        compilerOptions: { allowJs: true },
         skipAddingFilesFromTsConfig: true,
         skipFileDependencyResolution: true,
     });

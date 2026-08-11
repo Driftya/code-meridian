@@ -10,7 +10,7 @@ CodeMeridian has two pieces:
 - Docker Desktop
 - .NET 10 SDK
 - GitHub Copilot in VS Code
-- Node.js 18+ when indexing TypeScript / TSX
+- Node.js 18+ when indexing TypeScript / JavaScript / TSX / JSX
 
 ## Install the Indexer CLI
 
@@ -132,9 +132,9 @@ The installed tool is the recommended path for regular use.
 
 See [Publishing the Indexer Tool](publishing.md) for NuGet publishing steps.
 
-## TypeScript / TSX Notes
+## TypeScript / JavaScript / TSX / JSX Notes
 
-The packaged indexer includes the TypeScript indexer source. On the first TypeScript indexing run, it restores its npm dependencies if needed.
+The packaged indexer includes the shared TypeScript/JavaScript indexer source. On the first indexing run, it restores its npm dependencies if needed.
 
 Node.js 18+ must be available on `PATH`.
 
