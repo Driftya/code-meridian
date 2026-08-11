@@ -103,6 +103,39 @@ describe('TypeScriptIndexerApplication', () => {
       .filter(body => body.type === 'Diagnostic' && body.properties?.externalKind !== 'IndexRun')).toEqual([]);
   });
 
+  it('uses repository-relative paths for a nested TypeScript workspace', async () => {
+    project.writeFile('tools/TsIndexer/tsconfig.json', '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}');
+    project.writeFile('tools/TsIndexer/src/walker.ts', 'export function walkTypeScript() { return []; }\n');
+
+    const rootPath = project.getRootPath();
+    const workspaceRootPath = path.join(rootPath, 'tools', 'TsIndexer');
+    const batchFilePath = path.join(rootPath, 'batch.json');
+    fs.writeFileSync(batchFilePath, JSON.stringify([{ path: 'tools/TsIndexer/src/walker.ts' }]));
+
+    const requests: Array<{ path: string; body?: string }> = [];
+    globalThis.fetch = vi.fn(async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      requests.push({ path: new URL(url).pathname, body: init?.body?.toString() });
+      return new Response('{}', { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }) as typeof fetch;
+
+    await new TypeScriptIndexerApplication().run({
+      rootPath,
+      workspaceRootPath,
+      projectName: 'CodeMeridian',
+      serverUrl: 'http://127.0.0.1:5100',
+      batchFilePath,
+    });
+
+    expect(readBodies(requests, '/api/v1/knowledge/nodes/bulk')).toContainEqual(
+      expect.objectContaining({
+        id: 'CodeMeridian:File:tools_TsIndexer_src_walker.ts',
+        filePath: 'tools/TsIndexer/src/walker.ts',
+        type: 'File',
+      }),
+    );
+  });
+
   it('uses a full relationship catalog for incremental TypeScript indexing', async () => {
     project.writeFile('tsconfig.json', '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}');
     project.writeFile('src/helper.ts', 'export function helper() { return 1; }\n');

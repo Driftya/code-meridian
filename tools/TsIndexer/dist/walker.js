@@ -8,7 +8,7 @@ import { collectEdges, collectNodes } from './walker/graph.js';
 import { collectRouteEdges, collectRouteNodes } from './walker/routes.js';
 import { discoverTypeScriptFiles } from './services/project-discovery.js';
 import { RelationshipOutcomeCollector, } from './relationship-health.js';
-export function walkTypeScript(rootPath, projectName, files, resolveFileRole, databaseTracingOptions, loadFullResolutionCatalog = false) {
+export function walkTypeScript(rootPath, projectName, files, resolveFileRole, databaseTracingOptions, loadFullResolutionCatalog = false, workspaceRootPath = rootPath) {
     const nodes = [];
     const edges = [];
     const catalogNodes = [];
@@ -16,9 +16,9 @@ export function walkTypeScript(rootPath, projectName, files, resolveFileRole, da
     const methodIndex = new Map();
     const callOutcomes = new RelationshipOutcomeCollector('Calls');
     const typeReferenceOutcomes = new RelationshipOutcomeCollector('TypeReferences');
-    const tracingOptions = databaseTracingOptions ?? loadDatabaseTracingOptions(rootPath);
+    const tracingOptions = databaseTracingOptions ?? loadDatabaseTracingOptions(workspaceRootPath);
     const catalogStartedAt = performance.now();
-    const tsConfigPath = path.join(rootPath, 'tsconfig.json');
+    const tsConfigPath = path.join(workspaceRootPath, 'tsconfig.json');
     let catalogReason;
     let tsProject;
     try {
@@ -31,7 +31,7 @@ export function walkTypeScript(rootPath, projectName, files, resolveFileRole, da
     let resolutionFiles = files;
     if (loadFullResolutionCatalog) {
         try {
-            resolutionFiles = discoverTypeScriptFiles(rootPath);
+            resolutionFiles = discoverTypeScriptFiles(workspaceRootPath);
         }
         catch {
             catalogReason ??= 'project_discovery_failed';
@@ -72,7 +72,7 @@ export function walkTypeScript(rootPath, projectName, files, resolveFileRole, da
         collectDatabaseTracingNodes(sourceFile, rootPath, projectName, nodes, emittedKnownIds, tracingOptions, resolveFileRole);
     }
     for (const sourceFile of emittedSourceFiles) {
-        collectEdges(sourceFile, rootPath, projectName, catalogNodes, edges, catalogKnownIds, methodIndex, callOutcomes, typeReferenceOutcomes);
+        collectEdges(sourceFile, rootPath, projectName, catalogNodes, edges, catalogKnownIds, methodIndex, callOutcomes, typeReferenceOutcomes, workspaceRootPath);
         collectRouteEdges(sourceFile, rootPath, projectName, edges, catalogKnownIds);
         collectConfigurationEdges(sourceFile, rootPath, projectName, edges);
         collectDatabaseTracingEdges(sourceFile, rootPath, projectName, edges, tracingOptions);

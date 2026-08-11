@@ -407,7 +407,11 @@ internal sealed class IndexCommandHandler(
                 continue;
 
             var batchFile = WriteTypeScriptBatchFile(context.CacheDirectory, typeScriptRoot, files, fileRoleClassifier);
-            var tsArgs = TypeScriptIndexerCommandBuilder.BuildTypeScriptIndexerArgs(tsIndexerRoot, typeScriptRoot, _settings.Project);
+            var tsArgs = TypeScriptIndexerCommandBuilder.BuildTypeScriptIndexerArgs(
+                tsIndexerRoot,
+                _settings.RootPath,
+                typeScriptRoot,
+                _settings.Project);
             TypeScriptIndexerCommandBuilder.AddTypeScriptIndexerOptions(
                 tsArgs,
                 _settings.CodeMeridianUrl,
@@ -557,8 +561,7 @@ internal sealed class IndexCommandHandler(
             .Select(fullPath =>
             {
                 var relativeToSolutionRoot = Path.GetRelativePath(_settings.RootPath.FullName, fullPath).Replace('\\', '/');
-                var relativeToLanguageRoot = Path.GetRelativePath(languageRoot.FullName, fullPath).Replace('\\', '/');
-                return new TypeScriptBatchEntry(relativeToLanguageRoot, fileRoleClassifier.Classify(relativeToSolutionRoot).ToString());
+                return new TypeScriptBatchEntry(relativeToSolutionRoot, fileRoleClassifier.Classify(relativeToSolutionRoot).ToString());
             })
             .ToArray();
 

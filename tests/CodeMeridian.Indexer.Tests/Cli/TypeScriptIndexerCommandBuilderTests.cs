@@ -11,11 +11,13 @@ public sealed class TypeScriptIndexerCommandBuilderTests
         var tsRoot = new DirectoryInfo(@"C:\repo\tools\TsIndexer");
         var root = new DirectoryInfo(@"C:\repo");
 
-        var args = TypeScriptIndexerCommandBuilder.BuildTypeScriptIndexerArgs(tsRoot, root, "CodeMeridian");
+        var args = TypeScriptIndexerCommandBuilder.BuildTypeScriptIndexerArgs(tsRoot, root, tsRoot, "CodeMeridian");
 
         args.Should().Equal(
             @"C:\repo\tools\TsIndexer\src\index.ts",
             @"C:\repo",
+            "--workspace-root",
+            @"C:\repo\tools\TsIndexer",
             "--project",
             "CodeMeridian");
     }

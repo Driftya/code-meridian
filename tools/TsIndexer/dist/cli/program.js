@@ -5,7 +5,8 @@ export async function parseCommandLine(argv) {
     const program = new Command()
         .name('codemeridian-ts-indexer')
         .description('Internal TypeScript worker for CodeMeridian.Indexer.')
-        .argument('<path>', 'Root directory of the TypeScript project to index')
+        .argument('<path>', 'Repository root used for stable graph file paths')
+        .option('--workspace-root <path>', 'TypeScript project root used for tsconfig and source resolution')
         .requiredOption('--project <name>', 'Project context name.')
         .requiredOption('--url <url>', 'CodeMeridian server URL.')
         .requiredOption('--batch-file <path>', 'JSON batch file written by CodeMeridian.Indexer.')
@@ -19,6 +20,7 @@ export async function parseCommandLine(argv) {
         project: parsed.project,
         url: parsed.url,
         batchFile: parsed.batchFile,
+        workspaceRoot: parsed.workspaceRoot,
         incremental: parsed.incremental,
     };
     return resolveOptions(options);
@@ -28,6 +30,7 @@ function resolveOptions(options) {
     loadEnvironmentForInvocation(rootPath);
     return {
         rootPath,
+        workspaceRootPath: options.workspaceRoot ? path.resolve(options.workspaceRoot) : rootPath,
         projectName: normalizeRequiredString(options.project, 'project'),
         serverUrl: normalizeRequiredString(options.url, 'url'),
         apiKey: normalizeOptionalString(process.env.CodeMeridian_Auth_ApiKey),

@@ -19,8 +19,9 @@ export class TypeScriptIndexerApplication {
     options: ResolvedIndexCommandOptions,
     client: CodeMeridianClient,
   ): Promise<void> {
-    console.log(`Indexing TypeScript batch in ${options.rootPath}...`);
-    const boundaries = analyzeTypeScriptBoundaries(options.rootPath);
+    const workspaceRootPath = options.workspaceRootPath ?? options.rootPath;
+    console.log(`Indexing TypeScript batch in ${workspaceRootPath}...`);
+    const boundaries = analyzeTypeScriptBoundaries(workspaceRootPath);
     if (boundaries.length > 0) {
       console.log(`  Detected ${boundaries.length} TypeScript project boundary/boundaries`);
     }
@@ -35,6 +36,7 @@ export class TypeScriptIndexerApplication {
       relativePath => batch.fileRoles.get(relativePath),
       undefined,
       true,
+      workspaceRootPath,
     );
 
     console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
@@ -114,7 +116,7 @@ async function persistIndexRun(
   },
 ): Promise<void> {
   const mode = options.isIncremental ? 'incremental' : 'full';
-  const normalizedScope = path.resolve(options.rootPath).replace(/\\/g, '/');
+  const normalizedScope = path.resolve(options.workspaceRootPath ?? options.rootPath).replace(/\\/g, '/');
   const scopeId = createHash('sha256').update(normalizedScope.toLowerCase()).digest('hex').slice(0, 16);
   const calls = health.calls;
   const references = health.typeReferences;

@@ -1,5 +1,6 @@
 export interface IndexCommandOptions {
   path: string;
+  workspaceRoot?: string;
   project: string;
   url: string;
   batchFile: string;
@@ -8,6 +9,7 @@ export interface IndexCommandOptions {
 
 export interface ResolvedIndexCommandOptions {
   rootPath: string;
+  workspaceRootPath?: string;
   projectName: string;
   serverUrl: string;
   apiKey?: string;

@@ -36,6 +36,7 @@ export function walkTypeScript(
   resolveFileRole?: (relativePath: string) => string | undefined,
   databaseTracingOptions?: DatabaseTracingOptions,
   loadFullResolutionCatalog = false,
+  workspaceRootPath = rootPath,
 ): WalkResult {
   const nodes: CodeNodeDto[] = [];
   const edges: CodeEdgeDto[] = [];
@@ -44,10 +45,10 @@ export function walkTypeScript(
   const methodIndex = new Map<string, string[]>();
   const callOutcomes = new RelationshipOutcomeCollector('Calls');
   const typeReferenceOutcomes = new RelationshipOutcomeCollector('TypeReferences');
-  const tracingOptions = databaseTracingOptions ?? loadDatabaseTracingOptions(rootPath);
+  const tracingOptions = databaseTracingOptions ?? loadDatabaseTracingOptions(workspaceRootPath);
 
   const catalogStartedAt = performance.now();
-  const tsConfigPath = path.join(rootPath, 'tsconfig.json');
+  const tsConfigPath = path.join(workspaceRootPath, 'tsconfig.json');
   let catalogReason: ResolutionCatalogEvidence['reason'];
   let tsProject: Project;
   try {
@@ -60,7 +61,7 @@ export function walkTypeScript(
   let resolutionFiles = files;
   if (loadFullResolutionCatalog) {
     try {
-      resolutionFiles = discoverTypeScriptFiles(rootPath);
+      resolutionFiles = discoverTypeScriptFiles(workspaceRootPath);
     } catch {
       catalogReason ??= 'project_discovery_failed';
     }
@@ -114,6 +115,7 @@ export function walkTypeScript(
       methodIndex,
       callOutcomes,
       typeReferenceOutcomes,
+      workspaceRootPath,
     );
     collectRouteEdges(sourceFile, rootPath, projectName, edges, catalogKnownIds);
     collectConfigurationEdges(sourceFile, rootPath, projectName, edges);

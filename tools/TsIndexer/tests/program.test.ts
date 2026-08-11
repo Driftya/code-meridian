@@ -21,10 +21,13 @@ afterEach(() => {
 
 describe('parseCommandLine', () => {
   it('resolves the internal worker contract explicitly', async () => {
+    const workspaceRootPath = path.join(rootPath, 'tools', 'TsIndexer');
     const result = await parseCommandLine([
       'node',
       'codemeridian-ts-indexer',
       rootPath,
+      '--workspace-root',
+      workspaceRootPath,
       '--project',
       'CodeMeridian',
       '--url',
@@ -34,6 +37,7 @@ describe('parseCommandLine', () => {
     ]);
 
     expect(result.rootPath).toBe(path.resolve(rootPath));
+    expect(result.workspaceRootPath).toBe(path.resolve(workspaceRootPath));
     expect(result.projectName).toBe('CodeMeridian');
     expect(result.serverUrl).toBe('http://localhost:5100');
     expect(result.batchFilePath).toBe(path.resolve(batchFilePath));
@@ -56,5 +60,6 @@ describe('parseCommandLine', () => {
     ]);
 
     expect(result.apiKey).toBeUndefined();
+    expect(result.workspaceRootPath).toBe(path.resolve(rootPath));
   });
 });

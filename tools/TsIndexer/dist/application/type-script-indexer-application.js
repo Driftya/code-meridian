@@ -11,14 +11,15 @@ export class TypeScriptIndexerApplication {
         return 0;
     }
     async runIndexPass(options, client) {
-        console.log(`Indexing TypeScript batch in ${options.rootPath}...`);
-        const boundaries = analyzeTypeScriptBoundaries(options.rootPath);
+        const workspaceRootPath = options.workspaceRootPath ?? options.rootPath;
+        console.log(`Indexing TypeScript batch in ${workspaceRootPath}...`);
+        const boundaries = analyzeTypeScriptBoundaries(workspaceRootPath);
         if (boundaries.length > 0) {
             console.log(`  Detected ${boundaries.length} TypeScript project boundary/boundaries`);
         }
         const batch = readIndexerBatchFile(options.rootPath, options.batchFilePath);
         console.log(`  Batch size: ${batch.files.length} file(s)`);
-        const { nodes, edges, relationshipHealth, usedFullResolutionCatalog, resolutionCatalog } = walkTypeScript(options.rootPath, options.projectName, batch.files, relativePath => batch.fileRoles.get(relativePath), undefined, true);
+        const { nodes, edges, relationshipHealth, usedFullResolutionCatalog, resolutionCatalog } = walkTypeScript(options.rootPath, options.projectName, batch.files, relativePath => batch.fileRoles.get(relativePath), undefined, true, workspaceRootPath);
         console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
         console.log(`  Resolution catalog: ${resolutionCatalog.completeness}, `
             + `${resolutionCatalog.sourceFileCount} source file(s), `
@@ -58,7 +59,7 @@ export class TypeScriptIndexerApplication {
 }
 async function persistIndexRun(client, options, scannedFileCount, ingestedNodeCount, ingestedEdgeCount, health, usedFullResolutionCatalog, resolutionCatalog) {
     const mode = options.isIncremental ? 'incremental' : 'full';
-    const normalizedScope = path.resolve(options.rootPath).replace(/\\/g, '/');
+    const normalizedScope = path.resolve(options.workspaceRootPath ?? options.rootPath).replace(/\\/g, '/');
     const scopeId = createHash('sha256').update(normalizedScope.toLowerCase()).digest('hex').slice(0, 16);
     const calls = health.calls;
     const references = health.typeReferences;

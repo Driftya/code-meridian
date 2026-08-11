@@ -282,11 +282,11 @@ public sealed class IndexCommandHandlerTests
     }
 
     [Fact]
-    public void WriteTypeScriptBatchFile_WritesRelativePathsAndClassifiedRoles()
+    public void WriteTypeScriptBatchFile_WritesRepositoryRelativePathsAndClassifiedRoles()
     {
         using var workspace = TestWorkspace.Create();
-        workspace.WriteFile("tsconfig.json", "{}");
-        var configFile = workspace.WriteFile("src/config/AppConfig.ts", "export const value = 1;\n");
+        workspace.WriteFile("tools/TsIndexer/tsconfig.json", "{}");
+        var configFile = workspace.WriteFile("tools/TsIndexer/src/config/AppConfig.ts", "export const value = 1;\n");
         var testFile = workspace.WriteFile("tools/TsIndexer/tests/walker-test-helpers.ts", "export const spec = true;\n");
         var cacheDirectory = new DirectoryInfo(Path.Combine(workspace.Root.FullName, ".meridian", "cache"));
         var classifier = IndexedFileRoleClassifierFactory.Create(snapshot: null);
@@ -297,7 +297,8 @@ public sealed class IndexCommandHandlerTests
             BindingFlags.Instance | BindingFlags.NonPublic);
 
         method.Should().NotBeNull();
-        var batchFile = (FileInfo?)method!.Invoke(handler, [cacheDirectory, workspace.Root, new[] { configFile.FullName, testFile.FullName }, classifier]);
+        var languageRoot = new DirectoryInfo(Path.Combine(workspace.Root.FullName, "tools", "TsIndexer"));
+        var batchFile = (FileInfo?)method!.Invoke(handler, [cacheDirectory, languageRoot, new[] { configFile.FullName, testFile.FullName }, classifier]);
 
         batchFile.Should().NotBeNull();
         batchFile!.Exists.Should().BeTrue();
@@ -306,7 +307,7 @@ public sealed class IndexCommandHandlerTests
         payload.Should().NotBeNull();
         payload.Should().BeEquivalentTo(
         [
-            new TypeScriptBatchEntry("src/config/AppConfig.ts", "Configuration"),
+            new TypeScriptBatchEntry("tools/TsIndexer/src/config/AppConfig.ts", "Configuration"),
             new TypeScriptBatchEntry("tools/TsIndexer/tests/walker-test-helpers.ts", "Test"),
         ]);
     }

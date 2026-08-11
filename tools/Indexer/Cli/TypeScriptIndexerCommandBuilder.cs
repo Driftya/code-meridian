@@ -2,12 +2,18 @@ namespace CodeMeridian.Indexer.Cli.Commands;
 
 internal static class TypeScriptIndexerCommandBuilder
 {
-    public static List<string> BuildTypeScriptIndexerArgs(DirectoryInfo tsIndexerRoot, DirectoryInfo rootPath, string project)
+    public static List<string> BuildTypeScriptIndexerArgs(
+        DirectoryInfo tsIndexerRoot,
+        DirectoryInfo repositoryRoot,
+        DirectoryInfo workspaceRoot,
+        string project)
     {
         return
         [
             CombinePath(tsIndexerRoot, "src", "index.ts"),
-            GetPath(rootPath),
+            GetPath(repositoryRoot),
+            "--workspace-root",
+            GetPath(workspaceRoot),
             "--project",
             project,
         ];
