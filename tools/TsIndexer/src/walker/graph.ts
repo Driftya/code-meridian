@@ -6,6 +6,7 @@ import {
   RelationshipOutcomeCollector,
   relationshipEdgeKey,
 } from '../relationship-health.js';
+import { isIgnoredPath } from '../services/project-discovery.js';
 import { addNode, fileId, getNamespaceForPath, hashText, isTestFilePath, nodeId, sourceHash, sourceSnippet } from './common.js';
 import { extractIndexedTestCases } from './test-discovery.js';
 
@@ -429,7 +430,7 @@ function addCallEdges(
     }
 
     const candidates = methodIndex.get(calleeName) ?? [];
-    const targetId = selectCallTarget(candidates, source, calleeName);
+    const targetId = selectCallTarget(call, candidates, source, calleeName);
     if (targetId && targetId !== sourceId) {
       if (outcomes.recordResolved(relationshipEdgeKey(sourceId, targetId, 'Calls'))) {
         edges.push({ sourceId, targetId, type: 'Calls' });
@@ -542,11 +543,28 @@ function resolveTypeMemberTargetId(
 }
 
 function selectCallTarget(
+  call: CallExpression,
   candidates: string[],
   source: { filePath: string; className?: string },
   calleeName: string,
 ): string | undefined {
   if (candidates.length === 0) return undefined;
+
+  const expression = call.getExpression();
+  if (!expression.isKind(SyntaxKind.Identifier)) {
+    if (!expression.isKind(SyntaxKind.PropertyAccessExpression) || !source.className) {
+      return undefined;
+    }
+
+    const receiverKind = expression.getExpression().getKind();
+    if (receiverKind !== SyntaxKind.ThisKeyword && receiverKind !== SyntaxKind.SuperKeyword) {
+      return undefined;
+    }
+
+    const sameClass = candidates.filter(id => id.endsWith(`:${source.className}.${calleeName}`));
+    return sameClass.length === 1 ? sameClass[0] : undefined;
+  }
+
   if (candidates.length === 1) return candidates[0];
 
   if (source.className) {
@@ -940,11 +958,18 @@ function classifyUnresolvedSymbol(
   }
 
   const normalizedRoot = path.resolve(rootPath).toLowerCase();
-  const hasLocalDeclaration = declarations.some(declaration =>
-    isPathWithinRoot(declaration.getSourceFile().getFilePath(), normalizedRoot));
+  const localDeclarationPaths = declarations
+    .map(declaration => declaration.getSourceFile().getFilePath())
+    .filter(filePath => isPathWithinRoot(filePath, normalizedRoot));
+  const hasIndexableLocalDeclaration = localDeclarationPaths.some(filePath =>
+    !isIgnoredPath(rootPath, filePath));
 
-  return hasLocalDeclaration
-    ? { disposition: 'unresolved_local', reason: 'local_declaration_not_indexed' }
+  if (hasIndexableLocalDeclaration) {
+    return { disposition: 'unresolved_local', reason: 'local_declaration_not_indexed' };
+  }
+
+  return localDeclarationPaths.length > 0
+    ? { disposition: 'external_or_unindexed', reason: 'declaration_in_excluded_path' }
     : { disposition: 'external_or_unindexed', reason: 'declaration_outside_index_scope' };
 }
 

@@ -45,13 +45,22 @@ public sealed class CSharpIndexer(
         var nodes = new List<IngestNodeRequest>();
         var edges = new List<IngestEdgeRequest>();
         var configurationConstants = CSharpConfigurationConstantRegistry.Build(resolutionFiles);
+        var semanticCatalog = CSharpSemanticModelCatalog.Create(resolutionFiles);
         LogClassificationSummary(files, rootPath, projectContext, fileRoleClassifier, logger);
 
         foreach (var file in resolutionFiles)
         {
             try
             {
-                ExtractFromFile(file, rootPath, projectContext, nodes, edges, configurationConstants, databaseTracingOptions.Value);
+                ExtractFromFile(
+                    file,
+                    rootPath,
+                    projectContext,
+                    nodes,
+                    edges,
+                    configurationConstants,
+                    databaseTracingOptions.Value,
+                    semanticCatalog.Find(file));
             }
             catch (Exception ex)
             {
@@ -348,14 +357,14 @@ public sealed class CSharpIndexer(
         List<IngestNodeRequest> nodes,
         List<IngestEdgeRequest> edges,
         CSharpConfigurationConstantRegistry configurationConstants,
-        DatabaseTracingOptions databaseTracingOptions)
+        DatabaseTracingOptions databaseTracingOptions,
+        CSharpSemanticFile? semanticFile)
     {
-        var source = File.ReadAllText(file.FullName);
-        var tree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source, path: file.FullName);
-        var root = tree.GetCompilationUnitRoot();
+        var root = semanticFile?.Root
+            ?? CSharpSyntaxTree.ParseText(File.ReadAllText(file.FullName), path: file.FullName).GetCompilationUnitRoot();
 
         var relPath = Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/');
-        var walker = new CSharpAstWalker(relPath, projectContext, nodes, edges);
+        var walker = new CSharpAstWalker(relPath, projectContext, nodes, edges, semanticFile?.SemanticModel);
         walker.Visit(root);
         CSharpRouteExtractor.Extract(root, relPath, projectContext, nodes, edges);
         CSharpConfigurationUsageExtractor.Extract(root, relPath, projectContext, nodes, edges, configurationConstants);

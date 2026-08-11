@@ -41,6 +41,15 @@ internal static class CSharpCallEdgeResolver
             .Select(name => name!)
             .ToHashSet(StringComparer.Ordinal);
         var localTypeHierarchy = BuildLocalTypeHierarchy(nodes, edges);
+        var localTypeIdsByName = nodes
+            .Where(node => node.Type is "Class" or "Interface" or "Struct" or "Record")
+            .GroupBy(
+                node => CSharpTypeIdentityNormalizer.Normalize(node.Name)?.ShortName ?? node.Name,
+                StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(node => node.Id).ToArray(),
+                StringComparer.Ordinal);
         var typesWithUnindexedBases = FindTypesWithUnindexedBases(nodes, edges);
 
         var resolved = new List<IngestEdgeRequest>(edges.Count);
@@ -77,6 +86,7 @@ internal static class CSharpCallEdgeResolver
             var receiverTypeHint = receiverIdentity?.ShortName;
             var receiverCanonicalTypeHint = receiverIdentity?.CanonicalName;
             var receiverKind = ReadProperty(edge, "receiverKind");
+            var semanticTargetDeclaringTypeHint = ReadProperty(edge, "semanticTargetDeclaringTypeHint");
             var genericArity = TryReadIntProperty(edge.Properties, "genericArity");
             if (!methodCandidates.TryGetValue(edge.CallName, out var candidates))
             {
@@ -115,12 +125,27 @@ internal static class CSharpCallEdgeResolver
                     continue;
                 }
 
-                var disposition = IsKnownExternalReceiver(receiverKind, receiverTypeHint, localTypeNames)
+                var externalExtensionPossible = IsPossibleExternalExtensionCall(
+                    edge,
+                    receiverKind,
+                    receiverTypeHint,
+                    receiverCanonicalTypeHint,
+                    candidates,
+                    localTypeIdsByName,
+                    localTypeHierarchy);
+                var disposition = externalExtensionPossible
+                    || IsKnownExternalReceiver(receiverKind, receiverTypeHint, localTypeNames)
                     ? RelationshipResolutionDisposition.ExternalOrUnindexed
                     : RelationshipResolutionDisposition.UnresolvedLocal;
-                outcomes.Record(disposition, disposition == RelationshipResolutionDisposition.ExternalOrUnindexed
-                    ? "external_receiver_incompatible_arity"
-                    : "local_target_incompatible_arity", source, edge);
+                outcomes.Record(
+                    disposition,
+                    externalExtensionPossible
+                        ? "external_extension_possible"
+                        : disposition == RelationshipResolutionDisposition.ExternalOrUnindexed
+                            ? "external_receiver_incompatible_arity"
+                            : "local_target_incompatible_arity",
+                    source,
+                    edge);
                 continue;
             }
 
@@ -159,6 +184,7 @@ internal static class CSharpCallEdgeResolver
                 receiverTypeHint,
                 receiverCanonicalTypeHint,
                 receiverKind,
+                semanticTargetDeclaringTypeHint,
                 localTypeHierarchy);
             if (selected is not null)
             {
@@ -178,11 +204,22 @@ internal static class CSharpCallEdgeResolver
                     continue;
                 }
 
-                var disposition = IsKnownExternalReceiver(receiverKind, receiverTypeHint, localTypeNames)
+                var externalExtensionPossible = IsPossibleExternalExtensionCall(
+                    edge,
+                    receiverKind,
+                    receiverTypeHint,
+                    receiverCanonicalTypeHint,
+                    candidates,
+                    localTypeIdsByName,
+                    localTypeHierarchy);
+                var disposition = externalExtensionPossible
+                    || IsKnownExternalReceiver(receiverKind, receiverTypeHint, localTypeNames)
                     ? RelationshipResolutionDisposition.ExternalOrUnindexed
                     : RelationshipResolutionDisposition.UnresolvedLocal;
-                var reason = disposition == RelationshipResolutionDisposition.ExternalOrUnindexed
-                    ? "external_receiver_name_collision"
+                var reason = externalExtensionPossible
+                    ? "external_extension_possible"
+                    : disposition == RelationshipResolutionDisposition.ExternalOrUnindexed
+                        ? "external_receiver_name_collision"
                     : string.IsNullOrWhiteSpace(receiverTypeHint)
                         ? "missing_receiver_hint"
                         : "ambiguous_local_target";
@@ -241,6 +278,51 @@ internal static class CSharpCallEdgeResolver
         !string.IsNullOrWhiteSpace(receiverTypeHint)
         && localTypeNames.Contains(receiverTypeHint);
 
+    private static bool IsPossibleExternalExtensionCall(
+        IngestEdgeRequest edge,
+        string? receiverKind,
+        string? receiverTypeHint,
+        string? receiverCanonicalTypeHint,
+        IReadOnlyList<MethodCandidate> candidates,
+        IReadOnlyDictionary<string, string[]> localTypeIdsByName,
+        IReadOnlyDictionary<string, IReadOnlySet<string>> localTypeHierarchy)
+    {
+        if (!string.Equals(receiverKind, "TypedOrStatic", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(receiverTypeHint)
+            || !IsInstanceReceiverEvidence(ReadProperty(edge, "receiverEvidenceSource")))
+        {
+            return false;
+        }
+
+        if (candidates.Any(candidate =>
+            IsDeclaringTypeMatch(candidate, receiverTypeHint, receiverCanonicalTypeHint)
+            || IsExtensionReceiverMatch(candidate, receiverTypeHint, receiverCanonicalTypeHint)))
+        {
+            return false;
+        }
+
+        if (!localTypeIdsByName.TryGetValue(receiverTypeHint, out var receiverTypeIds))
+            return true;
+
+        return !candidates.Any(candidate =>
+            candidate.DeclaringTypeId is not null
+            && receiverTypeIds.Any(receiverTypeId =>
+                localTypeHierarchy.TryGetValue(receiverTypeId, out var hierarchy)
+                && hierarchy.Contains(candidate.DeclaringTypeId)));
+    }
+
+    private static bool IsInstanceReceiverEvidence(string? evidenceSource) =>
+        evidenceSource is
+            "syntax-lexical-variable" or
+            "syntax-parameter" or
+            "syntax-member" or
+            "syntax-this-member" or
+            "syntax-object-creation" or
+            "syntax-cast" or
+            "syntax-as-cast" or
+            "syntax-conditional" or
+            "semantic-model-instance";
+
     private static string BuildEdgeIdentity(IngestEdgeRequest edge) =>
         edge.RelationshipType is "ReadsConfig" or "BindsConfig"
             ? $"{edge.SourceId}|{edge.TargetId}|{edge.RelationshipType}|{ReadProperty(edge, "accessPattern")}"
@@ -258,8 +340,21 @@ internal static class CSharpCallEdgeResolver
         string? receiverTypeHint,
         string? receiverCanonicalTypeHint,
         string? receiverKind,
+        string? semanticTargetDeclaringTypeHint,
         IReadOnlyDictionary<string, IReadOnlySet<string>> localTypeHierarchy)
     {
+        if (CSharpTypeIdentityNormalizer.Normalize(semanticTargetDeclaringTypeHint) is { } semanticTarget)
+        {
+            var semanticMatches = candidates
+                .Where(candidate => IsDeclaringTypeMatch(
+                    candidate,
+                    semanticTarget.ShortName,
+                    semanticTarget.CanonicalName))
+                .ToArray();
+            if (semanticMatches.Length == 1)
+                return semanticMatches[0];
+        }
+
         if (!string.IsNullOrWhiteSpace(receiverTypeHint))
         {
             var exactReceiverMatches = candidates

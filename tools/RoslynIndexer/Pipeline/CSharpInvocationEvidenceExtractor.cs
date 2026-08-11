@@ -11,6 +11,7 @@ internal sealed record CSharpInvocationEvidence(
     string? ReceiverTypeHint,
     string? ReceiverCanonicalTypeHint,
     string? DeclaringTypeHint,
+    string? TargetDeclaringTypeHint,
     int GenericArity,
     string EvidenceSource,
     string EvidenceConfidence);
@@ -32,7 +33,8 @@ internal static class CSharpInvocationEvidenceExtractor
         IReadOnlyDictionary<string, string> scopedTypes,
         IReadOnlyDictionary<string, string> memberTypes,
         IReadOnlySet<string> knownTypeNames,
-        IReadOnlyDictionary<string, string> typeAliases)
+        IReadOnlyDictionary<string, string> typeAliases,
+        SemanticModel? semanticModel = null)
     {
         if (!ReferenceEquals(FindOwningCallable(invocation), owningCallable))
             return null;
@@ -52,6 +54,17 @@ internal static class CSharpInvocationEvidenceExtractor
                 memberTypes,
                 knownTypeNames,
                 typeAliases);
+        var semanticEvidence = semanticModel is null
+            ? null
+            : ResolveSemanticEvidence(invocation, receiver, semanticModel);
+        if (semanticEvidence?.ReceiverType is not null)
+        {
+            receiverEvidence = new ReceiverEvidence(
+                "TypedOrStatic",
+                semanticEvidence.ReceiverType,
+                semanticEvidence.IsStaticReceiver ? "semantic-model-static" : "semantic-model-instance",
+                "Exact");
+        }
 
         return new CSharpInvocationEvidence(
             name,
@@ -60,9 +73,50 @@ internal static class CSharpInvocationEvidenceExtractor
             receiverEvidence.Type?.ShortName,
             receiverEvidence.Type?.CanonicalName,
             currentTypeShortName,
+            semanticEvidence?.TargetDeclaringType?.CanonicalName,
             GetGenericArity(invocation),
             receiverEvidence.Source,
             receiverEvidence.Confidence);
+    }
+
+    private static SemanticInvocationEvidence? ResolveSemanticEvidence(
+        InvocationExpressionSyntax invocation,
+        ExpressionSyntax? receiver,
+        SemanticModel semanticModel)
+    {
+        var targetMethod = semanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
+        var targetDeclaringType = NormalizeSemanticType(targetMethod?.ContainingType);
+        if (receiver is null)
+        {
+            return targetDeclaringType is null
+                ? null
+                : new SemanticInvocationEvidence(null, targetDeclaringType, false);
+        }
+
+        var receiverSymbol = semanticModel.GetSymbolInfo(receiver).Symbol;
+        var receiverType = NormalizeSemanticType(
+            semanticModel.GetTypeInfo(receiver).Type
+            ?? receiverSymbol as ITypeSymbol);
+        if (receiverType is null && targetDeclaringType is null)
+            return null;
+
+        return new SemanticInvocationEvidence(
+            receiverType,
+            targetDeclaringType,
+            receiverSymbol is ITypeSymbol);
+    }
+
+    private static CSharpTypeIdentity? NormalizeSemanticType(ITypeSymbol? type)
+    {
+        if (type is null or IErrorTypeSymbol || type.TypeKind == TypeKind.Dynamic)
+            return null;
+
+        var displayName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        const string globalPrefix = "global::";
+        if (displayName.StartsWith(globalPrefix, StringComparison.Ordinal))
+            displayName = displayName[globalPrefix.Length..];
+
+        return CSharpTypeIdentityNormalizer.Normalize(displayName);
     }
 
     private static ReceiverEvidence ResolveReceiverEvidence(
@@ -291,4 +345,9 @@ internal static class CSharpInvocationEvidenceExtractor
         CSharpTypeIdentity? Type,
         string Source,
         string Confidence);
+
+    private sealed record SemanticInvocationEvidence(
+        CSharpTypeIdentity? ReceiverType,
+        CSharpTypeIdentity? TargetDeclaringType,
+        bool IsStaticReceiver);
 }

@@ -83,6 +83,58 @@ export function run() {
     expect(repeated.relationshipHealth).toEqual(result.relationshipHealth);
   });
 
+  it('classifies declarations in excluded dependency and build paths as external', () => {
+    project.writeFile(
+      'tsconfig.json',
+      '{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","target":"ES2022"}}',
+    );
+    project.writeFile(
+      'node_modules/example-package/package.json',
+      '{"name":"example-package","type":"module","types":"index.d.ts"}',
+    );
+    project.writeFile(
+      'node_modules/example-package/index.d.ts',
+      `export interface ExternalClient {
+  execute(): string;
+}
+
+export function createClient(): ExternalClient;
+`,
+    );
+    project.writeFile(
+      'dist/generated.d.ts',
+      `export interface GeneratedOptions {
+  enabled: boolean;
+}
+
+export function readGenerated(options: GeneratedOptions): boolean;
+`,
+    );
+    project.writeFile(
+      'consumer.ts',
+      `import { createClient, type ExternalClient } from 'example-package';
+import { readGenerated, type GeneratedOptions } from './dist/generated.js';
+
+export function run(client: ExternalClient, options: GeneratedOptions) {
+  createClient();
+  client.execute();
+  return readGenerated(options);
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+
+    expect(result.relationshipHealth.calls.reasons['external_or_unindexed:declaration_in_excluded_path'])
+      .toBeGreaterThanOrEqual(2);
+    expect(result.relationshipHealth.typeReferences.reasons['external_or_unindexed:declaration_in_excluded_path'])
+      .toBeGreaterThanOrEqual(2);
+    expect(result.relationshipHealth.calls.reasons)
+      .not.toHaveProperty('unresolved_local:local_declaration_not_indexed');
+    expect(result.relationshipHealth.typeReferences.reasons)
+      .not.toHaveProperty('unresolved_local:local_declaration_not_indexed');
+  });
+
   it('indexes classes, methods, line metadata, and contains edges', () => {
     project.writeFile(
       'editor.ts',
@@ -179,6 +231,59 @@ export function run() {
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.addCaption',
       targetId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.snapshot',
+      type: 'Calls',
+    });
+  });
+
+  it('uses semantic receiver types across factory-return chains', () => {
+    project.writeFile(
+      'semantic-chain.ts',
+      `class Repository {
+  save() {}
+}
+
+class RepositoryFactory {
+  create(): Repository {
+    return new Repository();
+  }
+}
+
+export function persist() {
+  const repository = new RepositoryFactory().create();
+  repository.save();
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:semantic-chain.ts:persist',
+      targetId: 'Proj:Method:semantic-chain.ts:Repository.save',
+      type: 'Calls',
+    });
+  });
+
+  it('does not use a unique same-name method when a member semantic target is not indexed', () => {
+    project.writeFile(
+      'semantic-negative.ts',
+      `class LocalWorker {
+  execute() {}
+}
+
+declare const externalWorker: { execute(): void };
+
+export function run() {
+  externalWorker.execute();
+}
+`,
+    );
+
+    const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
+
+    expect(result.edges).not.toContainEqual({
+      sourceId: 'Proj:Method:semantic-negative.ts:run',
+      targetId: 'Proj:Method:semantic-negative.ts:LocalWorker.execute',
       type: 'Calls',
     });
   });

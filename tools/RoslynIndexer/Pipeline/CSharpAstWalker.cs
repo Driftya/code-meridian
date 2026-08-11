@@ -10,7 +10,8 @@ internal sealed class CSharpAstWalker(
     string filePath,
     string projectContext,
     List<IngestNodeRequest> nodes,
-    List<IngestEdgeRequest> edges) : CSharpSyntaxWalker
+    List<IngestEdgeRequest> edges,
+    SemanticModel? semanticModel = null) : CSharpSyntaxWalker
 {
     private readonly string _fileId = $"{projectContext}::File::{filePath}";
     private readonly Stack<Dictionary<string, string>> _identifierTypeScopes = [];
@@ -659,7 +660,8 @@ internal sealed class CSharpAstWalker(
                 scopedTypes,
                 _currentTypeMemberTypes,
                 _knownTypeNames,
-                _typeAliases))
+                _typeAliases,
+                semanticModel))
             .Where(evidence => evidence is not null)
             .Select(evidence => evidence!)
             .Distinct();
@@ -692,6 +694,8 @@ internal sealed class CSharpAstWalker(
             properties["receiverCanonicalTypeHint"] = evidence.ReceiverCanonicalTypeHint;
         if (evidence.DeclaringTypeHint is not null)
             properties["declaringTypeHint"] = evidence.DeclaringTypeHint;
+        if (evidence.TargetDeclaringTypeHint is not null)
+            properties["semanticTargetDeclaringTypeHint"] = evidence.TargetDeclaringTypeHint;
 
         return properties;
     }

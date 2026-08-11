@@ -430,6 +430,83 @@ public sealed class CSharpCallEdgeResolverTests
     }
 
     [Fact]
+    public void ResolveWithDiagnostics_ClassifiesUnrelatedInstanceNameCollisionAsPossibleExternalExtension()
+    {
+        var sourceId = "Project::Method::Demo.OrderService::BuildLookup()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new("Project::Class::Demo.OrderCollection", "OrderCollection", "Class", "Demo", "src/OrderCollection.cs", 1, null),
+            new(sourceId, "BuildLookup()", "Method", "Demo", "src/OrderService.cs", 10, null,
+                Properties: new() { ["declaringTypeShortName"] = "OrderService" }),
+            new("Project::Method::Demo.MappingHelpers::ToDictionary(string)", "ToDictionary(string)", "Method", "Demo", "src/MappingHelpers.cs", 20, null,
+                Properties: new()
+                {
+                    ["declaringTypeShortName"] = "MappingHelpers",
+                    ["requiredParameterCount"] = "1",
+                    ["totalParameterCount"] = "1",
+                    ["parameterMetadata"] = "exact-syntax"
+                })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: "ToDictionary", ParamCount: 2,
+                Properties: new()
+                {
+                    ["receiverKind"] = "TypedOrStatic",
+                    ["receiverTypeHint"] = "OrderCollection",
+                    ["receiverEvidenceSource"] = "syntax-parameter"
+                })
+        };
+
+        var result = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+
+        result.Edges.Should().BeEmpty();
+        result.Stats.ExternalOrUnindexed.Should().Be(1);
+        result.Stats.UnresolvedLocal.Should().Be(0);
+        result.Stats.Reasons.Should().Contain("external_or_unindexed:external_extension_possible", 1);
+        result.Stats.HasValidAccounting.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ResolveWithDiagnostics_KeepsRelatedInstanceArityMismatchLocal()
+    {
+        var sourceId = "Project::Method::Demo.OrderService::BuildLookup()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new("Project::Class::Demo.OrderCollection", "OrderCollection", "Class", "Demo", "src/OrderCollection.cs", 1, null),
+            new(sourceId, "BuildLookup()", "Method", "Demo", "src/OrderService.cs", 10, null,
+                Properties: new() { ["declaringTypeShortName"] = "OrderService" }),
+            new("Project::Method::Demo.OrderCollection::ToDictionary(string)", "ToDictionary(string)", "Method", "Demo", "src/OrderCollection.cs", 20, null,
+                Properties: new()
+                {
+                    ["declaringTypeId"] = "Project::Class::Demo.OrderCollection",
+                    ["declaringTypeShortName"] = "OrderCollection",
+                    ["requiredParameterCount"] = "1",
+                    ["totalParameterCount"] = "1",
+                    ["parameterMetadata"] = "exact-syntax"
+                })
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: "ToDictionary", ParamCount: 2,
+                Properties: new()
+                {
+                    ["receiverKind"] = "TypedOrStatic",
+                    ["receiverTypeHint"] = "OrderCollection",
+                    ["receiverEvidenceSource"] = "syntax-parameter"
+                })
+        };
+
+        var result = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
+
+        result.Edges.Should().BeEmpty();
+        result.Stats.ExternalOrUnindexed.Should().Be(0);
+        result.Stats.UnresolvedLocal.Should().Be(1);
+        result.Stats.Reasons.Should().Contain("unresolved_local:local_target_incompatible_arity", 1);
+        result.Stats.HasValidAccounting.Should().BeTrue();
+    }
+
+    [Fact]
     public void ResolveWithDiagnostics_DuplicateResolvedCallsPreserveCandidateAccounting()
     {
         var sourceId = "Project::Method::Demo.Service::Caller()";
