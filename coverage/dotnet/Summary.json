@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedon": "2026-08-10T18:49:08Z",
+    "generatedon": "2026-08-11T06:39:24Z",
     "parser": "MultiReport (17x Cobertura)",
     "assemblies": 9,
     "classes": 356,
@@ -10,7 +10,7 @@
     "coverablelines": 26974,
     "totallines": 40996,
     "linecoverage": 76.2,
-    "coveredbranches": 7866,
+    "coveredbranches": 7865,
     "totalbranches": 12567,
     "branchcoverage": 62.5,
     "coveredmethods": 3296,
@@ -21,7 +21,7 @@
  },
   "coverage": {
     "assemblies": [
-      { "name": "CodeMeridian.Application", "classes": 103, "coverage": 88.4, "coveredlines": 11435, "coverablelines": 12925, "totallines": 32445, "branchcoverage": 66.3, "coveredbranches": 4378, "totalbranches": 6595, "methodcoverage": 94.7, "fullmethodcoverage": 77.8, "coveredmethods": 1640, "fullcoveredmethods": 1348, "totalmethods": 1731, "classesinassembly": [
+      { "name": "CodeMeridian.Application", "classes": 103, "coverage": 88.4, "coveredlines": 11435, "coverablelines": 12925, "totallines": 32445, "branchcoverage": 66.3, "coveredbranches": 4377, "totalbranches": 6595, "methodcoverage": 94.7, "fullmethodcoverage": 77.8, "coveredmethods": 1640, "fullcoveredmethods": 1348, "totalmethods": 1731, "classesinassembly": [
         { "name": "CodeMeridian.Application.ClientExtensions.ClientExtensionContract", "coverage": 100, "coveredlines": 17, "coverablelines": 17, "totallines": 19, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 17, "fullcoveredmethods": 17, "totalmethods": 17 },
         { "name": "CodeMeridian.Application.ClientExtensions.ClientExtensionExample", "coverage": 100, "coveredlines": 10, "coverablelines": 10, "totallines": 12, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 10, "fullcoveredmethods": 10, "totalmethods": 10 },
         { "name": "CodeMeridian.Application.ClientExtensions.ClientExtensionService", "coverage": 99.3, "coveredlines": 149, "coverablelines": 150, "totallines": 195, "branchcoverage": 93.7, "coveredbranches": 15, "totalbranches": 16, "methodcoverage": 100, "fullmethodcoverage": 93.3, "coveredmethods": 15, "fullcoveredmethods": 14, "totalmethods": 15 },
@@ -74,7 +74,7 @@
         { "name": "CodeMeridian.Application.Services.KeywordClassificationOptions", "coverage": 100, "coveredlines": 88, "coverablelines": 88, "totallines": 100, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 11, "fullcoveredmethods": 11, "totalmethods": 11 },
         { "name": "CodeMeridian.Application.Services.KeywordEnrichmentOptions", "coverage": 100, "coveredlines": 21, "coverablelines": 21, "totallines": 30, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 11, "fullcoveredmethods": 11, "totalmethods": 11 },
         { "name": "CodeMeridian.Application.Services.KeywordExtractionResult", "coverage": 100, "coveredlines": 1, "coverablelines": 1, "totallines": 10, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 1, "fullcoveredmethods": 1, "totalmethods": 1 },
-        { "name": "CodeMeridian.Application.Services.KeywordGraphJobService", "coverage": 94.4, "coveredlines": 102, "coverablelines": 108, "totallines": 182, "branchcoverage": 73.5, "coveredbranches": 25, "totalbranches": 34, "methodcoverage": 95.4, "fullmethodcoverage": 77.2, "coveredmethods": 21, "fullcoveredmethods": 17, "totalmethods": 22 },
+        { "name": "CodeMeridian.Application.Services.KeywordGraphJobService", "coverage": 94.4, "coveredlines": 102, "coverablelines": 108, "totallines": 182, "branchcoverage": 70.5, "coveredbranches": 24, "totalbranches": 34, "methodcoverage": 95.4, "fullmethodcoverage": 77.2, "coveredmethods": 21, "fullcoveredmethods": 17, "totalmethods": 22 },
         { "name": "CodeMeridian.Application.Services.KeywordGraphJobStatus", "coverage": 60, "coveredlines": 6, "coverablelines": 10, "totallines": 17, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 60, "fullmethodcoverage": 60, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 10 },
         { "name": "CodeMeridian.Application.Services.KeywordGraphJobSubmissionResult", "coverage": 75, "coveredlines": 3, "coverablelines": 4, "totallines": 17, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 75, "fullmethodcoverage": 75, "coveredmethods": 3, "fullcoveredmethods": 3, "totalmethods": 4 },
         { "name": "CodeMeridian.Application.Services.KeywordGraphService", "coverage": 92.6, "coveredlines": 352, "coverablelines": 380, "totallines": 560, "branchcoverage": 65.8, "coveredbranches": 85, "totalbranches": 129, "methodcoverage": 100, "fullmethodcoverage": 70.5, "coveredmethods": 34, "fullcoveredmethods": 24, "totalmethods": 34 },
