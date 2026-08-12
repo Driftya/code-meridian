@@ -37,6 +37,16 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 .WithConnectionTimeout(TimeSpan.FromSeconds(opts.ConnectionTimeoutSeconds)));
     }
 
+    internal Neo4jCodeGraphRepository(
+        IDriver driver,
+        ILogger<Neo4jCodeGraphRepository> logger,
+        int embeddingDimensions = 1536)
+    {
+        _driver = driver;
+        _logger = logger;
+        _embeddingDimensions = embeddingDimensions;
+    }
+
     /// <summary>Creates indexes and constraints on first run.</summary>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
