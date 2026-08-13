@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CodeMeridian Change Context Challenge</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --surface: var(--color-background-primary, #101418);
+      --raised: var(--color-background-secondary, #182027);
+      --text: var(--color-text-primary, #f2f5f7);
+      --muted: var(--color-text-secondary, #aeb9c2);
+      --border: var(--color-border-secondary, #34414b);
+      --accent: var(--color-text-info, #58b8ff);
+      --success: var(--color-text-success, #57d69a);
+      --danger: var(--color-text-danger, #ff7d7d);
+      --warning: var(--color-text-warning, #ffd166);
+      --font: var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+      --mono: var(--font-mono, ui-monospace, "Cascadia Code", monospace);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 14px; background: var(--surface); color: var(--text); font: 13px/1.45 var(--font); }
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: 4px; font-size: 17px; }
+    h2 { margin-bottom: 8px; font-size: 14px; }
+    .eyebrow { margin: 0 0 3px; color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .status { margin: 10px 0; color: var(--muted); }
+    .status.ready { color: var(--success); }
+    .status.error { color: var(--danger); }
+    .status.warning { color: var(--warning); }
+    .panel { margin-top: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--raised); }
+    .target { margin-bottom: 10px; color: var(--muted); overflow-wrap: anywhere; }
+    .target code { color: var(--accent); font-family: var(--mono); }
+    .question { margin-bottom: 12px; font-size: 14px; }
+    fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+    legend { width: 100%; margin-bottom: 8px; color: var(--muted); }
+    .choices { display: grid; gap: 8px; }
+    .choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px; align-items: start; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
+    .choice:hover, .choice:focus-within { border-color: var(--accent); }
+    .choice.wrong { border-color: var(--danger); }
+    .choice.correct { border-color: var(--success); }
+    .choice input { margin: 3px 0 0; accent-color: var(--accent); }
+    .choice-id { display: inline-block; min-width: 1.6em; color: var(--accent); font-family: var(--mono); font-weight: 700; }
+    pre { max-height: 230px; margin: 6px 0 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+    pre code { color: var(--text); font: 12px/1.5 var(--mono); }
+    button, select, textarea { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
+    button { padding: 7px 11px; cursor: pointer; }
+    button:hover, button:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--accent); outline: none; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    .actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    .selection-count { color: var(--muted); }
+    .feedback { margin: 10px 0 0; padding: 10px 10px 10px 28px; border-left: 3px solid var(--warning); background: color-mix(in srgb, var(--warning) 8%, transparent); }
+    .feedback.success { border-color: var(--success); background: color-mix(in srgb, var(--success) 8%, transparent); }
+    .feedback li + li { margin-top: 5px; }
+    .note-grid { display: grid; gap: 8px; }
+    label[for="note-kind"], label[for="note-statement"] { color: var(--muted); font-weight: 600; }
+    select { width: min(100%, 260px); padding: 7px; }
+    textarea { width: 100%; min-height: 82px; padding: 8px; resize: vertical; }
+    .note-help { margin: 0; color: var(--muted); }
+    .empty { padding: 24px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); text-align: center; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">Human cognitive seed</p>
+    <h1>Change Context Code Challenge</h1>
+  </header>
+  <p id="status" class="status" role="status" aria-live="polite">Connecting to the MCP host...</p>
+  <main id="content" aria-busy="true">
+    <p class="empty">Waiting for an LLM-authored code challenge.</p>
+  </main>
+  <section id="note-section" class="panel" hidden>
+    <h2>Preserve your change-context note</h2>
+    <p class="note-help">Optional. Save one durable note only if it will help a future change.</p>
+    <form id="note-form" class="note-grid">
+      <label for="note-kind">Note kind</label>
+      <select id="note-kind" name="contextKind">
+        <option value="decision">Decision</option>
+        <option value="constraint">Constraint</option>
+        <option value="limitation">Limitation</option>
+        <option value="assumption">Assumption</option>
+        <option value="follow-up">Follow-up</option>
+      </select>
+      <label for="note-statement">Note</label>
+      <textarea id="note-statement" name="statement" maxlength="800" required placeholder="What should a future change remember?"></textarea>
+      <div class="actions">
+        <button id="save-note" type="submit">Save note</button>
+        <span id="note-status" class="status" role="status" aria-live="polite"></span>
+      </div>
+    </form>
+  </section>
+  <noscript><p class="empty">This challenge needs JavaScript. The tool's text result remains available in chat.</p></noscript>
+
+  <script>
+    const statusElement = document.getElementById('status');
+    const contentElement = document.getElementById('content');
+    const noteSection = document.getElementById('note-section');
+    const noteForm = document.getElementById('note-form');
+    const noteKind = document.getElementById('note-kind');
+    const noteStatement = document.getElementById('note-statement');
+    const saveNoteButton = document.getElementById('save-note');
+    const noteStatus = document.getElementById('note-status');
+    const pendingRequests = new Map();
+    let nextRequestId = 1;
+    let currentChallenge = null;
+    let answerForm = null;
+    let submitButton = null;
+    let selectionCount = null;
+    let feedbackList = null;
+
+    function sendRequest(method, params = {}) {
+      const id = nextRequestId++;
+      return new Promise((resolve, reject) => {
+        pendingRequests.set(id, { resolve, reject });
+        window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
+      });
+    }
+
+    function sendNotification(method, params = {}) {
+      window.parent.postMessage({ jsonrpc: '2.0', method, params }, '*');
+    }
+
+    function setStatus(message, state = '') {
+      statusElement.textContent = message;
+      statusElement.className = `status ${state}`.trim();
+    }
+
+    function textElement(tag, className, value) {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      element.textContent = String(value ?? '');
+      return element;
+    }
+
+    function selectedIds() {
+      if (!answerForm) return [];
+      return Array.from(answerForm.querySelectorAll('input[name="answer"]:checked'), input => input.value);
+    }
+
+    function updateSelectionState() {
+      if (!currentChallenge || !submitButton) return;
+      const count = selectedIds().length;
+      const required = Number(currentChallenge.requiredSelectionCount);
+      selectionCount.textContent = `${count} of ${required} selected`;
+      submitButton.disabled = count !== required;
+    }
+
+    function renderChallenge(challenge) {
+      if (!challenge || typeof challenge !== 'object' || !Array.isArray(challenge.choices)) return false;
+      const required = Number(challenge.requiredSelectionCount);
+      if ((required !== 1 && required !== 2) || challenge.choices.length < 3 || challenge.choices.length > 4) return false;
+
+      currentChallenge = challenge;
+      noteSection.hidden = true;
+      const panel = document.createElement('section');
+      panel.className = 'panel';
+      panel.append(
+        textElement('div', 'target', 'Target: '),
+        textElement('p', 'question', challenge.question)
+      );
+      const targetCode = document.createElement('code');
+      targetCode.textContent = String(challenge.nodeId ?? '');
+      panel.querySelector('.target').appendChild(targetCode);
+
+      answerForm = document.createElement('form');
+      answerForm.id = 'challenge-form';
+      const fieldset = document.createElement('fieldset');
+      const legend = textElement(
+        'legend',
+        '',
+        required === 1 ? 'Choose one answer.' : `Choose ${required} answers.`
+      );
+      const choices = document.createElement('div');
+      choices.className = 'choices';
+
+      for (const choice of challenge.choices) {
+        const label = document.createElement('label');
+        label.className = 'choice';
+        label.dataset.choiceId = String(choice.id);
+        const input = document.createElement('input');
+        input.type = required === 1 ? 'radio' : 'checkbox';
+        input.name = 'answer';
+        input.value = String(choice.id);
+        input.addEventListener('change', updateSelectionState);
+        const body = document.createElement('span');
+        const heading = textElement('span', 'choice-id', choice.id);
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        code.textContent = String(choice.code ?? '');
+        pre.appendChild(code);
+        body.append(heading, pre);
+        label.append(input, body);
+        choices.appendChild(label);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      submitButton = textElement('button', '', 'Check answer');
+      submitButton.type = 'submit';
+      submitButton.disabled = true;
+      selectionCount = textElement('span', 'selection-count', `0 of ${required} selected`);
+      actions.append(submitButton, selectionCount);
+      feedbackList = document.createElement('ul');
+      feedbackList.className = 'feedback';
+      feedbackList.setAttribute('aria-live', 'assertive');
+      feedbackList.hidden = true;
+      fieldset.append(legend, choices);
+      answerForm.append(fieldset, actions, feedbackList);
+      answerForm.addEventListener('submit', submitAnswer);
+      panel.appendChild(answerForm);
+      contentElement.replaceChildren(panel);
+      contentElement.setAttribute('aria-busy', 'false');
+      setStatus('Challenge ready. Evaluate the code choices before answering.', 'ready');
+      return true;
+    }
+
+    function renderFeedback(result) {
+      feedbackList.replaceChildren();
+      feedbackList.className = `feedback${result.isCorrect ? ' success' : ''}`;
+      feedbackList.hidden = false;
+      for (const item of result.feedback || []) {
+        const prefix = item.choiceId ? `${item.choiceId}: ` : '';
+        feedbackList.appendChild(textElement('li', '', `${prefix}${item.message ?? ''}`));
+        if (item.choiceId) {
+          const choice = Array.from(answerForm.querySelectorAll('.choice'))
+            .find(element => element.dataset.choiceId === String(item.choiceId));
+          if (choice) choice.classList.add(result.isCorrect ? 'correct' : 'wrong');
+        }
+      }
+    }
+
+    function renderAnswer(result) {
+      if (!result || typeof result !== 'object' || result.challengeId !== currentChallenge?.challengeId) return false;
+      renderFeedback(result);
+      if (result.isCorrect) {
+        for (const input of answerForm.querySelectorAll('input[name="answer"]')) input.disabled = true;
+        submitButton.disabled = true;
+        noteSection.hidden = false;
+        setStatus('Correct. The challenge is complete; you may optionally save a note.', 'ready');
+        noteStatement.focus();
+      } else {
+        submitButton.disabled = false;
+        setStatus('Attempt halted. Review the feedback, change your selection, and try again.', 'warning');
+      }
+      return true;
+    }
+
+    async function submitAnswer(event) {
+      event.preventDefault();
+      if (!currentChallenge) return;
+      const selectedChoiceIds = selectedIds();
+      if (selectedChoiceIds.length !== Number(currentChallenge.requiredSelectionCount)) return;
+      submitButton.disabled = true;
+      contentElement.setAttribute('aria-busy', 'true');
+      setStatus('Checking your answer...');
+      for (const choice of answerForm.querySelectorAll('.choice')) choice.classList.remove('wrong', 'correct');
+      try {
+        const result = await sendRequest('tools/call', {
+          name: 'answer_change_context_challenge',
+          arguments: { challengeId: currentChallenge.challengeId, selectedChoiceIds }
+        });
+        if (!renderAnswer(result?.structuredContent))
+          setStatus('The host returned an unexpected answer result.', 'error');
+      } catch (error) {
+        submitButton.disabled = false;
+        setStatus(`Answer check failed: ${error.message}`, 'error');
+      } finally {
+        contentElement.setAttribute('aria-busy', 'false');
+      }
+    }
+
+    noteForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const statement = noteStatement.value.trim();
+      if (!currentChallenge || !statement) return;
+      saveNoteButton.disabled = true;
+      noteStatus.textContent = 'Saving note...';
+      try {
+        const result = await sendRequest('tools/call', {
+          name: 'record_change_context_challenge_note',
+          arguments: {
+            challengeId: currentChallenge.challengeId,
+            statement,
+            contextKind: noteKind.value
+          }
+        });
+        const receipt = result?.structuredContent;
+        if (!receipt || receipt.challengeId !== currentChallenge.challengeId)
+          throw new Error('The host returned an unexpected note receipt');
+        noteStatement.disabled = true;
+        noteKind.disabled = true;
+        noteStatus.textContent = `Saved as ${receipt.contextKind}.`;
+        noteStatus.className = 'status ready';
+      } catch (error) {
+        saveNoteButton.disabled = false;
+        noteStatus.textContent = `Save failed: ${error.message}`;
+        noteStatus.className = 'status error';
+      }
+    });
+
+    function handleToolResult(params) {
+      const data = params?.structuredContent;
+      if (data?.choices) return renderChallenge(data);
+      if (typeof data?.isCorrect === 'boolean') return renderAnswer(data);
+      return false;
+    }
+
+    window.addEventListener('message', event => {
+      if (event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || message.jsonrpc !== '2.0') return;
+      if (message.id !== undefined && pendingRequests.has(message.id)) {
+        const pending = pendingRequests.get(message.id);
+        pendingRequests.delete(message.id);
+        message.error
+          ? pending.reject(new Error(message.error.message || 'MCP request failed'))
+          : pending.resolve(message.result);
+        return;
+      }
+      if (message.method === 'ui/notifications/tool-result' && !handleToolResult(message.params)) {
+        contentElement.setAttribute('aria-busy', 'false');
+        setStatus('The host returned text-only or unsupported challenge content.', 'error');
+      }
+    });
+
+    async function initialize() {
+      try {
+        await sendRequest('ui/initialize', {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          clientInfo: { name: 'code-meridian-change-context-challenge', version: '1.0.0' }
+        });
+        sendNotification('ui/notifications/initialized');
+        setStatus('Connected. Waiting for the challenge...');
+      } catch (error) {
+        contentElement.setAttribute('aria-busy', 'false');
+        setStatus(`Host connection unavailable: ${error.message}`, 'error');
+      }
+    }
+
+    initialize();
+  </script>
+</body>
+</html>

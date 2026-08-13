@@ -15,6 +15,21 @@ CodeMeridian provides two tools:
 - `get_change_context` reads earlier notes before changing code.
 - `record_change_context` saves one useful note after a decision.
 
+When experimental MCP Apps are enabled, CodeMeridian also provides an optional
+interactive challenge:
+
+- `start_change_context_challenge` opens 3-4 code choices grounded in the exact
+  target, current source, tests, and retrieved change context.
+- `answer_change_context_challenge` checks the user's own selection. A wrong
+  selection halts that attempt, explains the selected mistake, and permits a
+  retry without revealing unselected answers.
+- `record_change_context_challenge_note` saves an optional user-written note
+  only after the challenge has been solved.
+
+The app uses radio buttons when exactly one answer is correct and checkboxes when
+two answers are correct. Challenges expire after 30 minutes and are not durable
+memory; only an explicitly saved change-context note is persisted.
+
 You normally do not need to call these tools yourself or know a method ID. Tell
 your coding assistant what you want changed and ask it to find the exact code
 target first.
@@ -40,6 +55,29 @@ Assistant proposes a new note only if something important should survive
 The important point is that change context belongs to exact code, but the user
 can start with a feature, behavior, bug, file, or rough name. Finding the exact
 method or class is the assistant's job.
+
+## Optional Challenge Workflow
+
+Use this when you want to evaluate the code change yourself instead of receiving
+one completed answer immediately:
+
+```text
+Use the human cognitive seed workflow for this change:
+
+<Describe the change or bug.>
+
+Find the exact code target, inspect current source and tests, and retrieve its
+change context. Then call start_change_context_challenge with four plausible code
+answers. Include one or two correct answers and at least two realistic wrong
+answers. Do not reveal the correct choices and do not answer for me.
+
+Let me choose in the MCP App. If I am wrong, explain the selected mistake and let
+me retry. After I solve it, let me optionally write a change-context note.
+```
+
+The LLM supplies the teaching scaffold, so the choices are not canonical facts.
+The user should evaluate them against the same source, tests, and attributed
+change context that grounded the question.
 
 ## Copy-Paste Prompt When You Do Not Know the Method
 

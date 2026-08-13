@@ -43,11 +43,36 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
         var contextService = Substitute.For<IHumanCognitiveSeedContextService>();
         contextService.GetAsync("source", false, 3, Arg.Any<CancellationToken>())
             .Returns(CreateChangeContext());
+        contextService.GetAsync("source", false, 1, Arg.Any<CancellationToken>())
+            .Returns(CreateChangeContext());
+        contextService.RecordAsync(
+                "source", "Keep the boundary.", "constraint", "user-stated", false,
+                Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new ChangeContextReceipt(
+                "1.0", "human-cognitive-seed:challenge-note", "source", "constraint",
+                "user-stated", false, "recorded-unverified", "hash"));
 
         using var factory = WithQueryService(queryService, contextService);
         using var httpClient = factory.CreateClient();
         await using var client = await McpTestClient.CreateAsync(httpClient);
         var tools = await client.ListToolsAsync();
+        var startCall = new StructuredCall(
+            "start_change_context_challenge",
+            new Dictionary<string, object?>
+            {
+                ["nodeId"] = "source",
+                ["question"] = "Which code preserves the boundary?",
+                ["choices"] = new object[]
+                {
+                    new { id = "A", code = "Validate();", isCorrect = true, feedback = "Preserves validation." },
+                    new { id = "B", code = "Skip();", isCorrect = false, feedback = "Bypasses validation." },
+                    new { id = "C", code = "ReturnNull();", isCorrect = false, feedback = "Hides failure." }
+                }
+            });
+        var startTool = tools.Single(tool => tool.Name == startCall.Name);
+        var startResult = await client.CallToolAsync(startCall.Name, startCall.Arguments);
+        AssertValidStructuredResult(startCall.Name, startTool.ProtocolTool.OutputSchema, startResult);
+        var challengeId = startResult.StructuredContent!.Value.GetProperty("challengeId").GetString()!;
         var calls = new[]
         {
             new StructuredCall("check_graph_freshness", []),
@@ -77,6 +102,17 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
             new StructuredCall("get_change_context", new Dictionary<string, object?>
             {
                 ["nodeId"] = "source"
+            }),
+            new StructuredCall("answer_change_context_challenge", new Dictionary<string, object?>
+            {
+                ["challengeId"] = challengeId,
+                ["selectedChoiceIds"] = new[] { "A" }
+            }),
+            new StructuredCall("record_change_context_challenge_note", new Dictionary<string, object?>
+            {
+                ["challengeId"] = challengeId,
+                ["statement"] = "Keep the boundary.",
+                ["contextKind"] = "constraint"
             })
         };
 
@@ -86,18 +122,7 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
             var outputSchema = tool.ProtocolTool.OutputSchema;
             outputSchema.Should().NotBeNull($"{call.Name} advertises structured content");
             var result = await client.CallToolAsync(call.Name, call.Arguments);
-            var structuredContent = result.StructuredContent;
-            structuredContent.Should().NotBeNull($"{call.Name} returns structured content");
-            var evaluation = JsonSchema.FromText(outputSchema!.Value.GetRawText())
-                .Evaluate(structuredContent!.Value);
-
-            evaluation.IsValid.Should().BeTrue(
-                $"{call.Name} must satisfy its advertised output schema. " +
-                $"Schema: {outputSchema.Value.GetRawText()}. " +
-                $"Instance: {structuredContent.Value.GetRawText()}. " +
-                $"Evaluation: {JsonSerializer.Serialize(evaluation)}");
-            Encoding.UTF8.GetByteCount(structuredContent.Value.GetRawText())
-                .Should().BeLessThan(MaximumStructuredPayloadBytes);
+            AssertValidStructuredResult(call.Name, outputSchema, result);
         }
     }
 
@@ -233,6 +258,26 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
                 services.RemoveAll<IHumanCognitiveSeedContextService>();
                 services.AddSingleton(contextService ?? Substitute.For<IHumanCognitiveSeedContextService>());
             }));
+
+    private static void AssertValidStructuredResult(
+        string toolName,
+        JsonElement? outputSchema,
+        CallToolResult result)
+    {
+        outputSchema.Should().NotBeNull($"{toolName} advertises structured content");
+        var structuredContent = result.StructuredContent;
+        structuredContent.Should().NotBeNull($"{toolName} returns structured content");
+        var evaluation = JsonSchema.FromText(outputSchema!.Value.GetRawText())
+            .Evaluate(structuredContent!.Value);
+
+        evaluation.IsValid.Should().BeTrue(
+            $"{toolName} must satisfy its advertised output schema. " +
+            $"Schema: {outputSchema.Value.GetRawText()}. " +
+            $"Instance: {structuredContent.Value.GetRawText()}. " +
+            $"Evaluation: {JsonSerializer.Serialize(evaluation)}");
+        Encoding.UTF8.GetByteCount(structuredContent.Value.GetRawText())
+            .Should().BeLessThan(MaximumStructuredPayloadBytes);
+    }
 
     private static ChangeContextListResult CreateChangeContext() =>
         new(

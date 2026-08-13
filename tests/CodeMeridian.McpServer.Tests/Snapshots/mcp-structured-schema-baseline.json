@@ -1,5 +1,17 @@
 [
   {
+    "name": "answer_change_context_challenge",
+    "required": [
+      "contractVersion", "challengeId", "isCorrect", "halted", "canRetry",
+      "attempt", "state", "selectedChoiceIds", "feedback"
+    ],
+    "properties": [
+      "contractVersion", "challengeId", "isCorrect", "halted", "canRetry",
+      "attempt", "state", "selectedChoiceIds", "feedback"
+    ],
+    "sha256": "69484718da27f7659cec61a4a0aebf73ba13e769178ded38ebe9db1c8f0015e7"
+  },
+  {
     "name": "build_minimal_context",
     "required": [
       "contractVersion", "requestedTarget", "goal", "targetFound", "target",
@@ -116,5 +128,29 @@
     "required": [],
     "properties": [],
     "sha256": "d9a3b993180b4da2efe2ba82fee4a80f70b07207beaac9acfb01a53f5a76c840"
+  },
+  {
+    "name": "record_change_context_challenge_note",
+    "required": [
+      "contractVersion", "challengeId", "contextId", "nodeId", "contextKind",
+      "provenance", "status"
+    ],
+    "properties": [
+      "contractVersion", "challengeId", "contextId", "nodeId", "contextKind",
+      "provenance", "status"
+    ],
+    "sha256": "82d3351430ef419a60a5ab0c2ae4db2cee409e94008f517bd6301ae6869657f8"
+  },
+  {
+    "name": "start_change_context_challenge",
+    "required": [
+      "contractVersion", "challengeId", "nodeId", "question", "requiredSelectionCount",
+      "choices", "attempt", "state", "expiresAt", "trustNotice"
+    ],
+    "properties": [
+      "contractVersion", "challengeId", "nodeId", "question", "requiredSelectionCount",
+      "choices", "attempt", "state", "expiresAt", "trustNotice"
+    ],
+    "sha256": "83c3a97f9393cd42ebbc4b56979a3ecd229ca225efd16741d85e3310c4538967"
   }
 ]

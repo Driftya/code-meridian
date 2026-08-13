@@ -63,7 +63,7 @@ Mcp__Tasks__Enabled=true
 Mcp__Apps__Enabled=false
 ```
 
-Set `Mcp__Apps__Enabled=true` only when enabling the experimental read-only MCP Apps. Recreate the MCP container after changing either MCP feature flag so Docker Compose applies the updated environment.
+Set `Mcp__Apps__Enabled=true` only when enabling the experimental MCP Apps. Recreate the MCP container after changing either MCP feature flag so Docker Compose applies the updated environment.
 
 Generate a token if needed:
 

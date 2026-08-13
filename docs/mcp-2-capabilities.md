@@ -153,22 +153,29 @@ The Apps package remains experimental in the 2.0 SDK, so registration is disable
 Mcp__Apps__Enabled=false
 ```
 
-When enabled, two read-only views are registered:
+When enabled, three self-contained Apps are registered:
 
 | Tool | Resource |
 |---|---|
 | `get_client_extension_contract` | `ui://code-meridian/client-extension-contract` |
 | `find_connection` | `ui://code-meridian/connection-viewer` |
+| `start_change_context_challenge` | `ui://code-meridian/change-context-challenge` |
 
-Both views render the tool's typed `structuredContent`, remain self-contained, and declare empty external connection, resource, frame, and base-URI allowlists. They contain no server API key, authorization header, GraphQL credentials, destructive controls, or external assets.
+All three Apps render typed `structuredContent`, remain self-contained, and declare empty external connection, resource, frame, and base-URI allowlists. They contain no server API key, authorization header, GraphQL credentials, destructive controls, or external assets.
 
-Both tools explicitly advertise `model` and `app` visibility: the model may invoke them normally, and the associated read-only App may refresh the same factual result. Neither is an app-only hidden mutation surface.
+The two existing viewers explicitly advertise `model` and `app` visibility and remain read-only. `start_change_context_challenge` is also model- and app-visible. Its answer and note tools are app-visible: the answer tool mutates only expiring process-local challenge state, while the note tool performs the explicit user-requested change-context write after a solved challenge.
 
 The connection viewer renders ordered paths, nodes, relationship types, source locations, frontend signals, and explicit empty/truncated states. Graph-controlled strings enter the DOM through `textContent`; the app does not use `innerHTML`, `insertAdjacentHTML`, `document.write`, `eval`, or dynamic function construction.
 
+The challenge App renders radios for one correct answer and checkboxes for two.
+It submits only the user's selected IDs, halts and explains selected distractors
+on a wrong attempt, permits retry, and unlocks an optional note form only after
+success. Correctness and distractor feedback remain in a 30-minute server-side
+challenge record rather than App-visible structured content.
+
 A jsdom security/accessibility harness injects hostile HTML-shaped values, proves they remain text, checks that no script or image nodes are created, scans forbidden DOM sinks and external assets, and verifies semantic headings, lists, status announcements, labels, and keyboard-operable controls.
 
-Non-App clients are unaffected. Both tools remain fully useful through Markdown and structured content, and disabling Apps removes only capability/resource metadata.
+Non-App clients are unaffected. The tools retain Markdown and structured-content fallbacks, and disabling Apps removes only capability/resource metadata. In the challenge fallback, the choices remain visible without correctness; the user can explicitly reply with choice IDs for the model to relay to the answer tool.
 
 ## Authentication And Statelessness
 

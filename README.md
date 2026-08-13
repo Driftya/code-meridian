@@ -240,6 +240,9 @@ See [usage.md](docs/usage.md) for copy-paste prompts that help AI coding assista
 | `knowledge_decay` | Alias of `find_stale_knowledge` for graph-native stale-knowledge review |
 | `record_change_context` | Preserve one bounded attributed human-cognitive-seed decision or constraint against an exact code node |
 | `get_change_context` | Retrieve opt-in human-cognitive-seed context with current hash/orphan status |
+| `start_change_context_challenge` | Open an MCP App with 3-4 LLM-authored code choices grounded in an exact node and its change context |
+| `answer_change_context_challenge` | Validate the user's one or two selected answers, halt on mistakes, explain them, and allow retry |
+| `record_change_context_challenge_note` | Save an optional user-written note after the challenge is solved |
 | `resolve_exact_symbol` | Resolve symbol/file/line hints to canonical node IDs before editing |
 | `clear_project_knowledge` | Clear one project's indexed graph and docs before rebuilding |
 | `clear_code_graph` | Clear all indexed code graph nodes while preserving docs |

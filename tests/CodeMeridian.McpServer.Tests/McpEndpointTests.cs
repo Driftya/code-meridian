@@ -74,7 +74,10 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
         "get_client_extension_example",
         "link_external_concept",
         "record_change_context",
-        "get_change_context"
+        "get_change_context",
+        "start_change_context_challenge",
+        "answer_change_context_challenge",
+        "record_change_context_challenge_note"
     ];
 
     private static readonly HashSet<string> MutatingToolNames =
@@ -87,7 +90,10 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
         "clear_project_knowledge",
         "clear_code_graph",
         "link_external_concept",
-        "record_change_context"
+        "record_change_context",
+        "start_change_context_challenge",
+        "answer_change_context_challenge",
+        "record_change_context_challenge_note"
     ];
 
     private static readonly HashSet<string> DestructiveToolNames =
@@ -98,7 +104,8 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
 
     private static readonly HashSet<string> IdempotentMutatingToolNames =
     [
-        "record_change_context"
+        "record_change_context",
+        "record_change_context_challenge_note"
     ];
 
     private static readonly HashSet<string> StructuredToolNames =
@@ -111,7 +118,10 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
         "get_client_extension_contract",
         "list_client_extension_examples",
         "get_client_extension_example",
-        "get_change_context"
+        "get_change_context",
+        "start_change_context_challenge",
+        "answer_change_context_challenge",
+        "record_change_context_challenge_note"
     ];
 
     private readonly GraphQlWebApplicationFactory _factory;

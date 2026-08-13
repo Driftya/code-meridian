@@ -19,6 +19,7 @@ public sealed class McpLiveAcceptanceTests
     private const string ProjectContext = "CodeMeridian";
     private static readonly HashSet<string> StructuredToolNames =
     [
+        "answer_change_context_challenge",
         "check_graph_freshness",
         "find_impact",
         "find_test_shield",
@@ -27,7 +28,9 @@ public sealed class McpLiveAcceptanceTests
         "get_client_extension_contract",
         "list_client_extension_examples",
         "get_client_extension_example",
-        "get_change_context"
+        "get_change_context",
+        "record_change_context_challenge_note",
+        "start_change_context_challenge"
     ];
     private readonly ITestOutputHelper _output;
 
@@ -59,8 +62,8 @@ public sealed class McpLiveAcceptanceTests
         var toolsPayloadBytes = Encoding.UTF8.GetByteCount(toolsExchange.ResponseBody);
 
         client.NegotiatedProtocolVersion.Should().Be(ModernProtocolVersion);
-        tools.Tools.Should().HaveCount(64);
-        warmTools.Tools.Should().HaveCount(64);
+        tools.Tools.Should().HaveCount(67);
+        warmTools.Tools.Should().HaveCount(67);
         toolsPayloadBytes.Should().BeLessThan(512 * 1024);
         tools.TimeToLive.Should().Be(TimeSpan.FromMinutes(5));
         tools.CacheScope.Should().Be(CacheScope.Private);
@@ -160,7 +163,7 @@ public sealed class McpLiveAcceptanceTests
         await using var client = await CreateClientAsync(httpClient, DownLevelProtocolVersion);
 
         client.NegotiatedProtocolVersion.Should().Be(DownLevelProtocolVersion);
-        (await client.ListToolsAsync()).Should().HaveCount(64);
+        (await client.ListToolsAsync()).Should().HaveCount(67);
 
         var result = await client.CallToolAsync(
             "get_client_extension_contract",
@@ -181,7 +184,11 @@ public sealed class McpLiveAcceptanceTests
             .ContainsKey("io.modelcontextprotocol/ui") ?? false;
         _output.WriteLine("MCP Apps capability enabled: {0}", hasAppsCapability);
         var appTools = tools.Where(tool =>
-                tool.Name is "get_client_extension_contract" or "find_connection")
+                tool.Name is "get_client_extension_contract"
+                    or "find_connection"
+                    or "start_change_context_challenge"
+                    or "answer_change_context_challenge"
+                    or "record_change_context_challenge_note")
             .ToArray();
 
         if (!hasAppsCapability)
@@ -194,7 +201,8 @@ public sealed class McpLiveAcceptanceTests
         var resources = await client.ListResourcesAsync();
         resources.Select(resource => resource.Uri).Should().Contain(
             "ui://code-meridian/client-extension-contract",
-            "ui://code-meridian/connection-viewer");
+            "ui://code-meridian/connection-viewer",
+            "ui://code-meridian/change-context-challenge");
 
         foreach (var resource in resources.Where(resource =>
                      resource.Uri.StartsWith("ui://code-meridian/", StringComparison.Ordinal)))

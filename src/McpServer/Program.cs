@@ -40,6 +40,7 @@ builder.Services.Configure<KeywordRefreshQueueOptions>(builder.Configuration.Get
 builder.Services.AddSingleton<BackgroundKeywordRefreshQueue>();
 builder.Services.AddSingleton<IKeywordRefreshQueue>(sp => sp.GetRequiredService<BackgroundKeywordRefreshQueue>());
 builder.Services.AddHostedService<KeywordRefreshWorker>();
+builder.Services.AddSingleton<HumanCognitiveSeedChallengeStore>();
 
 // ── MCP server — GitHub Copilot connects here via .vscode/mcp.json ───────────
 // Copilot discovers and calls these tools automatically during chat.
@@ -71,6 +72,7 @@ mcpServerBuilder
     .WithTools<KeywordTools>()
     .WithTools<KnowledgeTools>()
     .WithTools<HumanCognitiveSeedTools>()
+    .WithTools<HumanCognitiveSeedChallengeTools>()
     .WithTools<ClientExtensionTools>()
     .WithTools<ExtensionTools>();
 
@@ -80,6 +82,7 @@ if (builder.Configuration.GetValue<bool>("Mcp:Apps:Enabled"))
     mcpServerBuilder
         .WithResources<ClientExtensionAppResources>()
         .WithResources<ConnectionAppResources>()
+        .WithResources<HumanCognitiveSeedChallengeAppResources>()
         .WithMcpApps();
 #pragma warning restore MCPEXP003
 }

@@ -1,9 +1,10 @@
 {
   "protocolVersion": "2025-11-25",
   "handshakeMethod": "initialize",
-  "toolCount": 64,
-  "annotationCount": 64,
+  "toolCount": 67,
+  "annotationCount": 67,
   "structuredToolNames": [
+    "answer_change_context_challenge",
     "build_minimal_context",
     "check_graph_freshness",
     "find_connection",
@@ -12,7 +13,9 @@
     "get_change_context",
     "get_client_extension_contract",
     "get_client_extension_example",
-    "list_client_extension_examples"
+    "list_client_extension_examples",
+    "record_change_context_challenge_note",
+    "start_change_context_challenge"
   ],
   "tasksAdvertised": true,
   "appsAdvertised": false,

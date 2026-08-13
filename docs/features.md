@@ -8,12 +8,12 @@ CodeMeridian uses the stable 2.x C# MCP SDK over stateless Streamable HTTP. The 
 
 The MCP host provides:
 
-- reviewed titles and safety annotations for all 64 tools
-- useful Markdown plus advertised structured results for `find_connection` and the three client-extension discovery tools
+- reviewed titles and safety annotations for all 67 tools
+- useful Markdown plus twelve advertised structured results, including the three change-context challenge contracts
 - private five-minute `tools/list` caching hints
 - client-opted Tasks for `rebuild_keyword_graph` and `classify_keywords`, with ordinary synchronous calls retained
 - bounded per-tool telemetry that excludes arguments and credentials
-- optional read-only MCP Apps for the client-extension contract and connection-path views, disabled by default
+- optional MCP Apps for the client-extension contract, connection path, and human-cognitive-seed challenge, disabled by default
 
 See [MCP 2 Capabilities](mcp-2-capabilities.md) for result contracts, task limits, compatibility status, configuration, and rollback guidance.
 
@@ -674,6 +674,28 @@ Retrieves bounded, opt-in human-cognitive-seed context for one exact node. Resul
 
 See the [Change Context User Guide](change-context.md) for the complete workflow,
 parameter guidance, and a repository-based theoretical LLM example.
+
+### `start_change_context_challenge`
+
+Starts a 30-minute, process-local learning challenge against one exact code node.
+The LLM supplies three or four bounded code choices after inspecting current
+source, tests, and change context. The public result omits correctness and
+feedback fields so the associated MCP App can preserve productive struggle.
+
+### `answer_change_context_challenge`
+
+Accepts the user's one or two selected choice IDs. Incorrect selections return
+feedback only for the chosen distractors, mark the attempt halted, and allow a
+retry. A correct selection completes the challenge and unlocks the optional note
+form. Correctness stays in bounded server-side state rather than in App-visible
+structured content.
+
+### `record_change_context_challenge_note`
+
+Records one user-written `user-stated` note against the challenge's exact node,
+but only after a correct answer. The receipt does not echo the note body. The app
+requires an explicit Save action and uses the same context kinds and 800-character
+limit as `record_change_context`.
 
 ### `link_external_concept`
 
