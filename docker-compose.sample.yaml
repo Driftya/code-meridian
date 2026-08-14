@@ -32,7 +32,7 @@ services:
       Neo4j__Uri: bolt://neo4j:7687
       Neo4j__Username: neo4j
       Neo4j__Password: ${NEO4J_PASSWORD:-CodeMeridian}
-      Neo4j__EmbeddingDimensions: ${Neo4j__EmbeddingDimensions:-1536}
+      Neo4j__EmbeddingDimensions: ${Neo4j__EmbeddingDimensions:-768}
       CodeMeridian_Auth_ApiKey: ${CodeMeridian_Auth_ApiKey:-}
       Mcp__Tasks__Enabled: ${Mcp__Tasks__Enabled:-true}
       Mcp__Apps__Enabled: ${Mcp__Apps__Enabled:-false}
