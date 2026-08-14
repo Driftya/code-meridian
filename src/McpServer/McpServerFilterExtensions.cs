@@ -109,6 +109,16 @@ internal static class McpServerFilterExtensions
                         stopwatch.ElapsedMilliseconds);
                     throw;
                 }
+                catch (ArgumentException exception) when (IsMissingRequiredToolArgument(exception))
+                {
+                    Record(toolCategory, "invalid_arguments", stopwatch.Elapsed.TotalMilliseconds, activity);
+                    logger?.LogWarning(
+                        "MCP tool {ToolName} was called without a required argument after {ElapsedMilliseconds} ms",
+                        toolName,
+                        stopwatch.ElapsedMilliseconds);
+                    return CreateToolError(
+                        $"Invalid arguments for tool '{toolName}': a required argument is missing.");
+                }
                 catch
                 {
                     Record(toolCategory, "failure", stopwatch.Elapsed.TotalMilliseconds, activity);
@@ -127,6 +137,12 @@ internal static class McpServerFilterExtensions
             IsError = true,
             Content = [new TextContentBlock { Text = message }]
         };
+
+    private static bool IsMissingRequiredToolArgument(ArgumentException exception) =>
+        exception.ParamName == "arguments"
+        && exception.Message.Contains(
+            "missing a value for the required parameter",
+            StringComparison.Ordinal);
 
     private static string GetToolCategory(
         string toolName,
