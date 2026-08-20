@@ -35,6 +35,7 @@ codemeridian keywords rebuild --project MyApp
 codemeridian keywords status --job-id 11111111-2222-3333-4444-555555555555
 codemeridian config rebuild --project MyApp
 codemeridian index . --skip-csharp --skip-docs --skip-diagnostics
+codemeridian index . --external-only
 codemeridian index . --skip-config
 codemeridian index . --watch
 

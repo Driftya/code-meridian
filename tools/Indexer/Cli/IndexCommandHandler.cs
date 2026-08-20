@@ -47,6 +47,8 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Storage : {_settings.StorageMode.ToString().ToLowerInvariant()}");
         Console.WriteLine($"  Cache   : {context.CacheDirectory.FullName}");
         Console.WriteLine($"  Mode    : {(_settings.Incremental && !_settings.Clear ? "incremental" : "full")}");
+        if (_settings.ExternalOnly)
+            Console.WriteLine("  Scope   : external C# project references only");
         if (_settings.EmbeddingEnabled is not null)
             Console.WriteLine($"  Embedding expectation: {(_settings.EmbeddingEnabled.Value ? "enabled on server" : "disabled")}");
         if (_settings.HasOutdatedLocalConfig)
@@ -56,7 +58,7 @@ internal sealed class IndexCommandHandler(
             Console.WriteLine($"warning: run `codemeridian init .` to merge version {_settings.CurrentConfigVersion} defaults into the existing file.");
         }
 
-        if (!context.HasCSharp && !context.HasTypeScript && !context.HasHtmlCss && !context.HasConfiguration && !_settings.IncludeDocs)
+        if (!context.HasCSharp && !context.HasTypeScript && !context.HasHtmlCss && !context.HasConfiguration && !IncludesDocs)
         {
             if (!_settings.DryRun && !_settings.SkipTypeScript)
             {
@@ -199,7 +201,7 @@ internal sealed class IndexCommandHandler(
             clearNextIndexer = false;
         }
 
-        if (_settings.IncludeDocs)
+        if (IncludesDocs)
         {
             exitCode = await RunDocumentIndexerAsync(changedFiles, deletedFiles);
             if (exitCode != 0)
@@ -213,7 +215,7 @@ internal sealed class IndexCommandHandler(
                 return exitCode;
         }
 
-        if (!_settings.SkipDiagnostics)
+        if (!_settings.SkipDiagnostics && !_settings.ExternalOnly)
         {
             exitCode = await diagnosticsCommand.RunAsync(
                 _settings.RootPath,
@@ -226,7 +228,7 @@ internal sealed class IndexCommandHandler(
                 return exitCode;
         }
 
-        if (!_settings.SkipTypeScript)
+        if (!_settings.SkipTypeScript && !_settings.ExternalOnly)
         {
             await typeScriptScopeCatalogWriter.WriteAsync(
                 _settings.Project,
@@ -235,7 +237,7 @@ internal sealed class IndexCommandHandler(
                 context.TypeScriptRoots);
         }
 
-        if (_settings.RebuildKeywords)
+        if (_settings.RebuildKeywords && !_settings.ExternalOnly)
             return await RebuildKeywordGraphAsync();
 
         return 0;
@@ -285,7 +287,7 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Incremental       : {(incremental ? "enabled" : "disabled")}");
         Console.WriteLine($"  Changed files     : {incrementalPlan.ChangedFiles.Count}");
         Console.WriteLine($"  Deleted files     : {incrementalPlan.DeletedFiles.Count}");
-        Console.WriteLine($"  Include docs      : {_settings.IncludeDocs}");
+        Console.WriteLine($"  Include docs      : {IncludesDocs}");
         Console.WriteLine($"  Watch mode        : {_settings.Watch}");
         Console.WriteLine($"  Diagnostics       : {(_settings.SkipDiagnostics ? "skipped" : "enabled")}");
         Console.WriteLine($"  Rebuild keywords  : {_settings.RebuildKeywords}");
@@ -314,13 +316,18 @@ internal sealed class IndexCommandHandler(
 
     private IndexExecutionContext BuildExecutionContext(bool clear)
     {
-        var hasCSharp = !_settings.SkipCSharp && projectDiscoveryService.ContainsFile(_settings.RootPath, ".cs");
-        var typeScriptRoots = _settings.SkipTypeScript ? [] : projectDiscoveryService.FindTypeScriptRoots(_settings.RootPath);
+        FileInfo[] cSharpFiles = _settings.SkipCSharp
+            ? []
+            : CSharpProjectScope.EnumerateCSharpFiles(_settings.RootPath)
+                .Where(file => !_settings.ExternalOnly || IsOutsideRoot(file))
+                .ToArray();
+        var hasCSharp = cSharpFiles.Length > 0;
+        var typeScriptRoots = _settings.SkipTypeScript || _settings.ExternalOnly ? [] : projectDiscoveryService.FindTypeScriptRoots(_settings.RootPath);
         var hasTypeScript = typeScriptRoots.Count > 0;
         var htmlCssRoots = _settings.SkipTypeScript ? [] : ResolveHtmlCssRoots(typeScriptRoots);
         var hasHtmlCss = htmlCssRoots.Count > 0;
         var configurationFilePatterns = _settings.ConfigurationFiles;
-        var hasConfiguration = !_settings.SkipConfiguration &&
+        var hasConfiguration = !_settings.SkipConfiguration && !_settings.ExternalOnly &&
                                _settings.RootPath.EnumerateFiles("*.*", SearchOption.AllDirectories)
                                    .Where(file => !IndexExecutionPlanBuilder.IsIgnoredPath(_settings.RootPath, file))
                                    .Any(file => ConfigurationFilePatternMatcher.IsConfigurationFile(file, configurationFilePatterns));
@@ -329,27 +336,39 @@ internal sealed class IndexCommandHandler(
         var cache = IncrementalIndexCache.Load(cacheDirectory, _settings.Project);
         var indexableFiles = IndexExecutionPlanBuilder.EnumerateIndexableFiles(
             _settings.RootPath,
-            hasCSharp,
+            includeCSharp: hasCSharp && !_settings.ExternalOnly,
             hasTypeScript,
-            _settings.IncludeDocs,
+            IncludesDocs,
             hasConfiguration,
-            configurationFilePatterns);
+            configurationFilePatterns)
+            .Concat(cSharpFiles)
+            .DistinctBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         Func<string, bool>? isPathInScope = clear
             ? null
-            : path => IndexExecutionPlanBuilder.IsIndexableFile(
-                new FileInfo(Path.Combine(_settings.RootPath.FullName, path.Replace('/', Path.DirectorySeparatorChar))),
-                hasCSharp,
-                hasTypeScript,
-                _settings.IncludeDocs,
-                hasConfiguration,
-                configurationFilePatterns);
+            : path =>
+            {
+                var file = new FileInfo(Path.Combine(_settings.RootPath.FullName, path.Replace('/', Path.DirectorySeparatorChar)));
+                return IndexExecutionPlanBuilder.IsIndexableFile(
+                           file,
+                           hasCSharp,
+                           hasTypeScript,
+                           IncludesDocs,
+                           hasConfiguration,
+                           configurationFilePatterns)
+                       && (!_settings.ExternalOnly ||
+                           !IndexExecutionPlanBuilder.IsCSharpSourceFile(file) ||
+                           IsOutsideRoot(file));
+            };
         var incrementalPlan = IndexExecutionPlanBuilder.BuildPlan(
             cache,
             _settings.RootPath,
             indexableFiles,
             forceFull: clear || !_settings.Incremental,
             isPathInScope);
-        var changedFiles = _settings.Incremental && !clear ? incrementalPlan.ChangedFiles : null;
+        var changedFiles = (_settings.Incremental || _settings.ExternalOnly) && !clear
+            ? incrementalPlan.ChangedFiles
+            : null;
         var deletedFiles = IndexExecutionPlanBuilder.GetDeletedFiles(incrementalPlan, _settings.Incremental, clear);
 
         return new IndexExecutionContext(
@@ -364,6 +383,14 @@ internal sealed class IndexCommandHandler(
             incrementalPlan,
             changedFiles,
             deletedFiles);
+    }
+
+    private bool IncludesDocs => _settings.IncludeDocs && !_settings.ExternalOnly;
+
+    private bool IsOutsideRoot(FileInfo file)
+    {
+        var relativePath = Path.GetRelativePath(_settings.RootPath.FullName, file.FullName);
+        return relativePath.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relativePath);
     }
 
     private async Task<int> RunTypeScriptIndexerAsync(

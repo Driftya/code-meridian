@@ -18,7 +18,8 @@ internal sealed record IndexCommandOptions(
     bool SkipDiagnostics,
     bool AllowRepoScripts,
     bool Incremental,
-    IndexerStorageMode? Storage);
+    IndexerStorageMode? Storage,
+    bool ExternalOnly = false);
 
 internal sealed record ClearCommandOptions(
     string? Project,

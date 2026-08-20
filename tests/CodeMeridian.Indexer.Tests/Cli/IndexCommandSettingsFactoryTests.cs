@@ -103,6 +103,33 @@ public sealed class IndexCommandSettingsFactoryTests : IDisposable
     }
 
     [Fact]
+    public void Create_RejectsExternalOnlyWithClear()
+    {
+        File.WriteAllText(Path.Combine(_root, "Project.sln"), string.Empty);
+
+        var action = () => CreateFactory().Create(new IndexCommandOptions(
+            Path: _root,
+            Project: null,
+            CodeMeridianUrl: null,
+            Clear: true,
+            RebuildKeywords: false,
+            IncludeDocs: false,
+            Watch: false,
+            DryRun: false,
+            ListCapabilities: false,
+            SkipCSharp: false,
+            SkipTypeScript: true,
+            SkipConfiguration: true,
+            SkipDiagnostics: true,
+            AllowRepoScripts: false,
+            Incremental: true,
+            Storage: null,
+            ExternalOnly: true));
+
+        action.Should().Throw<InvalidOperationException>().WithMessage("*--external-only*--clear*");
+    }
+
+    [Fact]
     public void Create_UsesGlobalStorageWhenConfigRequestsIt()
     {
         File.WriteAllText(

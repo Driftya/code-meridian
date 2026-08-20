@@ -16,6 +16,7 @@ internal sealed class ResolvedIndexerSettings
     public bool DryRun { get; init; }
     public bool ListCapabilities { get; init; }
     public bool SkipCSharp { get; init; }
+    public bool ExternalOnly { get; init; }
     public bool SkipTypeScript { get; init; }
     public bool SkipConfiguration { get; init; }
     public IReadOnlyList<string>? ConfigurationFiles { get; init; }

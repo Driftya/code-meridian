@@ -46,8 +46,7 @@ public sealed class IndexerPipeline(
         }
 
         // -- Phase 1: C# code graph --------------------------------------------
-        var allCsFiles = root
-            .EnumerateFiles("*.cs", SearchOption.AllDirectories)
+        var allCsFiles = CSharpProjectScope.EnumerateCSharpFiles(root)
             .Where(f => !IsGenerated(f.FullName))
             .ToArray();
         var csFiles = allCsFiles

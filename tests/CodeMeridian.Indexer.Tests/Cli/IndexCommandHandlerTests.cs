@@ -249,6 +249,57 @@ public sealed class IndexCommandHandlerTests
     }
 
     [Fact]
+    public void BuildExecutionContext_WhenExternalOnly_ContainsOnlyReferencedExternalCSharpFiles()
+    {
+        using var workspace = TestWorkspace.Create();
+        var external = Directory.CreateDirectory(Path.Combine(workspace.Root.Parent!.FullName, "external-" + Guid.NewGuid().ToString("N")));
+        try
+        {
+            workspace.WriteFile("App.csproj", "<Project><ItemGroup><ProjectReference Include=\"../" + external.Name + "/Shared.csproj\" /></ItemGroup></Project>");
+            workspace.WriteFile("App.cs", "class App {}");
+            File.WriteAllText(Path.Combine(external.FullName, "Shared.csproj"), "<Project />");
+            File.WriteAllText(Path.Combine(external.FullName, "Shared.cs"), "class Shared {}");
+            var settings = CreateSettings(workspace.Root, clear: false, incremental: true, skipCSharp: false, externalOnly: true);
+            var handler = CreateHandler(settings);
+            var buildExecutionContext = typeof(IndexCommandHandler).GetMethod("BuildExecutionContext", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            var context = buildExecutionContext!.Invoke(handler, [false]);
+            var plan = (IncrementalIndexPlan)context!.GetType().GetProperty("IncrementalPlan", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.GetValue(context)!;
+
+            plan.ChangedFiles.Should().ContainSingle().Which.Should().EndWith("/Shared.cs");
+        }
+        finally
+        {
+            Directory.Delete(external.FullName, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void BuildExecutionContext_WhenExternalOnlyAndNonIncremental_KeepsExternalFileSelection()
+    {
+        using var workspace = TestWorkspace.Create();
+        var external = Directory.CreateDirectory(Path.Combine(workspace.Root.Parent!.FullName, "external-" + Guid.NewGuid().ToString("N")));
+        try
+        {
+            workspace.WriteFile("App.csproj", "<Project><ItemGroup><ProjectReference Include=\"../" + external.Name + "/Shared.csproj\" /></ItemGroup></Project>");
+            File.WriteAllText(Path.Combine(external.FullName, "Shared.csproj"), "<Project />");
+            File.WriteAllText(Path.Combine(external.FullName, "Shared.cs"), "class Shared {}");
+            var settings = CreateSettings(workspace.Root, clear: false, incremental: false, skipCSharp: false, externalOnly: true);
+            var handler = CreateHandler(settings);
+            var buildExecutionContext = typeof(IndexCommandHandler).GetMethod("BuildExecutionContext", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            var context = buildExecutionContext!.Invoke(handler, [false]);
+            var changedFiles = (IReadOnlyCollection<string>)context!.GetType().GetProperty("ChangedFiles", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.GetValue(context)!;
+
+            changedFiles.Should().ContainSingle().Which.Should().EndWith("/Shared.cs");
+        }
+        finally
+        {
+            Directory.Delete(external.FullName, recursive: true);
+        }
+    }
+
+    [Fact]
     public void BuildExecutionContext_WhenDocsAreDisabled_PreservesTheirCachedStateWithoutDeletingThem()
     {
         using var workspace = TestWorkspace.Create();
@@ -439,7 +490,8 @@ public sealed class IndexCommandHandlerTests
         bool skipTypeScript = false,
         bool skipCSharp = true,
         bool skipConfiguration = true,
-        bool includeDocs = false)
+        bool includeDocs = false,
+        bool externalOnly = false)
         => new()
         {
             RootPath = root,
@@ -453,6 +505,7 @@ public sealed class IndexCommandHandlerTests
             DryRun = dryRun,
             ListCapabilities = listCapabilities,
             SkipCSharp = skipCSharp,
+            ExternalOnly = externalOnly,
             SkipTypeScript = skipTypeScript,
             SkipConfiguration = skipConfiguration,
             ConfigurationFiles = null,

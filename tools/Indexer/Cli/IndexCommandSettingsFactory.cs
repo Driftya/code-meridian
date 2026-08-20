@@ -14,6 +14,12 @@ internal sealed class IndexCommandSettingsFactory(IToolConfigurationService conf
         if (string.IsNullOrWhiteSpace(project))
             throw new InvalidOperationException("Project name could not be resolved. Use --project <name> or check meridian.json.");
 
+        if (options.ExternalOnly && options.Clear)
+            throw new InvalidOperationException("--external-only cannot be used with --clear because clearing would remove the primary root's indexed knowledge.");
+
+        if (options.ExternalOnly && options.Watch)
+            throw new InvalidOperationException("--external-only cannot be used with --watch because external project directories are not watched.");
+
         return new ResolvedIndexerSettings
         {
             RootPath = context.RootPath,
@@ -27,6 +33,7 @@ internal sealed class IndexCommandSettingsFactory(IToolConfigurationService conf
             DryRun = options.DryRun,
             ListCapabilities = options.ListCapabilities,
             SkipCSharp = options.SkipCSharp,
+            ExternalOnly = options.ExternalOnly,
             SkipTypeScript = options.SkipTypeScript,
             SkipConfiguration = options.SkipConfiguration,
             ConfigurationFiles = context.LocalConfig?.ConfigurationFiles ?? context.GlobalConfig?.ConfigurationFiles,
