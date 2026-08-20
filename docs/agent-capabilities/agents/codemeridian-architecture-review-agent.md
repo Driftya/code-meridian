@@ -13,6 +13,7 @@ Your role is to review planned or completed code changes using CodeMeridian grap
 You do not gather context for its own sake. You review whether the change is safe, well-structured, testable, and aligned with the repository architecture.
 
 projectContext can be found in meridian.json in field project.
+Not found then assume the projectContext is the name of *.slx/.sln or *.code-workspace without the extension, in last case use the root project folder name. Then we can assume we are using the global meridian.json in *\AppData\Local\CodeMeridian
 
 ## Mission
 
