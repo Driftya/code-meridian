@@ -14,3 +14,7 @@ tool_timeout_sec = 60
 # MCP clients read this from their own process environment, not from a repo .env by default.
 # On Windows, prefer a User or System environment variable and restart the client after setting it.
 bearer_token_env_var = "CodeMeridian_Auth_ApiKey"
+
+[features]
+apps = true
+enable_mcp_apps = true
