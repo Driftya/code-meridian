@@ -876,16 +876,16 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Line coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar10">90%</div>
+<div class="large cardpercentagebar cardpercentagebar9">91%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered lines:</th>
-<td class="limit-width right" title="225">225</td>
+<td class="limit-width right" title="227">227</td>
 </tr>
 <tr>
 <th>Uncovered lines:</th>
-<td class="limit-width right" title="24">24</td>
+<td class="limit-width right" title="22">22</td>
 </tr>
 <tr>
 <th>Coverable lines:</th>
@@ -897,7 +897,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Line coverage:</th>
-<td class="limit-width right" title="225 of 249">90.3%</td>
+<td class="limit-width right" title="227 of 249">91.1%</td>
 </tr>
 </table>
 </div>
@@ -906,12 +906,12 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Branch coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar22">78%</div>
+<div class="large cardpercentagebar cardpercentagebar21">78%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered branches:</th>
-<td class="limit-width right" title="89">89</td>
+<td class="limit-width right" title="90">90</td>
 </tr>
 <tr>
 <th>Total branches:</th>
@@ -919,7 +919,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>Branch coverage:</th>
-<td class="limit-width right" title="89 of 114">78%</td>
+<td class="limit-width right" title="90 of 114">78.9%</td>
 </tr>
 </table>
 </div>
@@ -977,7 +977,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr><td title="RenderServeTemplate(System.String,CodeMeridian.Indexer.Cli.ServeOptions,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.String&gt;)"><a href="#file0_line415" class="navigatetohash">RenderServeTemplate(...)</a></td><td>100%</td><td>4</td><td>4</td><td>100%</td></tr>
 <tr><td title="RenderTemplate(System.String,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.String&gt;)"><a href="#file0_line435" class="navigatetohash">RenderTemplate(...)</a></td><td>100%</td><td>1</td><td>1</td><td>100%</td></tr>
 <tr><td title="BuildMcpServerNode(System.String)"><a href="#file0_line444" class="navigatetohash">BuildMcpServerNode(...)</a></td><td>50%</td><td>8</td><td>8</td><td>90.9%</td></tr>
-<tr><td title="ExtractTomlSection(System.String,System.String)"><a href="#file0_line461" class="navigatetohash">ExtractTomlSection(...)</a></td><td>66.66%</td><td>7</td><td>6</td><td>70%</td></tr>
+<tr><td title="ExtractTomlSection(System.String,System.String)"><a href="#file0_line461" class="navigatetohash">ExtractTomlSection(...)</a></td><td>83.33%</td><td>6</td><td>6</td><td>90%</td></tr>
 <tr><td title="ReadRequiredTemplate(System.String)"><a href="#file0_line481" class="navigatetohash">ReadRequiredTemplate(...)</a></td><td>50%</td><td>2</td><td>2</td><td>75%</td></tr>
 </tbody>
 </table>
@@ -1315,8 +1315,8 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line325"></a><code>325</code></td><td></td><td class="lightgray"><code></code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line326"></a><code>326</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;private&nbsp;static&nbsp;bool&nbsp;IsAnyTomlSection(string&nbsp;line)</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line327"></a><code>327</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
-<tr class="coverableline" title="Covered (228 visits)" data-coverage="{'AllTestMethods': {'VC': '228', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">228</td><td class="rightmargin right"><a id="file0_line328"></a><code>328</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;var&nbsp;trimmed&nbsp;=&nbsp;line.Trim();</code></td></tr>
-<tr class="coverableline" title="Covered (228 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '228', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">228</td><td class="rightmargin right"><a id="file0_line329"></a><code>329</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return&nbsp;trimmed.StartsWith(&#39;[&#39;)&nbsp;&amp;&amp;&nbsp;trimmed.EndsWith(&#39;]&#39;);</code></td></tr>
+<tr class="coverableline" title="Covered (250 visits)" data-coverage="{'AllTestMethods': {'VC': '250', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">250</td><td class="rightmargin right"><a id="file0_line328"></a><code>328</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;var&nbsp;trimmed&nbsp;=&nbsp;line.Trim();</code></td></tr>
+<tr class="coverableline" title="Covered (250 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '250', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">250</td><td class="rightmargin right"><a id="file0_line329"></a><code>329</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return&nbsp;trimmed.StartsWith(&#39;[&#39;)&nbsp;&amp;&amp;&nbsp;trimmed.EndsWith(&#39;]&#39;);</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line330"></a><code>330</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line331"></a><code>331</code></td><td></td><td class="lightgray"><code></code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line332"></a><code>332</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;private&nbsp;static&nbsp;string&nbsp;NormalizeLines(IEnumerable&lt;string&gt;&nbsp;lines)&nbsp;=&gt;</code></td></tr>
@@ -1456,10 +1456,10 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr class="coverableline" title="Covered (22 visits)" data-coverage="{'AllTestMethods': {'VC': '22', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">22</td><td class="rightmargin right"><a id="file0_line466"></a><code>466</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;var&nbsp;end&nbsp;=&nbsp;lines.Count;</code></td></tr>
 <tr class="coverableline" title="Covered (484 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '484', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">484</td><td class="rightmargin right"><a id="file0_line467"></a><code>467</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;for&nbsp;(var&nbsp;i&nbsp;=&nbsp;start&nbsp;+&nbsp;1;&nbsp;i&nbsp;&lt;&nbsp;lines.Count;&nbsp;i++)</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line468"></a><code>468</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
-<tr class="coverableline" title="Partially covered (220 visits, 1 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '220', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">220</td><td class="rightmargin right"><a id="file0_line469"></a><code>469</code></td><td class="percentagebar percentagebar50"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(IsAnyTomlSection(lines[i]))</code></td></tr>
+<tr class="coverableline" title="Covered (242 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '242', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">242</td><td class="rightmargin right"><a id="file0_line469"></a><code>469</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(IsAnyTomlSection(lines[i]))</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line470"></a><code>470</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
-<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line471"></a><code>471</code></td><td></td><td class="lightred"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;end&nbsp;=&nbsp;i;</code></td></tr>
-<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line472"></a><code>472</code></td><td></td><td class="lightred"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;</code></td></tr>
+<tr class="coverableline" title="Covered (22 visits)" data-coverage="{'AllTestMethods': {'VC': '22', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">22</td><td class="rightmargin right"><a id="file0_line471"></a><code>471</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;end&nbsp;=&nbsp;i;</code></td></tr>
+<tr class="coverableline" title="Covered (22 visits)" data-coverage="{'AllTestMethods': {'VC': '22', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">22</td><td class="rightmargin right"><a id="file0_line472"></a><code>472</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line473"></a><code>473</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line474"></a><code>474</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line475"></a><code>475</code></td><td></td><td class="lightgray"><code></code></td></tr>
@@ -1482,7 +1482,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.11.0<br />08/14/2026 - 07:01:35<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.11.0<br />08/20/2026 - 07:06:03<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>
@@ -1516,7 +1516,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <a href="#file0_line415" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - RenderServeTemplate(System.String,CodeMeridian.Indexer.Cli.ServeOptions,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.String&gt;)"><i class="icon-cube"></i>RenderServeTemplate(System.String,CodeMeridian.Indexer.Cli.ServeOptions,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.String&gt;)</a><br />
 <a href="#file0_line435" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - RenderTemplate(System.String,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.String&gt;)"><i class="icon-cube"></i>RenderTemplate(System.String,System.Collections.Generic.IReadOnlyDictionary`2&lt;System.String,System.String&gt;)</a><br />
 <a href="#file0_line444" class="navigatetohash percentagebar percentagebar90" title="Line coverage: 90.9% - BuildMcpServerNode(System.String)"><i class="icon-cube"></i>BuildMcpServerNode(System.String)</a><br />
-<a href="#file0_line461" class="navigatetohash percentagebar percentagebar70" title="Line coverage: 70% - ExtractTomlSection(System.String,System.String)"><i class="icon-cube"></i>ExtractTomlSection(System.String,System.String)</a><br />
+<a href="#file0_line461" class="navigatetohash percentagebar percentagebar90" title="Line coverage: 90% - ExtractTomlSection(System.String,System.String)"><i class="icon-cube"></i>ExtractTomlSection(System.String,System.String)</a><br />
 <a href="#file0_line481" class="navigatetohash percentagebar percentagebar70" title="Line coverage: 75% - ReadRequiredTemplate(System.String)"><i class="icon-cube"></i>ReadRequiredTemplate(System.String)</a><br />
 <br/></div>
 </div></div>
