@@ -15,7 +15,7 @@
     <ProjectReference Include="..\..\src\Tooling\CodeMeridian.Tooling.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.*" />
     <PackageReference Include="xunit" Version="2.*" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.*" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.*" />
     <PackageReference Include="FluentAssertions" Version="7.*" />
     <PackageReference Include="NSubstitute" Version="6.*" />
   </ItemGroup>
