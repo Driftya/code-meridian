@@ -19,7 +19,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.11"
   },
   "optionalDependencies": {
     "@rolldown/binding-linux-x64-gnu": "^1.2.4",
