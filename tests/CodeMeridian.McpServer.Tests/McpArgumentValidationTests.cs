@@ -79,6 +79,7 @@ public sealed class McpArgumentValidationTests : IClassFixture<GraphQlWebApplica
     [Theory]
     [InlineData("resolve_exact_symbol")]
     [InlineData("find_implementation_surface")]
+    [InlineData("find_test_shield")]
     public async Task MissingRequiredArgument_ReturnsToolErrorWithoutUnhandledExceptionLog(
         string toolName)
     {

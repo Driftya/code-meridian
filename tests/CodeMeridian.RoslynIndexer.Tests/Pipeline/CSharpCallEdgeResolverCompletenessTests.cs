@@ -6,6 +6,20 @@ namespace CodeMeridian.RoslynIndexer.Tests.Pipeline;
 public sealed class CSharpCallEdgeResolverCompletenessTests
 {
     [Fact]
+    public void ResolveWithDiagnostics_UnknownReceiverWithIncompatibleLocalName_IsNotAProvenLocalFailure()
+    {
+        var source = Method("Project::Method::Consumer.Run()", "Run()", "Consumer", "Consumer");
+        var target = Method("Project::Method::Other.Save()", "Save()", "Other", "Other");
+        var call = Call(source.Id, "Save", "UnknownMember", parameterCount: 2);
+
+        var result = CSharpCallEdgeResolver.ResolveWithDiagnostics([source, target], [call]);
+
+        result.Edges.Should().BeEmpty();
+        result.Stats.UnresolvedLocal.Should().Be(0);
+        result.Stats.Indeterminate.Should().Be(1);
+    }
+
+    [Fact]
     public void ResolveWithDiagnostics_UnqualifiedReceiverHint_MatchesQualifiedCandidateByShortName()
     {
         var source = Method(

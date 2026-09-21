@@ -14,6 +14,10 @@ internal static class CSharpCallEdgeResolver
         var nodesById = nodes
             .GroupBy(n => n.Id, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        var methodsByLocation = nodesById.Values
+            .Where(node => node.Type == "Method" && node.FilePath is not null && node.LineNumber is not null)
+            .GroupBy(node => (Path.GetFileName(node.FilePath), node.LineNumber))
+            .ToDictionary(group => group.Key, group => group.ToArray());
         var methodCandidates = nodes
             .Where(n => n.Type.Equals("Method", StringComparison.OrdinalIgnoreCase))
             .Select(n => new MethodCandidate(
@@ -87,6 +91,34 @@ internal static class CSharpCallEdgeResolver
             var receiverCanonicalTypeHint = receiverIdentity?.CanonicalName;
             var receiverKind = ReadProperty(edge, "receiverKind");
             var semanticTargetDeclaringTypeHint = ReadProperty(edge, "semanticTargetDeclaringTypeHint");
+            // A compiler-bound declaration is stronger evidence than name/arity heuristics,
+            // including overloads, inherited methods and reduced extension calls.
+            if (ReadProperty(edge, "semanticTargetDeclarationPath") is { } declarationPath
+                && TryReadIntProperty(edge.Properties, "semanticTargetDeclarationLine") is { } declarationLine)
+            {
+                var matches = methodsByLocation.GetValueOrDefault((Path.GetFileName(declarationPath), declarationLine)) ?? [];
+                var declarationStart = ReadProperty(edge, "semanticTargetDeclarationStart");
+                var target = matches.Where(node => declarationStart is null
+                        || ReadProperty(node.Properties, "declarationStart") == declarationStart)
+                    .Where(node => declarationPath.Replace('\\', '/').EndsWith(
+                        "/" + node.FilePath!.Replace('\\', '/').TrimStart('/'), StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(declarationPath.Replace('\\', '/'), node.FilePath!.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                if (target.Length == 1)
+                {
+                    var resolvedEdge = edge with { TargetId = target[0].Id };
+                    outcomes.RecordResolved(source, resolvedEdge);
+                    resolved.Add(resolvedEdge);
+                }
+                else
+                    outcomes.Record(RelationshipResolutionDisposition.UnresolvedLocal, "semantic_declaration_not_indexed", source, edge);
+                continue;
+            }
+            if (ReadProperty(edge, "semanticTargetResolution") == "metadata")
+            {
+                outcomes.Record(RelationshipResolutionDisposition.ExternalOrUnindexed, "semantic_external_target", source, edge);
+                continue;
+            }
             var genericArity = TryReadIntProperty(edge.Properties, "genericArity");
             if (!methodCandidates.TryGetValue(edge.CallName, out var candidates))
             {
@@ -115,6 +147,13 @@ internal static class CSharpCallEdgeResolver
                 .ToArray();
             if (compatibleCandidates.Length == 0)
             {
+                if (receiverKind is "UnknownMember" or "Chained")
+                {
+                    // A local method with the same name but different arity does not establish
+                    // that an unknown receiver was calling a local member at all.
+                    outcomes.Record(RelationshipResolutionDisposition.Indeterminate, "unknown_member_receiver", source, edge);
+                    continue;
+                }
                 if (candidates.Any(candidate => !candidate.HasExactParameterMetadata))
                 {
                     outcomes.Record(

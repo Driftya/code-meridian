@@ -441,3 +441,9 @@ meridian.json.bak
 ./meridian-agent-capabilities/
 .meridian/sessions
 .meridian/precision-feedback.json
+.meridian/typescript-before.json
+.meridian/typescript-after.json
+.meridian/tool-inventory.json
+.meridian/csharp-after.json
+.meridian/dogfood-typescript.ts
+.meridian/relationship-probe/

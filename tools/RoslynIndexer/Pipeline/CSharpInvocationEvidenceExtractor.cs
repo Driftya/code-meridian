@@ -14,7 +14,10 @@ internal sealed record CSharpInvocationEvidence(
     string? TargetDeclaringTypeHint,
     int GenericArity,
     string EvidenceSource,
-    string EvidenceConfidence);
+    string EvidenceConfidence,
+    string? TargetDeclarationPath,
+    int? TargetDeclarationLine,
+    int? TargetDeclarationStart);
 
 internal static class CSharpInvocationEvidenceExtractor
 {
@@ -76,7 +79,10 @@ internal static class CSharpInvocationEvidenceExtractor
             semanticEvidence?.TargetDeclaringType?.CanonicalName,
             GetGenericArity(invocation),
             receiverEvidence.Source,
-            receiverEvidence.Confidence);
+            receiverEvidence.Confidence,
+            semanticEvidence?.DeclarationPath,
+            semanticEvidence?.DeclarationLine,
+            semanticEvidence?.DeclarationStart);
     }
 
     private static SemanticInvocationEvidence? ResolveSemanticEvidence(
@@ -86,11 +92,15 @@ internal static class CSharpInvocationEvidenceExtractor
     {
         var targetMethod = semanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
         var targetDeclaringType = NormalizeSemanticType(targetMethod?.ContainingType);
+        var definition = (targetMethod?.ReducedFrom ?? targetMethod)?.OriginalDefinition;
+        var declaration = definition?.DeclaringSyntaxReferences.FirstOrDefault();
+        var location = declaration?.GetSyntax().GetLocation().GetLineSpan();
         if (receiver is null)
         {
             return targetDeclaringType is null
                 ? null
-                : new SemanticInvocationEvidence(null, targetDeclaringType, false);
+                : new SemanticInvocationEvidence(null, targetDeclaringType, false,
+                    location?.Path, location?.StartLinePosition.Line + 1, declaration?.Span.Start);
         }
 
         var receiverSymbol = semanticModel.GetSymbolInfo(receiver).Symbol;
@@ -103,7 +113,10 @@ internal static class CSharpInvocationEvidenceExtractor
         return new SemanticInvocationEvidence(
             receiverType,
             targetDeclaringType,
-            receiverSymbol is ITypeSymbol);
+            receiverSymbol is ITypeSymbol,
+            location?.Path,
+            location?.StartLinePosition.Line + 1,
+            declaration?.Span.Start);
     }
 
     private static CSharpTypeIdentity? NormalizeSemanticType(ITypeSymbol? type)
@@ -349,5 +362,8 @@ internal static class CSharpInvocationEvidenceExtractor
     private sealed record SemanticInvocationEvidence(
         CSharpTypeIdentity? ReceiverType,
         CSharpTypeIdentity? TargetDeclaringType,
-        bool IsStaticReceiver);
+        bool IsStaticReceiver,
+        string? DeclarationPath,
+        int? DeclarationLine,
+        int? DeclarationStart);
 }

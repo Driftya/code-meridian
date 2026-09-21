@@ -43,6 +43,11 @@ export function Orders() {
     ]));
     expect(result.edges).toContainEqual({
       sourceId: 'Proj:Method:src_Orders.jsx:Orders',
+      targetId: 'Proj:Method:src_Orders.jsx:Orders.handleClick',
+      type: 'Contains',
+    });
+    expect(result.edges).toContainEqual({
+      sourceId: 'Proj:Method:src_Orders.jsx:Orders.handleClick',
       targetId: 'Proj:Method:src_service.js:loadOrders',
       type: 'Calls',
     });

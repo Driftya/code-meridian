@@ -385,7 +385,9 @@ internal sealed class CSharpAstWalker(
         string? summary,
         BaseListSyntax? baseList = null)
     {
-        var fullName = FullName(localName);
+        var enclosingTypes = node.Ancestors().OfType<BaseTypeDeclarationSyntax>()
+            .Reverse().Select(typeDeclaration => typeDeclaration.Identifier.Text);
+        var fullName = FullName(string.Join(".", enclosingTypes.Append(localName)));
         var id = MakeId(type, fullName);
         var span = node.GetLocation().GetLineSpan();
         var line = span.StartLinePosition.Line + 1;
@@ -394,7 +396,9 @@ internal sealed class CSharpAstWalker(
         nodes.Add(new IngestNodeRequest(id, localName, type,
             _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node), HashSource(node.ToFullString())));
 
-        if (_currentNamespace is not null)
+        if (_currentTypeId is not null)
+            edges.Add(new IngestEdgeRequest(_currentTypeId, id, "Contains"));
+        else if (_currentNamespace is not null)
             edges.Add(new IngestEdgeRequest(MakeId("Namespace", _currentNamespace), id, "Contains"));
 
         foreach (var baseType in baseList?.Types ?? Enumerable.Empty<BaseTypeSyntax>())
@@ -452,6 +456,8 @@ internal sealed class CSharpAstWalker(
             parameters,
             GetGenericParameterCount(node),
             GetReturnType(node));
+        properties ??= new Dictionary<string, string>(StringComparer.Ordinal);
+        properties["declarationStart"] = node.SpanStart.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         nodes.Add(new IngestNodeRequest(id, signature, "Method",
             _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node), HashSource(node.ToFullString()), properties));
@@ -477,6 +483,8 @@ internal sealed class CSharpAstWalker(
         var line = span.StartLinePosition.Line + 1;
         var lineCount = span.EndLinePosition.Line - span.StartLinePosition.Line + 1;
         var properties = BuildMemberProperties(containerId, parameters);
+        properties ??= new Dictionary<string, string>(StringComparer.Ordinal);
+        properties["declarationStart"] = node.SpanStart.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         nodes.Add(new IngestNodeRequest(id, signature, memberType,
             _currentNamespace, filePath, line, summary, lineCount, ExtractSourceSnippet(node), HashSource(node.ToFullString()), properties));
@@ -695,7 +703,16 @@ internal sealed class CSharpAstWalker(
         if (evidence.DeclaringTypeHint is not null)
             properties["declaringTypeHint"] = evidence.DeclaringTypeHint;
         if (evidence.TargetDeclaringTypeHint is not null)
+        {
             properties["semanticTargetDeclaringTypeHint"] = evidence.TargetDeclaringTypeHint;
+            properties["semanticTargetResolution"] = evidence.TargetDeclarationPath is null ? "metadata" : "source";
+        }
+        if (evidence.TargetDeclarationPath is not null)
+            properties["semanticTargetDeclarationPath"] = evidence.TargetDeclarationPath.Replace('\\', '/');
+        if (evidence.TargetDeclarationLine is { } line)
+            properties["semanticTargetDeclarationLine"] = line.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (evidence.TargetDeclarationStart is { } start)
+            properties["semanticTargetDeclarationStart"] = start.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         return properties;
     }

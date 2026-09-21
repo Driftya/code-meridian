@@ -5,7 +5,7 @@ namespace CodeMeridian.Tooling.Storage;
 
 public sealed class IncrementalIndexCache
 {
-    private const int CacheVersion = 3;
+    private const int CacheVersion = 4;
     private readonly FileInfo _cacheFile;
     private readonly CacheState _state;
 

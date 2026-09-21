@@ -14,20 +14,44 @@ internal sealed class CSharpSemanticModelCatalog
 
     public static CSharpSemanticModelCatalog Create(IEnumerable<FileInfo> files)
     {
+        var sourceFiles = files.ToArray();
+        var projectInputs = CSharpSemanticProjectInputs.Read(sourceFiles);
         var parseOptions = new CSharpParseOptions(
             LanguageVersion.Preview,
             DocumentationMode.Parse);
-        var trees = files
+        var trees = sourceFiles
             .Select(file => CSharpSyntaxTree.ParseText(
                 File.ReadAllText(file.FullName),
                 parseOptions,
                 file.FullName,
                 Encoding.UTF8))
             .ToArray();
+        IEnumerable<SyntaxTree> compilationTrees = trees;
+        if (projectInputs.UseCommonImplicitUsings)
+        {
+            compilationTrees = compilationTrees.Append(CSharpSyntaxTree.ParseText("""
+                global using System;
+                global using System.Collections.Generic;
+                global using System.IO;
+                global using System.Linq;
+                global using System.Net.Http;
+                global using System.Threading;
+                global using System.Threading.Tasks;
+                """, parseOptions));
+        }
+        var references = BuildRuntimeReferences().OfType<PortableExecutableReference>().ToList();
+        var assemblyNames = references.Select(reference => Path.GetFileName(reference.FilePath))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var assembly in projectInputs.AssemblyPaths)
+        {
+            if (!assemblyNames.Add(Path.GetFileName(assembly))) continue;
+            try { references.Add(MetadataReference.CreateFromFile(assembly)); }
+            catch (Exception ex) when (ex is IOException or BadImageFormatException or UnauthorizedAccessException) { }
+        }
         var compilation = CSharpCompilation.Create(
             "CodeMeridian.RelationshipSemanticModel",
-            trees,
-            BuildRuntimeReferences(),
+            compilationTrees,
+            references,
             new CSharpCompilationOptions(
                 OutputKind.DynamicallyLinkedLibrary,
                 allowUnsafe: true,

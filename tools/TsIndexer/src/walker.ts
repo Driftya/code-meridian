@@ -106,19 +106,27 @@ export function walkTypeScript(
     collectDatabaseTracingNodes(sourceFile, rootPath, projectName, nodes, emittedKnownIds, tracingOptions, resolveFileRole);
   }
 
-  for (const sourceFile of emittedSourceFiles) {
+  // Health describes the resolution scope, not just the incremental emission batch.
+  // Otherwise editing one clean file can hide failures in every unchanged file.
+  for (const sourceFile of loadFullResolutionCatalog ? sourceFiles : emittedSourceFiles) {
+    const fileEdges: CodeEdgeDto[] = [];
     collectEdges(
       sourceFile,
       rootPath,
       projectName,
       catalogNodes,
-      edges,
+      fileEdges,
       catalogKnownIds,
       methodIndex,
       callOutcomes,
       typeReferenceOutcomes,
       workspaceRootPath,
     );
+    if (emittedFilePaths.has(normalizeFilePath(sourceFile.getFilePath()).toLowerCase())) {
+      edges.push(...fileEdges);
+    }
+  }
+  for (const sourceFile of emittedSourceFiles) {
     collectRouteEdges(sourceFile, rootPath, projectName, edges, catalogKnownIds);
     collectConfigurationEdges(sourceFile, rootPath, projectName, edges);
     collectDatabaseTracingEdges(sourceFile, rootPath, projectName, edges, tracingOptions);

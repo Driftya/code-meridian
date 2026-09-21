@@ -106,7 +106,7 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
     }
 
     [Fact]
-    public async Task CheckGraphFreshnessAsync_WithOneUnresolvedLocalRelationship_ReportsLowTrust()
+    public async Task CheckGraphFreshnessAsync_WithOneUnresolvedLocalRelationship_ReportsMediumTrust()
     {
         var (sut, graph) = Build();
         graph.QueryNodesAsync(
@@ -120,8 +120,93 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
 
         var result = await sut.CheckGraphFreshnessAsync(projectContext: "Project");
 
-        result.Should().Contain("**Relationship completeness:** Low");
+        result.Should().Contain("**Relationship completeness:** Medium");
         result.Should().Contain("reported 1 unresolved local relationship(s)");
+    }
+
+    [Theory]
+    [InlineData(1, 1000, "Medium")]
+    [InlineData(49, 1000, "Medium")]
+    [InlineData(50, 1000, "Low")]
+    [InlineData(1, 1, "Low")]
+    public async Task CheckGraphFreshnessAsync_UsesFailureRateExcludingExternalCalls(int missing, int local, string expected)
+    {
+        var (sut, graph) = Build();
+        var run = V2IndexRun(external: 10000, unresolvedLocal: missing, indeterminate: 0);
+        run.Properties["attemptedCallEdges"] = (local + 10000).ToString();
+        graph.QueryNodesAsync(Arg.Is<CodeGraphQuery>(q => q.TypeFilter == CodeNodeType.IndexRun), Arg.Any<CancellationToken>())
+            .Returns([run]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "Project");
+
+        result.Should().Contain($"**Relationship completeness:** {expected}");
+    }
+
+    [Fact]
+    public async Task CheckGraphFreshnessAsync_IndeterminateCallbacksAreNotProvenMissingLocalRelationships()
+    {
+        var (sut, graph) = Build();
+        graph.QueryNodesAsync(Arg.Is<CodeGraphQuery>(q => q.TypeFilter == CodeNodeType.IndexRun), Arg.Any<CancellationToken>())
+            .Returns([V2IndexRun(0, 0, 100)]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "Project");
+
+        result.Should().Contain("**Relationship completeness:** Medium");
+        result.Should().Contain("100 relationship(s) with indeterminate provenance");
+    }
+
+    [Fact]
+    public async Task CheckGraphFreshnessAsync_AllProjects_DoesNotDiscardAnotherProjectsLatestRun()
+    {
+        var (sut, graph) = Build();
+        var unhealthy = V2IndexRun(external: 0, unresolvedLocal: 10, indeterminate: 0);
+        var healthy = new CodeNode
+        {
+            Id = "Other::IndexRun::full", Name = "full CSharp index run", Type = CodeNodeType.IndexRun,
+            ProjectContext = "Other", LastIndexedAt = DateTimeOffset.Parse("2026-07-24T10:00:00Z"),
+            Properties = new Dictionary<string, string>(V2IndexRun(0, 0, 0).Properties)
+        };
+        graph.QueryNodesAsync(Arg.Is<CodeGraphQuery>(q => q.TypeFilter == CodeNodeType.IndexRun), Arg.Any<CancellationToken>())
+            .Returns([healthy, unhealthy]);
+
+        var result = await sut.CheckGraphFreshnessAsync();
+
+        result.Should().Contain("**Relationship completeness:** Low");
+        result.Should().Contain("10 unresolved local");
+    }
+
+    [Fact]
+    public async Task CheckGraphFreshnessAsync_SmallIncrementalBatch_DoesNotCompareItsEdgeCountToFullRun()
+    {
+        var (sut, graph) = Build();
+        graph.QueryNodesAsync(Arg.Is<CodeGraphQuery>(q => q.TypeFilter == CodeNodeType.IndexRun), Arg.Any<CancellationToken>())
+            .Returns([
+                IndexRun("full", DateTimeOffset.Parse("2026-07-20T10:00:00Z"), 100, 100, 1000, 1000),
+                IndexRun("incremental", DateTimeOffset.Parse("2026-07-21T10:00:00Z"), 100, 1, 10, 10)
+            ]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "Project");
+
+        result.Should().Contain("**Relationship completeness:** High");
+        result.Should().NotContain("dropped");
+    }
+
+    [Theory]
+    [InlineData("[]", "{}")]
+    [InlineData("{\"Reasons\":[]}", "[42,null]")]
+    [InlineData("{\"Reasons\":{\"bad\":\"value\"}}", "[{\"LineNumber\":\"bad\"}]")]
+    public async Task CheckGraphFreshnessAsync_MalformedOptionalMetadata_DoesNotBreakTool(string reasons, string samples)
+    {
+        var (sut, graph) = Build();
+        var run = V2IndexRun(0, 0, 0);
+        run.Properties["callRelationshipOutcomes"] = reasons;
+        run.Properties["relationshipFailureSamples"] = samples;
+        graph.QueryNodesAsync(Arg.Is<CodeGraphQuery>(q => q.TypeFilter == CodeNodeType.IndexRun), Arg.Any<CancellationToken>())
+            .Returns([run]);
+
+        var result = await sut.CheckGraphFreshnessAsync(projectContext: "Project");
+
+        result.Should().Contain("**Relationship completeness:** High");
     }
 
     [Fact]
@@ -155,6 +240,8 @@ public sealed class CodebaseQueryServiceRelationshipTrustTests
     private static (CodebaseQueryService Sut, ICodeGraphRepository Graph) Build()
     {
         var graph = Substitute.For<ICodeGraphRepository>();
+        graph.QueryNodesAsync(Arg.Is<CodeGraphQuery>(query => query.TypeFilter == null), Arg.Any<CancellationToken>())
+            .Returns([SourceNode()]);
         var vectors = Substitute.For<IVectorRepository>();
         return (new CodebaseQueryService(graph, vectors), graph);
     }

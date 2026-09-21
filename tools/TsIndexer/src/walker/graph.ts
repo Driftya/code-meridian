@@ -150,8 +150,8 @@ export function collectNodes(
     }
   }
 
-  for (const fn of sourceFile.getFunctions()) {
-    const name = fn.getName() ?? '<anonymous>';
+  for (const fn of sourceFile.getDescendantsOfKind(SyntaxKind.FunctionDeclaration)) {
+    const name = callableDeclarationName(fn);
     const id = nodeId(projectName, relPath, name, 'Method');
     addNode(nodes, knownIds, {
       id,
@@ -167,8 +167,8 @@ export function collectNodes(
     }, classifyFileRole);
   }
 
-  for (const variable of getTopLevelFunctionVariables(sourceFile)) {
-    const name = variable.getName();
+  for (const variable of getFunctionVariables(sourceFile)) {
+    const name = callableDeclarationName(variable);
     const id = nodeId(projectName, relPath, name, 'Method');
     addNode(nodes, knownIds, {
       id,
@@ -258,7 +258,7 @@ export function collectEdges(
     for (const method of cls.getMethods()) {
       const mId = nodeId(projectName, relPath, `${name}.${method.getName()}`, 'Method');
       if (knownIds.has(mId)) edges.push({ sourceId: cId, targetId: mId, type: 'Contains' });
-      addCallEdges(projectName, rootPath, relationshipScopePath, knownIds, mId, method.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
+      addCallEdges(projectName, rootPath, relationshipScopePath, knownIds, mId, ownedCalls(method), edges, methodIndex, callOutcomes, {
         filePath: relPath,
         className: name,
         fileRole: sourceFileRole,
@@ -269,7 +269,7 @@ export function collectEdges(
     for (const ctor of cls.getConstructors()) {
       const ctorId = nodeId(projectName, relPath, `${name}.constructor`, 'Method');
       if (knownIds.has(ctorId)) edges.push({ sourceId: cId, targetId: ctorId, type: 'Contains' });
-      addCallEdges(projectName, rootPath, relationshipScopePath, knownIds, ctorId, ctor.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
+      addCallEdges(projectName, rootPath, relationshipScopePath, knownIds, ctorId, ownedCalls(ctor), edges, methodIndex, callOutcomes, {
         filePath: relPath,
         className: name,
         fileRole: sourceFileRole,
@@ -290,8 +290,7 @@ export function collectEdges(
     }
 
     for (const impl of cls.getImplements()) {
-      const ifaceName = impl.getExpression().getText().split('<')[0];
-      const matchingId = findInterfaceId(ifaceName, projectName, knownIds);
+      const matchingId = resolveHeritageTargetId(projectName, rootPath, impl, knownIds);
       if (matchingId) edges.push({ sourceId: cId, targetId: matchingId, type: 'Implements' });
     }
   }
@@ -313,25 +312,25 @@ export function collectEdges(
     }
   }
 
-  for (const fn of sourceFile.getFunctions()) {
-    const name = fn.getName() ?? '<anonymous>';
+  for (const fn of sourceFile.getDescendantsOfKind(SyntaxKind.FunctionDeclaration)) {
+    const name = callableDeclarationName(fn);
     const fnId = nodeId(projectName, relPath, name, 'Method');
-    if (knownIds.has(fnId)) edges.push({ sourceId: fId, targetId: fnId, type: 'Contains' });
-    addCallEdges(projectName, rootPath, relationshipScopePath, knownIds, fnId, fn.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
+    if (knownIds.has(fnId)) edges.push({ sourceId: callableContainerId(fn, projectName, relPath, knownIds), targetId: fnId, type: 'Contains' });
+    addCallEdges(projectName, rootPath, relationshipScopePath, knownIds, fnId, ownedCalls(fn), edges, methodIndex, callOutcomes, {
       filePath: relPath,
       fileRole: sourceFileRole,
     });
     addTypeUseEdges(projectName, rootPath, relationshipScopePath, relPath, fn, fnId, edges, knownIds, typeReferenceOutcomes, sourceFileRole);
   }
 
-  for (const variable of getTopLevelFunctionVariables(sourceFile)) {
-    const variableId = nodeId(projectName, relPath, variable.getName(), 'Method');
-    if (knownIds.has(variableId)) edges.push({ sourceId: fId, targetId: variableId, type: 'Contains' });
+  for (const variable of getFunctionVariables(sourceFile)) {
+    const variableId = nodeId(projectName, relPath, callableDeclarationName(variable), 'Method');
+    if (knownIds.has(variableId)) edges.push({ sourceId: callableContainerId(variable, projectName, relPath, knownIds), targetId: variableId, type: 'Contains' });
     const initializer = variable.getInitializerIfKind(SyntaxKind.ArrowFunction)
       ?? variable.getInitializerIfKind(SyntaxKind.FunctionExpression);
     if (!initializer) continue;
 
-    addCallEdges(projectName, rootPath, relationshipScopePath, knownIds, variableId, initializer.getDescendantsOfKind(SyntaxKind.CallExpression), edges, methodIndex, callOutcomes, {
+    addCallEdges(projectName, rootPath, relationshipScopePath, knownIds, variableId, ownedCalls(initializer), edges, methodIndex, callOutcomes, {
       filePath: relPath,
       fileRole: sourceFileRole,
     });
@@ -355,7 +354,7 @@ export function collectEdges(
       relationshipScopePath,
       knownIds,
       testCase.id,
-      testCase.callback.getDescendantsOfKind(SyntaxKind.CallExpression),
+      ownedCalls(testCase.callback),
       edges,
       methodIndex,
       callOutcomes,
@@ -396,6 +395,30 @@ export function collectEdges(
       }
     }
   }
+}
+
+function ownedCalls(node: Node): CallExpression[] {
+  return node.getDescendantsOfKind(SyntaxKind.CallExpression).filter(call => {
+    for (const ancestor of call.getAncestors()) {
+      if (ancestor === node) return true;
+      if (ancestor.isKind(SyntaxKind.FunctionDeclaration)) return false;
+      if ((ancestor.isKind(SyntaxKind.ArrowFunction) || ancestor.isKind(SyntaxKind.FunctionExpression))
+        && ancestor.getParent()?.isKind(SyntaxKind.VariableDeclaration)) return false;
+    }
+    return false;
+  });
+}
+
+function callableContainerId(node: Node, projectName: string, relPath: string, knownIds: Set<string>): string {
+  for (const ancestor of node.getAncestors()) {
+    const name = ancestor.isKind(SyntaxKind.FunctionDeclaration) || ancestor.isKind(SyntaxKind.VariableDeclaration)
+      ? callableDeclarationName(ancestor)
+      : ancestor.isKind(SyntaxKind.MethodDeclaration) ? buildMethodDeclarationName(ancestor) : undefined;
+    if (!name) continue;
+    const id = nodeId(projectName, relPath, name, 'Method');
+    if (knownIds.has(id)) return id;
+  }
+  return fileId(projectName, relPath);
 }
 
 function addCallEdges(
@@ -453,6 +476,12 @@ function resolveCallTargetId(
   call: CallExpression,
   knownIds: Set<string>,
 ): string | undefined {
+  const signature = call.getProject().getTypeChecker().getResolvedSignature(call);
+  const declaration = signature?.getDeclaration();
+  if (declaration) {
+    const targetId = resolveDeclarationTargetId(projectName, rootPath, declaration, knownIds);
+    if (targetId) return targetId;
+  }
   const expression = call.getExpression();
   const symbol = expression.getSymbol();
   const fallbackName = calleeShortName(call);
@@ -551,6 +580,8 @@ function selectCallTarget(
   if (candidates.length === 0) return undefined;
 
   const expression = call.getExpression();
+  // A bound external import or callback must never be replaced by a same-name local method.
+  if (expression.getSymbol()) return undefined;
   if (!expression.isKind(SyntaxKind.Identifier)) {
     if (!expression.isKind(SyntaxKind.PropertyAccessExpression) || !source.className) {
       return undefined;
@@ -565,22 +596,18 @@ function selectCallTarget(
     return sameClass.length === 1 ? sameClass[0] : undefined;
   }
 
-  if (candidates.length === 1) return candidates[0];
-
-  if (source.className) {
-    const sameClass = candidates.filter(id => id.endsWith(`:${source.className}.${calleeName}`));
-    if (sameClass.length === 1) return sameClass[0];
-  }
-
-  const sameFileToken = sanitizeNamespace(source.filePath);
-  const sameFile = candidates.filter(id => id.includes(`:${sameFileToken}:`));
-  return sameFile.length === 1 ? sameFile[0] : undefined;
+  return undefined;
 }
 
 function calleeShortName(call: CallExpression): string | undefined {
-  const expression = call.getExpression().getText();
-  const match = /([A-Za-z_$][\w$]*)\s*$/.exec(expression.split('<')[0]);
-  return match?.[1];
+  const expression = call.getExpression();
+  if (expression.isKind(SyntaxKind.Identifier)) return expression.getText();
+  if (expression.isKind(SyntaxKind.PropertyAccessExpression)) return expression.getName();
+  if (expression.isKind(SyntaxKind.ElementAccessExpression)) {
+    const argument = expression.getArgumentExpression();
+    if (argument?.isKind(SyntaxKind.StringLiteral)) return argument.getLiteralText();
+  }
+  return undefined;
 }
 
 function findInterfaceId(shortName: string, projectName: string, knownIds: Set<string>): string | undefined {
@@ -607,6 +634,11 @@ function addTypeUseEdges(
 ): void {
   const typeReferences = node.getDescendantsOfKind(SyntaxKind.TypeReference);
   for (const typeRef of typeReferences) {
+    // Neither a generic parameter nor `as const` denotes a missing graph node.
+    if (typeRef.getTypeName().getText() === 'const'
+      && typeRef.getParent()?.isKind(SyntaxKind.AsExpression)) continue;
+    if (typeRef.getTypeName().getSymbol()?.getDeclarations()
+      .some(declaration => declaration.isKind(SyntaxKind.TypeParameter))) continue;
     const targetId = resolveTypeReference(projectName, rootPath, relPath, typeRef, knownIds);
     if (targetId && targetId !== sourceId) {
       if (outcomes.recordResolved(relationshipEdgeKey(sourceId, targetId, 'Uses'))) {
@@ -798,9 +830,11 @@ function resolveDeclarationTargetId(
   const sourceFile = declaration.getSourceFile();
   const relPath = path.relative(rootPath, sourceFile.getFilePath()).replace(/\\/g, '/');
   const symbolName = declaration.getSymbol()?.getName();
-  const name = declaration.getKindName() === 'MethodDeclaration'
+  const name = ['MethodDeclaration', 'MethodSignature', 'Constructor'].includes(declaration.getKindName())
     ? buildMethodDeclarationName(declaration)
-    : symbolName ?? declaration.getText().split(/\s+/)[0];
+    : declaration.isKind(SyntaxKind.FunctionDeclaration) || declaration.isKind(SyntaxKind.VariableDeclaration)
+      ? callableDeclarationName(declaration)
+      : symbolName ?? declaration.getText().split(/\s+/)[0];
 
   const kind = declaration.getKindName();
   const targetType = kind === 'InterfaceDeclaration'
@@ -819,6 +853,19 @@ function resolveDeclarationTargetId(
 
   const targetId = nodeId(projectName, relPath, name, targetType);
   return knownIds.has(targetId) ? targetId : undefined;
+}
+
+function callableDeclarationName(declaration: Node): string {
+  const name = declaration.isKind(SyntaxKind.VariableDeclaration) ? declaration.getName()
+    : declaration.asKindOrThrow(SyntaxKind.FunctionDeclaration).getName() ?? '<anonymous>';
+  const scopes = declaration.getAncestors().flatMap(ancestor => {
+    if (ancestor.isKind(SyntaxKind.FunctionDeclaration)) return [ancestor.getName() ?? '<anonymous>'];
+    if (ancestor.isKind(SyntaxKind.MethodDeclaration)) return [buildMethodDeclarationName(ancestor)];
+    if (ancestor.isKind(SyntaxKind.ArrowFunction) || ancestor.isKind(SyntaxKind.FunctionExpression))
+      return [`__scope_L${ancestor.getStartLineNumber()}_${ancestor.getStart()}`];
+    return [];
+  }).reverse();
+  return [...scopes, name].join('.');
 }
 
 function buildMethodDeclarationName(declaration: Node): string {
@@ -853,10 +900,9 @@ function buildMethodDeclarationName(declaration: Node): string {
   return methodName;
 }
 
-function getTopLevelFunctionVariables(sourceFile: SourceFile): VariableDeclaration[] {
+function getFunctionVariables(sourceFile: SourceFile): VariableDeclaration[] {
   return sourceFile
-    .getVariableStatements()
-    .flatMap(statement => statement.getDeclarations())
+    .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
     .filter(isFunctionValuedVariable);
 }
 
@@ -876,6 +922,7 @@ function resolveHeritageTargetId(
   const symbol = getHeritageExpressionSymbol(heritageClause);
   const resolved = resolveSymbolTargetId(projectName, rootPath, symbol, expressionText.split('<')[0], knownIds);
   if (resolved) return resolved;
+  if (symbol) return undefined;
 
   const fallbackName = expressionText.split('<')[0];
   return findInterfaceId(fallbackName, projectName, knownIds) ?? resolveClassIdByName(projectName, rootPath, fallbackName, knownIds);
@@ -916,13 +963,21 @@ function classifyUnresolvedCall(
 ): { disposition: 'external_or_unindexed' | 'unresolved_local' | 'indeterminate'; reason: string } {
   const expression = call.getExpression();
   const direct = classifyUnresolvedSymbol(expression.getSymbol(), rootPath);
+  if (direct.disposition === 'external_or_unindexed') return direct;
+  if (expression.getSymbol()?.getDeclarations().some(declaration => declaration.isKind(SyntaxKind.Parameter))) {
+    return { disposition: 'indeterminate', reason: 'callable_parameter' };
+  }
+  if (expression.getSymbol()?.getDeclarations().some(declaration => declaration.isKind(SyntaxKind.PropertySignature))) {
+    return { disposition: 'indeterminate', reason: 'callable_property' };
+  }
   if (direct.disposition !== 'indeterminate') {
     return direct;
   }
 
   if (expression.isKind(SyntaxKind.PropertyAccessExpression)) {
     const owner = expression.getExpression();
-    const ownerSymbol = owner.getType().getSymbol() ?? owner.getSymbol();
+    // A local variable declaration says nothing about the provenance of its runtime type.
+    const ownerSymbol = owner.getType().getSymbol();
     const ownerClassification = classifyUnresolvedSymbol(ownerSymbol, rootPath);
     if (ownerClassification.disposition !== 'indeterminate') {
       return ownerClassification.disposition === 'unresolved_local'

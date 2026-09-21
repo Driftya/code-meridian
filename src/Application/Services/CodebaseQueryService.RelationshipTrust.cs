@@ -7,7 +7,7 @@ namespace CodeMeridian.Application.Services;
 
 public partial class CodebaseQueryService
 {
-    private const int UnresolvedLocalLowConfidenceThreshold = 1;
+    private const double RelationshipFailureLowConfidenceRate = 0.05;
 
     private async Task<RelationshipTrust> GetRelationshipTrustAsync(
         string? projectContext,
@@ -46,14 +46,14 @@ public partial class CodebaseQueryService
             .Select(ParseIndexRun)
             .OrderByDescending(run => run.Timestamp)
             .ToArray();
-        var activeTypeScriptScopes = ReadActiveTypeScriptScopes(scopeCatalogs);
-        if (activeTypeScriptScopes is not null)
-        {
-            parsedRuns = parsedRuns
-                .Where(run => !string.Equals(run.Language, "TypeScript", StringComparison.OrdinalIgnoreCase)
-                    || activeTypeScriptScopes.Contains(NormalizeResolutionScope(run.ResolutionScope)))
-                .ToArray();
-        }
+        var scopesByProject = scopeCatalogs.GroupBy(node => node.ProjectContext ?? string.Empty)
+            .ToDictionary(group => group.Key, group => ReadActiveTypeScriptScopes(group));
+        parsedRuns = parsedRuns
+            .Where(run => !string.Equals(run.Language, "TypeScript", StringComparison.OrdinalIgnoreCase)
+                || !scopesByProject.TryGetValue(run.ProjectContext, out var scopes)
+                || scopes is null
+                || scopes.Contains(NormalizeResolutionScope(run.ResolutionScope)))
+            .ToArray();
 
         if (parsedRuns.Length == 0)
         {
@@ -71,7 +71,8 @@ public partial class CodebaseQueryService
         }
 
         var currentRuns = parsedRuns
-            .GroupBy(run => (run.Language, run.ResolutionScope))
+            .GroupBy(run => (run.ProjectContext, Language: run.Language.ToUpperInvariant(),
+                Scope: NormalizeResolutionScope(run.ResolutionScope)))
             .Select(group => group.First())
             .ToArray();
         var warnings = new List<string>();
@@ -85,7 +86,7 @@ public partial class CodebaseQueryService
 
         foreach (var run in currentRuns)
         {
-            var scope = $"{run.Language}/{run.ResolutionScope}";
+            var scope = $"{run.ProjectContext}/{run.Language}/{run.ResolutionScope}";
             if (!run.UsedFullResolutionCatalog)
             {
                 confidence = "Low";
@@ -94,10 +95,21 @@ public partial class CodebaseQueryService
 
             if (run.SchemaVersion >= 2)
             {
-                if (run.UnresolvedLocalCount >= UnresolvedLocalLowConfidenceThreshold)
+                // External dependencies are outside the indexed graph, not successful local resolutions.
+                // Unknown provenance is reported separately; runtime callbacks are not proven missing locals.
+                var localCandidates = Math.Max(run.UnresolvedLocalCount,
+                    run.AttemptedCalls + run.AttemptedReferences - run.ExternalOrUnindexedCount - run.IndeterminateCount);
+                if (run.UnresolvedLocalCount > 0)
                 {
-                    confidence = "Low";
-                    warnings.Add($"{scope} reported {run.UnresolvedLocalCount} unresolved local relationship(s)");
+                    if ((double)run.UnresolvedLocalCount / localCandidates >= RelationshipFailureLowConfidenceRate)
+                        confidence = "Low";
+                    else if (confidence == "High")
+                        confidence = "Medium";
+                }
+                if (run.UnresolvedLocalCount > 0)
+                {
+                    warnings.Add($"{scope} reported {run.UnresolvedLocalCount} unresolved local relationship(s)"
+                        + $" ({(run.UnresolvedLocalCount * 100d / localCandidates).ToString("0.0", CultureInfo.InvariantCulture)}% of local candidates)");
                 }
 
                 if (run.IndeterminateCount > 0)
@@ -117,17 +129,8 @@ public partial class CodebaseQueryService
             AppendTopReasonWarning(warnings, scope, "call", run.CallReasons, run.AttemptedCalls);
             AppendTopReasonWarning(warnings, scope, "reference", run.ReferenceReasons, run.AttemptedReferences);
 
-            var latestFull = parsedRuns.FirstOrDefault(candidate =>
-                candidate.Language == run.Language
-                && candidate.ResolutionScope == run.ResolutionScope
-                && candidate.Mode == "full");
-            if (run.Mode == "incremental" && latestFull is not null
-                && run.ScannedFiles > 0 && run.IngestedFiles * 10 <= run.ScannedFiles
-                && run.ResolvedRelationships * 2 < latestFull.ResolvedRelationships)
-            {
-                confidence = "Low";
-                warnings.Add($"{scope} resolved relationships dropped by more than 50% after a small incremental batch");
-            }
+            // Incremental counts may describe only the emitted batch even with a full resolution
+            // catalog. They cannot be compared to full-index counts as evidence of lost edges.
         }
 
         var evidence = $"classified {externalCount} relationship(s) as external or outside the indexed scope";
@@ -141,12 +144,12 @@ public partial class CodebaseQueryService
             .Distinct(StringComparer.Ordinal)
             .Take(5)
             .ToArray();
-        if (samples.Length > 0)
-            warnings.Add($"samples: {string.Join(", ", samples)}");
-
         return new RelationshipTrust(
             confidence,
-            string.Join("; ", warnings),
+            "Project/scope index health, not confidence in individual returned edges: "
+                + string.Join("; ", warnings.Take(6))
+                + (warnings.Count > 6 ? $"; {warnings.Count - 6} further scope details omitted" : string.Empty)
+                + (confidence != "High" && samples.Length > 0 ? $"; sample: {samples[0]}" : string.Empty),
             parsedRuns.Where(run => run.Mode == "full").MaxBy(run => run.Timestamp)?.Timestamp,
             parsedRuns.Where(run => run.Mode == "incremental").MaxBy(run => run.Timestamp)?.Timestamp,
             externalCount,
@@ -207,6 +210,7 @@ public partial class CodebaseQueryService
         var resolved = ReadInt("resolvedCallEdges") + ReadInt("resolvedReferenceEdges");
         var schemaVersion = ReadInt("relationshipHealthSchemaVersion");
         return new ParsedIndexRun(
+            node.ProjectContext ?? string.Empty,
             mode,
             Read("language") ?? "CSharp",
             Read("resolutionScope") ?? "project",
@@ -241,7 +245,10 @@ public partial class CodebaseQueryService
         try
         {
             using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+                return [];
             return document.RootElement.EnumerateArray()
+                .Where(element => element.ValueKind == JsonValueKind.Object)
                 .Select(element =>
                 {
                     var reason = ReadJsonString(element, "Reason") ?? ReadJsonString(element, "reason") ?? "unknown reason";
@@ -280,14 +287,16 @@ public partial class CodebaseQueryService
         {
             using var document = JsonDocument.Parse(json);
             var root = document.RootElement;
-            if (!root.TryGetProperty("Reasons", out var reasons)
-                && !root.TryGetProperty("reasons", out reasons))
+            if (root.ValueKind != JsonValueKind.Object
+                || (!root.TryGetProperty("Reasons", out var reasons)
+                    && !root.TryGetProperty("reasons", out reasons))
+                || reasons.ValueKind != JsonValueKind.Object)
             {
                 return new Dictionary<string, int>(StringComparer.Ordinal);
             }
 
             return reasons.EnumerateObject()
-                .Where(property => property.Value.TryGetInt32(out _))
+                .Where(property => property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out _))
                 .ToDictionary(
                     property => property.Name,
                     property => property.Value.GetInt32(),
@@ -307,7 +316,7 @@ public partial class CodebaseQueryService
         int attempted)
     {
         var topReasons = reasons
-            .Where(item => item.Value > 0)
+            .Where(item => item.Value > 0 && !item.Key.StartsWith("external_or_unindexed:", StringComparison.Ordinal))
             .OrderByDescending(item => item.Value)
             .ThenBy(item => item.Key, StringComparer.Ordinal)
             .Take(3)
@@ -325,7 +334,7 @@ public partial class CodebaseQueryService
             : null;
 
     private static int? ReadJsonInt(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var property) && property.TryGetInt32(out var value)
+        element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out var value)
             ? value
             : null;
 
@@ -384,6 +393,7 @@ public partial class CodebaseQueryService
         IReadOnlyList<string> Samples);
 
     private sealed record ParsedIndexRun(
+        string ProjectContext,
         string Mode,
         string Language,
         string ResolutionScope,

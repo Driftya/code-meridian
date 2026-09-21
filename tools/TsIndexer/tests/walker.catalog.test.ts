@@ -5,6 +5,24 @@ import { useTempProject } from './walker-test-helpers.js';
 const project = useTempProject('codemeridian-ts-catalog-');
 
 describe('walkTypeScript resolution catalog', () => {
+  it('measures the full catalog health even when only a clean file changed', () => {
+    project.writeFile('changed.ts', 'export function changed() {}');
+    project.writeFile('unchanged.ts', `
+      const missingTarget = factory();
+      export function unchanged() { missingTarget(); }
+    `);
+    const files = project.listTypeScriptFiles();
+    const full = walkTypeScript(project.getRootPath(), 'Proj', files, undefined, undefined, true);
+    const incremental = walkTypeScript(project.getRootPath(), 'Proj',
+      files.filter(file => file.endsWith('/changed.ts') || file.endsWith('\\changed.ts')),
+      undefined, undefined, true);
+
+    expect(full.relationshipHealth.calls.unresolvedLocal).toBeGreaterThan(0);
+    expect(incremental.relationshipHealth).toEqual(full.relationshipHealth);
+    expect(incremental.nodes.every(node => node.filePath === 'changed.ts')).toBe(true);
+    expect(incremental.edges.some(edge => edge.sourceId.includes('unchanged'))).toBe(false);
+  });
+
   it('matches full-run edges while emitting only changed-file nodes', () => {
     project.writeFile('tsconfig.json', '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}');
     project.writeFile('target.ts', 'export function target() { return 1; }\n');
