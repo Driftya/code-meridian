@@ -469,6 +469,7 @@ internal sealed record IngestEdgeRequest(
     int? SourceEndColumn = null,
     Dictionary<string, string>? EvidenceDetails = null)
 {
+    [System.Text.Json.Serialization.JsonConstructor]
     public IngestEdgeRequest(string sourceId, string targetId, string type, bool? isAsync,
         string? callSite, int? paramCount, double? confidence, Dictionary<string, string>? properties)
         : this(sourceId, targetId, type, isAsync, callSite, paramCount, confidence, properties,

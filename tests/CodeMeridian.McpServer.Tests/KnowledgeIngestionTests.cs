@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using CodeMeridian.Application.Services;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
@@ -711,6 +712,38 @@ public sealed class KnowledgeIngestionTests
 
         await repo.Received(1).UpsertEdgeAsync(Arg.Is<CodeEdge>(edge => edge.SourceId == "a" && edge.TargetId == "b"), Arg.Any<CancellationToken>());
         await repo.Received(1).UpsertEdgeAsync(Arg.Is<CodeEdge>(edge => edge.SourceId == "b" && edge.TargetId == "c"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void KnowledgeApiEndpoints_IngestEdgesBulk_DeserializesLegacyAndEvidencePayloads()
+    {
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.IngestEdgeRequest")!;
+        var arrayType = requestType.MakeArrayType();
+        const string payload = """
+            [
+              {"sourceId":"a","targetId":"b","type":"Calls","callSite":"src/a.cs:10"},
+              {"sourceId":"b","targetId":"c","type":"Uses","evidenceKind":"extracted",
+               "evidenceReason":"roslyn_symbol","resolver":"roslyn.semantic",
+               "sourceFilePath":"src/b.cs","sourceLine":20,
+               "evidenceDetails":{"targetType":"Service"}}
+            ]
+            """;
+
+        var requests = (Array?)JsonSerializer.Deserialize(payload, arrayType, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var singleRequest = JsonSerializer.Deserialize(
+            """{"sourceId":"a","targetId":"b","type":"Calls"}""",
+            requestType,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        singleRequest.Should().NotBeNull();
+        requests.Should().NotBeNull();
+        requests!.Length.Should().Be(2);
+        requestType.GetProperty("CallSite")!.GetValue(requests.GetValue(0)).Should().Be("src/a.cs:10");
+        requestType.GetProperty("EvidenceKind")!.GetValue(requests.GetValue(1)).Should().Be("extracted");
+        requestType.GetProperty("Resolver")!.GetValue(requests.GetValue(1)).Should().Be("roslyn.semantic");
+        requestType.GetProperty("SourceLine")!.GetValue(requests.GetValue(1)).Should().Be(20);
+        var details = (Dictionary<string, string>?)requestType.GetProperty("EvidenceDetails")!.GetValue(requests.GetValue(1));
+        details.Should().ContainKey("targetType").WhoseValue.Should().Be("Service");
     }
 
     [Fact]
