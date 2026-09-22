@@ -24,61 +24,61 @@ Use `unknown` when reading old edges or ingesting edges from clients that do not
 
 ### 1. Establish the canonical schema
 
-- [ ] Add a shared evidence-kind type and validation rules in `src/Core/CodeGraph/CodeEdge.cs`.
-- [ ] Add the nullable evidence fields to `CodeEdge`, `CodeEdgeIngestRequest`, and `tools/IndexerShared/src/types.ts` (`CodeEdgeDto`).
-- [ ] Decide and document field bounds: maximum reason/resolver length, maximum detail keys, and allowed location ranges.
-- [ ] Add a graph contract/schema version for the new edge properties; preserve reads of the previous schema.
-- [ ] Document the contract in `docs/indexing.md` and the SDK/MCP ingestion documentation.
+- [x] Add a shared evidence-kind type and validation rules in `src/Core/CodeGraph/CodeEdge.cs`.
+- [x] Add the nullable evidence fields to `CodeEdge`, `CodeEdgeIngestRequest`, and `tools/IndexerShared/src/types.ts` (`CodeEdgeDto`).
+- [x] Decide and document field bounds: maximum reason/resolver length, maximum detail keys, and allowed location ranges.
+- [x] Add a graph contract/schema version for the new edge properties; preserve reads of the previous schema.
+- [x] Document the contract in `docs/indexing.md` and the SDK/MCP ingestion documentation.
 
 ### 2. Persist and read evidence safely
 
-- [ ] Extend `Neo4jCodeGraphRepository` edge upsert parameters and reserved-property handling.
-- [ ] Map evidence fields back from Neo4j in `MapToCodeEdge` and through `GraphRelationship`/read-repository projections.
-- [ ] Ensure merge identity remains unchanged unless a separate edge identity is required; evidence updates must update an existing relationship rather than create duplicates.
-- [ ] Define migration behavior for existing edges: retain `unknown` until re-indexed, and expose counts of unknown evidence in diagnostics.
-- [ ] Add bounds and sanitization at API/SDK ingestion boundaries so arbitrary nested data cannot enter relationship properties.
+- [x] Extend `Neo4jCodeGraphRepository` edge upsert parameters and reserved-property handling.
+- [x] Map evidence fields back from Neo4j in `MapToCodeEdge` and through `GraphRelationship`/read-repository projections.
+- [x] Ensure merge identity remains unchanged unless a separate edge identity is required; evidence updates must update an existing relationship rather than create duplicates.
+- [x] Define migration behavior for existing edges: retain `unknown` until re-indexed, and expose counts of unknown evidence in diagnostics.
+- [x] Add bounds and sanitization at API/SDK ingestion boundaries so arbitrary nested data cannot enter relationship properties.
 
 ### 3. Emit evidence from the Roslyn indexer
 
-- [ ] Add evidence fields to `IngestEdgeRequest` and preserve them through `CSharpAstWalker`, reference resolution, call resolution, route extraction, configuration extraction, and database tracing.
-- [ ] Mark direct declaration and compiler-symbol matches as `extracted` with `roslyn.semantic` and a source span.
-- [ ] Mark syntax-safe or name-based fallback matches as `inferred` with `roslyn.syntax` and a stable fallback reason.
-- [ ] Mark multiple viable targets, indeterminate callbacks, and unresolved-but-plausible candidates as `ambiguous`; retain the existing resolution disposition separately.
-- [ ] Populate resolver details from existing semantic receiver/target hints instead of duplicating them in unrelated property keys.
-- [ ] Update `RelationshipResolutionCollector` so samples include evidence kind, resolver, and source span.
+- [x] Add evidence fields to `IngestEdgeRequest` and preserve them through `CSharpAstWalker`, reference resolution, call resolution, route extraction, configuration extraction, and database tracing.
+- [x] Mark direct declaration and compiler-symbol matches as `extracted` with `roslyn.semantic` and a source span.
+- [x] Mark syntax-safe or name-based fallback matches as `inferred` with `roslyn.syntax` and a stable fallback reason.
+- [x] Mark multiple viable targets, indeterminate callbacks, and unresolved-but-plausible candidates as `ambiguous`; retain the existing resolution disposition separately.
+- [x] Populate resolver details from existing semantic receiver/target hints instead of duplicating them in unrelated property keys.
+- [x] Update `RelationshipResolutionCollector` so samples include evidence kind, resolver, and source span.
 
 ### 4. Emit evidence from TypeScript and frontend indexers
 
-- [ ] Add the same fields to TypeScript, JavaScript, JSX, HTML, and CSS edge construction through `IndexerShared`.
-- [ ] Mark ts-morph symbol and module-resolution matches as `extracted` with `ts-morph.symbol`.
-- [ ] Mark syntax/module-path or bounded heuristic matches as `inferred` with an explicit reason.
-- [ ] Mark dynamic imports, computed properties, unresolved callbacks, and multiple candidates as `ambiguous` where the relationship is retained.
-- [ ] Preserve the distinction between `external_or_unindexed`, `unresolved_local`, and `indeterminate`; evidence kind describes proof quality, while disposition describes resolution outcome.
+- [x] Add the same fields to TypeScript, JavaScript, JSX, HTML, and CSS edge construction through `IndexerShared`.
+- [x] Mark ts-morph symbol and module-resolution matches as `extracted` with `ts-morph.symbol`.
+- [x] Mark syntax/module-path or bounded heuristic matches as `inferred` with an explicit reason.
+- [x] Mark dynamic imports, computed properties, unresolved callbacks, and multiple candidates as `ambiguous` where the relationship is retained.
+- [x] Preserve the distinction between `external_or_unindexed`, `unresolved_local`, and `indeterminate`; evidence kind describes proof quality, while disposition describes resolution outcome.
 
 ### 5. Expose evidence in query and MCP results
 
-- [ ] Include evidence fields in relationship arrays, path steps, impact findings, changed-subgraph output, endpoint traces, and `get_context_for_editing` where an edge is returned.
-- [ ] Add an opt-in detail level if payload size would otherwise grow substantially; compact output should include kind, reason, resolver, and location, while full output may include details.
-- [ ] Add a focused relationship-evidence query/report that groups edges by evidence kind, resolver, reason, and file role.
-- [ ] Update Markdown output to show a short evidence label and source location without dumping the full details map.
-- [ ] Ensure typed MCP schemas and SDK models remain backward compatible for clients that ignore new fields.
+- [x] Include evidence fields in relationship arrays, path steps, impact findings, changed-subgraph output, endpoint traces, and `get_context_for_editing` where an edge is returned.
+- [x] Add an opt-in detail level if payload size would otherwise grow substantially; compact output should include kind, reason, resolver, and location, while full output may include details.
+- [x] Add a focused relationship-evidence query/report that groups edges by evidence kind, resolver, reason, and file role.
+- [x] Update Markdown output to show a short evidence label and source location without dumping the full details map.
+- [x] Ensure typed MCP schemas and SDK models remain backward compatible for clients that ignore new fields.
 
 ### 6. Connect evidence to relationship health
 
-- [ ] Add counts for `extracted`, `inferred`, `ambiguous`, and `unknown` to relationship-health metadata.
-- [ ] Include representative samples with source locations and resolver reasons in `check_graph_freshness` and `report relationship-health`.
-- [ ] Keep the existing completeness thresholds unchanged initially; use the new evidence distribution for diagnosis before changing trust policy.
-- [ ] Add remediation guidance that points to the relevant resolver or source span instead of only saying “relationship completeness is low.”
+- [x] Add counts for `extracted`, `inferred`, `ambiguous`, and `unknown` to relationship-health metadata.
+- [x] Include representative samples with source locations and resolver reasons in `check_graph_freshness` and `report relationship-health`.
+- [x] Keep the existing completeness thresholds unchanged initially; use the new evidence distribution for diagnosis before changing trust policy.
+- [x] Add remediation guidance that points to the relevant resolver or source span instead of only saying “relationship completeness is low.”
 
 ### 7. Tests and fixtures
 
-- [ ] Add core contract serialization and validation tests.
-- [ ] Add Neo4j repository round-trip tests for all evidence fields, legacy edges, null fields, and updates without duplicate relationships.
-- [ ] Add Roslyn fixtures for semantic resolution, syntax fallback, multiple candidates, callbacks, external targets, and source spans.
-- [ ] Add TypeScript fixtures for symbol resolution, module resolution, dynamic/computed cases, and incremental indexing.
-- [ ] Add MCP/API tests asserting bounded typed evidence output and backward-compatible omission/null behavior.
-- [ ] Add relationship-health tests proving evidence counts and samples are deterministic.
-- [ ] Run the existing Application, Roslyn, TypeScript, MCP, and SDK suites plus a full self-index and verify evidence distributions.
+- [x] Add core contract serialization and validation tests.
+- [x] Add Neo4j repository round-trip tests for all evidence fields, legacy edges, null fields, and updates without duplicate relationships.
+- [x] Add Roslyn fixtures for semantic resolution, syntax fallback, multiple candidates, callbacks, external targets, and source spans.
+- [x] Add TypeScript fixtures for symbol resolution, module resolution, dynamic/computed cases, and incremental indexing.
+- [x] Add MCP/API tests asserting bounded typed evidence output and backward-compatible omission/null behavior.
+- [x] Add relationship-health tests proving evidence counts and samples are deterministic.
+- [x] Run the existing Application, Roslyn, TypeScript, MCP, and SDK suites plus a full self-index and verify evidence distributions.
 
 ## Delivery order
 
