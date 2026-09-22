@@ -17,7 +17,11 @@ internal sealed record CSharpInvocationEvidence(
     string EvidenceConfidence,
     string? TargetDeclarationPath,
     int? TargetDeclarationLine,
-    int? TargetDeclarationStart);
+    int? TargetDeclarationStart,
+    int SourceLine,
+    int SourceColumn,
+    int SourceEndLine,
+    int SourceEndColumn);
 
 internal static class CSharpInvocationEvidenceExtractor
 {
@@ -82,7 +86,11 @@ internal static class CSharpInvocationEvidenceExtractor
             receiverEvidence.Confidence,
             semanticEvidence?.DeclarationPath,
             semanticEvidence?.DeclarationLine,
-            semanticEvidence?.DeclarationStart);
+            semanticEvidence?.DeclarationStart,
+            invocation.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
+            invocation.GetLocation().GetLineSpan().StartLinePosition.Character + 1,
+            invocation.GetLocation().GetLineSpan().EndLinePosition.Line + 1,
+            invocation.GetLocation().GetLineSpan().EndLinePosition.Character + 1);
     }
 
     private static SemanticInvocationEvidence? ResolveSemanticEvidence(

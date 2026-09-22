@@ -58,7 +58,10 @@ public partial class CodebaseQueryService
                 if (!string.IsNullOrWhiteSpace(step.Node.FilePath))
                     sb.Append($" ({step.Node.FilePath})");
                 if (!string.IsNullOrWhiteSpace(step.RelationshipType))
-                    sb.Append($" -[{step.RelationshipType}]->");
+                    sb.Append($" -[{step.RelationshipType}; {step.EvidenceKind.ToString().ToLowerInvariant()}"
+                        + (step.EvidenceReason is null ? string.Empty : $"/{step.EvidenceReason}")
+                        + (step.SourceFilePath is null ? string.Empty : $" {step.SourceFilePath}:{step.SourceLine?.ToString() ?? "?"}")
+                        + "]->");
                 sb.AppendLine();
             }
         }

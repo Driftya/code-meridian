@@ -424,8 +424,46 @@ public sealed class KnowledgeIngestionTests
                 edge.IsAsync == true &&
                 edge.CallSite == "src/app.ts:42" &&
                 edge.ParamCount == 2 &&
-                edge.Confidence == 0.9),
+                edge.Confidence == 0.9 &&
+                edge.EvidenceKind == EdgeEvidenceKind.Unknown),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task KnowledgeApiEndpoints_IngestEdge_ValidatesAndForwardsTypedEvidence()
+    {
+        var repo = Substitute.For<ICodeGraphRepository>();
+        var routeHandler = typeof(KnowledgeApiEndpoints).GetMethod("IngestEdge", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.IngestEdgeRequest")!;
+        object?[] fields = ["a", "b", "Calls", null, null, null, null, null,
+            "extracted", "ts_symbol", "ts-morph.symbol", "src/app.ts", 3, 4, 3, 12,
+            new Dictionary<string, string> { ["receiverType"] = "App" }];
+
+        var request = Activator.CreateInstance(requestType, fields);
+        var result = await (Task<IResult>)routeHandler.Invoke(null, [request, repo, CancellationToken.None])!;
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(201);
+        await repo.Received(1).UpsertEdgeAsync(Arg.Is<CodeEdge>(edge =>
+            edge.EvidenceKind == EdgeEvidenceKind.Extracted && edge.EvidenceReason == "ts_symbol"
+            && edge.Resolver == "ts-morph.symbol" && edge.SourceLine == 3 && edge.SourceEndColumn == 12
+            && edge.EvidenceDetails!["receiverType"] == "App"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task KnowledgeApiEndpoints_IngestEdge_RejectsOversizedEvidenceDetails()
+    {
+        var repo = Substitute.For<ICodeGraphRepository>();
+        var routeHandler = typeof(KnowledgeApiEndpoints).GetMethod("IngestEdge", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var requestType = typeof(KnowledgeApiEndpoints).Assembly.GetType("CodeMeridian.McpServer.Api.IngestEdgeRequest")!;
+        object?[] fields = ["a", "b", "Calls", null, null, null, null, null,
+            "inferred", "syntax_fallback", "ts-morph.syntax", "src/app.ts", 3, 4, 3, 12,
+            new Dictionary<string, string> { ["unbounded"] = new string('x', 257) }];
+
+        var request = Activator.CreateInstance(requestType, fields);
+        var result = await (Task<IResult>)routeHandler.Invoke(null, [request, repo, CancellationToken.None])!;
+
+        result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.BadRequest<string>>();
+        await repo.DidNotReceive().UpsertEdgeAsync(Arg.Any<CodeEdge>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

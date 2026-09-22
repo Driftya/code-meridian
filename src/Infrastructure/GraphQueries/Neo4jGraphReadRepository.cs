@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using CodeMeridian.Core.GraphQueries;
+using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -12,7 +13,7 @@ public sealed class Neo4jGraphReadRepository : IGraphReadRepository, IAsyncDispo
 {
     private static readonly HashSet<string> OmittedPropertyNames =
     [
-        "embedding"
+        "embedding", "evidenceDetails"
     ];
 
     private readonly IDriver _driver;
@@ -238,6 +239,16 @@ public sealed class Neo4jGraphReadRepository : IGraphReadRepository, IAsyncDispo
             Type = relationship.Type,
             FromNodeId = fromNodeId,
             ToNodeId = toNodeId,
+            EvidenceKind = Enum.TryParse<EdgeEvidenceKind>(ReadString(relationship.Properties, "evidenceKind"), true, out var kind)
+                && Enum.IsDefined(kind) ? kind : EdgeEvidenceKind.Unknown,
+            EvidenceReason = ReadString(relationship.Properties, "evidenceReason"),
+            Resolver = ReadString(relationship.Properties, "resolver"),
+            SourceFilePath = ReadString(relationship.Properties, "sourceFilePath"),
+            SourceLine = ReadInt(relationship.Properties, "sourceLine"),
+            SourceColumn = ReadInt(relationship.Properties, "sourceColumn"),
+            SourceEndLine = ReadInt(relationship.Properties, "sourceEndLine"),
+            SourceEndColumn = ReadInt(relationship.Properties, "sourceEndColumn"),
+            EvidenceDetails = ReadEvidenceDetails(relationship.Properties),
             Properties = MapProperties(relationship.Properties)
         };
     }
@@ -285,5 +296,16 @@ public sealed class Neo4jGraphReadRepository : IGraphReadRepository, IAsyncDispo
         return properties.TryGetValue(key, out var value)
             ? value?.ToString()
             : null;
+    }
+
+    private static int? ReadInt(IReadOnlyDictionary<string, object> properties, string key) =>
+        properties.TryGetValue(key, out var value) && int.TryParse(value?.ToString(), out var result) ? result : null;
+
+    private static IReadOnlyDictionary<string, string>? ReadEvidenceDetails(IReadOnlyDictionary<string, object> properties)
+    {
+        var json = ReadString(properties, "evidenceDetails");
+        if (json is null) return null;
+        try { return JsonSerializer.Deserialize<Dictionary<string, string>>(json); }
+        catch (JsonException) { return null; }
     }
 }

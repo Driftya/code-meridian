@@ -31,8 +31,34 @@ public sealed class RelationshipHealthReportCommandTests
             text.Should().Contain("external_or_unindexed:type=2 (40.0%)");
             text.Should().Contain("indeterminate:Test=1");
             text.Should().Contain("catalog performance: files=12, load=45ms, heap=123456 bytes");
+            text.Should().Contain("edge evidence: extracted=3, unknown=1");
+            text.Should().Contain("evidence group: extracted|ts-morph.symbol|ts_symbol|Source=3");
             text.Should().NotContain("older_reason");
             text.Should().NotContain("secret-value");
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            output.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_EvidenceOnlyPrintsGroupedEvidence()
+    {
+        var output = new StringWriter();
+        var originalOut = Console.Out;
+        Console.SetOut(output);
+        try
+        {
+            var sut = new RelationshipHealthReportCommand((_, _) => new HttpClient(new StubHandler(Response()))
+            {
+                BaseAddress = new Uri("http://localhost/")
+            });
+            var exitCode = await sut.RunAsync("CodeMeridian", "http://localhost", null, "text", evidenceOnly: true);
+            exitCode.Should().Be(0);
+            output.ToString().Should().Contain("extracted|ts-morph.symbol|ts_symbol|Source=3");
+            output.ToString().Should().NotContain("catalog performance");
         }
         finally
         {
@@ -129,6 +155,8 @@ public sealed class RelationshipHealthReportCommandTests
             ["ingestedFileCount"] = "1",
             ["callRelationshipOutcomes"] = callOutcomes,
             ["referenceRelationshipOutcomes"] = referenceOutcomes,
+            ["edgeEvidenceCounts"] = "{\"extracted\":3,\"unknown\":1}",
+            ["edgeEvidenceGroups"] = "{\"extracted|ts-morph.symbol|ts_symbol|Source\":3,\"unknown|unknown|unknown|Unknown\":1}",
             ["resolutionCatalogFileCount"] = "12",
             ["resolutionCatalogLoadDurationMs"] = "45",
             ["resolutionCatalogHeapUsedBytes"] = "123456",

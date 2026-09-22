@@ -52,10 +52,9 @@ public sealed class CodebaseQueryServiceFindSmellPathsTests : CodebaseQueryServi
         result.Should().Contain("Core → Infrastructure");
         result.Should().Contain("PricingRules");
         result.Should().Contain("Neo4jOrderStore");
-        result.Should().Contain("`PricingRules` -[Uses]- `SqlOrderRepository` -[DependsOn]- `Neo4jOrderStore`");
+        result.Should().Contain("`PricingRules` -[Uses unknown]- `SqlOrderRepository` -[DependsOn unknown]- `Neo4jOrderStore`");
         result.Should().Contain("safe-first version");
     }
 
 
 }
-

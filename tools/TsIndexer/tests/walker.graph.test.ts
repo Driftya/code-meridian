@@ -41,16 +41,21 @@ export function Orders() {
       expect.objectContaining({ id: 'Proj:File:src_Orders.jsx', filePath: 'src/Orders.jsx', type: 'File' }),
       expect.objectContaining({ id: 'Proj:Method:src_Orders.jsx:Orders', type: 'Method' }),
     ]));
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:src_Orders.jsx:Orders',
       targetId: 'Proj:Method:src_Orders.jsx:Orders.handleClick',
       type: 'Contains',
-    });
-    expect(result.edges).toContainEqual({
+    }));
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:src_Orders.jsx:Orders.handleClick',
       targetId: 'Proj:Method:src_service.js:loadOrders',
       type: 'Calls',
-    });
+      evidenceKind: 'extracted',
+      evidenceReason: 'ts_symbol',
+      resolver: 'ts-morph.symbol',
+      sourceFilePath: 'src/Orders.jsx',
+      sourceLine: 4,
+    }));
   });
 
   it('classifies every call candidate exactly once and reports duplicate emitted edges', () => {
@@ -169,16 +174,16 @@ export function run(client: ExternalClient, options: GeneratedOptions) {
         lineCount: 3,
       }),
     );
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:File:editor.ts',
       targetId: 'Proj:Class:editor.ts:TextSlideVideoEditorState',
       type: 'Contains',
-    });
-    expect(result.edges).toContainEqual({
+    }));
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Class:editor.ts:TextSlideVideoEditorState',
       targetId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.snapshot',
       type: 'Contains',
-    });
+    }));
   });
 
   it('indexes constructors as method nodes and captures constructor calls', () => {
@@ -204,16 +209,16 @@ export function run(client: ExternalClient, options: GeneratedOptions) {
         type: 'Method',
       }),
     );
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Class:editor.ts:TextSlideVideoEditorState',
       targetId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.constructor',
       type: 'Contains',
-    });
-    expect(result.edges).toContainEqual({
+    }));
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.constructor',
       targetId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.snapshot',
       type: 'Calls',
-    });
+    }));
   });
 
   it('resolves same-class method calls', () => {
@@ -233,11 +238,11 @@ export function run(client: ExternalClient, options: GeneratedOptions) {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.addCaption',
       targetId: 'Proj:Method:editor.ts:TextSlideVideoEditorState.snapshot',
       type: 'Calls',
-    });
+    }));
   });
 
   it('uses semantic receiver types across factory-return chains', () => {
@@ -262,11 +267,11 @@ export function persist() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:semantic-chain.ts:persist',
       targetId: 'Proj:Method:semantic-chain.ts:Repository.save',
       type: 'Calls',
-    });
+    }));
   });
 
   it('does not use a unique same-name method when a member semantic target is not indexed', () => {
@@ -286,11 +291,11 @@ export function run() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).not.toContainEqual({
+    expect(result.edges).not.toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:semantic-negative.ts:run',
       targetId: 'Proj:Method:semantic-negative.ts:LocalWorker.execute',
       type: 'Calls',
-    });
+    }));
   });
 
   it('resolves top-level function calls in the same file', () => {
@@ -308,11 +313,11 @@ function format() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:math.ts:calculate',
       targetId: 'Proj:Method:math.ts:format',
       type: 'Calls',
-    });
+    }));
   });
 
   it('indexes top-level arrow-function variables as method-like nodes and resolves calls to them', () => {
@@ -334,16 +339,16 @@ export function calculate() {
         type: 'Method',
       }),
     );
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:File:math.ts',
       targetId: 'Proj:Method:math.ts:format',
       type: 'Contains',
-    });
-    expect(result.edges).toContainEqual({
+    }));
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:math.ts:calculate',
       targetId: 'Proj:Method:math.ts:format',
       type: 'Calls',
-    });
+    }));
   });
 
   it('gives same-named top-level functions stable distinct ids across files', () => {
@@ -423,11 +428,11 @@ export function renderTotal() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
       targetId: 'Proj:Method:shared_format.ts:formatAmount',
       type: 'Calls',
-    });
+    }));
   });
 
   it('resolves aliased imported function calls to the exported target method', () => {
@@ -450,11 +455,11 @@ export function renderTotal() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
       targetId: 'Proj:Method:shared_format.ts:formatAmount',
       type: 'Calls',
-    });
+    }));
   });
 
   it('resolves imported calls to exported arrow-function variables', () => {
@@ -475,11 +480,11 @@ export function renderTotal() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
       targetId: 'Proj:Method:shared_format.ts:formatAmount',
       type: 'Calls',
-    });
+    }));
   });
 
   it('resolves function calls imported through re-export barrels', () => {
@@ -503,11 +508,11 @@ export function renderTotal() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
       targetId: 'Proj:Method:shared_format.ts:formatAmount',
       type: 'Calls',
-    });
+    }));
   });
 
   it('resolves calls to default-exported functions across files', () => {
@@ -530,11 +535,11 @@ export function renderTotal() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
       targetId: 'Proj:Method:shared_format.ts:formatAmount',
       type: 'Calls',
-    });
+    }));
   });
 
   it('resolves calls to default-exported functions through barrel re-exports', () => {
@@ -558,11 +563,11 @@ export function renderTotal() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
       targetId: 'Proj:Method:shared_format.ts:formatAmount',
       type: 'Calls',
-    });
+    }));
   });
 
   it('resolves calls through namespace imports to exported functions', () => {
@@ -585,11 +590,11 @@ export function renderTotal() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
       targetId: 'Proj:Method:shared_format.ts:formatAmount',
       type: 'Calls',
-    });
+    }));
   });
 
   it('resolves calls to imported class methods through constructed instances', () => {
@@ -614,11 +619,11 @@ export function renderTotal() {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:consumer.ts:renderTotal',
       targetId: 'Proj:Method:shared_editor.ts:Editor.format',
       type: 'Calls',
-    });
+    }));
   });
 
   it('emits implements and inherits edges for local types', () => {
@@ -640,21 +645,21 @@ export class Editor extends BaseEditor implements EditorPort {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Interface:types.ts:EditorPort',
       targetId: 'Proj:Interface:types.ts:BasePort',
       type: 'Inherits',
-    });
-    expect(result.edges).toContainEqual({
+    }));
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Class:types.ts:Editor',
       targetId: 'Proj:Class:types.ts:BaseEditor',
       type: 'Inherits',
-    });
-    expect(result.edges).toContainEqual({
+    }));
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Class:types.ts:Editor',
       targetId: 'Proj:Interface:types.ts:EditorPort',
       type: 'Implements',
-    });
+    }));
   });
 
   it('resolves interface-typed method calls to interface member nodes', () => {
@@ -689,21 +694,21 @@ export function dispatch(workflow: OrderWorkflow = new CheckoutWorkflow()) {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Class:workflow.ts:CheckoutWorkflow',
       targetId: 'Proj:Interface:contracts.ts:OrderWorkflow',
       type: 'Implements',
-    });
-    expect(result.edges).toContainEqual({
+    }));
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Interface:contracts.ts:OrderWorkflow',
       targetId: 'Proj:Method:contracts.ts:OrderWorkflow.run',
       type: 'Contains',
-    });
-    expect(result.edges).toContainEqual({
+    }));
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:consumer.ts:dispatch',
       targetId: 'Proj:Method:contracts.ts:OrderWorkflow.run',
       type: 'Calls',
-    });
+    }));
   });
 
   it('emits depends-on edges for local imports', () => {
@@ -712,11 +717,11 @@ export function dispatch(workflow: OrderWorkflow = new CheckoutWorkflow()) {
 
     const result = walkTypeScript(project.getRootPath(), 'Proj', project.listTypeScriptFiles());
 
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:File:consumer.ts',
       targetId: 'Proj:File:state.ts',
       type: 'DependsOn',
-    });
+    }));
   });
 
   it('does not emit local dependency edges for external package imports', () => {

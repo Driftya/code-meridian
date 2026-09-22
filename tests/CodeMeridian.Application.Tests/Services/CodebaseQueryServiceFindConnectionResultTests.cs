@@ -13,7 +13,7 @@ public sealed class CodebaseQueryServiceFindConnectionResultTests : CodebaseQuer
         var (sut, graph) = Build();
         graph.FindConnectionAsync("source", "target", Arg.Any<CancellationToken>())
             .Returns([
-                (new CodeNode
+                new GraphPathStep(new CodeNode
                 {
                     Id = "source",
                     Name = "Source",
@@ -24,7 +24,14 @@ public sealed class CodebaseQueryServiceFindConnectionResultTests : CodebaseQuer
                     ProjectContext = "Example",
                     SourceSnippet = "secret source body",
                     Properties = new Dictionary<string, string> { ["unbounded"] = "value" }
-                }, "Calls"),
+                }, "Calls", null)
+                {
+                    EvidenceKind = EdgeEvidenceKind.Extracted,
+                    EvidenceReason = "roslyn_symbol",
+                    Resolver = "roslyn.semantic",
+                    SourceFilePath = "src/Source.cs",
+                    SourceLine = 14
+                },
                 (new CodeNode
                 {
                     Id = "target",
@@ -46,8 +53,12 @@ public sealed class CodebaseQueryServiceFindConnectionResultTests : CodebaseQuer
         result.Nodes[0].Should().Be(new ConnectionNodeResult(
             0, "source", "Source", "Class", "Example", "src/Source.cs", 12, "Example"));
         result.Edges.Should().ContainSingle().Which.Should().Be(new ConnectionEdgeResult(
-            0, "source", "target", "Calls"));
-        result.ToMarkdown(ContextDetailLevel.Compact).Should().Contain("—[Calls]→");
+            0, "source", "target", "Calls")
+        {
+            EvidenceKind = "extracted", EvidenceReason = "roslyn_symbol", Resolver = "roslyn.semantic",
+            SourceFilePath = "src/Source.cs", SourceLine = 14
+        });
+        result.ToMarkdown(ContextDetailLevel.Compact).Should().Contain("—[Calls; extracted/roslyn_symbol src/Source.cs:14]→");
     }
 
     [Fact]
@@ -81,6 +92,6 @@ public sealed class CodebaseQueryServiceFindConnectionResultTests : CodebaseQuer
         var result = await sut.FindConnectionResultAsync("a", "c");
 
         result.Edges.Select(edge => edge.Relationship).Should().Equal("Calls", "Uses");
-        result.ToMarkdown(ContextDetailLevel.Compact).Should().Contain("—[Uses]→");
+        result.ToMarkdown(ContextDetailLevel.Compact).Should().Contain("—[Uses; unknown]→");
     }
 }

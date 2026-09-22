@@ -5,6 +5,7 @@ import { walkTypeScript } from '../walker.js';
 import type { ResolvedIndexCommandOptions } from '../cli/options.js';
 import { analyzeTypeScriptBoundaries } from '../analysis/type-script-boundaries.js';
 import type { TypeScriptRelationshipHealth } from '../relationship-health.js';
+import type { CodeEdgeDto } from '../../../IndexerShared/dist/types.js';
 
 const INGEST_CONCURRENCY = 8;
 
@@ -90,6 +91,7 @@ export class TypeScriptIndexerApplication {
       batch.files.length,
       nodeResult.successCount,
       edgeResult.successCount,
+      edges,
       relationshipHealth,
       resolutionCatalog.reason === undefined && (!options.isIncremental || usedFullResolutionCatalog),
       resolutionCatalog,
@@ -105,6 +107,7 @@ async function persistIndexRun(
   scannedFileCount: number,
   ingestedNodeCount: number,
   ingestedEdgeCount: number,
+  edges: readonly CodeEdgeDto[],
   health: TypeScriptRelationshipHealth,
   usedFullResolutionCatalog: boolean,
   resolutionCatalog: {
@@ -123,6 +126,17 @@ async function persistIndexRun(
   const properties: Record<string, string> = {
     externalKind: 'IndexRun',
     relationshipHealthSchemaVersion: '2',
+    edgeEvidenceCounts: JSON.stringify(edges.reduce<Record<string, number>>((counts, edge) => {
+      const kind = edge.evidenceKind ?? 'unknown';
+      counts[kind] = (counts[kind] ?? 0) + 1;
+      return counts;
+    }, {})),
+    edgeEvidenceGroups: JSON.stringify(edges.reduce<Record<string, number>>((groups, edge) => {
+      const key = [edge.evidenceKind ?? 'unknown', edge.resolver ?? 'unknown',
+        edge.evidenceReason ?? 'unknown', edge.evidenceDetails?.fileRole ?? 'Unknown'].join('|');
+      groups[key] = (groups[key] ?? 0) + 1;
+      return groups;
+    }, {})),
     language: 'TypeScript',
     resolutionScope: normalizedScope,
     mode,

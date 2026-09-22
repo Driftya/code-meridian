@@ -198,6 +198,27 @@ Relationship resolution is best effort and intentionally does not create graph n
 
 Use `codemeridian report relationship-health --project <name>` for a read-only table of the latest relationship outcomes per language, scope, and mode. Add `--format json` for normalized automation output. The report includes call/reference reason histograms, file-role failure counts, and TypeScript catalog load/file/heap evidence; it intentionally excludes source bodies, credentials, and arbitrary graph properties.
 
+### Edge-level relationship evidence
+
+Graph contract version 6 adds optional first-class evidence to each code relationship. `evidenceKind` is `extracted`, `inferred`, `ambiguous`, or `unknown`; missing or invalid values on old relationships read as `unknown`. `evidenceReason` is a stable code, and `resolver` identifies the producer strategy. `sourceFilePath`, `sourceLine`, `sourceColumn`, `sourceEndLine`, and `sourceEndColumn` locate the relationship when the parser supplies a span. `evidenceDetails` is a small string-to-string map for facts such as receiver type, target declaration, and file role. `confidence` remains an independent numeric score, and resolution disposition remains independent of evidence kind.
+
+The REST edge-ingestion endpoints and .NET `CodeEdgeIngestRequest` and TypeScript `CodeEdgeDto` accept these fields. They are optional for existing clients. The server validates reason and resolver codes (1–64 letters, digits, dots, underscores, or hyphens), paths (at most 1024 characters, no control characters), 1-based lines (at most 10,000,000), 1-based columns (at most 100,000), ordered spans, and at most eight detail entries (keys 1–64 code characters; values at most 256 characters without control characters). Nested detail objects are rejected. Neo4j stores details as bounded JSON because relationship properties cannot hold maps. Evidence fields do not participate in relationship merge identity, so re-indexing updates the existing edge.
+
+Compiler-bound C# calls use `extracted`/`roslyn_symbol`/`roslyn.semantic`; C# name and arity fallbacks use `inferred`/`name_arity_fallback`/`roslyn.syntax`. TypeScript symbol or module resolution uses `extracted`/`ts_symbol`/`ts-morph.symbol`; syntax fallbacks use `inferred`/`syntax_fallback`/`ts-morph.syntax`. Direct frontend syntax relationships are marked `extracted`; cascade order is inferred. Unresolved candidates are not turned into proven edges: bounded failure samples retain their disposition and include the resolver and source span where available.
+
+`codemeridian report relationship-evidence --project <name>` groups the latest emitted edge evidence by kind, resolver, reason, and file role (`--format json` is available). `report relationship-health` includes these groups alongside existing outcome counts. Freshness diagnostics also count evidence kinds on persisted relationships, including old edges with `unknown` evidence. Run a full index after upgrading to replace old relationship evidence; completeness thresholds have not changed. Incremental index-run groups describe only edges emitted in that batch, while persisted counts describe the current graph.
+
+GraphQL `relationships` results expose the typed evidence fields. For example:
+
+```graphql
+query ($project: String!) {
+  relationships(filter: { projectContext: $project }, limit: 100) {
+    type fromNodeId toNodeId evidenceKind evidenceReason resolver
+    sourceFilePath sourceLine sourceColumn sourceEndLine sourceEndColumn
+  }
+}
+```
+
 ## C# Indexing
 
 The C# indexer uses Roslyn syntax trees. It does not require a successful project build.

@@ -29,7 +29,12 @@ public sealed record RelationshipResolutionSample(
     string? TargetName,
     int? ParameterCount,
     string? ReceiverKind,
-    string? ReceiverTypeHint);
+    string? ReceiverTypeHint,
+    string? EvidenceKind = null,
+    string? Resolver = null,
+    int? SourceColumn = null,
+    int? SourceEndLine = null,
+    int? SourceEndColumn = null);
 
 public sealed record RelationshipResolutionStats(
     int Attempted,
@@ -110,15 +115,20 @@ internal sealed class RelationshipResolutionCollector(string edgeKind, int sampl
                 dispositionName,
                 reason,
                 edge.SourceId,
-                source?.FilePath,
+                edge.SourceFilePath ?? source?.FilePath,
                 source?.Properties is not null && source.Properties.TryGetValue("fileRole", out var fileRole)
                     ? fileRole
                     : null,
-                source?.LineNumber,
+                edge.SourceLine ?? source?.LineNumber,
                 edge.CallName ?? edge.TargetName,
                 edge.ParamCount,
                 ReadProperty(edge, "receiverKind"),
-                ReadProperty(edge, "receiverTypeHint"));
+                ReadProperty(edge, "receiverTypeHint"),
+                "ambiguous",
+                edge.Resolver ?? "roslyn.syntax",
+                edge.SourceColumn,
+                edge.SourceEndLine,
+                edge.SourceEndColumn);
             AddDeterministicBucketCandidate(candidate);
         }
     }

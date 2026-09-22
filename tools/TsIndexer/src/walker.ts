@@ -132,6 +132,19 @@ export function walkTypeScript(
     collectDatabaseTracingEdges(sourceFile, rootPath, projectName, edges, tracingOptions);
   }
 
+  const nodesById = new Map(nodes.map(node => [node.id, node]));
+  for (const edge of edges) {
+    const declaration = edge.type === 'Contains';
+    edge.evidenceKind ??= declaration ? 'extracted' : 'inferred';
+    edge.evidenceReason ??= declaration ? 'syntax_declaration' : edge.type === 'Calls' ? 'route_match' : 'syntax_relationship';
+    edge.resolver ??= 'ts-morph.syntax';
+    const location = edge.callSite?.match(/^(.*):(\d+)$/);
+    const owner = nodesById.get(declaration ? edge.targetId : edge.sourceId);
+    edge.sourceFilePath ??= location?.[1] ?? owner?.filePath;
+    edge.sourceLine ??= location ? Number(location[2]) : owner?.lineNumber;
+    if (owner?.fileRole) edge.evidenceDetails = { ...edge.evidenceDetails, fileRole: owner.fileRole };
+  }
+
   return {
     nodes,
     edges,

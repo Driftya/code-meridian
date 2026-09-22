@@ -44,7 +44,8 @@ internal sealed class RelationshipHealthReportCommand
         string codeMeridianUrl,
         string? apiKey,
         string format,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool evidenceOnly = false)
     {
         try
         {
@@ -69,7 +70,14 @@ internal sealed class RelationshipHealthReportCommand
                 .ThenBy(run => run.Mode, StringComparer.Ordinal)
                 .ToArray();
 
-            if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+            if (evidenceOnly && format.Equals("json", StringComparison.OrdinalIgnoreCase))
+                Console.WriteLine(JsonSerializer.Serialize(rows.Select(row => new
+                {
+                    row.Language, row.Scope, row.Mode, row.EdgeEvidenceCounts, row.EdgeEvidenceGroups
+                }), JsonOptions));
+            else if (evidenceOnly)
+                PrintEvidence(project, rows);
+            else if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
                 Console.WriteLine(JsonSerializer.Serialize(rows, JsonOptions));
             else
                 PrintText(project, rows);
@@ -112,6 +120,8 @@ internal sealed class RelationshipHealthReportCommand
             calls.SyntheticEdges + references.SyntheticEdges,
             calls.Reasons,
             references.Reasons,
+            ParseCounts(Read("edgeEvidenceCounts")),
+            ParseCounts(Read("edgeEvidenceGroups")),
             MergeCounts(calls.FailureCountsByFileRole, references.FailureCountsByFileRole),
             DateTimeOffset.TryParse(Read("completedAt"), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var completedAt)
                 ? completedAt
@@ -150,6 +160,17 @@ internal sealed class RelationshipHealthReportCommand
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Sum(item => item.Value), StringComparer.Ordinal);
 
+    private static IReadOnlyDictionary<string, int> ParseCounts(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, int>();
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, int>>(json, JsonOptions)
+                ?? new Dictionary<string, int>();
+        }
+        catch (JsonException) { return new Dictionary<string, int>(); }
+    }
+
     private static void PrintText(string project, IReadOnlyList<RelationshipHealthRun> rows)
     {
         Console.WriteLine($"CodeMeridian relationship health — {project}");
@@ -163,12 +184,29 @@ internal sealed class RelationshipHealthReportCommand
                 + $"{row.Indeterminate} | {row.Duplicate} | {row.Synthetic} | {row.ScannedFiles} | {row.IngestedFiles}");
             PrintReasons("calls", row.CallReasons, row.AttemptedCalls);
             PrintReasons("references", row.ReferenceReasons, row.AttemptedReferences);
+            if (row.EdgeEvidenceCounts.Count > 0)
+                Console.WriteLine($"  edge evidence: {string.Join(", ", row.EdgeEvidenceCounts.OrderBy(item => item.Key, StringComparer.Ordinal).Select(item => $"{item.Key}={item.Value}"))}");
+            foreach (var group in row.EdgeEvidenceGroups.OrderByDescending(item => item.Value).ThenBy(item => item.Key, StringComparer.Ordinal).Take(20))
+                Console.WriteLine($"  evidence group: {group.Key}={group.Value}");
             if (row.FailureCountsByFileRole.Count > 0)
                 Console.WriteLine($"  file roles: {string.Join(", ", row.FailureCountsByFileRole.Select(item => $"{item.Key}={item.Value}"))}");
             if (row.ResolutionCatalogFileCount > 0)
                 Console.WriteLine($"  catalog performance: files={row.ResolutionCatalogFileCount}, load={row.ResolutionCatalogLoadDurationMs}ms, heap={row.ResolutionCatalogHeapUsedBytes} bytes");
             if (row.ResolutionCatalogReason is not null)
                 Console.WriteLine($"  catalog fallback: {row.ResolutionCatalogReason}");
+        }
+    }
+
+    private static void PrintEvidence(string project, IReadOnlyList<RelationshipHealthRun> rows)
+    {
+        Console.WriteLine($"CodeMeridian relationship evidence — {project}");
+        foreach (var row in rows)
+        {
+            Console.WriteLine($"{row.Language} | {row.Scope} | {row.Mode}");
+            Console.WriteLine("  counts: " + string.Join(", ", row.EdgeEvidenceCounts
+                .OrderBy(item => item.Key, StringComparer.Ordinal).Select(item => $"{item.Key}={item.Value}")));
+            foreach (var group in row.EdgeEvidenceGroups.OrderByDescending(item => item.Value).ThenBy(item => item.Key, StringComparer.Ordinal))
+                Console.WriteLine($"  {group.Key}={group.Value}");
         }
     }
 
@@ -230,6 +268,8 @@ internal sealed class RelationshipHealthReportCommand
         int Synthetic,
         IReadOnlyDictionary<string, int> CallReasons,
         IReadOnlyDictionary<string, int> ReferenceReasons,
+        IReadOnlyDictionary<string, int> EdgeEvidenceCounts,
+        IReadOnlyDictionary<string, int> EdgeEvidenceGroups,
         IReadOnlyDictionary<string, int> FailureCountsByFileRole,
         DateTimeOffset CompletedAt,
         int ResolutionCatalogFileCount,

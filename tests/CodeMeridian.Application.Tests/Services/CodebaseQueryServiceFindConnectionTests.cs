@@ -40,8 +40,8 @@ public sealed class CodebaseQueryServiceFindConnectionTests : CodebaseQueryServi
         result.Should().Contain("Alpha");
         result.Should().Contain("Beta");
         result.Should().Contain("Gamma");
-        result.Should().Contain("—[Calls]→");
-        result.Should().Contain("—[Uses]→");
+        result.Should().Contain("—[Calls; unknown]→");
+        result.Should().Contain("—[Uses; unknown]→");
     }
 
     // ── FindUnreferencedAsync ─────────────────────────────────────────────────
@@ -126,9 +126,8 @@ public sealed class CodebaseQueryServiceFindConnectionTests : CodebaseQueryServi
         result.Should().Contain("CreateOrder");
         result.Should().Contain("EFCore Writes Orders");
         result.Should().Contain("**DatabaseTable** `Orders`");
-        result.Should().Contain("—[Writes]→");
+        result.Should().Contain("—[Writes; unknown]→");
     }
 
 
 }
-

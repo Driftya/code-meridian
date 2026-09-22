@@ -87,7 +87,17 @@ public partial class CodebaseQueryService
                     order,
                     GraphNodeResult.FromNode(step.Node),
                     step.RelationshipType,
-                    step.RelationshipConfidence))
+                    step.RelationshipConfidence)
+                {
+                    EvidenceKind = step.EvidenceKind.ToString().ToLowerInvariant(),
+                    EvidenceReason = step.EvidenceReason,
+                    Resolver = step.Resolver,
+                    SourceFilePath = step.SourceFilePath,
+                    SourceLine = step.SourceLine,
+                    SourceColumn = step.SourceColumn,
+                    SourceEndLine = step.SourceEndLine,
+                    SourceEndColumn = step.SourceEndColumn
+                })
                 .ToArray());
 
     private static string FormatClassLikeImpactAnalysis(

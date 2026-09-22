@@ -188,7 +188,12 @@ public static class KnowledgeApiEndpoints
         if (!Enum.TryParse<CodeEdgeType>(req.Type, ignoreCase: true, out var edgeType))
             return Results.BadRequest($"Unknown relationship type '{req.Type}'");
 
-        await repo.UpsertEdgeAsync(new CodeEdge
+        if (req.EvidenceKind is not null
+            && (!Enum.TryParse<EdgeEvidenceKind>(req.EvidenceKind, ignoreCase: true, out var parsedKind)
+                || !Enum.IsDefined(parsedKind)))
+            return Results.BadRequest("Invalid evidence kind.");
+
+        var edge = new CodeEdge
         {
             SourceId = req.SourceId,
             TargetId = req.TargetId,
@@ -197,8 +202,21 @@ public static class KnowledgeApiEndpoints
             CallSite = req.CallSite,
             ParamCount = req.ParamCount,
             Confidence = req.Confidence,
-            Properties = req.Properties ?? []
-        }, ct);
+            Properties = req.Properties ?? [],
+            EvidenceKind = req.EvidenceKind is null ? EdgeEvidenceKind.Unknown : Enum.Parse<EdgeEvidenceKind>(req.EvidenceKind, true),
+            EvidenceReason = req.EvidenceReason,
+            Resolver = req.Resolver,
+            SourceFilePath = req.SourceFilePath,
+            SourceLine = req.SourceLine,
+            SourceColumn = req.SourceColumn,
+            SourceEndLine = req.SourceEndLine,
+            SourceEndColumn = req.SourceEndColumn,
+            EvidenceDetails = req.EvidenceDetails
+        };
+        if (edge.ValidateEvidence() is { } validationError)
+            return Results.BadRequest(validationError);
+
+        await repo.UpsertEdgeAsync(edge, ct);
 
         return null;
     }
@@ -440,7 +458,22 @@ internal sealed record IngestEdgeRequest(
     string? CallSite = null,
     int? ParamCount = null,
     double? Confidence = null,
-    Dictionary<string, string>? Properties = null);
+    Dictionary<string, string>? Properties = null,
+    string? EvidenceKind = null,
+    string? EvidenceReason = null,
+    string? Resolver = null,
+    string? SourceFilePath = null,
+    int? SourceLine = null,
+    int? SourceColumn = null,
+    int? SourceEndLine = null,
+    int? SourceEndColumn = null,
+    Dictionary<string, string>? EvidenceDetails = null)
+{
+    public IngestEdgeRequest(string sourceId, string targetId, string type, bool? isAsync,
+        string? callSite, int? paramCount, double? confidence, Dictionary<string, string>? properties)
+        : this(sourceId, targetId, type, isAsync, callSite, paramCount, confidence, properties,
+            null, null, null, null, null, null, null, null, null) { }
+}
 
 internal sealed record IngestDocumentRequest(
     string Content,

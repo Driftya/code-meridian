@@ -67,6 +67,15 @@ export interface CodeEdgeDto {
   paramCount?: number;
   confidence?: number;
   properties?: Record<string, string>;
+  evidenceKind?: 'extracted' | 'inferred' | 'ambiguous' | 'unknown';
+  evidenceReason?: string;
+  resolver?: string;
+  sourceFilePath?: string;
+  sourceLine?: number;
+  sourceColumn?: number;
+  sourceEndLine?: number;
+  sourceEndColumn?: number;
+  evidenceDetails?: Record<string, string>;
 }
 
 export interface DocumentDto {

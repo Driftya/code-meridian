@@ -55,6 +55,46 @@ public sealed class Neo4jGraphReadRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task QueryRelationshipsAsync_ProjectsTypedEvidenceAndLegacyUnknown()
+    {
+        var project = $"Integration.GraphRead.Evidence.{Guid.NewGuid():N}";
+        var source = CreateCodeNode($"{project}.Source", "Source", CodeNodeType.Method, project, "src/Source.cs");
+        var target = CreateCodeNode($"{project}.Target", "Target", CodeNodeType.Method, project, "src/Target.cs");
+        try
+        {
+            await _codeGraphRepository!.UpsertNodeAsync(source);
+            await _codeGraphRepository.UpsertNodeAsync(target);
+            await _codeGraphRepository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = source.Id, TargetId = target.Id, Type = CodeEdgeType.Calls,
+                EvidenceKind = EdgeEvidenceKind.Extracted, EvidenceReason = "roslyn_symbol",
+                Resolver = "roslyn.semantic", SourceFilePath = "src/Source.cs", SourceLine = 7,
+                EvidenceDetails = new() { ["receiverType"] = "Source" }
+            });
+            await _codeGraphRepository.UpsertEdgeAsync(new CodeEdge
+            {
+                SourceId = source.Id, TargetId = target.Id, Type = CodeEdgeType.Uses
+            });
+
+            var relationships = await _sut!.QueryRelationshipsAsync(
+                new GraphRelationshipFilter { ProjectContext = project }, null, 0, 100);
+
+            var call = relationships.Should().ContainSingle(item => item.Type == "Calls").Subject;
+            call.EvidenceKind.Should().Be(EdgeEvidenceKind.Extracted);
+            call.EvidenceReason.Should().Be("roslyn_symbol");
+            call.Resolver.Should().Be("roslyn.semantic");
+            call.SourceFilePath.Should().Be("src/Source.cs");
+            call.SourceLine.Should().Be(7);
+            call.EvidenceDetails.Should().Contain("receiverType", "Source");
+            relationships.Should().ContainSingle(item => item.Type == "Uses" && item.EvidenceKind == EdgeEvidenceKind.Unknown);
+        }
+        finally
+        {
+            await _codeGraphRepository!.DeleteProjectAsync(project);
+        }
+    }
+
+    [Fact]
     public async Task QueryNodesAsync_WithKeywordTextFilter_ReturnsKeywordNodes()
     {
         var projectContext = $"Integration.GraphRead.Keyword.{Guid.NewGuid():N}";

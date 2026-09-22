@@ -73,7 +73,30 @@ public sealed class CSharpIndexer(
 
         var callResolution = CSharpCallEdgeResolver.ResolveWithDiagnostics(nodes, edges);
         var referenceResolution = CSharpReferenceEdgeResolver.ResolveWithDiagnostics(nodes, callResolution.Edges);
-        edges = referenceResolution.Edges;
+        var nodesById = nodes.GroupBy(node => node.Id, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        edges = referenceResolution.Edges.Select(edge =>
+        {
+            var declaration = edge.RelationshipType == "Contains";
+            nodesById.TryGetValue(declaration ? edge.TargetId : edge.SourceId, out var owner);
+            var separator = edge.CallSite?.LastIndexOf(':') ?? -1;
+            var callSiteLine = separator >= 0 && int.TryParse(edge.CallSite![(separator + 1)..], out var parsedLine)
+                ? parsedLine : (int?)null;
+            var details = edge.EvidenceDetails is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(edge.EvidenceDetails, StringComparer.Ordinal);
+            if (owner?.Properties?.GetValueOrDefault("fileRole") is { } fileRole && details.Count < 8)
+                details["fileRole"] = fileRole;
+            return edge with
+            {
+                EvidenceKind = edge.EvidenceKind ?? (declaration ? "extracted" : "inferred"),
+                EvidenceReason = edge.EvidenceReason ?? (declaration ? "syntax_declaration" : "syntax_relationship"),
+                Resolver = edge.Resolver ?? "roslyn.syntax",
+                SourceFilePath = edge.SourceFilePath ?? (separator >= 0 ? edge.CallSite![..separator] : owner?.FilePath),
+                SourceLine = edge.SourceLine ?? callSiteLine ?? owner?.LineNumber,
+                EvidenceDetails = details.Count == 0 ? null : details
+            };
+        }).ToList();
         LogResolutionSummary("call", callResolution, logger);
         LogResolutionSummary("type reference", referenceResolution, logger);
 
@@ -103,7 +126,12 @@ public sealed class CSharpIndexer(
             callResolution.Stats,
             referenceResolution.Stats,
             mode,
-            usedFullResolutionCatalog);
+            usedFullResolutionCatalog,
+            edges.GroupBy(edge => edge.EvidenceKind ?? "unknown", StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal),
+            edges.GroupBy(edge => string.Join('|', edge.EvidenceKind ?? "unknown", edge.Resolver ?? "unknown",
+                    edge.EvidenceReason ?? "unknown", edge.EvidenceDetails?.GetValueOrDefault("fileRole") ?? "Unknown"), StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal));
         await PersistIndexRunAsync(client, logger, projectContext, stats, cancellationToken);
         return stats;
     }
@@ -120,6 +148,8 @@ public sealed class CSharpIndexer(
         {
             ["externalKind"] = "IndexRun",
             ["relationshipHealthSchemaVersion"] = "2",
+            ["edgeEvidenceCounts"] = JsonSerializer.Serialize(stats.EdgeEvidenceCounts),
+            ["edgeEvidenceGroups"] = JsonSerializer.Serialize(stats.EdgeEvidenceGroups),
             ["language"] = "CSharp",
             ["resolutionScope"] = "project",
             ["mode"] = stats.Mode,

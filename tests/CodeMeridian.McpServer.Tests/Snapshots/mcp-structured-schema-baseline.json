@@ -2,124 +2,290 @@
   {
     "name": "answer_change_context_challenge",
     "required": [
-      "contractVersion", "challengeId", "isCorrect", "halted", "canRetry",
-      "attempt", "state", "selectedChoiceIds", "feedback"
+      "contractVersion",
+      "challengeId",
+      "isCorrect",
+      "halted",
+      "canRetry",
+      "attempt",
+      "state",
+      "selectedChoiceIds",
+      "feedback"
     ],
     "properties": [
-      "contractVersion", "challengeId", "isCorrect", "halted", "canRetry",
-      "attempt", "state", "selectedChoiceIds", "feedback"
+      "contractVersion",
+      "challengeId",
+      "isCorrect",
+      "halted",
+      "canRetry",
+      "attempt",
+      "state",
+      "selectedChoiceIds",
+      "feedback"
     ],
     "sha256": "69484718da27f7659cec61a4a0aebf73ba13e769178ded38ebe9db1c8f0015e7"
   },
   {
     "name": "build_minimal_context",
     "required": [
-      "contractVersion", "requestedTarget", "goal", "targetFound", "target",
-      "detailLevel", "includeTests", "includeExternalConcepts", "includeSourceSnippets",
-      "explainPaths", "relationshipCompleteness", "budget", "callers", "callees",
-      "interfaces", "impact", "downstream", "coverageGaps", "tests",
-      "suggestedTestCommand", "files", "explainedFiles", "snippets", "degradations",
+      "contractVersion",
+      "requestedTarget",
+      "goal",
+      "targetFound",
+      "target",
+      "detailLevel",
+      "includeTests",
+      "includeExternalConcepts",
+      "includeSourceSnippets",
+      "explainPaths",
+      "relationshipCompleteness",
+      "budget",
+      "callers",
+      "callees",
+      "interfaces",
+      "impact",
+      "downstream",
+      "coverageGaps",
+      "tests",
+      "suggestedTestCommand",
+      "files",
+      "explainedFiles",
+      "snippets",
+      "degradations",
       "truncation"
     ],
     "properties": [
-      "contractVersion", "requestedTarget", "goal", "targetFound", "target",
-      "detailLevel", "includeTests", "includeExternalConcepts", "includeSourceSnippets",
-      "explainPaths", "relationshipCompleteness", "budget", "callers", "callees",
-      "interfaces", "impact", "downstream", "coverageGaps", "tests",
-      "suggestedTestCommand", "files", "explainedFiles", "snippets", "degradations",
+      "contractVersion",
+      "requestedTarget",
+      "goal",
+      "targetFound",
+      "target",
+      "detailLevel",
+      "includeTests",
+      "includeExternalConcepts",
+      "includeSourceSnippets",
+      "explainPaths",
+      "relationshipCompleteness",
+      "budget",
+      "callers",
+      "callees",
+      "interfaces",
+      "impact",
+      "downstream",
+      "coverageGaps",
+      "tests",
+      "suggestedTestCommand",
+      "files",
+      "explainedFiles",
+      "snippets",
+      "degradations",
       "truncation"
     ],
-    "sha256": "de43f4b092da7abccc4c4cf6565665369bbeadcd3953d8953acdc36bdc86692c"
+    "sha256": "e61f8ad18fade85d9f32c156b9c3a0f34f0c0c95ca0834240ca9ee3b350bffae"
   },
   {
     "name": "check_graph_freshness",
     "required": [
-      "contractVersion", "projectContext", "query", "nodesFound", "highConfidenceCount",
-      "mediumConfidenceCount", "lowConfidenceCount", "relationshipCompleteness", "findings",
-      "findingsTruncated", "projectHint"
+      "contractVersion",
+      "projectContext",
+      "query",
+      "nodesFound",
+      "highConfidenceCount",
+      "mediumConfidenceCount",
+      "lowConfidenceCount",
+      "relationshipCompleteness",
+      "findings",
+      "findingsTruncated",
+      "projectHint"
     ],
     "properties": [
-      "contractVersion", "projectContext", "query", "nodesFound", "highConfidenceCount",
-      "mediumConfidenceCount", "lowConfidenceCount", "relationshipCompleteness", "findings",
-      "findingsTruncated", "projectHint"
+      "contractVersion",
+      "projectContext",
+      "query",
+      "nodesFound",
+      "highConfidenceCount",
+      "mediumConfidenceCount",
+      "lowConfidenceCount",
+      "relationshipCompleteness",
+      "findings",
+      "findingsTruncated",
+      "projectHint"
     ],
-    "sha256": "be0779b7b2eeb6c6c0c84a39e751c2f1722dd4842d1ec4e167236739aef52ac3"
+    "sha256": "e4ef70b6897cb3e66609156bcf6a17316eb4541f88f5a27fc992d1cd9a18d279"
   },
   {
     "name": "find_connection",
     "required": [
-      "contractVersion", "fromId", "toId", "maxHops", "pathFound", "hopCount",
-      "truncated", "nodes", "edges", "frontendSignals"
+      "contractVersion",
+      "fromId",
+      "toId",
+      "maxHops",
+      "pathFound",
+      "hopCount",
+      "truncated",
+      "nodes",
+      "edges",
+      "frontendSignals"
     ],
     "properties": [
-      "contractVersion", "fromId", "toId", "maxHops", "pathFound", "hopCount",
-      "truncated", "nodes", "edges", "frontendSignals"
+      "contractVersion",
+      "fromId",
+      "toId",
+      "maxHops",
+      "pathFound",
+      "hopCount",
+      "truncated",
+      "nodes",
+      "edges",
+      "frontendSignals"
     ],
-    "sha256": "85f779fae6b2c6ebf51231468443297bc9e4d964665bea47d5d49f5581e73f78"
+    "sha256": "737b0a7e02d5dd737a176b6744198df45c7f695b556700199e5daa3f19f812ad"
   },
   {
     "name": "find_impact",
     "required": [
-      "contractVersion", "targetId", "maxDepth", "impactFound", "classLikeTarget",
-      "overallConfidence", "relationshipCompleteness", "findings", "truncated"
+      "contractVersion",
+      "targetId",
+      "maxDepth",
+      "impactFound",
+      "classLikeTarget",
+      "overallConfidence",
+      "relationshipCompleteness",
+      "findings",
+      "truncated"
     ],
     "properties": [
-      "contractVersion", "targetId", "maxDepth", "impactFound", "classLikeTarget",
-      "overallConfidence", "relationshipCompleteness", "findings", "truncated"
+      "contractVersion",
+      "targetId",
+      "maxDepth",
+      "impactFound",
+      "classLikeTarget",
+      "overallConfidence",
+      "relationshipCompleteness",
+      "findings",
+      "truncated"
     ],
-    "sha256": "e21ec03e63998df3ea72c86459615ae504a3940c49feb4089ee73709f9eea790"
+    "sha256": "2df1cec67ff3965f059a5461ff3413c2fe9ae075cdb9d308882d37414849a65a"
   },
   {
     "name": "find_test_shield",
     "required": [
-      "contractVersion", "requestedNodeId", "projectContext", "pathDepth", "targetFound",
-      "target", "relationshipCompleteness", "directTests", "primaryTests", "secondaryTests",
-      "focusedRecommendations", "unshieldedNodes", "suggestedTestCommand", "truncated"
+      "contractVersion",
+      "requestedNodeId",
+      "projectContext",
+      "pathDepth",
+      "targetFound",
+      "target",
+      "relationshipCompleteness",
+      "directTests",
+      "primaryTests",
+      "secondaryTests",
+      "focusedRecommendations",
+      "unshieldedNodes",
+      "suggestedTestCommand",
+      "truncated"
     ],
     "properties": [
-      "contractVersion", "requestedNodeId", "projectContext", "pathDepth", "targetFound",
-      "target", "relationshipCompleteness", "directTests", "primaryTests", "secondaryTests",
-      "focusedRecommendations", "unshieldedNodes", "suggestedTestCommand", "truncated"
+      "contractVersion",
+      "requestedNodeId",
+      "projectContext",
+      "pathDepth",
+      "targetFound",
+      "target",
+      "relationshipCompleteness",
+      "directTests",
+      "primaryTests",
+      "secondaryTests",
+      "focusedRecommendations",
+      "unshieldedNodes",
+      "suggestedTestCommand",
+      "truncated"
     ],
-    "sha256": "c6a3265942debcbcaa54c57b3ba3a9111ad33c17780aee5e421346af821e254a"
+    "sha256": "21cd04a153c84cf4d12cac847d552629258b92224a57b32b761adcf82e25453a"
   },
   {
     "name": "get_change_context",
     "required": [
-      "contractVersion", "nodeId", "targetFound", "items", "truncated", "trustNotice"
+      "contractVersion",
+      "nodeId",
+      "targetFound",
+      "items",
+      "truncated",
+      "trustNotice"
     ],
     "properties": [
-      "contractVersion", "nodeId", "targetFound", "items", "truncated", "trustNotice"
+      "contractVersion",
+      "nodeId",
+      "targetFound",
+      "items",
+      "truncated",
+      "trustNotice"
     ],
     "sha256": "86d8ce310f1ae2d7638ee97583c83a4b963914cd7900119912e99823e47704b3"
   },
   {
     "name": "get_client_extension_contract",
     "required": [
-      "version", "extensionOwnership", "graphQlEndpointPath", "authRequirement",
-      "supportedAuthHeaders", "supportedAuthHeaderFormats", "defaultPageSize", "maxPageSize",
-      "maxTraversalDepth", "maxAllowedFields", "maxAllowedRecursionDepth",
-      "executionTimeoutSeconds", "supportedNodeSortFields", "supportedRelationshipSortFields",
-      "documentationPaths", "exampleIds"
+      "version",
+      "extensionOwnership",
+      "graphQlEndpointPath",
+      "authRequirement",
+      "supportedAuthHeaders",
+      "supportedAuthHeaderFormats",
+      "defaultPageSize",
+      "maxPageSize",
+      "maxTraversalDepth",
+      "maxAllowedFields",
+      "maxAllowedRecursionDepth",
+      "executionTimeoutSeconds",
+      "supportedNodeSortFields",
+      "supportedRelationshipSortFields",
+      "documentationPaths",
+      "exampleIds"
     ],
     "properties": [
-      "version", "extensionOwnership", "graphQlEndpointPath", "authRequirement",
-      "supportedAuthHeaders", "supportedAuthHeaderFormats", "defaultPageSize", "maxPageSize",
-      "maxTraversalDepth", "maxAllowedFields", "maxAllowedRecursionDepth",
-      "executionTimeoutSeconds", "supportedNodeSortFields", "supportedRelationshipSortFields",
-      "documentationPaths", "exampleIds"
+      "version",
+      "extensionOwnership",
+      "graphQlEndpointPath",
+      "authRequirement",
+      "supportedAuthHeaders",
+      "supportedAuthHeaderFormats",
+      "defaultPageSize",
+      "maxPageSize",
+      "maxTraversalDepth",
+      "maxAllowedFields",
+      "maxAllowedRecursionDepth",
+      "executionTimeoutSeconds",
+      "supportedNodeSortFields",
+      "supportedRelationshipSortFields",
+      "documentationPaths",
+      "exampleIds"
     ],
     "sha256": "a18d127d32a24e985a8bf2a4b16801e7711290321e807302e5bb235ff7eef864"
   },
   {
     "name": "get_client_extension_example",
     "required": [
-      "id", "name", "description", "goal", "graphQlDocumentPath", "graphQlDocument",
-      "variablesTemplate", "expectedResultShape", "notes"
+      "id",
+      "name",
+      "description",
+      "goal",
+      "graphQlDocumentPath",
+      "graphQlDocument",
+      "variablesTemplate",
+      "expectedResultShape",
+      "notes"
     ],
     "properties": [
-      "id", "name", "description", "goal", "graphQlDocumentPath", "graphQlDocument",
-      "variablesTemplate", "expectedResultShape", "notes"
+      "id",
+      "name",
+      "description",
+      "goal",
+      "graphQlDocumentPath",
+      "graphQlDocument",
+      "variablesTemplate",
+      "expectedResultShape",
+      "notes"
     ],
     "sha256": "4ba166a3fa3b83de30d2040d101842548d22666f729ef827531b035195357dfe"
   },
@@ -132,24 +298,50 @@
   {
     "name": "record_change_context_challenge_note",
     "required": [
-      "contractVersion", "challengeId", "contextId", "nodeId", "contextKind",
-      "provenance", "status"
+      "contractVersion",
+      "challengeId",
+      "contextId",
+      "nodeId",
+      "contextKind",
+      "provenance",
+      "status"
     ],
     "properties": [
-      "contractVersion", "challengeId", "contextId", "nodeId", "contextKind",
-      "provenance", "status"
+      "contractVersion",
+      "challengeId",
+      "contextId",
+      "nodeId",
+      "contextKind",
+      "provenance",
+      "status"
     ],
     "sha256": "82d3351430ef419a60a5ab0c2ae4db2cee409e94008f517bd6301ae6869657f8"
   },
   {
     "name": "start_change_context_challenge",
     "required": [
-      "contractVersion", "challengeId", "nodeId", "question", "requiredSelectionCount",
-      "choices", "attempt", "state", "expiresAt", "trustNotice"
+      "contractVersion",
+      "challengeId",
+      "nodeId",
+      "question",
+      "requiredSelectionCount",
+      "choices",
+      "attempt",
+      "state",
+      "expiresAt",
+      "trustNotice"
     ],
     "properties": [
-      "contractVersion", "challengeId", "nodeId", "question", "requiredSelectionCount",
-      "choices", "attempt", "state", "expiresAt", "trustNotice"
+      "contractVersion",
+      "challengeId",
+      "nodeId",
+      "question",
+      "requiredSelectionCount",
+      "choices",
+      "attempt",
+      "state",
+      "expiresAt",
+      "trustNotice"
     ],
     "sha256": "83c3a97f9393cd42ebbc4b56979a3ecd229ca225efd16741d85e3310c4538967"
   }

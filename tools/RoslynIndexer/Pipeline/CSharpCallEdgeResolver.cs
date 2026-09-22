@@ -106,7 +106,13 @@ internal static class CSharpCallEdgeResolver
                     .ToArray();
                 if (target.Length == 1)
                 {
-                    var resolvedEdge = edge with { TargetId = target[0].Id };
+                    var resolvedEdge = edge with
+                    {
+                        TargetId = target[0].Id,
+                        EvidenceKind = "extracted",
+                        EvidenceReason = "roslyn_symbol",
+                        Resolver = "roslyn.semantic"
+                    };
                     outcomes.RecordResolved(source, resolvedEdge);
                     resolved.Add(resolvedEdge);
                 }
@@ -208,7 +214,13 @@ internal static class CSharpCallEdgeResolver
                 var testSubject = SelectTestSubjectMatch(source, compatibleCandidates);
                 if (testSubject is not null)
                 {
-                    var resolvedEdge = edge with { TargetId = testSubject.Id };
+                    var resolvedEdge = edge with
+                    {
+                        TargetId = testSubject.Id,
+                        EvidenceKind = "inferred",
+                        EvidenceReason = "test_subject_fallback",
+                        Resolver = "roslyn.syntax"
+                    };
                     outcomes.RecordResolved(source, resolvedEdge);
                     resolved.Add(resolvedEdge);
                 }
@@ -227,7 +239,13 @@ internal static class CSharpCallEdgeResolver
                 localTypeHierarchy);
             if (selected is not null)
             {
-                var resolvedEdge = edge with { TargetId = selected.Id };
+                var resolvedEdge = edge with
+                {
+                    TargetId = selected.Id,
+                    EvidenceKind = "inferred",
+                    EvidenceReason = "name_arity_fallback",
+                    Resolver = "roslyn.syntax"
+                };
                 outcomes.RecordResolved(source, resolvedEdge);
                 resolved.Add(resolvedEdge);
             }

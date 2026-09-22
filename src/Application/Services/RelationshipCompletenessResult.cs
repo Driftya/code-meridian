@@ -12,7 +12,8 @@ public sealed record RelationshipCompletenessResult(
     int IndeterminateCount,
     int DuplicateCount,
     int SyntheticCount,
-    IReadOnlyList<string> Samples)
+    IReadOnlyList<string> Samples,
+    IReadOnlyDictionary<string, long>? EvidenceCounts = null)
 {
     internal void AppendWarning(StringBuilder builder)
     {
@@ -30,14 +31,17 @@ public sealed record RelationshipCompletenessResult(
 
     internal void AppendEvidence(StringBuilder builder)
     {
-        if (Confidence == "Unknown")
+        if (Confidence == "Unknown" && EvidenceCounts is not { Count: > 0 })
             return;
 
-        builder.AppendLine(
-            $"**Relationship outcomes:** {UnresolvedLocalCount} unresolved local, "
-            + $"{IndeterminateCount} indeterminate, {ExternalOrUnindexedCount} external/unindexed, "
-            + $"{DuplicateCount} duplicate candidate(s), {SyntheticCount} synthetic edge(s)");
+        if (Confidence != "Unknown")
+            builder.AppendLine(
+                $"**Relationship outcomes:** {UnresolvedLocalCount} unresolved local, "
+                + $"{IndeterminateCount} indeterminate, {ExternalOrUnindexedCount} external/unindexed, "
+                + $"{DuplicateCount} duplicate candidate(s), {SyntheticCount} synthetic edge(s)");
         if (Samples.Count > 0)
             builder.AppendLine($"**Relationship failure samples:** {string.Join("; ", Samples)}");
+        if (EvidenceCounts is { Count: > 0 })
+            builder.AppendLine($"**Persisted edge evidence:** {string.Join(", ", EvidenceCounts.OrderBy(item => item.Key, StringComparer.Ordinal).Select(item => $"{item.Key}={item.Value}"))}");
     }
 }

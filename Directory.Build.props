@@ -18,7 +18,7 @@
     <FileVersion>$(VersionPrefix).0</FileVersion>
     <InformationalVersion>$(Version)</InformationalVersion>
 
-    <CodeMeridianGraphContractVersion Condition="'$(CodeMeridianGraphContractVersion)' == ''">5</CodeMeridianGraphContractVersion>
+    <CodeMeridianGraphContractVersion Condition="'$(CodeMeridianGraphContractVersion)' == ''">6</CodeMeridianGraphContractVersion>
     <CodeMeridianCacheVersion Condition="'$(CodeMeridianCacheVersion)' == ''">4</CodeMeridianCacheVersion>
   </PropertyGroup>
 

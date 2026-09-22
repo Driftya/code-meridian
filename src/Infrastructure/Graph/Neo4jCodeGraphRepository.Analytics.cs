@@ -278,7 +278,7 @@ public sealed partial class Neo4jCodeGraphRepository
                      path,
                      length(path) AS rawDist,
                      [n IN nodes(path) | n] AS pathNodes,
-                     [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                     [r IN relationships(path) | { type: type(r), confidence: r.confidence, evidenceKind: r.evidenceKind, evidenceReason: r.evidenceReason, resolver: r.resolver, sourceFilePath: r.sourceFilePath, sourceLine: r.sourceLine, sourceColumn: r.sourceColumn, sourceEndLine: r.sourceEndLine, sourceEndColumn: r.sourceEndColumn }] AS pathRelationships
                 ORDER BY caller.id, rawDist ASC
                 WITH target,
                      targetNode,
@@ -335,7 +335,7 @@ public sealed partial class Neo4jCodeGraphRepository
                      path,
                      length(path) AS rawDist,
                      [n IN nodes(path) | n] AS pathNodes,
-                     [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                     [r IN relationships(path) | { type: type(r), confidence: r.confidence, evidenceKind: r.evidenceKind, evidenceReason: r.evidenceReason, resolver: r.resolver, sourceFilePath: r.sourceFilePath, sourceLine: r.sourceLine, sourceColumn: r.sourceColumn, sourceEndLine: r.sourceEndLine, sourceEndColumn: r.sourceEndColumn }] AS pathRelationships
                 ORDER BY caller.id, rawDist ASC
                 WITH target,
                      implementationRel,
@@ -376,7 +376,7 @@ public sealed partial class Neo4jCodeGraphRepository
                      path,
                      length(path) AS rawDist,
                      [n IN nodes(path) | n] AS pathNodes,
-                     [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                     [r IN relationships(path) | { type: type(r), confidence: r.confidence, evidenceKind: r.evidenceKind, evidenceReason: r.evidenceReason, resolver: r.resolver, sourceFilePath: r.sourceFilePath, sourceLine: r.sourceLine, sourceColumn: r.sourceColumn, sourceEndLine: r.sourceEndLine, sourceEndColumn: r.sourceEndColumn }] AS pathRelationships
                 ORDER BY caller.id, rawDist ASC
                 WITH target,
                      implementer,
@@ -417,7 +417,7 @@ public sealed partial class Neo4jCodeGraphRepository
                      path,
                      length(path) AS rawDist,
                      [n IN nodes(path) | n] AS pathNodes,
-                     [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                     [r IN relationships(path) | { type: type(r), confidence: r.confidence, evidenceKind: r.evidenceKind, evidenceReason: r.evidenceReason, resolver: r.resolver, sourceFilePath: r.sourceFilePath, sourceLine: r.sourceLine, sourceColumn: r.sourceColumn, sourceEndLine: r.sourceEndLine, sourceEndColumn: r.sourceEndColumn }] AS pathRelationships
                 ORDER BY caller.id, rawDist ASC
                 WITH target,
                      implementationRel,
@@ -458,7 +458,7 @@ public sealed partial class Neo4jCodeGraphRepository
                      path,
                      length(path) AS rawDist,
                      [n IN nodes(path) | n] AS pathNodes,
-                     [r IN relationships(path) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                     [r IN relationships(path) | { type: type(r), confidence: r.confidence, evidenceKind: r.evidenceKind, evidenceReason: r.evidenceReason, resolver: r.resolver, sourceFilePath: r.sourceFilePath, sourceLine: r.sourceLine, sourceColumn: r.sourceColumn, sourceEndLine: r.sourceEndLine, sourceEndColumn: r.sourceEndColumn }] AS pathRelationships
                 ORDER BY caller.id, rawDist ASC
                 WITH target,
                      abstraction,
@@ -582,7 +582,7 @@ public sealed partial class Neo4jCodeGraphRepository
         return results;
     }
 
-    public async Task<IReadOnlyList<(CodeNode Node, string? ViaRelationship)>> FindConnectionAsync(
+    public async Task<IReadOnlyList<GraphPathStep>> FindConnectionAsync(
         string fromId,
         string toId,
         CancellationToken cancellationToken = default)
@@ -595,7 +595,7 @@ public sealed partial class Neo4jCodeGraphRepository
             + ConnectionRelationships +
             "*..10]-(b:CodeNode {id: $toId})) " +
             "RETURN [n IN nodes(path) | n] AS pathNodes, " +
-            "[r IN relationships(path) | type(r)] AS relTypes";
+            "[r IN relationships(path) | { type: type(r), confidence: r.confidence, evidenceKind: r.evidenceKind, evidenceReason: r.evidenceReason, resolver: r.resolver, sourceFilePath: r.sourceFilePath, sourceLine: r.sourceLine, sourceColumn: r.sourceColumn, sourceEndLine: r.sourceEndLine, sourceEndColumn: r.sourceEndColumn }] AS pathRelationships";
 
         var cursor = await session.RunAsync(cypher, new { fromId, toId });
         var records = await cursor.ToListAsync();
@@ -604,13 +604,16 @@ public sealed partial class Neo4jCodeGraphRepository
 
         var record = records[0];
         var pathNodes = record["pathNodes"].As<List<INode>>();
-        var relTypes = record["relTypes"].As<List<string>>();
+        var pathRelationships = record["pathRelationships"].As<List<object>>();
 
-        var result = new List<(CodeNode, string?)>();
+        var result = new List<GraphPathStep>();
         for (var i = 0; i < pathNodes.Count; i++)
         {
-            var via = i < relTypes.Count ? relTypes[i] : null;
-            result.Add((MapToCodeNode(pathNodes[i]), via));
+            var rel = i < pathRelationships.Count ? pathRelationships[i] as IDictionary<string, object> : null;
+            var type = rel is not null && rel.TryGetValue("type", out var typeValue) ? typeValue?.ToString() : null;
+            var confidence = rel is not null && rel.TryGetValue("confidence", out var raw) && raw is not null
+                && double.TryParse(raw.ToString(), out var parsed) ? parsed : (double?)null;
+            result.Add(MapPathStep(MapToCodeNode(pathNodes[i]), type, confidence, rel));
         }
 
         return result;
@@ -873,10 +876,8 @@ public sealed partial class Neo4jCodeGraphRepository
                 ? annotatedCaller
                 : MapToCodeNode(pathNodes[i]);
 
-            steps.Add(new GraphPathStep(
-                node,
-                relationshipType,
-                relationshipConfidence));
+            steps.Add(MapPathStep(node, relationshipType, relationshipConfidence,
+                i < pathRelationships.Count ? pathRelationships[i] as IDictionary<string, object> : null));
         }
 
         return steps;
@@ -1027,7 +1028,7 @@ public sealed partial class Neo4jCodeGraphRepository
                    target,
                    dist,
                    [n IN nodes(shortestPath) | n] AS pathNodes,
-                   [r IN relationships(shortestPath) | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                   [r IN relationships(shortestPath) | { type: type(r), confidence: r.confidence, evidenceKind: r.evidenceKind, evidenceReason: r.evidenceReason, resolver: r.resolver, sourceFilePath: r.sourceFilePath, sourceLine: r.sourceLine, sourceColumn: r.sourceColumn, sourceEndLine: r.sourceEndLine, sourceEndColumn: r.sourceEndColumn }] AS pathRelationships
             ORDER BY dist ASC, violation, source.name, target.name
             LIMIT 50
             """;
@@ -1072,10 +1073,8 @@ public sealed partial class Neo4jCodeGraphRepository
                     }
                 }
 
-                steps.Add(new GraphPathStep(
-                    MapToCodeNode(pathNodes[i]),
-                    relationshipType,
-                    relationshipConfidence));
+                steps.Add(MapPathStep(MapToCodeNode(pathNodes[i]), relationshipType, relationshipConfidence,
+                    i < pathRelationships.Count ? pathRelationships[i] as IDictionary<string, object> : null));
             }
 
             results.Add(new DependencySmellPath(

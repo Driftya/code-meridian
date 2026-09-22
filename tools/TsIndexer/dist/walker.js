@@ -73,11 +73,32 @@ export function walkTypeScript(rootPath, projectName, files, resolveFileRole, da
         collectConfigurationNodes(sourceFile, rootPath, projectName, nodes, emittedKnownIds, resolveFileRole);
         collectDatabaseTracingNodes(sourceFile, rootPath, projectName, nodes, emittedKnownIds, tracingOptions, resolveFileRole);
     }
+    // Health describes the resolution scope, not just the incremental emission batch.
+    // Otherwise editing one clean file can hide failures in every unchanged file.
+    for (const sourceFile of loadFullResolutionCatalog ? sourceFiles : emittedSourceFiles) {
+        const fileEdges = [];
+        collectEdges(sourceFile, rootPath, projectName, catalogNodes, fileEdges, catalogKnownIds, methodIndex, callOutcomes, typeReferenceOutcomes, workspaceRootPath);
+        if (emittedFilePaths.has(normalizeFilePath(sourceFile.getFilePath()).toLowerCase())) {
+            edges.push(...fileEdges);
+        }
+    }
     for (const sourceFile of emittedSourceFiles) {
-        collectEdges(sourceFile, rootPath, projectName, catalogNodes, edges, catalogKnownIds, methodIndex, callOutcomes, typeReferenceOutcomes, workspaceRootPath);
         collectRouteEdges(sourceFile, rootPath, projectName, edges, catalogKnownIds);
         collectConfigurationEdges(sourceFile, rootPath, projectName, edges);
         collectDatabaseTracingEdges(sourceFile, rootPath, projectName, edges, tracingOptions);
+    }
+    const nodesById = new Map(nodes.map(node => [node.id, node]));
+    for (const edge of edges) {
+        const declaration = edge.type === 'Contains';
+        edge.evidenceKind ??= declaration ? 'extracted' : 'inferred';
+        edge.evidenceReason ??= declaration ? 'syntax_declaration' : edge.type === 'Calls' ? 'route_match' : 'syntax_relationship';
+        edge.resolver ??= 'ts-morph.syntax';
+        const location = edge.callSite?.match(/^(.*):(\d+)$/);
+        const owner = nodesById.get(declaration ? edge.targetId : edge.sourceId);
+        edge.sourceFilePath ??= location?.[1] ?? owner?.filePath;
+        edge.sourceLine ??= location ? Number(location[2]) : owner?.lineNumber;
+        if (owner?.fileRole)
+            edge.evidenceDetails = { ...edge.evidenceDetails, fileRole: owner.fileRole };
     }
     return {
         nodes,

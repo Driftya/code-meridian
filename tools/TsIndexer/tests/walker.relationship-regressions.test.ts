@@ -12,12 +12,12 @@ describe('relationship resolution regressions', () => {
       export function second() { function helper() {} helper(); }
     `);
     const result = walk();
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:nested.ts:first', targetId: 'Proj:Method:nested.ts:first.helper', type: 'Calls',
-    });
-    expect(result.edges).toContainEqual({
+    }));
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:nested.ts:second', targetId: 'Proj:Method:nested.ts:second.helper', type: 'Calls',
-    });
+    }));
     expect(result.relationshipHealth.calls.unresolvedLocal).toBe(0);
   });
 
@@ -29,9 +29,9 @@ describe('relationship resolution regressions', () => {
       }
     `);
     const result = walk();
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:nested.ts:run', targetId: 'Proj:Method:nested.ts:run.worker', type: 'Calls',
-    });
+    }));
     expect(result.relationshipHealth.calls.unresolvedLocal).toBe(0);
     expect(result.relationshipHealth.calls.reasons).toHaveProperty('indeterminate:callable_property');
   });
@@ -42,9 +42,9 @@ describe('relationship resolution regressions', () => {
       export function run() { const worker = () => target(); }
     `);
     const calls = walk().edges.filter(edge => edge.type === 'Calls');
-    expect(calls).toContainEqual({
+    expect(calls).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:nested.ts:run.worker', targetId: 'Proj:Method:nested.ts:target', type: 'Calls',
-    });
+    }));
     expect(calls.some(edge => edge.sourceId === 'Proj:Method:nested.ts:run')).toBe(false);
   });
 
@@ -93,9 +93,9 @@ describe('relationship resolution regressions', () => {
       import { Service as Contract } from './b';
       export class Consumer implements Contract { run() {} }
     `);
-    expect(walk().edges).toContainEqual({
+    expect(walk().edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Class:consumer.ts:Consumer', targetId: 'Proj:Interface:b.ts:Service', type: 'Implements',
-    });
+    }));
   });
 
   it('resolves interface methods through element access', () => {
@@ -103,9 +103,9 @@ describe('relationship resolution regressions', () => {
       interface Contract { run(): void; }
       export function execute(client: Contract) { client['run'](); }
     `);
-    expect(walk().edges).toContainEqual({
+    expect(walk().edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:Method:contract.ts:execute', targetId: 'Proj:Method:contract.ts:Contract.run', type: 'Calls',
-    });
+    }));
   });
 
   it('retains the member name after a generic call earlier in a chain', () => {

@@ -437,7 +437,8 @@ function addCallEdges(
     const symbolTargetId = resolveCallTargetId(projectName, rootPath, call, knownIds);
     if (symbolTargetId && symbolTargetId !== sourceId) {
       if (outcomes.recordResolved(relationshipEdgeKey(sourceId, symbolTargetId, 'Calls'))) {
-        edges.push({ sourceId, targetId: symbolTargetId, type: 'Calls' });
+        edges.push({ sourceId, targetId: symbolTargetId, type: 'Calls',
+          ...edgeEvidence(call, source.filePath, 'extracted', 'ts_symbol', 'ts-morph.symbol') });
       }
       continue;
     }
@@ -456,7 +457,8 @@ function addCallEdges(
     const targetId = selectCallTarget(call, candidates, source, calleeName);
     if (targetId && targetId !== sourceId) {
       if (outcomes.recordResolved(relationshipEdgeKey(sourceId, targetId, 'Calls'))) {
-        edges.push({ sourceId, targetId, type: 'Calls' });
+        edges.push({ sourceId, targetId, type: 'Calls',
+          ...edgeEvidence(call, source.filePath, 'inferred', 'syntax_fallback', 'ts-morph.syntax') });
       }
       continue;
     }
@@ -468,6 +470,29 @@ function addCallEdges(
     const classification = classifyUnresolvedCall(call, relationshipScopePath, candidates.length > 0);
     outcomes.record(classification.disposition, classification.reason, relationshipSample(call, sourceId, source.filePath, calleeName, source.fileRole));
   }
+}
+
+function edgeEvidence(
+  node: Node,
+  filePath: string,
+  kind: 'extracted' | 'inferred',
+  reason: string,
+  resolver: string,
+): Pick<CodeEdgeDto, 'evidenceKind' | 'evidenceReason' | 'resolver' | 'sourceFilePath'
+  | 'sourceLine' | 'sourceColumn' | 'sourceEndLine' | 'sourceEndColumn'> {
+  const sourceFile = node.getSourceFile();
+  const start = sourceFile.getLineAndColumnAtPos(node.getStart());
+  const end = sourceFile.getLineAndColumnAtPos(node.getEnd());
+  return {
+    evidenceKind: kind,
+    evidenceReason: reason,
+    resolver,
+    sourceFilePath: filePath,
+    sourceLine: start.line,
+    sourceColumn: start.column,
+    sourceEndLine: end.line,
+    sourceEndColumn: end.column,
+  };
 }
 
 function resolveCallTargetId(
@@ -642,7 +667,8 @@ function addTypeUseEdges(
     const targetId = resolveTypeReference(projectName, rootPath, relPath, typeRef, knownIds);
     if (targetId && targetId !== sourceId) {
       if (outcomes.recordResolved(relationshipEdgeKey(sourceId, targetId, 'Uses'))) {
-        edges.push({ sourceId, targetId, type: 'Uses' });
+        edges.push({ sourceId, targetId, type: 'Uses',
+          ...edgeEvidence(typeRef, relPath, 'extracted', 'ts_symbol', 'ts-morph.symbol') });
       }
       continue;
     }
@@ -1046,12 +1072,24 @@ function relationshipSample(
   lineNumber: number;
   targetName?: string;
   receiverShape?: string;
+  evidenceKind: 'ambiguous';
+  resolver: string;
+  sourceColumn: number;
+  sourceEndLine: number;
+  sourceEndColumn: number;
 } {
+  const start = node.getSourceFile().getLineAndColumnAtPos(node.getStart());
+  const end = node.getSourceFile().getLineAndColumnAtPos(node.getEnd());
   return {
     sourceId,
     filePath,
     ...(fileRole ? { fileRole } : {}),
-    lineNumber: node.getStartLineNumber(),
+    lineNumber: start.line,
+    sourceColumn: start.column,
+    sourceEndLine: end.line,
+    sourceEndColumn: end.column,
+    evidenceKind: 'ambiguous',
+    resolver: 'ts-morph.syntax',
     ...(targetName ? { targetName } : {}),
     ...(node.getKind() === SyntaxKind.CallExpression
       ? { receiverShape: node.asKindOrThrow(SyntaxKind.CallExpression).getExpression().getKindName() }

@@ -242,6 +242,10 @@ public sealed class CSharpInvocationEvidenceTests
 
         call.Properties.Should().Contain("receiverKind", "UnknownMember");
         call.Properties.Should().NotContainKey("receiverTypeHint");
+        call.SourceFilePath.Should().Be("src/InvocationFixture.cs");
+        call.SourceLine.Should().BePositive();
+        call.SourceColumn.Should().BePositive();
+        call.SourceEndLine.Should().BeGreaterThanOrEqualTo(call.SourceLine!.Value);
     }
 
     private static IngestEdgeRequest[] ExtractCalls(string source)

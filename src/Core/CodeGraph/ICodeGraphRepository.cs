@@ -15,6 +15,7 @@ public interface ICodeGraphRepository
     Task<long> CountCodeNodesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<long> CountEmbeddedCodeNodesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<long> CountCallEdgesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<EdgeEvidenceKind, long>> CountEdgeEvidenceAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<long> CountDiagnosticsAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<string>> GetProjectContextsAsync(string? search = null, CancellationToken cancellationToken = default);
 
@@ -28,7 +29,7 @@ public interface ICodeGraphRepository
     Task<IReadOnlyList<(CodeNode Node, int FanIn)>> FindHotspotsAsync(string? projectContext, int limit = 15, CancellationToken cancellationToken = default);
 
     /// <summary>Returns the shortest path between two nodes, or empty if no path exists.</summary>
-    Task<IReadOnlyList<(CodeNode Node, string? ViaRelationship)>> FindConnectionAsync(string fromId, string toId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<GraphPathStep>> FindConnectionAsync(string fromId, string toId, CancellationToken cancellationToken = default);
 
     /// <summary>Returns graph-only paths from one API endpoint to downstream database tables or messaging destinations.</summary>
     Task<IReadOnlyList<EndpointTracePath>> FindEndpointTracesAsync(

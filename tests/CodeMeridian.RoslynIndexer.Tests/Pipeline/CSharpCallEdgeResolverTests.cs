@@ -28,6 +28,38 @@ public sealed class CSharpCallEdgeResolverTests
         var result = CSharpCallEdgeResolver.Resolve(nodes, edges);
 
         result.Should().ContainSingle(edge => edge.TargetId == expectedTargetId);
+        result[0].EvidenceKind.Should().Be("inferred");
+        result[0].EvidenceReason.Should().Be("name_arity_fallback");
+        result[0].Resolver.Should().Be("roslyn.syntax");
+    }
+
+    [Fact]
+    public void Resolve_CompilerDeclarationEmitsSemanticEvidenceAndPreservesSpan()
+    {
+        var sourceId = "Project::Method::Demo.Worker.Caller()";
+        var targetId = "Project::Method::Demo.Worker.Target()";
+        var nodes = new List<IngestNodeRequest>
+        {
+            new(sourceId, "Caller()", "Method", "Demo", "src/Worker.cs", 2, null),
+            new(targetId, "Target()", "Method", "Demo", "src/Worker.cs", 5, null)
+        };
+        var edges = new List<IngestEdgeRequest>
+        {
+            new(sourceId, string.Empty, "Calls", CallName: "Target", ParamCount: 0,
+                Properties: new() { ["semanticTargetDeclarationPath"] = "src/Worker.cs",
+                    ["semanticTargetDeclarationLine"] = "5" },
+                SourceFilePath: "src/Worker.cs", SourceLine: 3, SourceColumn: 7,
+                SourceEndLine: 3, SourceEndColumn: 15)
+        };
+
+        var edge = CSharpCallEdgeResolver.Resolve(nodes, edges).Should().ContainSingle().Subject;
+
+        edge.TargetId.Should().Be(targetId);
+        edge.EvidenceKind.Should().Be("extracted");
+        edge.EvidenceReason.Should().Be("roslyn_symbol");
+        edge.Resolver.Should().Be("roslyn.semantic");
+        edge.SourceColumn.Should().Be(7);
+        edge.SourceEndColumn.Should().Be(15);
     }
 
     [Fact]

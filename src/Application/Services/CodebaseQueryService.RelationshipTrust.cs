@@ -13,6 +13,9 @@ public partial class CodebaseQueryService
         string? projectContext,
         CancellationToken cancellationToken)
     {
+        var persistedEvidence = (await codeGraph.CountEdgeEvidenceAsync(projectContext, cancellationToken))?
+            .ToDictionary(item => item.Key.ToString().ToLowerInvariant(), item => item.Value, StringComparer.Ordinal)
+            ?? new Dictionary<string, long>(StringComparer.Ordinal);
         var nativeRuns = await codeGraph.QueryNodesAsync(
             new CodeGraphQuery
             {
@@ -67,7 +70,8 @@ public partial class CodebaseQueryService
                 0,
                 0,
                 0,
-                []);
+                [],
+                persistedEvidence);
         }
 
         var currentRuns = parsedRuns
@@ -83,6 +87,9 @@ public partial class CodebaseQueryService
         var legacyEstimate = currentRuns.Sum(run => run.LegacyUnresolvedEstimate);
         var duplicateCount = currentRuns.Sum(run => run.DuplicateCount);
         var syntheticCount = currentRuns.Sum(run => run.SyntheticCount);
+        var evidenceCounts = currentRuns.SelectMany(run => run.EdgeEvidenceCounts)
+            .GroupBy(item => item.Key, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Value), StringComparer.Ordinal);
 
         foreach (var run in currentRuns)
         {
@@ -134,6 +141,13 @@ public partial class CodebaseQueryService
         }
 
         var evidence = $"classified {externalCount} relationship(s) as external or outside the indexed scope";
+        if (persistedEvidence.Count > 0)
+            warnings.Add("persisted edge evidence: " + string.Join(", ", persistedEvidence
+                .OrderBy(item => item.Key, StringComparer.Ordinal).Select(item => $"{item.Key}={item.Value}")));
+        if (evidenceCounts.Count > 0)
+            warnings.Add("emitted edge evidence: " + string.Join(", ", evidenceCounts
+                .OrderBy(item => item.Key, StringComparer.Ordinal)
+                .Select(item => $"{item.Key}={item.Value}")));
         if (warnings.Count == 0)
             warnings.Add($"the latest run for each language/scope used a full catalog and reported no actionable relationship failures; {evidence}");
         else
@@ -157,7 +171,8 @@ public partial class CodebaseQueryService
             indeterminateCount,
             duplicateCount,
             syntheticCount,
-            samples);
+            samples,
+            persistedEvidence);
     }
 
     private static void AppendRelationshipTrustWarning(StringBuilder builder, RelationshipTrust trust)
@@ -176,15 +191,18 @@ public partial class CodebaseQueryService
 
     private static void AppendRelationshipEvidence(StringBuilder builder, RelationshipTrust trust)
     {
-        if (trust.Confidence == "Unknown")
+        if (trust.Confidence == "Unknown" && trust.EvidenceCounts.Count == 0)
             return;
 
-        builder.AppendLine(
-            $"**Relationship outcomes:** {trust.UnresolvedLocalCount} unresolved local, "
-            + $"{trust.IndeterminateCount} indeterminate, {trust.ExternalOrUnindexedCount} external/unindexed, "
-            + $"{trust.DuplicateCount} duplicate candidate(s), {trust.SyntheticCount} synthetic edge(s)");
+        if (trust.Confidence != "Unknown")
+            builder.AppendLine(
+                $"**Relationship outcomes:** {trust.UnresolvedLocalCount} unresolved local, "
+                + $"{trust.IndeterminateCount} indeterminate, {trust.ExternalOrUnindexedCount} external/unindexed, "
+                + $"{trust.DuplicateCount} duplicate candidate(s), {trust.SyntheticCount} synthetic edge(s)");
         if (trust.Samples.Count > 0)
             builder.AppendLine($"**Relationship failure samples:** {string.Join("; ", trust.Samples)}");
+        if (trust.EvidenceCounts.Count > 0)
+            builder.AppendLine($"**Persisted edge evidence:** {string.Join(", ", trust.EvidenceCounts.OrderBy(item => item.Key, StringComparer.Ordinal).Select(item => $"{item.Key}={item.Value}"))}");
     }
 
     private static RelationshipCompletenessResult ToResult(RelationshipTrust trust) =>
@@ -198,7 +216,8 @@ public partial class CodebaseQueryService
             trust.IndeterminateCount,
             trust.DuplicateCount,
             trust.SyntheticCount,
-            trust.Samples);
+            trust.Samples,
+            trust.EvidenceCounts);
 
     private static ParsedIndexRun ParseIndexRun(CodeNode node)
     {
@@ -229,6 +248,7 @@ public partial class CodebaseQueryService
             schemaVersion >= 2 ? 0 : Math.Max(0, attempted - resolved),
             ReadReasonCounts(Read("callRelationshipOutcomes")),
             ReadReasonCounts(Read("referenceRelationshipOutcomes")),
+            ReadEdgeEvidenceCounts(Read("edgeEvidenceCounts")),
             ReadSamples(Read("relationshipFailureSamples")),
             node.LastIndexedAt ?? node.UpdatedAt ?? node.CreatedAt);
 
@@ -257,6 +277,8 @@ public partial class CodebaseQueryService
                     var receiverShape = ReadJsonString(element, "ReceiverKind")
                         ?? ReadJsonString(element, "receiverKind")
                         ?? ReadJsonString(element, "receiverShape");
+                    var evidenceKind = ReadJsonString(element, "EvidenceKind") ?? ReadJsonString(element, "evidenceKind");
+                    var resolver = ReadJsonString(element, "Resolver") ?? ReadJsonString(element, "resolver");
                     var line = ReadJsonInt(element, "LineNumber") ?? ReadJsonInt(element, "lineNumber");
                     var rolePrefix = fileRole switch
                     {
@@ -265,7 +287,10 @@ public partial class CodebaseQueryService
                         { Length: > 0 } => $"{fileRole.ToLowerInvariant()} ",
                         _ => string.Empty
                     };
-                    var detail = receiverShape is null ? reason : $"{reason}; receiver={receiverShape}";
+                    var detail = reason
+                        + (evidenceKind is null ? string.Empty : $"; {evidenceKind}")
+                        + (resolver is null ? string.Empty : $"; {resolver}")
+                        + (receiverShape is null ? string.Empty : $"; receiver={receiverShape}");
                     return string.IsNullOrWhiteSpace(file)
                         ? detail
                         : $"{rolePrefix}{file}{(line is > 0 ? $":{line}" : "")} ({detail})";
@@ -306,6 +331,22 @@ public partial class CodebaseQueryService
         {
             return new Dictionary<string, int>(StringComparer.Ordinal);
         }
+    }
+
+    private static IReadOnlyDictionary<string, int> ReadEdgeEvidenceCounts(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, int>();
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                ? document.RootElement.EnumerateObject()
+                    .Where(item => item.Value.ValueKind == JsonValueKind.Number
+                        && item.Value.TryGetInt32(out var value) && value >= 0)
+                    .ToDictionary(item => item.Name, item => item.Value.GetInt32(), StringComparer.Ordinal)
+                : new Dictionary<string, int>();
+        }
+        catch (JsonException) { return new Dictionary<string, int>(); }
     }
 
     private static void AppendTopReasonWarning(
@@ -390,7 +431,8 @@ public partial class CodebaseQueryService
         int IndeterminateCount,
         int DuplicateCount,
         int SyntheticCount,
-        IReadOnlyList<string> Samples);
+        IReadOnlyList<string> Samples,
+        IReadOnlyDictionary<string, long> EvidenceCounts);
 
     private sealed record ParsedIndexRun(
         string ProjectContext,
@@ -412,6 +454,7 @@ public partial class CodebaseQueryService
         int LegacyUnresolvedEstimate,
         IReadOnlyDictionary<string, int> CallReasons,
         IReadOnlyDictionary<string, int> ReferenceReasons,
+        IReadOnlyDictionary<string, int> EdgeEvidenceCounts,
         IReadOnlyList<string> Samples,
         DateTimeOffset? Timestamp);
 }

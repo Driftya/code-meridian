@@ -4,4 +4,14 @@ public sealed record ImpactPathSegmentResult(
     int Order,
     GraphNodeResult Node,
     string? RelationshipType,
-    double? RelationshipConfidence);
+    double? RelationshipConfidence)
+{
+    public string EvidenceKind { get; init; } = "unknown";
+    public string? EvidenceReason { get; init; }
+    public string? Resolver { get; init; }
+    public string? SourceFilePath { get; init; }
+    public int? SourceLine { get; init; }
+    public int? SourceColumn { get; init; }
+    public int? SourceEndLine { get; init; }
+    public int? SourceEndColumn { get; init; }
+}

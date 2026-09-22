@@ -941,7 +941,7 @@ public partial class CodebaseQueryService
         var explainedFiles = new List<ExplainedFile>(distinctCandidates.Length);
         foreach (var candidate in distinctCandidates)
         {
-            IReadOnlyList<(CodeNode Node, string? ViaRelationship)> path;
+            IReadOnlyList<GraphPathStep> path;
             if (candidate.Node.Id == target.Id)
             {
                 path = [(target, null)];
@@ -1020,14 +1020,17 @@ public partial class CodebaseQueryService
                 var confidenceSuffix = step.RelationshipConfidence.HasValue
                     ? $" {step.RelationshipConfidence.Value:F2}"
                     : string.Empty;
-                parts.Add($"-[{step.RelationshipType}{confidenceSuffix}]-");
+                var evidenceSuffix = $" {step.EvidenceKind.ToString().ToLowerInvariant()}"
+                    + (step.EvidenceReason is null ? string.Empty : $"/{step.EvidenceReason}")
+                    + (step.SourceFilePath is null ? string.Empty : $" {step.SourceFilePath}:{step.SourceLine?.ToString() ?? "?"}");
+                parts.Add($"-[{step.RelationshipType}{confidenceSuffix}{evidenceSuffix}]-");
             }
         }
 
         return string.Join(" ", parts);
     }
 
-    private static string FormatConnectionPath(IReadOnlyList<(CodeNode Node, string? ViaRelationship)> path)
+    private static string FormatConnectionPath(IReadOnlyList<GraphPathStep> path)
     {
         if (path.Count == 0)
             return "—";

@@ -53,11 +53,11 @@ export class TypeScriptIndexerApplication {
             },
         });
         console.log(`  Ingested ${edgeResult.successCount} edges${edgeResult.errorCount > 0 ? ` (${edgeResult.errorCount} errors)` : ''}`);
-        await persistIndexRun(client, options, batch.files.length, nodeResult.successCount, edgeResult.successCount, relationshipHealth, resolutionCatalog.reason === undefined && (!options.isIncremental || usedFullResolutionCatalog), resolutionCatalog);
+        await persistIndexRun(client, options, batch.files.length, nodeResult.successCount, edgeResult.successCount, edges, relationshipHealth, resolutionCatalog.reason === undefined && (!options.isIncremental || usedFullResolutionCatalog), resolutionCatalog);
         console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
     }
 }
-async function persistIndexRun(client, options, scannedFileCount, ingestedNodeCount, ingestedEdgeCount, health, usedFullResolutionCatalog, resolutionCatalog) {
+async function persistIndexRun(client, options, scannedFileCount, ingestedNodeCount, ingestedEdgeCount, edges, health, usedFullResolutionCatalog, resolutionCatalog) {
     const mode = options.isIncremental ? 'incremental' : 'full';
     const normalizedScope = path.resolve(options.workspaceRootPath ?? options.rootPath).replace(/\\/g, '/');
     const scopeId = createHash('sha256').update(normalizedScope.toLowerCase()).digest('hex').slice(0, 16);
@@ -66,6 +66,17 @@ async function persistIndexRun(client, options, scannedFileCount, ingestedNodeCo
     const properties = {
         externalKind: 'IndexRun',
         relationshipHealthSchemaVersion: '2',
+        edgeEvidenceCounts: JSON.stringify(edges.reduce((counts, edge) => {
+            const kind = edge.evidenceKind ?? 'unknown';
+            counts[kind] = (counts[kind] ?? 0) + 1;
+            return counts;
+        }, {})),
+        edgeEvidenceGroups: JSON.stringify(edges.reduce((groups, edge) => {
+            const key = [edge.evidenceKind ?? 'unknown', edge.resolver ?? 'unknown',
+                edge.evidenceReason ?? 'unknown', edge.evidenceDetails?.fileRole ?? 'Unknown'].join('|');
+            groups[key] = (groups[key] ?? 0) + 1;
+            return groups;
+        }, {})),
         language: 'TypeScript',
         resolutionScope: normalizedScope,
         mode,

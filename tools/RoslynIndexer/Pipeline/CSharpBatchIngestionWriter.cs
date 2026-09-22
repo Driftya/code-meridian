@@ -64,7 +64,16 @@ internal static class CSharpBatchIngestionWriter
                     CallSite: e.CallSite,
                     ParamCount: e.ParamCount,
                     Confidence: e.Confidence,
-                    Properties: e.Properties))
+                    Properties: e.Properties,
+                    EvidenceKind: e.EvidenceKind,
+                    EvidenceReason: e.EvidenceReason,
+                    Resolver: e.Resolver,
+                    SourceFilePath: e.SourceFilePath,
+                    SourceLine: e.SourceLine,
+                    SourceColumn: e.SourceColumn,
+                    SourceEndLine: e.SourceEndLine,
+                    SourceEndColumn: e.SourceEndColumn,
+                    EvidenceDetails: e.EvidenceDetails))
                 .ToArray();
 
             await client.IngestRelationshipsAsync(requests, cancellationToken);

@@ -682,7 +682,18 @@ internal sealed class CSharpAstWalker(
                 RelationshipType: "Calls",
                 CallName: callee.Name,
                 ParamCount: callee.ParameterCount,
-                Properties: BuildCallProperties(callee)));
+                Properties: BuildCallProperties(callee),
+                SourceFilePath: filePath,
+                SourceLine: callee.SourceLine,
+                SourceColumn: callee.SourceColumn,
+                SourceEndLine: callee.SourceEndLine,
+                SourceEndColumn: callee.SourceEndColumn,
+                EvidenceDetails: new Dictionary<string, string>
+                {
+                    ["receiverKind"] = callee.ReceiverKind,
+                    ["receiverType"] = BoundEvidence(callee.ReceiverTypeHint),
+                    ["targetDeclaration"] = BoundEvidence(callee.TargetDeclarationPath)
+                }));
         }
     }
 
@@ -716,6 +727,8 @@ internal sealed class CSharpAstWalker(
 
         return properties;
     }
+
+    private static string BoundEvidence(string? value) => value is null ? string.Empty : value[..Math.Min(value.Length, 256)];
 
 
     private void AddParameterTypeUseEdges(SeparatedSyntaxList<ParameterSyntax> parameters, string sourceId)

@@ -69,6 +69,8 @@ Structured graph payloads deliberately exclude source bodies and arbitrary graph
 
 Both structured data and Markdown are produced from the same protocol-neutral Application record. MCP response construction and SDK attributes stay in `McpServer`; no MCP package dependency enters `Application` or `Core`.
 
+Relationship path steps and graph relationship results include bounded edge evidence (`evidenceKind`, `evidenceReason`, `resolver`, and source span). Legacy edges appear as `unknown`. Ingestion clients can send the optional evidence fields through the REST edge endpoint; see [Edge-level relationship evidence](indexing.md#edge-level-relationship-evidence) for the contract and bounds.
+
 Endpoint tests validate every implemented structured response against its advertised JSON Schema, snapshot bounded schema fingerprints, reject an invalid connection shape, enforce a 128 KiB pilot payload ceiling, verify source-body exclusion, and exercise the down-level text fallback.
 
 The schema returned by authenticated `tools/list` is the authoritative machine-readable contract. Any removal or incompatible property/type change is breaking within its declared result version; additive nullable fields require compatibility review.

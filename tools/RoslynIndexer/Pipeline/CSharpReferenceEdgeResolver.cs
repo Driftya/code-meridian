@@ -68,7 +68,13 @@ internal static class CSharpReferenceEdgeResolver
             var selected = SelectBestTypeCandidate(source, candidates);
             if (selected is not null)
             {
-                var resolvedEdge = edge with { TargetId = selected.Id };
+                var resolvedEdge = edge with
+                {
+                    TargetId = selected.Id,
+                    EvidenceKind = "inferred",
+                    EvidenceReason = "type_name_fallback",
+                    Resolver = "roslyn.syntax"
+                };
                 outcomes.RecordResolved(source, resolvedEdge);
                 resolved.Add(resolvedEdge);
             }

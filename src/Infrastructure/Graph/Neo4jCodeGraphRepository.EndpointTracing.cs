@@ -64,7 +64,7 @@ public sealed partial class Neo4jCodeGraphRepository
                        target.name AS targetName
             }
             RETURN pathNodes,
-                   [r IN pathRels | { type: type(r), confidence: r.confidence }] AS pathRelationships
+                   [r IN pathRels | { type: type(r), confidence: r.confidence, evidenceKind: r.evidenceKind, evidenceReason: r.evidenceReason, resolver: r.resolver, sourceFilePath: r.sourceFilePath, sourceLine: r.sourceLine, sourceColumn: r.sourceColumn, sourceEndLine: r.sourceEndLine, sourceEndColumn: r.sourceEndColumn }] AS pathRelationships
             ORDER BY size(pathNodes) ASC, targetName
             LIMIT 20
             """;
@@ -108,10 +108,8 @@ public sealed partial class Neo4jCodeGraphRepository
                     }
                 }
 
-                steps.Add(new GraphPathStep(
-                    MapToCodeNode(pathNodes[i]),
-                    relationshipType,
-                    relationshipConfidence));
+                steps.Add(MapPathStep(MapToCodeNode(pathNodes[i]), relationshipType, relationshipConfidence,
+                    i < pathRelationships.Count ? pathRelationships[i] as IDictionary<string, object> : null));
             }
 
             results.Add(new EndpointTracePath(steps));

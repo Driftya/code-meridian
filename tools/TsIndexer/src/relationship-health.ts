@@ -14,6 +14,11 @@ export interface RelationshipResolutionSample {
   lineNumber?: number;
   targetName?: string;
   receiverShape?: string;
+  evidenceKind?: 'ambiguous';
+  resolver?: string;
+  sourceColumn?: number;
+  sourceEndLine?: number;
+  sourceEndColumn?: number;
 }
 
 export interface RelationshipOutcomeStats {

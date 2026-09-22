@@ -38,16 +38,24 @@ public partial class CodebaseQueryService
             .Select(order => new
             {
                 Order = order,
-                Relationship = relationshipsAreIncoming
-                    ? path[order + 1].ViaRelationship
-                    : path[order].ViaRelationship
+                Step = relationshipsAreIncoming ? path[order + 1] : path[order]
             })
-            .Where(item => !string.IsNullOrWhiteSpace(item.Relationship))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Step.RelationshipType))
             .Select(item => new ConnectionEdgeResult(
                 item.Order,
                 path[item.Order].Node.Id,
                 path[item.Order + 1].Node.Id,
-                item.Relationship!))
+                item.Step.RelationshipType!)
+            {
+                EvidenceKind = item.Step.EvidenceKind.ToString().ToLowerInvariant(),
+                EvidenceReason = item.Step.EvidenceReason,
+                Resolver = item.Step.Resolver,
+                SourceFilePath = item.Step.SourceFilePath,
+                SourceLine = item.Step.SourceLine,
+                SourceColumn = item.Step.SourceColumn,
+                SourceEndLine = item.Step.SourceEndLine,
+                SourceEndColumn = item.Step.SourceEndColumn
+            })
             .ToArray();
 
         return new ConnectionAnalysisResult(

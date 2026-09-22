@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using CodeMeridian.Core.CodeGraph;
+using System.Text.Json;
 using CodeMeridian.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -216,6 +217,27 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         return record["count"].As<long>();
     }
 
+    public async Task<IReadOnlyDictionary<EdgeEvidenceKind, long>> CountEdgeEvidenceAsync(
+        string? projectContext = null, CancellationToken cancellationToken = default)
+    {
+        await using var session = _driver.AsyncSession();
+        const string cypher = """
+            MATCH (source:CodeNode)-[relationship]->(target:CodeNode)
+            WHERE ($projectContextNormalized IS NULL OR source.projectContextNormalized = $projectContextNormalized
+                OR target.projectContextNormalized = $projectContextNormalized)
+            RETURN coalesce(relationship.evidenceKind, 'unknown') AS kind, count(relationship) AS count
+            """;
+        var cursor = await session.RunAsync(cypher, new { projectContextNormalized = (object?)Normalize(projectContext) });
+        var counts = Enum.GetValues<EdgeEvidenceKind>().ToDictionary(kind => kind, _ => 0L);
+        await foreach (var record in cursor.WithCancellation(cancellationToken))
+        {
+            var kind = Enum.TryParse<EdgeEvidenceKind>(record["kind"].As<string>(), true, out var parsed)
+                && Enum.IsDefined(parsed) ? parsed : EdgeEvidenceKind.Unknown;
+            counts[kind] += record["count"].As<long>();
+        }
+        return counts;
+    }
+
     public async Task<long> CountDiagnosticsAsync(string? projectContext = null, CancellationToken cancellationToken = default)
     {
         await using var session = _driver.AsyncSession();
@@ -399,6 +421,8 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
     public async Task UpsertEdgeAsync(CodeEdge edge, CancellationToken cancellationToken = default)
     {
+        if (edge.ValidateEvidence() is { } validationError)
+            throw new ArgumentException(validationError, nameof(edge));
         await using var session = _driver.AsyncSession();
 
         // Edge type is an enum value — safe to interpolate (no user input)
@@ -417,7 +441,17 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 callSite   = (object?)edge.CallSite,
                 paramCount = (object?)edge.ParamCount,
                 confidence = (object?)edge.Confidence,
-                properties = edge.Properties,
+                evidenceKind = (edge.EvidenceKind ?? EdgeEvidenceKind.Unknown).ToString().ToLowerInvariant(),
+                evidenceReason = (object?)edge.EvidenceReason,
+                resolver = (object?)edge.Resolver,
+                sourceFilePath = (object?)edge.SourceFilePath,
+                sourceLine = (object?)edge.SourceLine,
+                sourceColumn = (object?)edge.SourceColumn,
+                sourceEndLine = (object?)edge.SourceEndLine,
+                sourceEndColumn = (object?)edge.SourceEndColumn,
+                evidenceDetails = edge.EvidenceDetails is null ? null : JsonSerializer.Serialize(edge.EvidenceDetails),
+                properties = edge.Properties.Where(pair => !EdgeReservedPropertyNames.Contains(pair.Key))
+                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
                 mergeCallSite = (object?)mergeCallSite,
                 mergeAccessPattern = (object?)mergeAccessPattern,
                 mergeRawKey = (object?)mergeRawKey
@@ -790,7 +824,16 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             SET r.isAsync     = $isAsync,
                 r.callSite    = $callSite,
                 r.paramCount  = $paramCount,
-                r.confidence  = $confidence
+                r.confidence  = $confidence,
+                r.evidenceKind = $evidenceKind,
+                r.evidenceReason = $evidenceReason,
+                r.resolver = $resolver,
+                r.sourceFilePath = $sourceFilePath,
+                r.sourceLine = $sourceLine,
+                r.sourceColumn = $sourceColumn,
+                r.sourceEndLine = $sourceEndLine,
+                r.sourceEndColumn = $sourceEndColumn,
+                r.evidenceDetails = $evidenceDetails
             SET r += $properties
             RETURN count(r) AS edgeCount
             ";
@@ -814,6 +857,17 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
             CallSite   = props.TryGetValue("callSite",   out var cs)  ? cs?.As<string>()  : null,
             ParamCount = props.TryGetValue("paramCount", out var pc)  ? pc?.As<int?>()    : null,
             Confidence = props.TryGetValue("confidence", out var con) ? con?.As<double?>(): null,
+            EvidenceKind = props.TryGetValue("evidenceKind", out var ek)
+                && Enum.TryParse<EdgeEvidenceKind>(ek?.As<string>(), true, out var evidenceKind)
+                ? evidenceKind : EdgeEvidenceKind.Unknown,
+            EvidenceReason = props.TryGetValue("evidenceReason", out var er) ? er?.As<string>() : null,
+            Resolver = props.TryGetValue("resolver", out var res) ? res?.As<string>() : null,
+            SourceFilePath = props.TryGetValue("sourceFilePath", out var sfp) ? sfp?.As<string>() : null,
+            SourceLine = props.TryGetValue("sourceLine", out var sl) ? sl?.As<int?>() : null,
+            SourceColumn = props.TryGetValue("sourceColumn", out var sc) ? sc?.As<int?>() : null,
+            SourceEndLine = props.TryGetValue("sourceEndLine", out var sel) ? sel?.As<int?>() : null,
+            SourceEndColumn = props.TryGetValue("sourceEndColumn", out var sec) ? sec?.As<int?>() : null,
+            EvidenceDetails = ReadEvidenceDetails(props),
             Properties = ReadProperties(props, EdgeReservedPropertyNames)
         };
     }
@@ -827,8 +881,23 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
     private static readonly HashSet<string> EdgeReservedPropertyNames =
     [
-        "isAsync", "callSite", "paramCount", "confidence"
+        "isAsync", "callSite", "paramCount", "confidence", "evidenceKind", "evidenceReason", "resolver",
+        "sourceFilePath", "sourceLine", "sourceColumn", "sourceEndLine", "sourceEndColumn", "evidenceDetails"
     ];
+
+    private static Dictionary<string, string>? ReadEvidenceDetails(IReadOnlyDictionary<string, object> properties)
+    {
+        if (!properties.TryGetValue("evidenceDetails", out var raw) || raw is not string json)
+            return null;
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     private static Dictionary<string, string> ReadProperties(
         IReadOnlyDictionary<string, object> properties,

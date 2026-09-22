@@ -39,7 +39,10 @@ public sealed record ConnectionAnalysisResult(
             if (node.FilePath is not null)
                 builder.Append($" ({node.FilePath})");
             if (edgesBySourceOrder.TryGetValue(node.Order, out var edge))
-                builder.Append($"\n  —[{edge.Relationship}]→");
+                builder.Append($"\n  —[{edge.Relationship}; {edge.EvidenceKind}"
+                    + (edge.EvidenceReason is null ? string.Empty : $"/{edge.EvidenceReason}")
+                    + (edge.SourceFilePath is null ? string.Empty : $" {edge.SourceFilePath}:{edge.SourceLine?.ToString() ?? "?"}")
+                    + "]→");
             builder.AppendLine();
         }
 

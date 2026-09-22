@@ -367,6 +367,15 @@ internal sealed class RootCommandFactory(
         var healthUrlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
         healthUrlOption.Aliases.Add("--CodeMeridian");
         var healthFormatOption = new Option<string>("--format") { DefaultValueFactory = _ => "text", Description = "Output format: text or json." };
+        var evidenceCommand = new Command("relationship-evidence", "Group emitted edge evidence by kind, resolver, reason, and file role.");
+        var evidencePathArgument = new Argument<string?>("path") { DefaultValueFactory = _ => null, Description = "Root directory used to resolve config defaults." };
+        var evidenceProjectOption = new Option<string?>("--project") { Description = "Project context name." };
+        var evidenceUrlOption = new Option<string?>("--url") { Description = "CodeMeridian server URL." };
+        var evidenceFormatOption = new Option<string>("--format") { DefaultValueFactory = _ => "text", Description = "Output format: text or json." };
+        evidenceCommand.Add(evidencePathArgument);
+        evidenceCommand.Add(evidenceProjectOption);
+        evidenceCommand.Add(evidenceUrlOption);
+        evidenceCommand.Add(evidenceFormatOption);
 
         command.Add(pathArgument);
         command.Add(projectOption);
@@ -422,6 +431,23 @@ internal sealed class RootCommandFactory(
             return await relationshipHealthReportCommand.RunAsync(project, codeMeridianUrl, context.ApiKey, format);
         });
         command.Add(relationshipHealthCommand);
+
+        evidenceCommand.SetAction(async parseResult =>
+        {
+            var format = parseResult.GetRequiredValue(evidenceFormatOption);
+            if (!format.Equals("text", StringComparison.OrdinalIgnoreCase)
+                && !format.Equals("json", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine("error: Invalid --format value. Use text or json.");
+                return 1;
+            }
+            var context = configurationService.CreateContext(parseResult.GetValue(evidencePathArgument));
+            var project = configurationService.ResolveProject(context, parseResult.GetValue(evidenceProjectOption));
+            var codeMeridianUrl = configurationService.ResolveCodeMeridianUrl(context, parseResult.GetValue(evidenceUrlOption));
+            return await relationshipHealthReportCommand.RunAsync(project, codeMeridianUrl, context.ApiKey, format,
+                evidenceOnly: true);
+        });
+        command.Add(evidenceCommand);
 
         command.SetAction(async parseResult =>
         {

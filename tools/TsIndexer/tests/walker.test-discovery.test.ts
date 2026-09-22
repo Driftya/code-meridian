@@ -36,16 +36,16 @@ it('calculates formatted output', () => {
         filePath: 'src/math.test.ts',
       }),
     );
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: 'Proj:File:src_math.test.ts',
       targetId: testCaseNode!.id,
       type: 'Contains',
-    });
-    expect(result.edges).toContainEqual({
+    }));
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: testCaseNode!.id,
       targetId: 'Proj:Method:src_math.ts:calculate',
       type: 'Calls',
-    });
+    }));
   });
 
   it('indexes chained test invocations such as test.each callbacks', () => {
@@ -75,11 +75,11 @@ test.each([[1]])('submits order %s', () => {
         filePath: 'src/orders.spec.ts',
       }),
     );
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: testCaseNode!.id,
       targetId: 'Proj:Method:src_orders.ts:submitOrder',
       type: 'Calls',
-    });
+    }));
   });
 
   it('indexes it.only callbacks as direct test shield sources', () => {
@@ -109,11 +109,11 @@ it.only('replaces an order', () => {
         filePath: 'src/orders.test.ts',
       }),
     );
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: testCaseNode!.id,
       targetId: 'Proj:Method:src_orders.ts:replaceOrder',
       type: 'Calls',
-    });
+    }));
   });
 
   it('indexes test callbacks that call through interface-typed workflows', () => {
@@ -152,11 +152,11 @@ test('submits through the workflow contract', () => {
         filePath: 'src/orders.spec.ts',
       }),
     );
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: testCaseNode!.id,
       targetId: 'Proj:Method:src_orders.ts:submitOrder',
       type: 'Calls',
-    });
+    }));
   });
 
   it('indexes test.skip callbacks so skipped test files still contribute discovery metadata', () => {
@@ -185,11 +185,11 @@ test.skip('archives an order', () => {
         namespace: 'test/src',
       }),
     );
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: testCaseNode!.id,
       targetId: 'Proj:Method:src_orders.ts:archiveOrder',
       type: 'Calls',
-    });
+    }));
   });
 
   it('treats top-level tests folders as test namespaces and indexes callback edges', () => {
@@ -225,11 +225,11 @@ it('submits from the test folder', () => {
         namespace: 'test/tests',
       }),
     );
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: testCaseNode!.id,
       targetId: 'Proj:Method:src_orders.ts:submitOrder',
       type: 'Calls',
-    });
+    }));
   });
 
   it('treats __tests__ tsx files as test namespaces and indexes nested callbacks', () => {
@@ -268,11 +268,11 @@ describe('orders', () => {
         namespace: 'test/src/components/__tests__',
       }),
     );
-    expect(result.edges).toContainEqual({
+    expect(result.edges).toContainEqual(expect.objectContaining({
       sourceId: testCaseNode!.id,
       targetId: 'Proj:Method:src_components_orders.ts:submitOrder',
       type: 'Calls',
-    });
+    }));
   });
 });
 

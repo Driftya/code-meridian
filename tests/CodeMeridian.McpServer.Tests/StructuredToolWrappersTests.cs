@@ -33,7 +33,7 @@ public sealed class StructuredToolWrappersTests
         var result = await sut.FindConnectionAsync("source", "target", ContextDetailLevel.Compact);
 
         result.Content.OfType<TextContentBlock>().Should().ContainSingle()
-            .Which.Text.Should().Contain("—[Calls]→");
+            .Which.Text.Should().Contain("—[Calls; unknown]→");
         result.StructuredContent.Should().NotBeNull();
         result.StructuredContent!.Value.GetProperty("contractVersion").GetString().Should().Be("1.0");
         result.StructuredContent.Value.GetProperty("nodes").GetArrayLength().Should().Be(2);

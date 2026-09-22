@@ -13,5 +13,7 @@ public sealed record IndexStats(
     RelationshipResolutionStats CallResolution,
     RelationshipResolutionStats ReferenceResolution,
     string Mode,
-    bool UsedFullResolutionCatalog);
+    bool UsedFullResolutionCatalog,
+    IReadOnlyDictionary<string, int> EdgeEvidenceCounts,
+    IReadOnlyDictionary<string, int> EdgeEvidenceGroups);
 public sealed record DocumentStats(int Documents);
