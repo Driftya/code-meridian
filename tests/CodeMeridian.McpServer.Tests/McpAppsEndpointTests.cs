@@ -62,7 +62,7 @@ public sealed class McpAppsEndpointTests : IClassFixture<GraphQlWebApplicationFa
         AssertAppMetadata(
             tools.Single(tool => tool.Name == "answer_change_context_challenge").ProtocolTool.Meta,
             "ui://code-meridian/change-context-challenge",
-            "app");
+            "model", "app");
         AssertAppMetadata(
             tools.Single(tool => tool.Name == "record_change_context_challenge_note").ProtocolTool.Meta,
             "ui://code-meridian/change-context-challenge",

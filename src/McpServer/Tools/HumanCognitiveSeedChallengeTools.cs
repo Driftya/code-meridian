@@ -44,7 +44,7 @@ public sealed class HumanCognitiveSeedChallengeTools(
 #pragma warning disable MCPEXP003 // MCP Apps is experimental in the 2.0 SDK.
     [McpAppUi(
         ResourceUri = HumanCognitiveSeedChallengeAppResources.ResourceUri,
-        Visibility = [McpUiToolVisibility.App])]
+        Visibility = [McpUiToolVisibility.Model, McpUiToolVisibility.App])]
 #pragma warning restore MCPEXP003
     [Description("Validate choice IDs explicitly selected by the user in the change-context challenge app or Markdown fallback. Never select answers for the user.")]
     public CallToolResult AnswerChangeContextChallenge(
