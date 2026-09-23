@@ -226,8 +226,8 @@
       try {
         await sendRequest('ui/initialize', {
           protocolVersion: '2025-06-18',
-          capabilities: {},
-          clientInfo: { name: 'code-meridian-connection-viewer', version: '1.0.0' }
+          appCapabilities: {},
+          appInfo: { name: 'code-meridian-connection-viewer', version: '1.0.0' }
         });
         sendNotification('ui/notifications/initialized');
         setStatus('Connected. Waiting for the tool result…');

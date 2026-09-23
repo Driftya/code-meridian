@@ -78,6 +78,7 @@ public sealed class McpAppsEndpointTests : IClassFixture<GraphQlWebApplicationFa
             .Should().ContainSingle().Subject.Text;
         contractHtml.Should().Contain("Client Extension Contract");
         contractHtml.Should().Contain("get_client_extension_contract");
+        AssertValidAppInitializeHandshake(contractHtml);
         contractHtml.Should().NotContain("CodeMeridian_Auth_ApiKey");
         contractHtml.Should().NotContain("X-CodeMeridian-ApiKey");
         contractHtml.Should().NotContain("Authorization");
@@ -94,6 +95,7 @@ public sealed class McpAppsEndpointTests : IClassFixture<GraphQlWebApplicationFa
             .Should().ContainSingle().Subject.Text;
         connectionHtml.Should().Contain("Connection Viewer");
         connectionHtml.Should().Contain("find_connection");
+        AssertValidAppInitializeHandshake(connectionHtml);
         connectionHtml.Should().NotContain("innerHTML");
         connectionHtml.Should().NotContain("Authorization");
         Encoding.UTF8.GetByteCount(connectionHtml).Should().BeLessThan(64 * 1024);
@@ -108,6 +110,7 @@ public sealed class McpAppsEndpointTests : IClassFixture<GraphQlWebApplicationFa
         challengeHtml.Should().Contain("Change Context Code Challenge");
         challengeHtml.Should().Contain("answer_change_context_challenge");
         challengeHtml.Should().Contain("record_change_context_challenge_note");
+        AssertValidAppInitializeHandshake(challengeHtml);
         challengeHtml.Should().NotContain("innerHTML");
         challengeHtml.Should().NotContain("Authorization");
         Encoding.UTF8.GetByteCount(challengeHtml).Should().BeLessThan(64 * 1024);
@@ -140,5 +143,13 @@ public sealed class McpAppsEndpointTests : IClassFixture<GraphQlWebApplicationFa
         csp.GetProperty("resourceDomains").GetArrayLength().Should().Be(0);
         csp.GetProperty("frameDomains").GetArrayLength().Should().Be(0);
         csp.GetProperty("baseUriDomains").GetArrayLength().Should().Be(0);
+    }
+
+    private static void AssertValidAppInitializeHandshake(string html)
+    {
+        html.Should().Contain("appCapabilities: {}");
+        html.Should().Contain("appInfo: {");
+        html.Should().NotContain("capabilities: {}");
+        html.Should().NotContain("clientInfo: {");
     }
 }
