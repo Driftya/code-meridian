@@ -161,7 +161,7 @@ When enabled, three self-contained Apps are registered:
 |---|---|
 | `get_client_extension_contract` | `ui://code-meridian/client-extension-contract` |
 | `find_connection` | `ui://code-meridian/connection-viewer` |
-| `start_change_context_challenge` | `ui://code-meridian/change-context-challenge` |
+| `start_change_context_challenge` | `ui://code-meridian/change-context-challenge-v2` |
 
 All three Apps render typed `structuredContent`, remain self-contained, and declare empty external connection, resource, frame, and base-URI allowlists. They contain no server API key, authorization header, GraphQL credentials, destructive controls, or external assets.
 

@@ -202,7 +202,7 @@ public sealed class McpLiveAcceptanceTests
         resources.Select(resource => resource.Uri).Should().Contain(
             "ui://code-meridian/client-extension-contract",
             "ui://code-meridian/connection-viewer",
-            "ui://code-meridian/change-context-challenge");
+            "ui://code-meridian/change-context-challenge-v2");
 
         foreach (var resource in resources.Where(resource =>
                      resource.Uri.StartsWith("ui://code-meridian/", StringComparison.Ordinal)))

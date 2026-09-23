@@ -8,7 +8,7 @@ namespace CodeMeridian.McpServer.Apps;
 [McpServerResourceType]
 public sealed class HumanCognitiveSeedChallengeAppResources
 {
-    public const string ResourceUri = "ui://code-meridian/change-context-challenge";
+    public const string ResourceUri = "ui://code-meridian/change-context-challenge-v2";
 
     private static readonly string AppDirectory = System.IO.Path.Combine(AppContext.BaseDirectory, "Apps");
 

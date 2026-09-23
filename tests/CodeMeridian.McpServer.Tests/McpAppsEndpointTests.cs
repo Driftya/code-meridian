@@ -57,15 +57,15 @@ public sealed class McpAppsEndpointTests : IClassFixture<GraphQlWebApplicationFa
             "ui://code-meridian/connection-viewer");
         AssertAppMetadata(
             tools.Single(tool => tool.Name == "start_change_context_challenge").ProtocolTool.Meta,
-            "ui://code-meridian/change-context-challenge",
+            "ui://code-meridian/change-context-challenge-v2",
             "model", "app");
         AssertAppMetadata(
             tools.Single(tool => tool.Name == "answer_change_context_challenge").ProtocolTool.Meta,
-            "ui://code-meridian/change-context-challenge",
+            "ui://code-meridian/change-context-challenge-v2",
             "model", "app");
         AssertAppMetadata(
             tools.Single(tool => tool.Name == "record_change_context_challenge_note").ProtocolTool.Meta,
-            "ui://code-meridian/change-context-challenge",
+            "ui://code-meridian/change-context-challenge-v2",
             "app");
 
         var resources = await client.ListResourcesAsync();
@@ -101,7 +101,7 @@ public sealed class McpAppsEndpointTests : IClassFixture<GraphQlWebApplicationFa
         Encoding.UTF8.GetByteCount(connectionHtml).Should().BeLessThan(64 * 1024);
 
         var challengeResource = resources.Single(item =>
-            item.Uri == "ui://code-meridian/change-context-challenge");
+            item.Uri == "ui://code-meridian/change-context-challenge-v2");
         challengeResource.MimeType.Should().Be("text/html;profile=mcp-app");
         AssertEmptyCsp(challengeResource.ProtocolResource.Meta);
         var challengeHtml = (await challengeResource.ReadAsync())
