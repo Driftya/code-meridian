@@ -10,16 +10,23 @@ public sealed class HumanCognitiveSeedChallengeStore(TimeProvider timeProvider)
     public ChangeContextChallengeView Start(
         string nodeId,
         string question,
+        IReadOnlyCollection<string> sourceEvidence,
+        IReadOnlyCollection<string> testEvidence,
         IReadOnlyCollection<ChangeContextChallengeChoiceInput> choices)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
         ArgumentException.ThrowIfNullOrWhiteSpace(question);
+        ArgumentNullException.ThrowIfNull(sourceEvidence);
+        ArgumentNullException.ThrowIfNull(testEvidence);
         ArgumentNullException.ThrowIfNull(choices);
 
         if (question.Length > 2_000)
             throw new ArgumentException("Question must be at most 2,000 characters.", nameof(question));
         if (choices.Count is < 3 or > 4)
             throw new ArgumentException("A challenge must contain three or four choices.", nameof(choices));
+
+        var normalizedSourceEvidence = NormalizeEvidence(sourceEvidence, nameof(sourceEvidence));
+        var normalizedTestEvidence = NormalizeEvidence(testEvidence, nameof(testEvidence));
 
         var normalized = choices.Select(NormalizeChoice).ToArray();
         if (normalized.Select(choice => choice.Id).Distinct(StringComparer.Ordinal).Count() != normalized.Length)
@@ -38,6 +45,8 @@ public sealed class HumanCognitiveSeedChallengeStore(TimeProvider timeProvider)
             $"change-context-challenge:{Guid.NewGuid():N}",
             nodeId.Trim(),
             question.Trim(),
+            normalizedSourceEvidence,
+            normalizedTestEvidence,
             normalized,
             now.Add(ChallengeLifetime));
         _challenges[state.ChallengeId] = state;
@@ -158,12 +167,34 @@ public sealed class HumanCognitiveSeedChallengeStore(TimeProvider timeProvider)
             choice.Feedback.Trim());
     }
 
+    private static IReadOnlyList<string> NormalizeEvidence(
+        IReadOnlyCollection<string> evidence,
+        string parameterName)
+    {
+        if (evidence.Count is < 1 or > 6)
+            throw new ArgumentException("Challenge evidence must contain between one and six items.", parameterName);
+
+        var normalized = evidence
+            .Select(item => item?.Trim())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Cast<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (normalized.Length != evidence.Count)
+            throw new ArgumentException("Challenge evidence cannot be blank or duplicated.", parameterName);
+        if (normalized.Any(item => item.Length > 1_000))
+            throw new ArgumentException("Each challenge evidence item must be at most 1,000 characters.", parameterName);
+
+        return normalized;
+    }
+
     private static ChangeContextChallengeView ToView(ChallengeState state) =>
         new(
-            "1.0",
+            "1.1",
             state.ChallengeId,
             state.NodeId,
             state.Question,
+            new ChangeContextChallengeEvidence(state.SourceEvidence, state.TestEvidence),
             state.Choices.Count(choice => choice.IsCorrect),
             state.Choices.Select(choice => new ChangeContextChallengeChoiceView(choice.Id, choice.Code)).ToArray(),
             state.Attempt,
@@ -177,12 +208,16 @@ public sealed class HumanCognitiveSeedChallengeStore(TimeProvider timeProvider)
         string challengeId,
         string nodeId,
         string question,
+        IReadOnlyList<string> sourceEvidence,
+        IReadOnlyList<string> testEvidence,
         IReadOnlyList<ChallengeChoice> choices,
         DateTimeOffset expiresAt)
     {
         public string ChallengeId { get; } = challengeId;
         public string NodeId { get; } = nodeId;
         public string Question { get; } = question;
+        public IReadOnlyList<string> SourceEvidence { get; } = sourceEvidence;
+        public IReadOnlyList<string> TestEvidence { get; } = testEvidence;
         public IReadOnlyList<ChallengeChoice> Choices { get; } = choices;
         public DateTimeOffset ExpiresAt { get; } = expiresAt;
         public object SyncRoot { get; } = new();

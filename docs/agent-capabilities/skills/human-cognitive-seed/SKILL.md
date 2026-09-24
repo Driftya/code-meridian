@@ -65,10 +65,21 @@ Use the teaching progression only when the user's goal is mastery. If the user e
 When `start_change_context_challenge` is available and the user wants interactive code reasoning, prefer the MCP challenge flow over simulating it in ordinary chat:
 
 1. Inspect the exact code node, relevant tests, and its existing change context.
-2. Start a bounded challenge with plausible choices without revealing correctness.
+2. Start a bounded challenge with plausible choices and concise source/test
+   evidence that directly supports the alternatives, without revealing correctness.
 3. Pause for the user's explicit selection; never choose on their behalf.
 4. Submit only their selected choice IDs through `answer_change_context_challenge` when that tool is model-visible. If an attached MCP app handles submission, let the user interact with the app instead.
 5. Continue implementation only after the challenge returns feedback or the user explicitly asks to skip it.
+
+If the intended target exists in source but is not indexed, stop the challenge,
+run the normal repository indexer, resolve the canonical symbol, and verify its
+source and test relationships before retrying. Never manufacture a temporary
+code node or manually ingest guessed relationships to make a challenge start.
+
+After a successful answer, let the developer optionally explain their reasoning.
+If they report that the AI-authored answer was wrong, preserve the correction as
+attributed, unverified context. If they report that the target node was wrong,
+do not write context to that node; resolve the correct node and restart instead.
 
 Do not replace an available repository challenge app with an improvised conversational question unless the MCP flow cannot be started. If the flow is unavailable or incomplete, state the exact missing capability before using a conversational fallback.
 

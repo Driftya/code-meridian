@@ -62,6 +62,8 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
             {
                 ["nodeId"] = "source",
                 ["question"] = "Which code preserves the boundary?",
+                ["sourceEvidence"] = new[] { "The target validates input at the application boundary." },
+                ["testEvidence"] = new[] { "The boundary test rejects invalid input." },
                 ["choices"] = new object[]
                 {
                     new { id = "A", code = "Validate();", isCorrect = true, feedback = "Preserves validation." },

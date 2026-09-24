@@ -246,6 +246,17 @@ Unknowns:
 
 Then continue with the requested refactor.
 
+### Optional Human Reasoning Handoff
+
+When the user explicitly wants to reason through materially different refactor
+approaches, or is learning how the trade-offs affect the design, hand the exact
+indexed target plus verified impact, source, and test evidence to the
+`human-cognitive-seed` challenge workflow. That skill owns the challenge and
+must preserve the user's choice.
+
+Do not turn routine cleanup or an already-decided refactor into a quiz. Do not
+start a challenge from a fuzzy or unindexed target.
+
 ## Refactor Guardrails
 
 ### Do

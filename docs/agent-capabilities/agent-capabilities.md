@@ -34,6 +34,12 @@ When a feature likely follows an existing slice, pair the context skill with `fi
 
 Use the human cognitive seed skill for reasoning-heavy design, learning, strategy, interpretation, and consequential choices. It preserves the user's starting model, adds evidence and alternatives, scales challenge depth to the stakes, and returns value-dependent judgment to the user. When CodeMeridian exposes `record_change_context` and `get_change_context`, the skill may preserve one compact durable decision, constraint, limitation, assumption, or follow-up against an exact node for future changes. Provenance remains explicit, and only an exact user-approved summary may be marked confirmed. It should not activate or record memory for routine implementation or clerical work. CodeMeridian supplies graph-grounded evidence and attributed storage; the skill governs how an agent reasons with them.
 
+The context, refactor, and test-planning skills may hand an exact indexed target
+and verified evidence to the human cognitive seed challenge only when the user
+explicitly requests interactive reasoning or learning. Those skills provide the
+evidence; the human cognitive seed skill owns challenge behavior. Ordinary
+implementation, cleanup, and test work should continue directly without a quiz.
+
 Use the frontend skill when the task touches HTML, CSS, SCSS, selectors, style imports, or CSS variables. It keeps the default routing generic by preferring `build_minimal_context`, `find_connection`, `find_impact`, and `find_implementation_surface` before using frontend-only analysis such as `find_frontend_cascade_conflicts`.
 
 Use the context agent when your provider supports specialist agents or subagents and you want a dedicated helper to gather CodeMeridian context before the main agent edits files.

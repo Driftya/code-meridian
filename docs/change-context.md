@@ -19,16 +19,23 @@ When experimental MCP Apps are enabled, CodeMeridian also provides an optional
 interactive challenge:
 
 - `start_change_context_challenge` opens 3-4 code choices grounded in the exact
-  target, current source, tests, and retrieved change context.
+  target, current source, tests, and retrieved change context. Every challenge
+  includes visible source and test evidence; when no relevant test exists, the
+  test evidence must state that gap instead of inventing coverage.
 - `answer_change_context_challenge` checks the user's own selection. A wrong
   selection halts that attempt, explains the selected mistake, and permits a
   retry without revealing unselected answers.
-- `record_change_context_challenge_note` saves an optional user-written note
-  only after the challenge has been solved.
+- `record_change_context_challenge_note` accepts an optional developer
+  explanation only after the challenge has been solved. The developer can mark
+  the AI-authored answer as wrong, which stores the correction as disputed,
+  user-stated context. Marking the target node as wrong prevents any graph write
+  and requires a new challenge against the corrected exact node.
 
 The app uses radio buttons when exactly one answer is correct and checkboxes when
-two answers are correct. Challenges expire after 30 minutes and are not durable
-memory; only an explicitly saved change-context note is persisted.
+two answers are correct. The challenge workflow is opt-in for interactive code
+reasoning; ordinary implementation work must not be turned into a quiz.
+Challenges expire after 30 minutes and are not durable memory; only an explicitly
+saved developer explanation is persisted.
 
 You normally do not need to call these tools yourself or know a method ID. Tell
 your coding assistant what you want changed and ask it to find the exact code
@@ -68,11 +75,13 @@ Use the human cognitive seed workflow for this change:
 
 Find the exact code target, inspect current source and tests, and retrieve its
 change context. Then call start_change_context_challenge with four plausible code
-answers. Include one or two correct answers and at least two realistic wrong
+answers plus concise source and test evidence that directly supports those
+alternatives. Include one or two correct answers and at least two realistic wrong
 answers. Do not reveal the correct choices and do not answer for me.
 
 Let me choose in the MCP App. If I am wrong, explain the selected mistake and let
-me retry. After I solve it, let me optionally write a change-context note.
+me retry. After I solve it, let me optionally explain my reasoning, dispute the
+AI-authored answer, or report that the challenge targeted the wrong node.
 ```
 
 The LLM supplies the teaching scaffold, so the choices are not canonical facts.
@@ -207,7 +216,11 @@ The assistant should:
 
 If no exact node exists, the assistant can still investigate the task, but it
 cannot safely retrieve or record node-specific change context. It should explain
-that limitation and may suggest re-indexing when the graph is stale.
+that limitation. If the code already exists in the workspace, it must run the
+normal CodeMeridian indexer, resolve the canonical symbol, and verify the indexed
+source and test relationships before starting a challenge. It must not create a
+temporary code node or manually ingest guessed relationships to bypass the exact
+target requirement.
 
 ## How to Read Retrieved Context
 

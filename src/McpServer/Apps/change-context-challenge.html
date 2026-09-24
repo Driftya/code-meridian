@@ -33,6 +33,10 @@
     .target { margin-bottom: 10px; color: var(--muted); overflow-wrap: anywhere; }
     .target code { color: var(--accent); font-family: var(--mono); }
     .question { margin-bottom: 12px; font-size: 14px; }
+    .evidence { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .evidence section { padding: 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+    .evidence h2 { margin-bottom: 5px; color: var(--muted); font-size: 12px; }
+    .evidence ul { margin: 0; padding-left: 19px; }
     fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
     legend { width: 100%; margin-bottom: 8px; color: var(--muted); }
     .choices { display: grid; gap: 8px; }
@@ -58,6 +62,8 @@
     select { width: min(100%, 260px); padding: 7px; }
     textarea { width: 100%; min-height: 82px; padding: 8px; resize: vertical; }
     .note-help { margin: 0; color: var(--muted); }
+    .review-flags { display: grid; gap: 6px; margin-top: 3px; }
+    .review-flags label { display: flex; gap: 7px; align-items: start; }
     .empty { padding: 24px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); text-align: center; }
     [hidden] { display: none !important; }
   </style>
@@ -72,8 +78,8 @@
     <p class="empty">Waiting for an LLM-authored code challenge.</p>
   </main>
   <section id="note-section" class="panel" hidden>
-    <h2>Preserve your change-context note</h2>
-    <p class="note-help">Optional. Save one durable note only if it will help a future change.</p>
+    <h2>Add your developer explanation</h2>
+    <p class="note-help">Optional after a successful answer. Save only durable context that will help a future change.</p>
     <form id="note-form" class="note-grid">
       <label for="note-kind">Note kind</label>
       <select id="note-kind" name="contextKind">
@@ -83,8 +89,12 @@
         <option value="assumption">Assumption</option>
         <option value="follow-up">Follow-up</option>
       </select>
-      <label for="note-statement">Note</label>
-      <textarea id="note-statement" name="statement" maxlength="800" required placeholder="What should a future change remember?"></textarea>
+      <label for="note-statement">Developer explanation</label>
+      <textarea id="note-statement" name="statement" maxlength="800" required placeholder="What was correct, incorrect, or important for a future change?"></textarea>
+      <div class="review-flags">
+        <label><input id="ai-answer-wrong" type="checkbox"> The AI-authored answer was wrong</label>
+        <label><input id="target-node-wrong" type="checkbox"> The challenge targeted the wrong code node</label>
+      </div>
       <div class="actions">
         <button id="save-note" type="submit">Save note</button>
         <span id="note-status" class="status" role="status" aria-live="polite"></span>
@@ -100,6 +110,8 @@
     const noteForm = document.getElementById('note-form');
     const noteKind = document.getElementById('note-kind');
     const noteStatement = document.getElementById('note-statement');
+    const aiAnswerWrong = document.getElementById('ai-answer-wrong');
+    const targetNodeWrong = document.getElementById('target-node-wrong');
     const saveNoteButton = document.getElementById('save-note');
     const noteStatus = document.getElementById('note-status');
     const pendingRequests = new Map();
@@ -163,6 +175,21 @@
       const targetCode = document.createElement('code');
       targetCode.textContent = String(challenge.nodeId ?? '');
       panel.querySelector('.target').appendChild(targetCode);
+
+      const evidence = document.createElement('div');
+      evidence.className = 'evidence';
+      for (const [title, items] of [
+        ['Source evidence', challenge.evidence?.source],
+        ['Test evidence', challenge.evidence?.tests]
+      ]) {
+        const evidenceSection = document.createElement('section');
+        evidenceSection.appendChild(textElement('h2', '', title));
+        const list = document.createElement('ul');
+        for (const item of items || []) list.appendChild(textElement('li', '', item));
+        evidenceSection.appendChild(list);
+        evidence.appendChild(evidenceSection);
+      }
+      panel.appendChild(evidence);
 
       answerForm = document.createElement('form');
       answerForm.id = 'challenge-form';
@@ -283,16 +310,28 @@
           arguments: {
             challengeId: currentChallenge.challengeId,
             statement,
-            contextKind: noteKind.value
+            contextKind: noteKind.value,
+            aiAnswerWasWrong: aiAnswerWrong.checked,
+            targetNodeWasWrong: targetNodeWrong.checked
           }
         });
         const receipt = result?.structuredContent;
         if (!receipt || receipt.challengeId !== currentChallenge.challengeId)
           throw new Error('The host returned an unexpected note receipt');
-        noteStatement.disabled = true;
-        noteKind.disabled = true;
-        noteStatus.textContent = `Saved as ${receipt.contextKind}.`;
-        noteStatus.className = 'status ready';
+        if (receipt.targetNodeWasWrong) {
+          noteStatus.textContent = 'Not saved: resolve the correct target and start a new challenge.';
+          noteStatus.className = 'status warning';
+          saveNoteButton.disabled = false;
+        } else {
+          noteStatement.disabled = true;
+          noteKind.disabled = true;
+          aiAnswerWrong.disabled = true;
+          targetNodeWrong.disabled = true;
+          noteStatus.textContent = receipt.aiAnswerWasWrong
+            ? 'Saved as disputed developer context.'
+            : `Saved as ${receipt.contextKind}.`;
+          noteStatus.className = 'status ready';
+        }
       } catch (error) {
         saveNoteButton.disabled = false;
         noteStatus.textContent = `Save failed: ${error.message}`;

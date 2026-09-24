@@ -250,6 +250,18 @@ Risks / unknowns:
 
 Then continue with the requested test implementation or review.
 
+### Optional Human Reasoning Handoff
+
+When the user explicitly wants interactive reasoning about which behavior,
+invariant, or edge case the tests should encode, or their goal is learning
+rather than immediate test implementation, hand the exact indexed target plus
+verified source and test evidence to the `human-cognitive-seed` challenge
+workflow. That skill owns challenge behavior.
+
+Do not quiz the user about routine test additions. Do not start a challenge when
+the target is fuzzy, stale, or unindexed; establish the exact target and evidence
+first.
+
 ## Test Planning Guardrails
 
 ### Do

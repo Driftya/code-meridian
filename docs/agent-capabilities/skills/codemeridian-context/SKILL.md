@@ -128,6 +128,17 @@ Use wording like:
 
 Do not present stale or inferred context as certain.
 
+### Optional Human Reasoning Handoff
+
+When the user explicitly requests interactive code reasoning, or their goal is
+learning rather than immediate execution, the resolved target and verified
+source/test evidence may be handed to the `human-cognitive-seed` challenge
+workflow. That skill owns challenge behavior.
+
+Do not start a challenge for ordinary implementation work. Do not hand off a
+fuzzy, stale, or unindexed target; index the real source and resolve the exact
+canonical node first.
+
 ## Output Format
 
 Start with this compact summary before implementation:
