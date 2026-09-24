@@ -305,15 +305,16 @@
       saveNoteButton.disabled = true;
       noteStatus.textContent = 'Saving note...';
       try {
+        const noteArguments = {
+          challengeId: currentChallenge.challengeId,
+          statement,
+          contextKind: noteKind.value
+        };
+        if (aiAnswerWrong.checked) noteArguments.aiAnswerWasWrong = true;
+        if (targetNodeWrong.checked) noteArguments.targetNodeWasWrong = true;
         const result = await sendRequest('tools/call', {
           name: 'record_change_context_challenge_note',
-          arguments: {
-            challengeId: currentChallenge.challengeId,
-            statement,
-            contextKind: noteKind.value,
-            aiAnswerWasWrong: aiAnswerWrong.checked,
-            targetNodeWasWrong: targetNodeWrong.checked
-          }
+          arguments: noteArguments
         });
         const receipt = result?.structuredContent;
         if (!receipt || receipt.challengeId !== currentChallenge.challengeId)
