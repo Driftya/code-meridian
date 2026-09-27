@@ -25,16 +25,18 @@ internal static class NodeIndexerProcessRunner
         Console.WriteLine("Node indexer dependencies not found. Restoring npm packages...");
 
         var npmCommand = ExternalCommandResolver.NpmCommand();
+        // Packaged workers need tsx (a dev dependency) and esbuild's optional native binary.
+        // Avoid npm Arborist's peer-set crash when standalone worker lockfiles are out of date.
         var packageLockExists = File.Exists(Path.Combine(indexerRoot.FullName, "package-lock.json"));
         if (!packageLockExists)
-            return await runCommandAsync(npmCommand, ["install"], indexerRoot, null);
+            return await runCommandAsync(npmCommand, ["install", "--legacy-peer-deps", "--include=dev", "--include=optional"], indexerRoot, null);
 
-        var installExitCode = await runCommandAsync(npmCommand, ["ci"], indexerRoot, null);
+        var installExitCode = await runCommandAsync(npmCommand, ["ci", "--legacy-peer-deps", "--include=dev", "--include=optional"], indexerRoot, null);
         if (installExitCode == 0)
             return 0;
 
         Console.WriteLine("npm ci failed. Retrying with npm install to recover from a packaged lockfile mismatch.");
-        return await runCommandAsync(npmCommand, ["install"], indexerRoot, null);
+        return await runCommandAsync(npmCommand, ["install", "--legacy-peer-deps", "--include=dev", "--include=optional"], indexerRoot, null);
     }
 
     public static async Task<int> RunAsync(

@@ -50,7 +50,7 @@ public sealed class TypeScriptIndexerProcessRunnerTests
             });
 
         result.Should().Be(0);
-        invocations.Should().ContainSingle().Which.Should().Equal("install");
+        invocations.Should().ContainSingle().Which.Should().Equal("install", "--legacy-peer-deps", "--include=dev", "--include=optional");
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public sealed class TypeScriptIndexerProcessRunnerTests
 
         result.Should().Be(0);
         invocations.Should().HaveCount(2);
-        invocations[0].Should().Equal("ci");
-        invocations[1].Should().Equal("install");
+        invocations[0].Should().Equal("ci", "--legacy-peer-deps", "--include=dev", "--include=optional");
+        invocations[1].Should().Equal("install", "--legacy-peer-deps", "--include=dev", "--include=optional");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class TypeScriptIndexerProcessRunnerTests
             });
 
         result.Should().Be(0);
-        invocations.Should().ContainSingle().Which.Should().Equal("ci");
+        invocations.Should().ContainSingle().Which.Should().Equal("ci", "--legacy-peer-deps", "--include=dev", "--include=optional");
     }
 
     [Fact]
