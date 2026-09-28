@@ -906,20 +906,20 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Branch coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar6">94%</div>
+<div class="large cardpercentagebar cardpercentagebar7">92%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered branches:</th>
-<td class="limit-width right" title="161">161</td>
+<td class="limit-width right" title="131">131</td>
 </tr>
 <tr>
 <th>Total branches:</th>
-<td class="limit-width right" title="171">171</td>
+<td class="limit-width right" title="141">141</td>
 </tr>
 <tr>
 <th>Branch coverage:</th>
-<td class="limit-width right" title="161 of 171">94.1%</td>
+<td class="limit-width right" title="131 of 141">92.9%</td>
 </tr>
 </table>
 </div>
@@ -954,7 +954,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr><td title="GetRecipe(System.String)"><a href="#file0_line65" class="navigatetohash">GetRecipe(...)</a></td><td>100%</td><td>2</td><td>1</td><td>0%</td></tr>
 <tr><td title="Invalid(System.String,System.String,System.String)"><a href="#file0_line68" class="navigatetohash">Invalid(...)</a></td><td>100%</td><td>1</td><td>1</td><td>100%</td></tr>
 <tr><td title="BuildStep(System.Int32,CodeMeridian.Application.Services.ContextWorkflows.ContextWorkflowRecipeStep,CodeMeridian.Application.Services.ContextWorkflows.ContextWorkflowPlanRequest)"><a href="#file0_line88" class="navigatetohash">BuildStep(...)</a></td><td>100%</td><td>4</td><td>4</td><td>100%</td></tr>
-<tr><td title="BuildInputHints(System.String,CodeMeridian.Application.Services.ContextWorkflows.ContextWorkflowPlanRequest)"><a href="#file0_line107" class="navigatetohash">BuildInputHints(...)</a></td><td>95.18%</td><td>83</td><td>83</td><td>100%</td></tr>
+<tr><td title="BuildInputHints(System.String,CodeMeridian.Application.Services.ContextWorkflows.ContextWorkflowPlanRequest)"><a href="#file0_line107" class="navigatetohash">BuildInputHints(...)</a></td><td>92.45%</td><td>53</td><td>53</td><td>100%</td></tr>
 <tr><td title="BuildWarnings(CodeMeridian.Application.Services.ContextWorkflows.ContextWorkflowRecipe,CodeMeridian.Application.Services.ContextWorkflows.ContextWorkflowPlanRequest,System.Collections.Generic.IReadOnlyList`1&lt;CodeMeridian.Application.Services.ContextWorkflows.ContextWorkflowRecipeStep&gt;,System.Collections.Generic.IReadOnlyList`1&lt;CodeMeridian.Application.Services.ContextWorkflows.ContextWorkflowStep&gt;)"><a href="#file0_line162" class="navigatetohash">BuildWarnings(...)</a></td><td>88.88%</td><td>18</td><td>18</td><td>93.75%</td></tr>
 <tr><td title="SelectRecipeSteps(CodeMeridian.Application.Services.ContextWorkflows.ContextWorkflowRecipe,System.Nullable`1&lt;System.Boolean&gt;)"><a href="#file0_line190" class="navigatetohash">SelectRecipeSteps(...)</a></td><td>90%</td><td>10</td><td>10</td><td>100%</td></tr>
 <tr><td title="UsesNarrowOptionalDefaults(CodeMeridian.Application.Services.ContextWorkflows.ContextWorkflowRecipe)"><a href="#file0_line200" class="navigatetohash">UsesNarrowOptionalDefaults(...)</a></td><td>100%</td><td>1</td><td>1</td><td>100%</td></tr>
@@ -1084,7 +1084,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line105"></a><code>105</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;private&nbsp;static&nbsp;IReadOnlyDictionary&lt;string,&nbsp;string&gt;&nbsp;BuildInputHints(string&nbsp;tool,&nbsp;ContextWorkflowPlanRequest&nbsp;request)</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line106"></a><code>106</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
 <tr class="coverableline" title="Covered (556 visits)" data-coverage="{'AllTestMethods': {'VC': '556', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">556</td><td class="rightmargin right"><a id="file0_line107"></a><code>107</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;var&nbsp;hints&nbsp;=&nbsp;new&nbsp;Dictionary&lt;string,&nbsp;string&gt;(StringComparer.Ordinal);</code></td></tr>
-<tr class="coverableline" title="Partially covered (556 visits, 67 of 69 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '556', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">556</td><td class="rightmargin right"><a id="file0_line108"></a><code>108</code></td><td class="percentagebar percentagebar90"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Add(hints,&nbsp;&quot;projectContext&quot;,&nbsp;request.ProjectContext);</code></td></tr>
+<tr class="coverableline" title="Partially covered (556 visits, 37 of 39 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '556', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">556</td><td class="rightmargin right"><a id="file0_line108"></a><code>108</code></td><td class="percentagebar percentagebar90"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Add(hints,&nbsp;&quot;projectContext&quot;,&nbsp;request.ProjectContext);</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line109"></a><code>109</code></td><td></td><td class="lightgray"><code></code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line110"></a><code>110</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;switch&nbsp;(tool)</code></td></tr>
 <tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line111"></a><code>111</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{</code></td></tr>
@@ -1496,7 +1496,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.11.0<br />09/27/2026 - 19:59:24<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.11.0<br />09/28/2026 - 17:57:31<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>
