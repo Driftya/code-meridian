@@ -996,6 +996,22 @@ function classifyUnresolvedCall(
   if (expression.getSymbol()?.getDeclarations().some(declaration => declaration.isKind(SyntaxKind.PropertySignature))) {
     return { disposition: 'indeterminate', reason: 'callable_property' };
   }
+  // A local binding (for example a React state setter) is not a local implementation.
+  // Follow the callable signature before reporting its variable as a missing target.
+  const signatureDeclaration = call.getProject().getTypeChecker().getResolvedSignature(call)?.getDeclaration();
+  if (signatureDeclaration) {
+    const signaturePath = signatureDeclaration.getSourceFile().getFilePath();
+    if (!isPathWithinRoot(signaturePath, path.resolve(rootPath).toLowerCase())) {
+      return { disposition: 'external_or_unindexed', reason: 'declaration_outside_index_scope' };
+    }
+    if (isIgnoredPath(rootPath, signaturePath)) {
+      return { disposition: 'external_or_unindexed', reason: 'declaration_in_excluded_path' };
+    }
+    if (signatureDeclaration.isKind(SyntaxKind.FunctionType)
+      || signatureDeclaration.isKind(SyntaxKind.CallSignature)) {
+      return { disposition: 'indeterminate', reason: 'callable_signature' };
+    }
+  }
   if (direct.disposition !== 'indeterminate') {
     return direct;
   }
