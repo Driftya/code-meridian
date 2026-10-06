@@ -128,6 +128,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         }
 
         _logger.LogInformation("Neo4j code graph schema ready.");
+        await InitializeSqlGraphAsync(cancellationToken);
         await InitializePackageReferencesAsync();
     }
 

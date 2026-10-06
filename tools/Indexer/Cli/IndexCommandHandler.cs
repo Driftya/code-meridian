@@ -58,7 +58,7 @@ internal sealed class IndexCommandHandler(
             Console.WriteLine($"warning: run `codemeridian init .` to merge version {_settings.CurrentConfigVersion} defaults into the existing file.");
         }
 
-        if (!context.HasCSharp && !context.HasTypeScript && !context.HasHtmlCss && !context.HasConfiguration && !IncludesDocs)
+        if (!context.HasCSharp && !context.HasTypeScript && !context.HasHtmlCss && !context.HasConfiguration && !IncludesDocs && !SqlIndexRunCoordinator.IsEnabled(_settings))
         {
             if (!_settings.DryRun && !_settings.SkipTypeScript)
             {
@@ -80,7 +80,7 @@ internal sealed class IndexCommandHandler(
             return 0;
         }
 
-        if (_settings.Incremental && !_settings.Clear && !context.IncrementalPlan.HasChanges)
+        if (_settings.Incremental && !_settings.Clear && !context.IncrementalPlan.HasChanges && !SqlIndexRunCoordinator.IsEnabled(_settings))
         {
             if (!_settings.SkipTypeScript)
             {
@@ -130,7 +130,7 @@ internal sealed class IndexCommandHandler(
         await watchLoop.RunAsync(async (_, _) =>
         {
             var watchContext = BuildExecutionContext(clear: false);
-            if (!watchContext.IncrementalPlan.HasChanges)
+            if (!watchContext.IncrementalPlan.HasChanges && !SqlIndexRunCoordinator.IsEnabled(_settings))
                 return;
 
             var watchExitCode = await RunIndexPassAsync(
@@ -185,6 +185,14 @@ internal sealed class IndexCommandHandler(
     {
         var exitCode = 0;
         var clearNextIndexer = clear;
+
+        if (SqlIndexRunCoordinator.IsEnabled(_settings))
+        {
+            exitCode = await SqlIndexRunCoordinator.RunAsync(_settings, context.CacheDirectory, clear || !_settings.Incremental);
+            if (exitCode != 0) return exitCode;
+            // SQL publication owns its deletions, including edges between shared objects.
+            deletedFiles = deletedFiles.Where(path => !path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase)).ToArray();
+        }
 
         if (context.HasCSharp)
         {
@@ -304,6 +312,7 @@ internal sealed class IndexCommandHandler(
         Console.WriteLine($"  Diagnostics       : {(_settings.SkipDiagnostics ? "skipped" : "enabled")}");
         Console.WriteLine($"  Rebuild keywords  : {_settings.RebuildKeywords}");
         Console.WriteLine($"  C# indexer        : {(hasCSharp ? "enabled" : "not applicable")}");
+        SqlIndexRunCoordinator.PrintSelection(_settings);
         Console.WriteLine($"  TypeScript roots  : {(typeScriptRoots.Count == 0 ? "none" : typeScriptRoots.Count)}");
         Console.WriteLine($"  HTML/CSS roots    : {(htmlCssRoots.Count == 0 ? "none" : htmlCssRoots.Count)}");
         Console.WriteLine($"  Config indexer    : {(_settings.SkipConfiguration ? "skipped" : "enabled")}");
@@ -352,7 +361,8 @@ internal sealed class IndexCommandHandler(
             hasTypeScript,
             IncludesDocs,
             hasConfiguration,
-            configurationFilePatterns)
+            configurationFilePatterns,
+            includeSql: SqlIndexRunCoordinator.IsEnabled(_settings))
             .Concat(cSharpFiles)
             .Concat(hasCSharp && _settings.AllowRepoScripts && !_settings.ExternalOnly ? PackageMetadataFiles.Enumerate(_settings.RootPath) : [])
             .DistinctBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
@@ -369,7 +379,8 @@ internal sealed class IndexCommandHandler(
                            hasTypeScript,
                            IncludesDocs,
                            hasConfiguration,
-                           configurationFilePatterns))
+                           configurationFilePatterns,
+                           includeSql: SqlIndexRunCoordinator.IsEnabled(_settings)))
                        && (!_settings.ExternalOnly ||
                            !IndexExecutionPlanBuilder.IsCSharpSourceFile(file) ||
                            IsOutsideRoot(file));
@@ -709,6 +720,7 @@ internal sealed class IndexCommandHandler(
             """);
 
         Console.WriteLine($"  TS/JS/TSX/JSX   {(tsIndexerRoot is null ? "no - assets not found" : "yes")}");
+        SqlIndexRunCoordinator.PrintSelection(_settings);
         Console.WriteLine($"  HTML/CSS/SCSS    {(ResolveHtmlCssIndexerRoot() is null ? "no - assets not found" : "yes - placeholder worker")}");
         Console.WriteLine("  Diagnostics      yes - skip with --skip-diagnostics");
         Console.WriteLine();

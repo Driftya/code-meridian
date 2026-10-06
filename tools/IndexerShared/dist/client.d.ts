@@ -14,6 +14,7 @@ export declare class CodeMeridianClient {
     private readonly apiKey?;
     constructor(baseUrl: string, apiKey?: string | undefined);
     ingestNode(node: CodeNodeDto): Promise<void>;
+    publishSqlGraph(snapshot: object, signal?: AbortSignal): Promise<void>;
     ingestEdge(edge: CodeEdgeDto): Promise<void>;
     ingestNodes(nodes: readonly CodeNodeDto[], options?: IngestBatchOptions<CodeNodeDto>): Promise<IngestBatchResult>;
     ingestEdges(edges: readonly CodeEdgeDto[], options?: IngestBatchOptions<CodeEdgeDto>): Promise<IngestBatchResult>;

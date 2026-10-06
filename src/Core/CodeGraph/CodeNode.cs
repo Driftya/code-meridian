@@ -51,5 +51,11 @@ public enum CodeNodeType
     IndexRun,
     ConfigurationFile,
     ConfigurationKey,
-    ConfigurationEntry
+    ConfigurationEntry,
+    SqlDeclaration,
+    SqlReference,
+    DatabaseView,
+    DatabaseColumn,
+    DatabaseFunction,
+    DatabaseRelation
 }

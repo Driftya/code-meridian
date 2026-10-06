@@ -50,6 +50,7 @@ codemeridian evaluate-session . --project MyApp --session .meridian/sessions/ses
 ## What It Does
 
 - Detects C# projects, TypeScript/TSX roots, and documentation files.
+- Indexes PostgreSQL `.sql` files offline when `indexing.sql.enabled` is true. Uses native PostgreSQL grammar compiled to WASM; see [SQL support](../SqlIndexer/supports.md). SQL indexing is independent of `--skip-typescript` and can be skipped with `--skip-sql`.
 - Detects repo-local configuration files such as `appsettings*.json`, `meridian*.json`, `.env`, and Docker Compose YAML.
 - Indexes code into Neo4j through CodeMeridian.
 - Indexes canonical configuration keys and links direct and typed C# configuration usage into the same graph.

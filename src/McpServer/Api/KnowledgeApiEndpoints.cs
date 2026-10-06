@@ -17,6 +17,7 @@ public static class KnowledgeApiEndpoints
     {
         var group = app.MapGroup("/api/v1/knowledge").WithTags("Knowledge");
 
+        group.MapSqlEndpoints();
         group.MapPost("/nodes", IngestNode);
         group.MapPost("/nodes/bulk", IngestNodesBulk);
         group.MapPost("/nodes/edges", IngestEdge);

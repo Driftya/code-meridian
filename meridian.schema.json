@@ -77,6 +77,29 @@
             }
           }
         },
+        "sql": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "defaultDialect": { "type": "string", "minLength": 1, "default": "postgresql" },
+            "databaseScope": { "type": "string", "minLength": 1, "maxLength": 256, "default": "default" },
+            "searchPath": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["pattern", "dialect"],
+                "properties": {
+                  "pattern": { "type": "string", "minLength": 1 },
+                  "dialect": { "type": "string", "minLength": 1 },
+                  "databaseScope": { "type": "string", "minLength": 1, "maxLength": 256 }
+                }
+              }
+            }
+          }
+        },
         "fileRoles": {
           "type": "object",
           "additionalProperties": true,

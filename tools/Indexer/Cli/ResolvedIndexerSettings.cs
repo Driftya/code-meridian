@@ -18,6 +18,8 @@ internal sealed class ResolvedIndexerSettings
     public bool SkipCSharp { get; init; }
     public bool ExternalOnly { get; init; }
     public bool SkipTypeScript { get; init; }
+    public bool SkipSql { get; init; }
+    public CodeMeridianSqlOptions? Sql { get; init; }
     public bool SkipConfiguration { get; init; }
     public IReadOnlyList<string>? ConfigurationFiles { get; init; }
     public string? ArchitecturePath { get; init; }

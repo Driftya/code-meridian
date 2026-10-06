@@ -297,6 +297,29 @@ JavaScript graphs have less type evidence than TypeScript graphs. ES module rela
 
 Node.js 18+ is required for TypeScript / JavaScript / TSX / JSX indexing.
 
+## PostgreSQL SQL Files
+
+SQL support is opt-in and does not require a database connection. Add this configuration to `meridian.json`:
+
+```json
+{
+  "indexing": {
+    "sql": {
+      "enabled": true,
+      "defaultDialect": "postgresql",
+      "databaseScope": "application",
+      "searchPath": ["public"]
+    }
+  }
+}
+```
+
+Run `codemeridian index .`. `--skip-sql` skips SQL independently of other languages; `--dry-run` and `--list-capabilities` show SQL selection and parser requirements. Node/npm must be available. The first packaged-worker invocation restores pinned npm dependencies, including local WASM assets.
+
+Tables, columns, views, read/write sites, direct joins, explicit foreign keys, ALTER targets, and function declarations join the code graph with source evidence. Unqualified names without a single known search-path schema remain unresolved; qualified references lacking declarations retain an unknown catalog kind. Additional SQL dialects can supply their own analyzer and parser through the same fact contract.
+
+Changed content, configuration, or parser fingerprints reanalyze the configured SQL scope. Successful publication atomically replaces SQL-owned facts and removes deleted files while preserving shared objects still referenced elsewhere. Parse failures retain stale previous facts, report an error, and leave the run retryable. PL/pgSQL bodies, dynamic SQL, migration execution, detailed column lineage, and automatic C#/TypeScript table reconciliation are follow-ups. See [tested support and limits](../tools/SqlIndexer/supports.md).
+
 ## Documentation Ingestion
 
 The indexer ingests README and documentation files unless disabled with `--no-docs` or `--skip-docs`.

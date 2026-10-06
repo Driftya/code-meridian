@@ -174,4 +174,13 @@
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\SqlIndexer\package.json;..\SqlIndexer\package-lock.json;..\SqlIndexer\tsconfig.json;..\SqlIndexer\supports.md"
+          Link="tools\SqlIndexer\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\SqlIndexer\src\**\*"
+          Link="tools\SqlIndexer\src\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

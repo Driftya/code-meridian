@@ -31,7 +31,8 @@ internal static class IndexExecutionPlanBuilder
         bool includeTypeScript,
         bool includeDocs,
         bool includeConfiguration = false,
-        IReadOnlyList<string>? configurationFilePatterns = null)
+        IReadOnlyList<string>? configurationFilePatterns = null,
+        bool includeSql = false)
     {
         return rootPath
             .EnumerateFiles("*.*", SearchOption.AllDirectories)
@@ -42,7 +43,8 @@ internal static class IndexExecutionPlanBuilder
                 includeTypeScript,
                 includeDocs,
                 includeConfiguration,
-                configurationFilePatterns))
+                configurationFilePatterns,
+                includeSql))
             .ToArray();
     }
 
@@ -52,7 +54,9 @@ internal static class IndexExecutionPlanBuilder
         bool includeTypeScript,
         bool includeDocs,
         bool includeConfiguration,
-        IReadOnlyList<string>? configurationFilePatterns = null) =>
+        IReadOnlyList<string>? configurationFilePatterns = null,
+        bool includeSql = false) =>
+        (includeSql && file.Extension.Equals(".sql", StringComparison.OrdinalIgnoreCase)) ||
         (includeCSharp && IsCSharpSourceFile(file)) ||
         (includeTypeScript && IsTypeScriptSourceFile(file)) ||
         (includeTypeScript && IsHtmlCssSourceFile(file)) ||

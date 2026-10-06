@@ -16,7 +16,13 @@ export type CodeNodeType =
   | 'Diagnostic'
   | 'ConfigurationFile'
   | 'ConfigurationKey'
-  | 'ConfigurationEntry';
+  | 'ConfigurationEntry'
+  | 'SqlDeclaration'
+  | 'SqlReference'
+  | 'DatabaseView'
+  | 'DatabaseColumn'
+  | 'DatabaseFunction'
+  | 'DatabaseRelation';
 
 export type CodeEdgeType =
   | 'Contains'
@@ -39,7 +45,11 @@ export type CodeEdgeType =
   | 'DefinesConfig'
   | 'OverridesConfig'
   | 'ReadsConfig'
-  | 'BindsConfig';
+  | 'BindsConfig'
+  | 'Declares'
+  | 'Alters'
+  | 'References'
+  | 'JoinsWith';
 
 export interface CodeNodeDto {
   id: string;

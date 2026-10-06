@@ -10,6 +10,15 @@ export class CodeMeridianClient {
     async ingestNode(node) {
         await this.post('/api/v1/knowledge/nodes', node);
     }
+    async publishSqlGraph(snapshot, signal) {
+        const response = await fetch(`${this.baseUrl.replace(/\/$/, '')}/api/v1/knowledge/sql`, {
+            method: 'POST', signal,
+            headers: this.headers({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(snapshot),
+        });
+        if (!response.ok)
+            throw new Error(`SQL publication failed (${response.status}): ${await response.text()}`);
+    }
     async ingestEdge(edge) {
         await this.post('/api/v1/knowledge/nodes/edges', edge);
     }

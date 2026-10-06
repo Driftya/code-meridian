@@ -35,6 +35,8 @@ internal sealed class IndexCommandSettingsFactory(IToolConfigurationService conf
             SkipCSharp = options.SkipCSharp,
             ExternalOnly = options.ExternalOnly,
             SkipTypeScript = options.SkipTypeScript,
+            SkipSql = options.SkipSql,
+            Sql = context.LocalConfig?.Sql ?? context.GlobalConfig?.Sql,
             SkipConfiguration = options.SkipConfiguration,
             ConfigurationFiles = context.LocalConfig?.ConfigurationFiles ?? context.GlobalConfig?.ConfigurationFiles,
             ArchitecturePath = context.LocalConfig?.ArchitecturePath ?? context.GlobalConfig?.ArchitecturePath ?? CodeMeridianConfigFileStore.DefaultArchitecturePath,

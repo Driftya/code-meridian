@@ -82,5 +82,9 @@ public enum CodeEdgeType
     DefinesConfig,
     OverridesConfig,
     ReadsConfig,
-    BindsConfig
+    BindsConfig,
+    Declares,
+    Alters,
+    References,
+    JoinsWith
 }

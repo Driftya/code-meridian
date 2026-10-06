@@ -65,6 +65,11 @@
     "path": ".meridian/architecture.json"
   },
   "indexing": {
+    "sql": {
+      "enabled": false,
+      "defaultDialect": "postgresql",
+      "databaseScope": "default"
+    },
     "fileRoles": {
       "test": [
         "tests/**/*.cs",

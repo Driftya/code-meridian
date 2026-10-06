@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddSingleton<Neo4jVectorRepository>();
 
         // Expose via domain interfaces
+        services.AddSingleton<ISqlGraphRepository>(sp => sp.GetRequiredService<Neo4jCodeGraphRepository>());
         services.AddSingleton<ICodeGraphRepository>(sp =>
             sp.GetRequiredService<Neo4jCodeGraphRepository>());
         services.AddSingleton<IGraphReadRepository>(sp =>

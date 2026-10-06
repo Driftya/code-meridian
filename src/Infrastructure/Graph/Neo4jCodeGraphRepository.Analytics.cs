@@ -10,9 +10,9 @@ namespace CodeMeridian.Infrastructure.Graph;
 /// </summary>
 public sealed partial class Neo4jCodeGraphRepository
 {
-    private const string StructuralDependencyRelationships = "Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable|Reads|Writes|PublishesTo|SubscribesTo";
+    private const string StructuralDependencyRelationships = "Calls|Uses|DependsOn|UsesClass|UsesId|DefinesSelector|ImportsStyle|UsesCssVariable|DefinesCssVariable|Reads|Writes|PublishesTo|SubscribesTo|Declares|Alters|References";
     private const string StructuralTraversalRelationships = StructuralDependencyRelationships + "|Implements|Inherits";
-    private const string ConnectionRelationships = StructuralTraversalRelationships;
+    private const string ConnectionRelationships = StructuralTraversalRelationships + "|JoinsWith";
     private const string BroadConnectionRelationships = StructuralTraversalRelationships + "|Contains";
     private const string WorkflowAdjacentTypeList = "['ApiEndpoint','File','ExternalConcept','MessageTopic','ExternalService','Diagnostic','ConfigurationFile','ConfigurationKey','ConfigurationEntry']";
 
@@ -272,6 +272,7 @@ public sealed partial class Neo4jCodeGraphRepository
                 WHERE targetNode IS NOT NULL
                 MATCH path = (caller:CodeNode)-[:{{StructuralTraversalRelationships}}*1..8]->(targetNode)
                 WHERE none(candidate IN targets WHERE candidate = caller)
+                  AND all(edge IN relationships(path) WHERE coalesce(edge.sqlStale, false) = false)
                 WITH target,
                      targetNode,
                      caller,
@@ -537,6 +538,7 @@ public sealed partial class Neo4jCodeGraphRepository
             WHERE sourceNode IS NOT NULL
             MATCH path = (sourceNode)-[:{{StructuralTraversalRelationships}}*1..{{depth}}]->(downstream:CodeNode)
             WHERE none(source IN sources WHERE source = downstream)
+              AND all(edge IN relationships(path) WHERE coalesce(edge.sqlStale, false) = false)
             WITH downstream, min(length(path)) AS dist
             RETURN downstream, dist
             ORDER BY dist ASC
@@ -594,6 +596,7 @@ public sealed partial class Neo4jCodeGraphRepository
             "(a:CodeNode {id: $fromId})-[:"
             + ConnectionRelationships +
             "*..10]-(b:CodeNode {id: $toId})) " +
+            "WHERE all(edge IN relationships(path) WHERE coalesce(edge.sqlStale, false) = false) " +
             "RETURN [n IN nodes(path) | n] AS pathNodes, " +
             "[r IN relationships(path) | { type: type(r), confidence: r.confidence, evidenceKind: r.evidenceKind, evidenceReason: r.evidenceReason, resolver: r.resolver, sourceFilePath: r.sourceFilePath, sourceLine: r.sourceLine, sourceColumn: r.sourceColumn, sourceEndLine: r.sourceEndLine, sourceEndColumn: r.sourceEndColumn }] AS pathRelationships";
 

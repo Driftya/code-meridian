@@ -787,3 +787,6 @@ What calls Neo4jCodeGraphRepository.UpsertNodeAsync?
 Which parts of CodeMeridian have no test coverage?
 What changed in CodeMeridian in the last 7 days?
 ```
+## PostgreSQL SQL Indexing
+
+Opt-in offline `.sql` indexing uses PostgreSQL's native parser compiled to WASM. It adds scoped table/view/column identities, declarations, reads/writes, direct joins, explicit foreign keys, unresolved references, and atomic SQL-owned publication. The dialect analyzer contract supports future parsers without sharing PostgreSQL AST types. See [SQL support](../tools/SqlIndexer/supports.md) and [implementation plan](plans/2026-10-06-sql-indexing-plan.md).

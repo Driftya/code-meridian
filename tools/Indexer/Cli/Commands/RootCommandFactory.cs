@@ -68,6 +68,7 @@ internal sealed class RootCommandFactory(
         var skipCSharpOption = new Option<bool>("--skip-csharp") { Description = "Skip C# indexing." };
         var externalOnlyOption = new Option<bool>("--external-only") { Description = "Index only C# files outside the root that are explicitly referenced by project files or .slnx." };
         var skipTypeScriptOption = new Option<bool>("--skip-typescript") { Description = "Skip TypeScript/JavaScript/TSX/JSX indexing." };
+        var skipSqlOption = new Option<bool>("--skip-sql") { Description = "Skip configured SQL indexing." };
         var skipConfigurationOption = new Option<bool>("--skip-config") { Description = "Skip configuration indexing." };
         var skipDiagnosticsOption = new Option<bool>("--skip-diagnostics") { Description = "Skip project-native compiler, TypeScript, and lint diagnostics indexing." };
         var allowRepoScriptsOption = new Option<bool>("--allow-repo-scripts") { Description = "Allow repo-controlled build/lint commands and MSBuild evaluation for cross-project package references." };
@@ -88,6 +89,7 @@ internal sealed class RootCommandFactory(
         command.Add(skipCSharpOption);
         command.Add(externalOnlyOption);
         command.Add(skipTypeScriptOption);
+        command.Add(skipSqlOption);
         command.Add(skipConfigurationOption);
         command.Add(skipDiagnosticsOption);
         command.Add(allowRepoScriptsOption);
@@ -123,6 +125,7 @@ internal sealed class RootCommandFactory(
                     ListCapabilities: parseResult.GetValue(listCapabilitiesOption),
                     SkipCSharp: parseResult.GetValue(skipCSharpOption),
                     SkipTypeScript: parseResult.GetValue(skipTypeScriptOption),
+                    SkipSql: parseResult.GetValue(skipSqlOption),
                     SkipConfiguration: parseResult.GetValue(skipConfigurationOption),
                     SkipDiagnostics: parseResult.GetValue(skipDiagnosticsOption),
                     AllowRepoScripts: parseResult.GetValue(allowRepoScriptsOption),

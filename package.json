@@ -5,10 +5,11 @@
     "tools/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace @codemeridian/indexer-shared && npm run build --workspace codemeridian-ts-indexer && npm run build --workspace codemeridian-html-css-indexer",
-    "test": "npm run test:mcp-apps && npm run test --workspace @codemeridian/indexer-shared && npm run test --workspace codemeridian-ts-indexer && npm run test --workspace codemeridian-html-css-indexer",
+    "build": "npm run build --workspace @codemeridian/indexer-shared && npm run build --workspace codemeridian-ts-indexer && npm run build --workspace codemeridian-html-css-indexer && npm run build --workspace codemeridian-sql-indexer",
+    "test": "npm run test:mcp-apps && npm run test --workspace @codemeridian/indexer-shared && npm run test --workspace codemeridian-ts-indexer && npm run test --workspace codemeridian-html-css-indexer && npm run test --workspace codemeridian-sql-indexer",
     "test:mcp-apps": "node --test tests/mcp-apps.test.mjs",
     "test:tools": "npm run test --workspaces --if-present",
+    "test:sql": "npm run build --workspace @codemeridian/indexer-shared && npm run test --workspace codemeridian-sql-indexer",
     "start:ts-indexer": "npm run start --workspace codemeridian-ts-indexer",
     "start:html-css-indexer": "npm run start --workspace codemeridian-html-css-indexer",
     "index:ts": "npm run index --workspace codemeridian-ts-indexer",
