@@ -8,7 +8,13 @@ Use this skill when working in a repository indexed by CodeMeridian and the user
 
 The goal is to make refactoring safer by using graph context before changing files.
 
-projectContext can be found in meridian.json in field project.
+## Target Scope
+
+Resolve each supplied file/directory from its own location, including external paths. Find its Git/worktree or configured solution root and the nearest applicable ancestor `meridian.json` (`project`), stopping at the owning root; nested configs can define distinct index roots. Honor explicit user/index-invocation context. Current-repository/global/environment defaults do not prove external ownership. Missing config makes solution (`.sln`/`.slnx`), workspace, package and folder names candidates requiring a bounded known-file/symbol graph lookup. Report unresolved scope instead of guessing.
+
+Keep target -> index root -> project context and freshness; use paths relative to that root and returned canonical IDs. Build-project/framework scope is distinct from repository context. Start new paths at their nearest existing parent. Keep relevant unindexed external source as labeled evidence. Read supplied external context without expanding edit/build/index scope, and discover through ancestors rather than scanning sibling repositories.
+
+Before extracting, renaming or changing a shared API, inspect `find_cross_project_dependencies` for relevant contexts and resolve producer/consumer endpoints separately. Check exact connections, impact and test shields. Preserve installed package version/framework and source status: verified source edges support normal traversal; current-source associations identify potential consumers and require compatibility consideration, not a claim about the installed implementation. Ambiguous, missing and pending links are unresolved risk, not permission to delete or proof of no consumers.
 
 ## When To Use
 
@@ -234,6 +240,7 @@ Behavior-changing changes:
 Before implementing, summarize:
 
 ```text
+Project scopes: target -> index root -> projectContext (evidence / freshness)
 Graph freshness:
 Refactor target:
 Minimal context:

@@ -8,7 +8,13 @@ Use this skill when working in a repository indexed by CodeMeridian and the task
 
 The goal is to make frontend work use the indexed HTML/CSS/SCSS relationship graph instead of falling back to file-by-file guessing.
 
-projectContext can be found in meridian.json in field project.
+## Target Scope
+
+Resolve supplied components, styles and shared-library paths from their own location, including paths outside the current checkout. Find the owning Git/worktree or configured workspace root and the nearest applicable ancestor `meridian.json` (`project`) within that root. Nested configs can define separate index roots. Honor explicit user/index-invocation context; current/global/environment defaults do not prove external ownership. Workspace, package, solution (`.sln`/`.slnx`) and folder names are only candidates until a bounded known-file/symbol graph lookup confirms the context.
+
+Keep target -> index root -> project context, evidence and freshness; use root-relative paths and returned canonical IDs. Start new paths at the nearest existing parent. Preserve useful unindexed external styles/components as labeled evidence. Discover through ancestors rather than scanning sibling repositories; reading external context does not authorize unrelated edits, indexing or builds.
+
+For relevant shared packages or another frontend/backend context, inspect `find_cross_project_dependencies`, resolve each endpoint in its own scope, then use the normal connection/impact tools. Namespace or selector-name similarity is a hint, not proof of a cross-project dependency. Distinguish verified source links from current-source associations when those statuses are available.
 
 ## When To Use
 

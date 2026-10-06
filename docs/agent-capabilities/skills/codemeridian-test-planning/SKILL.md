@@ -8,7 +8,13 @@ Use this skill when working in a repository indexed by CodeMeridian and the user
 
 The goal is to identify the smallest useful set of tests before changing behavior or adding new code.
 
-projectContext can be found in meridian.json in field project.
+## Target Scope
+
+Resolve each supplied file/directory, including external paths, against its own Git/worktree or configured solution root. Read the nearest applicable ancestor `meridian.json` (`project`) within that root; nested configs may define distinct index roots. Honor explicit user/index-invocation context. Current-repository/global/environment defaults do not establish external ownership. Solution (`.sln`/`.slnx`), workspace, package and folder names are fallback candidates requiring bounded graph confirmation. Start new paths from the nearest existing parent and report unresolved scope instead of guessing.
+
+Keep target -> index root -> project context, identity evidence and freshness. Use root-relative file hints and returned canonical IDs. A build-project/framework scope is separate from graph project context. Retain relevant unindexed external sources/tests as labeled evidence; discover through ancestors, not scans of sibling repositories. A reference path alone does not authorize external edits, indexing or build/test commands.
+
+For shared libraries, use `find_cross_project_dependencies` and inspect relevant producer and consumer test shields in their own contexts. Preserve installed package version/framework and source status. `associated_current_source` consumers indicate potential compatibility tests; they are not verified callers of the checkout. Plan the smallest producer contract and consumer regression checks supported by the actual dependency, keeping commands tied to each owning solution. Missing, ambiguous, pending or stale associations and empty shields are coverage uncertainty, not proof of safety.
 
 ## When To Use
 
@@ -295,6 +301,7 @@ first.
 Use this template when reporting a test plan:
 
 ```text id="k18ha7"
+Project scopes: target -> index root -> projectContext (evidence / freshness)
 Graph freshness:
 - Status:
 - Notes:

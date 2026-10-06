@@ -20,6 +20,16 @@ The files in `meridian-agent-capabilities/` are intentionally provider-neutral w
 
 ## Recommended Usage
 
+### Context Follows The Target Folder
+
+The CodeMeridian agents and skills resolve project context from the supplied target, including a file or directory outside the current checkout. They inspect its owning Git/worktree or configured solution root and applicable local `meridian.json`, confirm fallback names against indexed evidence, and retain a separate root/context/freshness map for each relevant scope. Nested index roots can exist within one Git repository; an external path can also be relevant without being indexed.
+
+For example, `C:\Repos\MyApi\src\Service.cs` may belong to context `MyApi`, while `C:\Repos\SharedLibraries\src\Validator.cs` belongs to `SharedLibraries`, as established by each root's configuration and graph evidence. Query each target in its own context, then inspect cross-project dependencies and exact endpoints. The global backend connection can be shared; a global default project name does not prove that both directories share an indexed context.
+
+For .NET packages, preserve the consumer's installed version/framework and the producer's source-association status. Verified links support normal source traversal; current-source associations remain useful for navigation and potential impact without being described as the installed implementation. Supplied external paths are context for the task, not automatic authorization to edit or run build scripts in another repository.
+
+### Workflow Selection
+
 Use the context skill before:
 
 * implementing a feature
