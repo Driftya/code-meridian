@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Security.Cryptography;
 using CodeMeridian.Application.Services;
+using CodeMeridian.Core.CodeGraph;
 using FluentAssertions;
 using Json.Schema;
 using Microsoft.AspNetCore.Hosting;
@@ -28,6 +29,8 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
     public async Task AdvertisedSchemas_ValidateEveryImplementedStructuredResult()
     {
         var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.FindCrossProjectDependenciesResultAsync(null, Arg.Any<CancellationToken>())
+            .Returns(new CrossProjectDependencyResult("1.0", null, [], [], false));
         queryService.FindConnectionResultAsync("source", "target", Arg.Any<CancellationToken>())
             .Returns(CreateConnection());
         queryService.CheckGraphFreshnessResultAsync(null, null, 25, Arg.Any<CancellationToken>())
@@ -77,6 +80,7 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
         var challengeId = startResult.StructuredContent!.Value.GetProperty("challengeId").GetString()!;
         var calls = new[]
         {
+            new StructuredCall("find_cross_project_dependencies", []),
             new StructuredCall("check_graph_freshness", []),
             new StructuredCall("find_impact", new Dictionary<string, object?>
             {
@@ -143,6 +147,32 @@ public sealed class McpStructuredResultsEndpointTests : IClassFixture<GraphQlWeb
         using var invalidPayload = JsonDocument.Parse("""{"contractVersion":1,"nodes":null}""");
 
         schema.Evaluate(invalidPayload.RootElement).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PackageDependencies_PreserveInstalledVersionAndValidateStructuredAndTextResults()
+    {
+        var scope = new PackageBuildScope("scope", "App.csproj", "net10.0", "Debug", "App", "App",
+            null, null, null, null, true, "msbuild.workspace");
+        var reference = new PackageSymbolReference("site", "scope", "source", "csharp.symbol.v1:M:Shared.Check(System.String)|None",
+            "Shared", "Shared", "Company.Shared", "1.0.0", null, null, "Calls", "Service.cs", 10, 1, 10, 15);
+        var dependency = new PackageDependencyResult("App", reference, scope,
+            new("associated_current_source", "Source revision differs.", "target", "Library", "2.0.0"), Node(), Node() with { Id = "target", ProjectContext = "Library" });
+        var queryService = Substitute.For<ICodebaseQueryService>();
+        queryService.FindCrossProjectDependenciesResultAsync("App", Arg.Any<CancellationToken>())
+            .Returns(new CrossProjectDependencyResult("1.0", "App", [], [dependency], false));
+        using var factory = WithQueryService(queryService);
+        using var httpClient = factory.CreateClient();
+        await using var client = await McpTestClient.CreateAsync(httpClient);
+        var tool = (await client.ListToolsAsync()).Single(tool => tool.Name == "find_cross_project_dependencies");
+        var result = await client.CallToolAsync(tool.Name, new Dictionary<string, object?> { ["projectContext"] = "App" });
+        AssertValidStructuredResult(tool.Name, tool.ProtocolTool.OutputSchema, result);
+        var facts = result.StructuredContent!.Value;
+        var item = facts.GetProperty("packageReferences")[0];
+        item.GetProperty("reference").GetProperty("packageVersion").GetString().Should().Be("1.0.0");
+        item.GetProperty("resolution").GetProperty("producerVersion").GetString().Should().Be("2.0.0");
+        facts.GetRawText().Should().NotContain("sourceSnippet");
+        result.Content.OfType<TextContentBlock>().Single().Text.Should().Contain("associated_current_source").And.Contain("1.0.0").And.Contain("2.0.0");
     }
 
     [Fact]

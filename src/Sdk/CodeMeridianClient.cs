@@ -10,6 +10,22 @@ namespace CodeMeridian.Sdk;
 /// </summary>
 public sealed class CodeMeridianClient(HttpClient httpClient)
 {
+    public async Task BeginPackageReferenceIndexAsync(string projectContext, string generation, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PostAsJsonAsync("/api/v1/knowledge/package-references/begin", new { projectContext, generation }, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+    public async Task ReconcilePackageReferencesAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PostAsync("/api/v1/knowledge/package-references/reconcile", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+    /// <summary>Publish a complete versioned package-reference snapshot after successful source ingestion.</summary>
+    public async Task PublishPackageReferencesAsync<TSnapshot>(TSnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PostAsJsonAsync("/api/v1/knowledge/package-references", snapshot, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
     public async Task<DoctorStatusResponse?> GetDoctorStatusAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
@@ -383,7 +399,10 @@ public sealed record DoctorStatusResponse(
     int EmbeddingDimensions,
     string? Error,
     bool EmbeddingsAvailable = false,
-    long EmbeddedNodes = 0);
+    long EmbeddedNodes = 0)
+{
+    public PackageReferenceHealthResponse? PackageReferences { get; init; }
+}
 
 public sealed record KeywordGraphJobSubmissionResponse(
     bool Accepted,

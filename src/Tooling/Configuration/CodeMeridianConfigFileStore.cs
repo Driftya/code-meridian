@@ -206,7 +206,8 @@ public sealed class CodeMeridianConfigFileStore
                 NormalizeOptionalString(options.Architecture?.Path),
                 NormalizeFileRolePatterns(options.Indexing?.FileRoles),
                 ReadVersion(root),
-                options.Embedding?.Enabled);
+                options.Embedding?.Enabled,
+                options.Indexing?.PackageReferences?.ProducerBindings);
         }
         catch (Exception ex)
         {

@@ -21,6 +21,25 @@ public static class KnowledgeApiEndpoints
         group.MapPost("/nodes/bulk", IngestNodesBulk);
         group.MapPost("/nodes/edges", IngestEdge);
         group.MapPost("/nodes/edges/bulk", IngestEdgesBulk);
+        group.MapPost("/package-references", async (PackageReferenceSnapshot snapshot, PackageReferenceService service, CancellationToken ct) =>
+        {
+            try { await service.PublishAsync(snapshot, ct); }
+            catch (ArgumentException exception) { return Results.BadRequest(exception.Message); }
+            catch (InvalidOperationException exception) { return Results.Conflict(exception.Message); }
+            return Results.Ok(new { snapshot.Generation });
+        });
+        group.MapPost("/package-references/begin", async (PackageReferenceIndexRequest request, ICodeGraphRepository repository, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.ProjectContext) || !Guid.TryParse(request.Generation, out _))
+                return Results.BadRequest("Project context and a GUID generation are required.");
+            await repository.BeginPackageReferenceIndexAsync(request.ProjectContext, request.Generation, ct);
+            return Results.Ok();
+        });
+        group.MapPost("/package-references/reconcile", async (PackageReferenceService service, CancellationToken ct) =>
+        {
+            await service.ReconcileAsync(ct);
+            return Results.Ok();
+        });
         group.MapPost("/documents", IngestDocument);
         group.MapPost("/documents/bulk", IngestDocumentsBulk);
         group.MapPost("/keywords/rebuild", RebuildKeywordGraph);

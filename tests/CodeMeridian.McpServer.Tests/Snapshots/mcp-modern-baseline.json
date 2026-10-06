@@ -8,6 +8,7 @@
     "build_minimal_context",
     "check_graph_freshness",
     "find_connection",
+    "find_cross_project_dependencies",
     "find_impact",
     "find_test_shield",
     "get_change_context",

@@ -62,6 +62,45 @@ dotnet run --project tools/Indexer -- . --clear
 
 ## Common Commands
 
+### Cross-solution .NET package references
+
+Restore the consumer normally, then index both repositories into the same server with distinct project contexts. The producer can have its own solution, pipeline and NuGet feed. Either indexing order works:
+
+```powershell
+codemeridian index C:\Projects\SharedLibraries --project SharedLibraries --allow-repo-scripts
+codemeridian index C:\Projects\MyApi --project MyApi --allow-repo-scripts
+codemeridian doctor --project MyApi
+```
+
+The updated server and indexer preserve compiler-bound dependency sites and reconcile them after completed indexing. `find_cross_project_dependencies` shows installed package/version, selected compile asset, target framework, symbol, consumer site, source location and resolution reason. Source `ProjectReference`s outside the index root are associated with a separately indexed producer; their source is not copied into the consumer context.
+
+MSBuild evaluation requires the existing `--allow-repo-scripts` trust flag, or top-level `allowRepoScripts: true` in `meridian.json`. It evaluates each `.csproj` and target framework with `Configuration=Debug`; design-time project loading can execute repository-controlled build logic. Package indexing does not invoke restore or a production build. With this flag, the separate diagnostics stage can still run its existing build commands; use `--skip-diagnostics` when only indexing is desired. Without the flag, existing syntax indexing remains available. Missing restore assets or failed evaluation produce diagnostics and invalidate old package associations rather than retaining verified links.
+
+Resolution states are:
+
+- `verified_source`: one producer matches the symbol, assembly, package version, framework, repository and commit, and its worktree is clean. Generated source edges participate in normal connection and impact traversal. This establishes source provenance, not binary reproducibility or API compatibility.
+- `associated_current_source`: a unique related source is available, but release provenance is absent or differs. For example, consuming v1 while indexing a v2 checkout retains v1 as the dependency and labels v2 as the associated source. `find_impact` lists these consumers separately as potential impact.
+- `ambiguous`: several producers or colliding source definitions qualify; no source edge is created.
+- `source_not_indexed`: the compiled dependency remains available until a producer is indexed.
+- `pending`: a published change or deletion awaits reconciliation; a subsequent index, including an unchanged trusted index, retries it.
+
+Package `.nuspec` repository URL/commit metadata can verify a clean matching producer revision. Producer pipeline changes and Source Link are optional; package version alone cannot verify source. URLs are stored without HTTP credentials or query strings. Framework dependencies do not create per-symbol package stubs.
+
+For ambiguous ownership, bind a package ID to a producer project context in the consumer's `meridian.json`:
+
+```json
+{
+  "project": "MyApi",
+  "indexing": {
+    "packageReferences": {
+      "producerBindings": { "Company.Shared": "SharedLibraries" }
+    }
+  }
+}
+```
+
+A binding selects ownership and never upgrades source provenance. Reindex after changing a binding. Build metadata, restore assets, Git state and producer publication can update associations without a consumer source edit. Deleting producer source invalidates generated edges while retaining surviving consumer dependency records. Older clients can still index code but do not publish package snapshots. Historical checkouts and automatic source downloads are outside this feature.
+
 Create local runtime files and start the local backend stack:
 
 ```powershell
@@ -166,7 +205,7 @@ codemeridian index . --verify --project CodeMeridian --fail-on moderate
 | `--list-capabilities` | Show available indexers on the current machine |
 | `--include-diagnostics` | Run diagnostics indexing. This is the default; kept for compatibility |
 | `--skip-diagnostics` | Skip project-native compiler, TypeScript, and lint diagnostics indexing |
-| `--allow-repo-scripts` | Allow repo-controlled `dotnet build` and lint commands during diagnostics |
+| `--allow-repo-scripts` | Allow repo-controlled MSBuild evaluation for package references, plus build and lint diagnostics |
 | `--verify` | Skip indexing and only verify graph drift/freshness |
 | `--fail-on <severity>` | Verification drift threshold: `low`, `moderate`, or `high` |
 | `--no-incremental` / `--force-full` | Ignore the local file cache and scan all enabled files |
@@ -290,7 +329,7 @@ MCP Tasks are separate from the REST keyword jobs submitted by the CLI. Their ID
 ## Diagnostics Indexing
 
 Diagnostics indexing runs by default so compiler, analyzer, TypeScript, and lint findings stay attached to the graph.
-Repo-controlled build and lint commands are only executed when `--allow-repo-scripts` is set.
+Repo-controlled MSBuild evaluation, build and lint commands are only executed when `--allow-repo-scripts` is set.
 
 Run normal indexing:
 
@@ -419,7 +458,7 @@ Useful variables:
 | `version` | Config format version used by `codemeridian init` to decide when new defaults can be merged into an existing file |
 | `project` | Optional project context name used by the indexer when `--project` is omitted |
 | `codeMeridianUrl` | Optional CodeMeridian server URL used when `CodeMeridian_Url` is not set |
-| `allowRepoScripts` | When `true`, repo-controlled build and lint diagnostics are enabled by default |
+| `allowRepoScripts` | When `true`, repo-controlled MSBuild evaluation for package references, build and lint diagnostics are enabled by default |
 | `useGlobalCache` | When `true`, runtime cache is stored outside the repository |
 | `$schema` | Optional JSON schema reference. `codemeridian init` writes `./meridian.schema.json` |
 | `analysis.staleKnowledge.skipHeuristicSourcePrefixes` | Documentation source prefixes where stale-knowledge uses explicit links only |

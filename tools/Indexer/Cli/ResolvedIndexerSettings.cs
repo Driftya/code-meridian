@@ -25,6 +25,7 @@ internal sealed class ResolvedIndexerSettings
     public bool? EmbeddingEnabled { get; init; }
     public bool SkipDiagnostics { get; init; }
     public bool AllowRepoScripts { get; init; }
+    public IReadOnlyDictionary<string, string>? PackageProducerBindings { get; init; }
     public bool Incremental { get; init; } = true;
     public required IndexerStorageMode StorageMode { get; init; }
     public bool HasOutdatedLocalConfig { get; init; }

@@ -42,6 +42,7 @@ internal sealed class IndexCommandSettingsFactory(IToolConfigurationService conf
             EmbeddingEnabled = context.LocalConfig?.EmbeddingEnabled ?? context.GlobalConfig?.EmbeddingEnabled,
             SkipDiagnostics = options.SkipDiagnostics,
             AllowRepoScripts = configurationService.ResolveAllowRepoScripts(context, options.AllowRepoScripts),
+            PackageProducerBindings = context.LocalConfig?.PackageProducerBindings ?? context.GlobalConfig?.PackageProducerBindings,
             Incremental = options.Incremental,
             StorageMode = options.Storage
                 ?? ((context.LocalConfig?.UseGlobalCache ?? context.GlobalConfig?.UseGlobalCache) == true

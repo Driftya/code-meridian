@@ -34,6 +34,11 @@ internal sealed class StatusCommand
         Console.WriteLine($"  Docs indexed            : {status.DocumentsIndexed:N0}");
         Console.WriteLine($"  Diagnostics indexed     : {status.DiagnosticsIndexed:N0}");
         Console.WriteLine($"  Graph drift             : {status.GraphDrift}");
+        if (status.PackageReferences is { } packages)
+        {
+            Console.WriteLine("  Package reference sites : " + string.Join(", ", packages.Counts.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}={pair.Value}")));
+            foreach (var diagnostic in packages.Diagnostics) Console.WriteLine("  Package metadata note   : " + diagnostic);
+        }
         Console.WriteLine($"  Embeddings configured   : {(status.EmbeddingsEnabled ? "yes" : "no")}");
         Console.WriteLine($"  Embedding provider      : {status.EmbeddingProvider} ({status.EmbeddingDimensions} dims)");
         Console.WriteLine($"  Provider reachable      : {(status.EmbeddingsAvailable ? "yes" : "no")}");

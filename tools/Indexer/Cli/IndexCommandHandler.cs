@@ -92,6 +92,12 @@ internal sealed class IndexCommandHandler(
             }
 
             Console.WriteLine("No file changes detected since the last successful index run.");
+            if (context.HasCSharp && _settings.AllowRepoScripts && !_settings.ExternalOnly)
+            {
+                using var http = new HttpClient { BaseAddress = new Uri(_settings.CodeMeridianUrl) };
+                if (!string.IsNullOrWhiteSpace(_settings.ApiKey)) http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ApiKey);
+                await new CodeMeridianClient(http).ReconcilePackageReferencesAsync();
+            }
             return 0;
         }
 
@@ -155,6 +161,12 @@ internal sealed class IndexCommandHandler(
 
         services.AddCodeMeridianClient(_settings.CodeMeridianUrl, _settings.ApiKey);
         services.AddSingleton(IndexedFileRoleClassifierFactory.Create(_settings.FileRoles));
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new PackageIndexingOptions
+        {
+            AllowProjectEvaluation = _settings.AllowRepoScripts && !_settings.ExternalOnly,
+            ProducerBindings = new Dictionary<string, string>(_settings.PackageProducerBindings
+                ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+        }));
         services.AddTransient<CSharpIndexer>();
         services.AddTransient<IndexerPipeline>();
 
@@ -342,6 +354,7 @@ internal sealed class IndexCommandHandler(
             hasConfiguration,
             configurationFilePatterns)
             .Concat(cSharpFiles)
+            .Concat(hasCSharp && _settings.AllowRepoScripts && !_settings.ExternalOnly ? PackageMetadataFiles.Enumerate(_settings.RootPath) : [])
             .DistinctBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         Func<string, bool>? isPathInScope = clear
@@ -349,13 +362,14 @@ internal sealed class IndexCommandHandler(
             : path =>
             {
                 var file = new FileInfo(Path.Combine(_settings.RootPath.FullName, path.Replace('/', Path.DirectorySeparatorChar)));
-                return IndexExecutionPlanBuilder.IsIndexableFile(
+                return (hasCSharp && _settings.AllowRepoScripts && !_settings.ExternalOnly && PackageMetadataFiles.IsMetadata(file)
+                        || IndexExecutionPlanBuilder.IsIndexableFile(
                            file,
                            hasCSharp,
                            hasTypeScript,
                            IncludesDocs,
                            hasConfiguration,
-                           configurationFilePatterns)
+                           configurationFilePatterns))
                        && (!_settings.ExternalOnly ||
                            !IndexExecutionPlanBuilder.IsCSharpSourceFile(file) ||
                            IsOutsideRoot(file));

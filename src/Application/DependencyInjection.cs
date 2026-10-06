@@ -45,6 +45,8 @@ public static class DependencyInjection
         services.AddTransient<IProjectAnalysisOptionsResolver, ProjectAnalysisOptionsResolver>();
         services.AddTransient<IGraphQueryService, GraphQueryService>();
         services.AddTransient<ICodebaseQueryService, CodebaseQueryService>();
+        services.AddSingleton<PackageReferenceMatcher>();
+        services.AddTransient<PackageReferenceService>();
         services.AddTransient<ICodebaseStatusService, CodebaseStatusService>();
         services.AddTransient<IPrContextReportService, PrContextReportService>();
         services.AddTransient<IHumanCognitiveSeedContextService, HumanCognitiveSeedContextService>();

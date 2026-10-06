@@ -9,7 +9,8 @@ public sealed record CodeMeridianConfigSnapshot(
     string? ArchitecturePath,
     CodeMeridianFileRolePatternSnapshot? FileRoles,
     int Version,
-    bool? EmbeddingEnabled = null);
+    bool? EmbeddingEnabled = null,
+    IReadOnlyDictionary<string, string>? PackageProducerBindings = null);
 
 public sealed record ToolConfigurationContext(
     DirectoryInfo RootPath,
@@ -45,6 +46,7 @@ public sealed class CodeMeridianArchitectureOptions
 public sealed class CodeMeridianIndexingOptions
 {
     public CodeMeridianFileRoleOptions? FileRoles { get; set; }
+    public CodeMeridianPackageReferenceOptions? PackageReferences { get; set; }
 }
 
 public sealed class CodeMeridianFileRoleOptions

@@ -35,6 +35,11 @@ internal static class CSharpReferenceEdgeResolver
                 continue;
             }
 
+            if (edge.Properties?.GetValueOrDefault("semanticTargetResolution") == "metadata")
+            {
+                outcomes.Record(RelationshipResolutionDisposition.ExternalOrUnindexed, "semantic_external_type", nodesById.GetValueOrDefault(edge.SourceId), edge);
+                continue;
+            }
             if (nodesById.ContainsKey(edge.TargetId))
             {
                 outcomes.RecordResolved(nodesById.GetValueOrDefault(edge.SourceId)!, edge);

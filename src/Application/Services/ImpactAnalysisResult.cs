@@ -13,7 +13,21 @@ public sealed record ImpactAnalysisResult(
     IReadOnlyList<ImpactFindingResult> Findings,
     bool Truncated)
 {
+    public IReadOnlyList<PackageDependencyResult> PotentialPackageConsumers { get; init; } = [];
+
     public string ToMarkdown(ContextDetailLevel detailLevel, bool includeConfidence)
+    {
+        var text = ToSourceMarkdown(detailLevel, includeConfidence);
+        if (PotentialPackageConsumers.Count == 0) return text;
+        var builder = new StringBuilder(text);
+        builder.AppendLine("\n\n### Potential package consumers");
+        builder.AppendLine("These consumers bind to a compiled dependency associated with this source. Its revision is unverified; these are potential consumers, not verified source callers.");
+        foreach (var dependency in PotentialPackageConsumers)
+            builder.AppendLine($"- `{dependency.ProjectContext}` `{dependency.Reference.FilePath}:{dependency.Reference.Line}` — {dependency.Reference.PackageId ?? dependency.Reference.AssemblyName} {dependency.Reference.PackageVersion}: {dependency.Resolution.Reason}");
+        return builder.ToString();
+    }
+
+    private string ToSourceMarkdown(ContextDetailLevel detailLevel, bool includeConfidence)
     {
         if (!ImpactFound)
         {

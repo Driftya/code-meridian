@@ -47,7 +47,10 @@ public sealed class CodebaseStatusService(
                 await embeddingAvailableTask,
                 await embeddedNodeCountTask,
                 embeddingProvider.ProviderName,
-                embeddingProvider.Dimensions);
+                embeddingProvider.Dimensions)
+            {
+                PackageReferences = await codeGraph.GetPackageReferenceHealthAsync(projectContext, cancellationToken)
+            };
         }
         catch (Exception ex)
         {

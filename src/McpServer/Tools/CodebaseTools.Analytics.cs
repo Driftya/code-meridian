@@ -62,16 +62,20 @@ public sealed partial class CodebaseTools
         CancellationToken cancellationToken = default) =>
         queryService.FindUnreferencedAsync(projectContext, cancellationToken);
 
-    [McpServerTool(Name = "find_cross_project_dependencies", Title = "Find Cross-Project Dependencies", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [McpServerTool(Name = "find_cross_project_dependencies", Title = "Find Cross-Project Dependencies", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false,
+        UseStructuredContent = true, OutputSchemaType = typeof(CrossProjectDependencyResult))]
     [Description(
         "Find edges that cross project boundaries — where code in one indexed project calls or depends on code in another. " +
         "Use this to understand coupling between services, libraries, and microservices. " +
         "Essential before extracting a module into a separate package or understanding a multi-repo workspace.")]
-    public Task<string> FindCrossProjectDependenciesAsync(
+    public async Task<ModelContextProtocol.Protocol.CallToolResult> FindCrossProjectDependenciesAsync(
         [Description("Scope to a specific project name to see only its cross-project edges. Omit to see all cross-project edges.")]
         string? projectContext = null,
-        CancellationToken cancellationToken = default) =>
-        queryService.FindCrossProjectDependenciesAsync(projectContext, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var result = await queryService.FindCrossProjectDependenciesResultAsync(projectContext, cancellationToken);
+        return StructuredToolResult.Create(result.ToMarkdown(), result);
+    }
 
     [McpServerTool(Name = "find_coverage_gaps", Title = "Find Coverage Gaps", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(

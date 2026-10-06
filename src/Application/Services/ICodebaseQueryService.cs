@@ -14,6 +14,7 @@ public interface ICodebaseQueryService
     Task<string> TraceEndpointAsync(string route, string? projectContext = null, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
     Task<string> FindUnreferencedAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindCrossProjectDependenciesAsync(string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<CrossProjectDependencyResult> FindCrossProjectDependenciesResultAsync(string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> FindCoverageGapsAsync(string? projectContext = null, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, CancellationToken cancellationToken = default);
     Task<TestShieldResult> FindTestShieldResultAsync(string nodeId, string? projectContext = null, int depth = 2, int limit = 20, CancellationToken cancellationToken = default);
     Task<string> FindTestShieldAsync(string nodeId, string? projectContext = null, int depth = 2, int limit = 20, CancellationToken cancellationToken = default);

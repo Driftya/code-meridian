@@ -2,6 +2,13 @@
 
 public interface ICodeGraphRepository
 {
+    Task BeginPackageReferenceIndexAsync(string projectContext, string generation, CancellationToken cancellationToken = default);
+    Task PublishPackageReferencesAsync(PackageReferenceSnapshot snapshot, CancellationToken cancellationToken = default);
+    Task<PackageReferenceHealth> GetPackageReferenceHealthAsync(string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PendingPackageReference>> GetPendingPackageReferencesAsync(int limit, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PackageExportCandidate>> GetPackageExportCandidatesAsync(PendingPackageReference reference, CancellationToken cancellationToken = default);
+    Task<bool> TryResolvePackageReferenceAsync(PendingPackageReference reference, PackageReferenceResolution resolution, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PackageDependency>> GetPackageDependenciesAsync(string? projectContext = null, string? targetId = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CodeNode>> QueryNodesAsync(CodeGraphQuery query, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CodeEdge>> QueryEdgesAsync(string nodeId, int depth = 1, CancellationToken cancellationToken = default);
     Task<string> GetSubgraphSummaryAsync(string nodeId, CancellationToken cancellationToken = default);

@@ -18,16 +18,19 @@ public sealed class CSharpIndexer(
     CodeMeridianClient client,
     IIndexedFileRoleClassifier fileRoleClassifier,
     IOptions<DatabaseTracingOptions> databaseTracingOptions,
-    ILogger<CSharpIndexer> logger)
+    ILogger<CSharpIndexer> logger,
+    IOptions<PackageIndexingOptions>? packageIndexingOptions = null)
 {
     public CSharpIndexer(
         CodeMeridianClient client,
-        ILogger<CSharpIndexer> logger)
+        ILogger<CSharpIndexer> logger,
+        IOptions<PackageIndexingOptions>? packageOptions = null)
         : this(
             client,
             new ConfiguredIndexedFileRoleClassifier(Microsoft.Extensions.Options.Options.Create(new CodebaseIndexingOptions())),
             Options.Create(new DatabaseTracingOptions()),
-            logger)
+            logger,
+            packageOptions)
     {
     }
 
@@ -42,6 +45,12 @@ public sealed class CSharpIndexer(
     {
         var usedFullResolutionCatalog = !isIncremental || resolutionFiles is not null;
         resolutionFiles ??= files;
+        if (packageIndexingOptions?.Value.AllowProjectEvaluation == true)
+        {
+            bool OwnedFile(FileInfo file) => !Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/').StartsWith("../", StringComparison.Ordinal);
+            resolutionFiles = resolutionFiles.Where(OwnedFile).ToArray();
+            files = files.Where(OwnedFile).ToArray();
+        }
         var nodes = new List<IngestNodeRequest>();
         var edges = new List<IngestEdgeRequest>();
         var configurationConstants = CSharpConfigurationConstantRegistry.Build(resolutionFiles);
@@ -68,6 +77,23 @@ public sealed class CSharpIndexer(
             }
         }
 
+        PackageReferenceSnapshot? packageSnapshot = null;
+        if (packageIndexingOptions?.Value.AllowProjectEvaluation == true)
+        {
+            var generation = Guid.NewGuid().ToString();
+            await client.BeginPackageReferenceIndexAsync(projectContext, generation, cancellationToken);
+            try
+            {
+                packageSnapshot = (await PackageReferenceIndexer.BuildAsync(rootPath, projectContext, nodes, packageIndexingOptions.Value, cancellationToken, edges))
+                    with { Generation = generation };
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                logger.LogWarning("Package reference metadata is unavailable ({ExceptionType}); local syntax indexing continues.", exception.GetType().Name);
+                packageSnapshot = new("1.0", projectContext, generation, [], [], [],
+                    ["Package metadata unavailable (" + exception.GetType().Name + "); restore assets and check trusted MSBuild evaluation. Source associations were invalidated."]);
+            }
+        }
         nodes = AggregateCanonicalTypes(nodes);
         ApplyFileRoles(nodes, fileRoleClassifier);
 
@@ -133,6 +159,12 @@ public sealed class CSharpIndexer(
                     edge.EvidenceReason ?? "unknown", edge.EvidenceDetails?.GetValueOrDefault("fileRole") ?? "Unknown"), StringComparer.Ordinal)
                 .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal));
         await PersistIndexRunAsync(client, logger, projectContext, stats, cancellationToken);
+        if (packageSnapshot is not null)
+        {
+            await client.PublishPackageReferencesAsync(packageSnapshot, cancellationToken);
+            logger.LogInformation("Package references: {Scopes} build scopes, {Exports} exports and {References} reference sites published.",
+                packageSnapshot.Scopes.Count, packageSnapshot.Exports.Count, packageSnapshot.References.Count);
+        }
         return stats;
     }
 

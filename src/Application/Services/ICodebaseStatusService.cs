@@ -22,4 +22,7 @@ public sealed record DoctorStatus(
     long EmbeddedNodes,
     string EmbeddingProvider,
     int EmbeddingDimensions,
-    string? Error = null);
+    string? Error = null)
+{
+    public PackageReferenceHealth? PackageReferences { get; init; }
+}

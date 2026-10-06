@@ -9,7 +9,7 @@ CodeMeridian uses the stable 2.x C# MCP SDK over stateless Streamable HTTP. The 
 The MCP host provides:
 
 - reviewed titles and safety annotations for all 67 tools
-- useful Markdown plus twelve advertised structured results, including the three change-context challenge contracts
+- useful Markdown plus thirteen advertised structured results, including the three change-context challenge contracts
 - private five-minute `tools/list` caching hints
 - client-opted Tasks for `rebuild_keyword_graph` and `classify_keywords`, with ordinary synchronous calls retained
 - bounded per-tool telemetry that excludes arguments and credentials
@@ -244,6 +244,10 @@ Entry points, DI-registered types, and event handlers can appear here even if th
 ### `find_cross_project_dependencies`
 
 Finds edges where code in one indexed project calls or depends on code in another.
+
+For .NET, also reports compiler-bound NuGet and external `ProjectReference` dependencies, their installed version, framework, call site, and source association. Index both repositories into the same server with separate project contexts; see [cross-solution indexing](indexing.md#cross-solution-net-package-references).
+
+`verified_source` relationships participate in normal connection, editing-context and impact traversal. `associated_current_source` links provide navigation and a separate potential-consumer section in `find_impact`. Ambiguous or absent producers retain the dependency without creating a source edge. Namespace similarity alone never establishes ownership.
 
 ```text
 Show me how MyApp.Api depends on MyApp.Core.

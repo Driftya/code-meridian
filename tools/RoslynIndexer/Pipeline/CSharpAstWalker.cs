@@ -129,7 +129,7 @@ internal sealed class CSharpAstWalker(
     public override void VisitDelegateDeclaration(DelegateDeclarationSyntax node)
     {
         var id = AddTypeNode("Delegate", node.Identifier.Text, node, ExtractXmlSummary(node));
-        AddTypeUseEdge(id, node.ReturnType?.ToString());
+        AddTypeUseEdge(id, node.ReturnType?.ToString(), node.ReturnType);
         AddParameterTypeUseEdges(node.ParameterList.Parameters, id);
     }
 
@@ -222,8 +222,8 @@ internal sealed class CSharpAstWalker(
         if (_currentTypeId is null) return;
 
         var id = AddMemberNode("Property", node.Identifier.Text, node, _currentTypeId, summary: null);
-        AddTypeUseEdge(id, node.Type?.ToString());
-        AddTypeUseEdge(_currentTypeId, node.Type?.ToString());
+        AddTypeUseEdge(id, node.Type?.ToString(), node.Type);
+        AddTypeUseEdge(_currentTypeId, node.Type?.ToString(), node.Type);
         RememberType(_currentTypeMemberTypes, node.Identifier.Text, node.Type?.ToString());
 
         var previousMemberId = _currentMemberId;
@@ -239,8 +239,8 @@ internal sealed class CSharpAstWalker(
         foreach (var variable in node.Declaration.Variables)
         {
             var id = AddMemberNode("Field", variable.Identifier.Text, node, _currentTypeId, summary: null);
-            AddTypeUseEdge(id, node.Declaration.Type?.ToString());
-            AddTypeUseEdge(_currentTypeId, node.Declaration.Type?.ToString());
+            AddTypeUseEdge(id, node.Declaration.Type?.ToString(), node.Declaration.Type);
+            AddTypeUseEdge(_currentTypeId, node.Declaration.Type?.ToString(), node.Declaration.Type);
             RememberType(_currentTypeMemberTypes, variable.Identifier.Text, node.Declaration.Type?.ToString());
         }
 
@@ -254,8 +254,8 @@ internal sealed class CSharpAstWalker(
         foreach (var variable in node.Declaration.Variables)
         {
             var id = AddMemberNode("Event", variable.Identifier.Text, node, _currentTypeId, summary: null);
-            AddTypeUseEdge(id, node.Declaration.Type?.ToString());
-            AddTypeUseEdge(_currentTypeId, node.Declaration.Type?.ToString());
+            AddTypeUseEdge(id, node.Declaration.Type?.ToString(), node.Declaration.Type);
+            AddTypeUseEdge(_currentTypeId, node.Declaration.Type?.ToString(), node.Declaration.Type);
             RememberType(_currentTypeMemberTypes, variable.Identifier.Text, node.Declaration.Type?.ToString());
         }
 
@@ -267,8 +267,8 @@ internal sealed class CSharpAstWalker(
         if (_currentTypeId is null) return;
 
         var id = AddMemberNode("Event", node.Identifier.Text, node, _currentTypeId, summary: null);
-        AddTypeUseEdge(id, node.Type?.ToString());
-        AddTypeUseEdge(_currentTypeId, node.Type?.ToString());
+        AddTypeUseEdge(id, node.Type?.ToString(), node.Type);
+        AddTypeUseEdge(_currentTypeId, node.Type?.ToString(), node.Type);
         RememberType(_currentTypeMemberTypes, node.Identifier.Text, node.Type?.ToString());
 
         var previousMemberId = _currentMemberId;
@@ -288,8 +288,8 @@ internal sealed class CSharpAstWalker(
             node,
             _currentTypeId,
             ExtractXmlSummary(node));
-        AddTypeUseEdge(id, node.Type?.ToString());
-        AddTypeUseEdge(_currentTypeId, node.Type?.ToString());
+        AddTypeUseEdge(id, node.Type?.ToString(), node.Type);
+        AddTypeUseEdge(_currentTypeId, node.Type?.ToString(), node.Type);
         AddParameterTypeUseEdges(node.ParameterList.Parameters, id);
 
         var previousMemberId = _currentMemberId;
@@ -323,8 +323,8 @@ internal sealed class CSharpAstWalker(
             node,
             _currentTypeId,
             ExtractXmlSummary(node));
-        AddTypeUseEdge(id, node.ReturnType?.ToString());
-        AddTypeUseEdge(_currentTypeId, node.ReturnType?.ToString());
+        AddTypeUseEdge(id, node.ReturnType?.ToString(), node.ReturnType);
+        AddTypeUseEdge(_currentTypeId, node.ReturnType?.ToString(), node.ReturnType);
         AddParameterTypeUseEdges(node.ParameterList.Parameters, id);
 
         var previousMemberId = _currentMemberId;
@@ -353,8 +353,8 @@ internal sealed class CSharpAstWalker(
             node,
             _currentTypeId,
             ExtractXmlSummary(node));
-        AddTypeUseEdge(id, node.Type?.ToString());
-        AddTypeUseEdge(_currentTypeId, node.Type?.ToString());
+        AddTypeUseEdge(id, node.Type?.ToString(), node.Type);
+        AddTypeUseEdge(_currentTypeId, node.Type?.ToString(), node.Type);
         AddParameterTypeUseEdges(node.ParameterList.Parameters, id);
 
         var previousMemberId = _currentMemberId;
@@ -409,7 +409,8 @@ internal sealed class CSharpAstWalker(
 
             var targetType = InferTargetType(baseName);
             var relType = targetType == "Interface" ? "Implements" : "Inherits";
-            edges.Add(new IngestEdgeRequest(id, MakeId(targetType, baseName), relType, TargetName: baseName, TargetType: targetType));
+            edges.Add(new IngestEdgeRequest(id, MakeId(targetType, baseName), relType, TargetName: baseName, TargetType: targetType,
+                Properties: TypeReferenceProperties(baseType.Type)));
         }
 
         return id;
@@ -734,10 +735,10 @@ internal sealed class CSharpAstWalker(
     private void AddParameterTypeUseEdges(SeparatedSyntaxList<ParameterSyntax> parameters, string sourceId)
     {
         foreach (var parameter in parameters)
-            AddTypeUseEdge(sourceId, parameter.Type?.ToString());
+            AddTypeUseEdge(sourceId, parameter.Type?.ToString(), parameter.Type);
     }
 
-    private void AddTypeUseEdge(string sourceId, string? rawType)
+    private void AddTypeUseEdge(string sourceId, string? rawType, TypeSyntax? syntax = null)
     {
         var typeName = CleanTypeName(rawType);
         if (typeName is null || IsBuiltInType(typeName))
@@ -749,7 +750,17 @@ internal sealed class CSharpAstWalker(
             TargetId: string.Empty,
             RelationshipType: "Uses",
             TargetName: typeName,
-            TargetType: targetType));
+            TargetType: targetType,
+            Properties: TypeReferenceProperties(syntax)));
+    }
+
+    private Dictionary<string, string>? TypeReferenceProperties(TypeSyntax? syntax)
+    {
+        if (syntax is null || semanticModel is null) return null;
+        var type = semanticModel.GetTypeInfo(syntax).Type;
+        if (type is null or IErrorTypeSymbol || type.ContainingAssembly is null
+            || SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, semanticModel.Compilation.Assembly)) return null;
+        return new() { ["semanticTargetResolution"] = "metadata" };
     }
 
     private static string BuildSignature(string methodName, SeparatedSyntaxList<ParameterSyntax> parameters)

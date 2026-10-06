@@ -70,7 +70,7 @@ internal sealed class RootCommandFactory(
         var skipTypeScriptOption = new Option<bool>("--skip-typescript") { Description = "Skip TypeScript/JavaScript/TSX/JSX indexing." };
         var skipConfigurationOption = new Option<bool>("--skip-config") { Description = "Skip configuration indexing." };
         var skipDiagnosticsOption = new Option<bool>("--skip-diagnostics") { Description = "Skip project-native compiler, TypeScript, and lint diagnostics indexing." };
-        var allowRepoScriptsOption = new Option<bool>("--allow-repo-scripts") { Description = "Allow repo-controlled build and lint commands during diagnostics." };
+        var allowRepoScriptsOption = new Option<bool>("--allow-repo-scripts") { Description = "Allow repo-controlled build/lint commands and MSBuild evaluation for cross-project package references." };
         var noIncrementalOption = new Option<bool>("--no-incremental") { Description = "Ignore .meridian/cache and scan all enabled files." };
         noIncrementalOption.Aliases.Add("--force-full");
         var storageOption = new Option<string?>("--storage") { Description = "Cache storage mode for this run: repo or global." };

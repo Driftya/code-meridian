@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using CodeMeridian.Core.CodeGraph;
@@ -32,6 +32,9 @@ public partial class CodebaseQueryService
     {
         nodeId = await ResolveCanonicalNodeIdAsync(nodeId, cancellationToken: cancellationToken);
         var impactContext = await codeGraph.GetContextForEditingAsync(nodeId, cancellationToken);
+        var potentialPackages = (await codeGraph.GetPackageDependenciesAsync(targetId: nodeId, cancellationToken: cancellationToken) ?? [])
+            .Where(dependency => dependency.Resolution.Status == "associated_current_source")
+            .Take(25).Select(PackageDependencyResult.FromDependency).ToArray();
         var relationshipTrust = await GetRelationshipTrustAsync(impactContext?.Node?.ProjectContext, cancellationToken);
         if (includeConfidence)
         {
@@ -50,7 +53,7 @@ public partial class CodebaseQueryService
                 report.OverallConfidence,
                 ToResult(relationshipTrust),
                 classifiedFindings,
-                false);
+                false) { PotentialPackageConsumers = potentialPackages };
         }
 
         var results = await codeGraph.FindImpactAsync(nodeId, depth, cancellationToken);
@@ -72,7 +75,7 @@ public partial class CodebaseQueryService
             "NotEvaluated",
             ToResult(relationshipTrust),
             findings,
-            false);
+            false) { PotentialPackageConsumers = potentialPackages };
     }
 
     private static ImpactFindingResult ToImpactFinding(ImpactConfidenceFinding finding, string classification) =>
@@ -223,28 +226,19 @@ public partial class CodebaseQueryService
 
     public async Task<string> FindCrossProjectDependenciesAsync(
         string? projectContext = null,
+        CancellationToken cancellationToken = default) =>
+        (await FindCrossProjectDependenciesResultAsync(projectContext, cancellationToken)).ToMarkdown();
+
+    public async Task<CrossProjectDependencyResult> FindCrossProjectDependenciesResultAsync(
+        string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
-        var results = await codeGraph.FindCrossProjectDependenciesAsync(projectContext, cancellationToken);
-
-        if (results.Count == 0)
-            return $"No cross-project dependencies found{(projectContext is not null ? $" involving '{projectContext}'" : "")}. " +
-                   "All edges appear to be within single projects.";
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"## Cross-Project Dependencies{(projectContext is not null ? $" — {projectContext}" : "")}");
-        sb.AppendLine($"**{results.Count}** edges cross project boundaries:\n");
-        sb.AppendLine("| From Project | Source | Rel | Target | To Project |");
-        sb.AppendLine("|-------------|--------|-----|--------|-----------|");
-
-        foreach (var (source, target, rel) in results)
-        {
-            sb.AppendLine($"| `{source.ProjectContext}` | `{source.Name}` ({source.Type}) | {rel} | `{target.Name}` ({target.Type}) | `{target.ProjectContext}` |");
-        }
-
-        return sb.ToString();
+        var edges = await codeGraph.FindCrossProjectDependenciesAsync(projectContext, cancellationToken);
+        var references = await codeGraph.GetPackageDependenciesAsync(projectContext, cancellationToken: cancellationToken);
+        return new("1.0", projectContext, edges.Select(edge => new CrossProjectEdgeResult(
+                GraphNodeResult.FromNode(edge.Source), GraphNodeResult.FromNode(edge.Target), edge.RelationshipType)).ToArray(),
+            (references ?? []).Take(25).Select(PackageDependencyResult.FromDependency).ToArray(), edges.Count >= 100 || references?.Count > 25);
     }
-
     public async Task<string> FindCoverageGapsAsync(
         string? projectContext = null,
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,

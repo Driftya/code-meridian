@@ -128,6 +128,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         }
 
         _logger.LogInformation("Neo4j code graph schema ready.");
+        await InitializePackageReferencesAsync();
     }
 
     public async Task<IReadOnlyList<CodeNode>> QueryNodesAsync(
@@ -383,6 +384,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
         await session.ExecuteWriteAsync(async tx =>
         {
+            await InvalidateChangedPackageFileAsync(tx, node, cancellationToken);
             var cursor = await tx.RunAsync(cypher, new
             {
                 id = node.Id,
@@ -473,6 +475,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
     public async Task DeleteProjectAsync(string projectContext, CancellationToken cancellationToken = default)
     {
+        await InvalidatePackageReferencesAsync(projectContext, null, cancellationToken);
         await using var session = _driver.AsyncSession();
 
         const string cypher = """
@@ -491,6 +494,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         string filePath,
         CancellationToken cancellationToken = default)
     {
+        await InvalidatePackageReferencesAsync(projectContext, filePath, cancellationToken);
         await using var session = _driver.AsyncSession();
 
         const string cypher = """
@@ -575,12 +579,14 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
         await using var session = _driver.AsyncSession();
 
         const string cypher = """
-            MATCH (n:CodeNode)
+            MATCH (n) WHERE n:CodeNode OR n:PackageManifest OR n:PackageExport OR n:PackageReference OR n:PackagePublication
             DETACH DELETE n
             """;
 
         await session.ExecuteWriteAsync(async tx =>
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            await LockPackageRegistryAsync(tx, increment: true);
             var cursor = await tx.RunAsync(cypher);
             await cursor.ConsumeAsync();
         });
@@ -815,7 +821,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
     {
         var relationshipPattern = IsConfigurationUsageEdge(edge)
             ? $"[r:{edge.Type} {{callSite: $mergeCallSite, accessPattern: $mergeAccessPattern, rawKey: $mergeRawKey}}]"
-            : $"[r:{edge.Type}]";
+            : $"[r:{edge.Type} {{packageReferenceKey: ''}}]";
 
         return $@"
             MATCH (s:CodeNode {{id: $sourceId}})
@@ -882,7 +888,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
     private static readonly HashSet<string> EdgeReservedPropertyNames =
     [
         "isAsync", "callSite", "paramCount", "confidence", "evidenceKind", "evidenceReason", "resolver",
-        "sourceFilePath", "sourceLine", "sourceColumn", "sourceEndLine", "sourceEndColumn", "evidenceDetails"
+        "sourceFilePath", "sourceLine", "sourceColumn", "sourceEndLine", "sourceEndColumn", "evidenceDetails", "packageReferenceKey", "consumerProject"
     ];
 
     private static Dictionary<string, string>? ReadEvidenceDetails(IReadOnlyDictionary<string, object> properties)

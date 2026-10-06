@@ -142,6 +142,24 @@
     "sha256": "737b0a7e02d5dd737a176b6744198df45c7f695b556700199e5daa3f19f812ad"
   },
   {
+    "name": "find_cross_project_dependencies",
+    "required": [
+      "contractVersion",
+      "projectContext",
+      "edges",
+      "packageReferences",
+      "truncated"
+    ],
+    "properties": [
+      "contractVersion",
+      "projectContext",
+      "edges",
+      "packageReferences",
+      "truncated"
+    ],
+    "sha256": "c3dca4c838f2dcdff2abf5f3ac5b97bd2299f511825b8be097b30c6589405aa7"
+  },
+  {
     "name": "find_impact",
     "required": [
       "contractVersion",
@@ -163,9 +181,10 @@
       "overallConfidence",
       "relationshipCompleteness",
       "findings",
-      "truncated"
+      "truncated",
+      "potentialPackageConsumers"
     ],
-    "sha256": "2df1cec67ff3965f059a5461ff3413c2fe9ae075cdb9d308882d37414849a65a"
+    "sha256": "fd395fdf573b02a235267b6b4a5fe7c4ecdeea3fcbc20cddb950f2247f31559e"
   },
   {
     "name": "find_test_shield",

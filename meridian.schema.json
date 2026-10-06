@@ -28,7 +28,7 @@
     "allowRepoScripts": {
       "type": "boolean",
       "default": true,
-      "description": "Allow diagnostics indexing to run repo-controlled build/lint scripts."
+      "description": "Allow repo-controlled build/lint commands and MSBuild project evaluation for package-reference indexing."
     },
     "useGlobalCache": {
       "type": "boolean",
@@ -66,6 +66,17 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "packageReferences": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "producerBindings": {
+              "type": "object",
+              "additionalProperties": { "type": "string", "minLength": 1 },
+              "description": "Optional NuGet package ID to indexed producer project context bindings for ambiguous ownership."
+            }
+          }
+        },
         "fileRoles": {
           "type": "object",
           "additionalProperties": true,
