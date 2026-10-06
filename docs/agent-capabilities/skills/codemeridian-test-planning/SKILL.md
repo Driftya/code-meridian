@@ -16,6 +16,16 @@ Keep target -> index root -> project context, identity evidence and freshness. U
 
 For shared libraries, use `find_cross_project_dependencies` and inspect relevant producer and consumer test shields in their own contexts. Preserve installed package version/framework and source status. `associated_current_source` consumers indicate potential compatibility tests; they are not verified callers of the checkout. Plan the smallest producer contract and consumer regression checks supported by the actual dependency, keeping commands tied to each owning solution. Missing, ambiguous, pending or stale associations and empty shields are coverage uncertainty, not proof of safety.
 
+## SQL Coverage And Test Planning
+
+For SQL behavior/schema changes, map project context separately from dialect, logical `databaseScope`, source-pattern settings and `searchPath`. SQL indexing is opt-in and currently parses PostgreSQL offline. Locate exact objects and file-owned declaration/reference sites with `query_codebase` / `resolve_exact_symbol`; check freshness and SQL file status, then use bounded context, `find_impact`, `find_downstream` and `find_connection` to identify readers/writers, views, explicit foreign keys and joins. These are generic graph tools; joins are not runtime calls and shared objects need not map to one file.
+
+Use test-shield/coverage tools where graph links exist, but confirm relevant SQL/parser or consumer tests from narrowed source when they do not. Empty method/class shields do not prove SQL coverage or safe deletion. Missing/multiple search-path schemas, neutral undeclared relations, unresolved sites, partial analysis and stale retained facts need explicit uncertainty. Do not infer live database behavior, function-body coverage, migration ordering, dynamic SQL coverage or automatic linkage with legacy C#/TypeScript table identities.
+
+Choose tests for the changed behavior: qualified/quoted identity and scope isolation; SELECT reads versus DML writes/source reads; views, joins or explicit foreign keys when touched; unresolved search paths and partial/parse-failure handling when relevant. For SQL indexer lifecycle changes, cover changed declarations updating unchanged consumers, replay without duplicate occurrences, deletion preserving still-used shared objects, failed publication/cache retries, and stale-edge exclusion from impact/connection. Prefer local parser fixtures; use isolated Neo4j only for persistence/traversal behavior, and database integration only when runtime SQL behavior is the actual task.
+
+When modifying CodeMeridian itself, existing focused seams include `tools/SqlIndexer/tests`, `SqlIndexingTests`, `SqlGraphSnapshotTests` and `Neo4jSqlGraphIntegrationTests`. Keep commands and fixtures tied to their owning project; querying SQL graph context does not authorize running migrations.
+
 ## When To Use
 
 Use this skill when the request includes words or intent like:
@@ -34,6 +44,7 @@ Use this skill when the request includes words or intent like:
 * check regression risk
 * make CI safer
 * review test impact
+* validate SQL dependency or schema changes
 
 Also use this skill before implementing behavior changes when test coverage is unclear.
 

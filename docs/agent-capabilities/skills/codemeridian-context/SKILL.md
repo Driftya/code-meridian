@@ -33,6 +33,7 @@ Use this skill before:
 * reviewing impact
 * planning tests
 * modifying architecture-sensitive code
+* investigating SQL scripts, schema changes or migration dependencies
 
 If the task touches HTML, CSS, SCSS, selectors, style imports, or CSS variables, pair this skill with `codemeridian-frontend` so the context routing stays frontend-aware.
 
@@ -120,6 +121,28 @@ Prefer:
 When a target is in another root, or producer/consumer code is relevant, call `find_cross_project_dependencies(projectContext)` for the involved indexed contexts and resolve useful endpoints in their own scopes. Use `find_connection` for exact endpoint relationships, then bounded edit context, impact and tests. Include a relevant external library as supporting context even when edits remain in the current repository.
 
 For .NET package results, retain installed package/version, framework, producer source location and status. `verified_source` links can participate in normal source traversal. `associated_current_source` links support navigation and separate potential-consumer analysis; they do not prove that the checkout implements the installed package. `ambiguous`, `source_not_indexed` and `pending` do not prove absence of dependency or safety. Namespace similarity, directory proximity and matching package versions alone cannot establish a verified relationship. If package-aware results are unavailable on the connected server, state that limit and inspect only the relevant references/source; do not silently upgrade confidence.
+
+### SQL Scripts And Database Dependencies
+
+Use this workflow for `.sql` scripts, schema changes, migrations, views, foreign keys and questions about SQL readers/writers. SQL indexing is opt-in (`indexing.sql.enabled`) and currently bundles PostgreSQL only. It parses source offline with a native grammar compiled to WASM; it does not connect to or execute a database. `codemeridian index`, `--skip-sql`, `--dry-run`, `--list-capabilities` and `--no-incremental` control indexing/selection/reanalysis when indexing is part of the authorized task. Initial worker dependency restoration may need network access; no automatic database execution is implied.
+
+Extend the target scope map with dialect, logical `databaseScope`, applicable `sources` rule and `searchPath` from the target's configuration. These are separate from graph `projectContext`. Resolve returned canonical IDs using schema-qualified names and file context; preserve quoted identifier case. Never merge objects across projects/database scopes because their names match, or infer a live database from a logical scope label.
+
+| Need | Existing tool/workflow |
+|---|---|
+| Locate a SQL file, object, declaration or unresolved site | `query_codebase`, then `resolve_exact_symbol` with project/file hints |
+| Check indexed evidence before edits | `check_graph_freshness` / `find_graph_drift`, plus SQL file status and source verification |
+| Gather a bounded SQL edit neighborhood | `build_minimal_context`, `get_context_for_editing` |
+| Inspect readers/writers, dependencies or schema-change impact | `find_impact`, `find_downstream` on exact IDs |
+| Explain two objects/scripts or a join relationship | `find_connection`; a structural/join path is not runtime execution |
+| Locate SQL configuration and its consumers | `find_config_definitions`, `find_config_usage`, then relevant local `meridian.json` |
+| Locate implementation/docs/test seams | `analyze_feature_implementation_path`, `find_implementation_surface`, `search_documentation`, scoped test-shield/coverage queries |
+
+These are generic graph tools, not a separate SQL-only MCP suite; do not invent dialect/database-scope tool parameters. SQL nodes include `DatabaseTable`, `DatabaseView`, `DatabaseColumn`, `DatabaseFunction`, neutral `DatabaseRelation`, and file-owned `SqlDeclaration` / `SqlReference`. Facts use `Contains`, `Declares`, `Reads`, `Writes`, `Alters`, `References`, `DependsOn` and `JoinsWith`. Follow a shared object's declaration/reference sites to its owning source files rather than assuming the object itself has one file location.
+
+Unqualified dependency binding needs exactly one configured search-path schema. Missing/multiple schemas, conflicting declarations or unsupported constructs leave unresolved sites/partial coverage; a qualified `DatabaseRelation` need not have a known table/view catalog kind. Inspect per-file analysis status, unresolved reasons, parser provenance and diagnostics when returned; otherwise read the relevant source/config and worker output. Compiler/lint `find_diagnostics` is not a substitute for SQL parser status. Parse failures retain stale previous facts; normal impact/connection traversal excludes stale SQL edges, but other neighborhoods can still expose retained facts.
+
+Function declarations do not imply analyzed function bodies. Dynamic SQL, migration execution order, runtime search paths, detailed column lineage and automatic reconciliation with legacy C#/TypeScript table IDs are not supported. Empty impact, method/class test shields or `find_unreferenced` results cannot prove a database object is unused or safe to change. Treat live-schema state, runtime consumers and unmatched cross-language table identities as explicit gaps.
 
 ### 5. Use Documentation Context
 

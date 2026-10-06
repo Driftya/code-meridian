@@ -16,6 +16,14 @@ Keep target -> index root -> project context and freshness; use paths relative t
 
 Before extracting, renaming or changing a shared API, inspect `find_cross_project_dependencies` for relevant contexts and resolve producer/consumer endpoints separately. Check exact connections, impact and test shields. Preserve installed package version/framework and source status: verified source edges support normal traversal; current-source associations identify potential consumers and require compatibility consideration, not a claim about the installed implementation. Ambiguous, missing and pending links are unresolved risk, not permission to delete or proof of no consumers.
 
+## SQL Schema Refactors
+
+For SQL table/column/view/function renames or removals, resolve the target root/project context and its dialect, logical `databaseScope`, source-pattern rule and `searchPath`. The opt-in SQL indexer currently supports offline PostgreSQL; generic `query_codebase` / `resolve_exact_symbol`, freshness, bounded edit context, `find_impact`, `find_downstream` and `find_connection` expose its facts. Follow file-owned declaration/reference sites to source; shared object IDs are not file ownership. Include readers/writers, ALTER targets, views and explicit foreign keys. Joins are structural associations, not calls.
+
+Check SQL file status and unresolved reasons before choosing edits. Missing/multiple search-path schemas, partial analysis and stale retained facts are gaps, not proof of safety. `find_unreferenced` covers methods/classes, not unused database objects; empty shields/paths do not authorize schema deletion. Preserve quoted identifiers and scope separation, and do not rewrite SQL by unqualified name alone. Legacy C#/TypeScript table IDs are not automatically unified with SQL IDs, so inspect relevant cross-language consumers separately.
+
+Keep source refactoring distinct from executing or reordering migrations. The index does not model migration execution order, live schemas, function bodies, dynamic SQL or detailed lineage. Configuration and source inventory changes require authorized SQL reanalysis (`codemeridian index`, optionally `--no-incremental`) before trusting updated relationships. Avoid expanding a schema refactor into database execution.
+
 ## When To Use
 
 Use this skill when the request includes words or intent like:
@@ -34,6 +42,7 @@ Use this skill when the request includes words or intent like:
 * reduce coupling
 * improve architecture
 * make this more maintainable
+* rename or remove a database table, column or view
 
 ## Core Rule
 

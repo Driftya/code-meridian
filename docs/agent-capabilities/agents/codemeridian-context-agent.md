@@ -22,6 +22,18 @@ Keep a target -> index root -> project context map with identity evidence and fr
 
 For relevant producer/consumer scopes, use `find_cross_project_dependencies`, exact endpoint resolution, then `find_connection`, bounded editing context, impact and tests. Package `verified_source` links support normal source traversal; `associated_current_source` means navigation and potential consumers, not the installed implementation. Preserve installed version/framework and source status. Ambiguous, absent or pending links and empty/stale results do not prove safety; namespace similarity alone does not prove ownership.
 
+## SQL Context
+
+For `.sql`, migrations, schema objects, views, foreign keys and reader/writer questions, include the native SQL graph in the context pack. SQL indexing is opt-in through `indexing.sql.enabled`, currently PostgreSQL only, and parses offline without connecting to or executing a database. Resolve target root/project context first, then dialect, logical `databaseScope`, source-pattern overrides and `searchPath`. Matching table names across scopes/repositories do not prove shared ownership or a cross-language relationship.
+
+Use existing tools: `query_codebase` and `resolve_exact_symbol` for exact objects/sites; freshness checks plus per-file SQL status; `build_minimal_context` / `get_context_for_editing` for neighborhoods; `find_impact` / `find_downstream` for schema dependencies; `find_connection` for structural paths including joins; config tools for `indexing.sql` keys; documentation and test tools for implementation/coverage seams. There is no separate SQL-only MCP suite. Do not invent SQL-specific tool arguments.
+
+Recognize shared `DatabaseTable`, `DatabaseView`, `DatabaseColumn`, `DatabaseFunction` and neutral `DatabaseRelation` identities, with file-owned `SqlDeclaration` / `SqlReference` sites. Follow `Contains`, `Declares`, `Reads`, `Writes`, `Alters`, `References`, `DependsOn` and `JoinsWith` to source evidence. Preserve dialect/schema/quoted-name identity and distinguish static joins from runtime calls. Shared objects need not have a single source file.
+
+Unqualified binding requires one configured search-path schema. Unresolved sites, partial analysis and stale facts must be reported; qualified undeclared relations do not establish table/view kind. Parser diagnostics are SQL file/worker evidence, not necessarily compiler/lint diagnostic nodes. Parse failures preserve stale previous facts, excluded from normal impact/connection paths but potentially visible in other neighborhoods. Function bodies, dynamic SQL, migration execution order, runtime search paths, detailed lineage and automatic legacy C#/TypeScript table reconciliation are unsupported. Empty paths, method/class shields or unreferenced results do not prove a SQL object has no consumers.
+
+Use `codemeridian index`, `--skip-sql`, `--dry-run`, `--list-capabilities` and `--no-incremental` only when relevant to authorized indexing; reading SQL context does not authorize running migrations or querying a live database.
+
 ## Mission
 
 Find the smallest useful graph-grounded context for the current task.

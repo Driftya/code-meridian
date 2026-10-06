@@ -28,6 +28,14 @@ For example, `C:\Repos\MyApi\src\Service.cs` may belong to context `MyApi`, whil
 
 For .NET packages, preserve the consumer's installed version/framework and the producer's source-association status. Verified links support normal source traversal; current-source associations remain useful for navigation and potential impact without being described as the installed implementation. Supplied external paths are context for the task, not automatic authorization to edit or run build scripts in another repository.
 
+### SQL Indexing And Tools
+
+The context, refactor and test-planning skills and both agents recognize the opt-in PostgreSQL SQL indexer. They resolve repository context separately from dialect/logical database scope/search path, inspect file-owned declarations/references and shared database objects, and retain unresolved, partial and stale coverage limits. SQL parsing is offline; it does not execute migrations or connect to a database.
+
+SQL facts use the existing `query_codebase`, `resolve_exact_symbol`, freshness, minimal/editing-context, impact/downstream and connection tools. Config and documentation tools help locate settings/decisions; test shields need source confirmation where SQL test links are absent. There is no separate SQL-only MCP tool suite, and method/class dead-code tools cannot certify unused database objects. `JoinsWith` supports structural connection analysis, not runtime call tracing. SQL and legacy C#/TypeScript table identities are not automatically unified.
+
+Use `indexing.sql.enabled` and `codemeridian index` for authorized indexing; `--skip-sql`, `--dry-run`, `--list-capabilities` and `--no-incremental` control selection or reanalysis. See [SQL setup](../indexing.md#postgresql-sql-files) and [tested support and limits](../../tools/SqlIndexer/supports.md).
+
 ### Workflow Selection
 
 Use the context skill before:

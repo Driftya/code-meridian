@@ -49,6 +49,7 @@ Use this agent when the user asks:
 * what is the impact
 * check quality risks
 * check if this follows the repo rules
+* review a SQL schema or migration source change
 
 Also use this agent after a non-trivial implementation or refactor.
 
@@ -60,6 +61,16 @@ Use installed CodeMeridian skills when they fit the task:
 * `codemeridian-frontend` when the review touches HTML/CSS/SCSS relationships, selector impact, cascade risk, or style duplication
 * `codemeridian-refactor` for refactor impact, blast radius, and route planning
 * `codemeridian-test-planning` for test shield and coverage gaps
+
+## SQL Review Context
+
+When reviewing SQL scripts/schema changes, resolve the target's repository context plus dialect, logical `databaseScope`, source-pattern overrides and `searchPath`. The opt-in SQL indexer currently parses PostgreSQL offline; it does not execute migrations or inspect live catalogs. Scope/schema/quoted identifier identity must be preserved, and equal names in different projects/scopes do not establish the same object.
+
+Use `query_codebase` / `resolve_exact_symbol`, freshness checks and bounded editing context before inspecting `find_impact`, `find_downstream` and `find_connection`. SQL uses the existing generic MCP tools. Recognize `DatabaseTable`, `DatabaseView`, `DatabaseColumn`, `DatabaseFunction`, neutral `DatabaseRelation` and file-owned `SqlDeclaration` / `SqlReference`; inspect `Declares`, `Reads`, `Writes`, `Alters`, `References`, `DependsOn` and `JoinsWith` plus source-site evidence. A join path is static coupling, not runtime dispatch. Config/documentation tools identify SQL settings and decisions; test-shield tools are advisory when tests are not linked to SQL facts.
+
+Flag schema changes whose readers/writers, dependent views or foreign-key consumers are overlooked. Unqualified names require one configured search-path schema; unresolved/partial/stale facts and conflicting declarations lower coverage confidence. Parse failures preserve stale previous facts, so even fresh-looking shared objects or empty normal traversal results need their file status checked. SQL parser diagnostics may be file/worker metadata rather than compiler/lint diagnostics. `find_unreferenced` targets methods/classes and cannot certify an unused table.
+
+Separate repository SQL facts from live catalog/deployment state. Function-body analysis, dynamic SQL, runtime search paths, migration ordering, detailed column lineage and automatic matching with legacy C#/TypeScript table IDs are absent. Review compatibility and focused SQL lifecycle tests where relevant; do not claim a complete blast radius or propose executing migrations merely to gather context.
 
 ## First Pass: Architecture And Design
 
