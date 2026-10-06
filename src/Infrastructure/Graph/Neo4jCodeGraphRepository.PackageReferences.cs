@@ -10,15 +10,24 @@ public sealed partial class Neo4jCodeGraphRepository
     private static string PackageKey(string project, string id) => project.ToLowerInvariant() + "::" + id;
     private static string SymbolMatchKey(string assembly, string symbol) => assembly + "::" + symbol;
 
-    private async Task InitializePackageReferencesAsync()
+    private async Task InitializePackageReferencesAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         await using var session = _driver.AsyncSession();
         foreach (var label in new[] { "PackageManifest", "PackageExport", "PackageReference", "PackageRegistry", "PackagePublication" })
             await (await session.RunAsync($"CREATE CONSTRAINT {label.ToLowerInvariant()}_key IF NOT EXISTS FOR (n:{label}) REQUIRE n.key IS UNIQUE")).ConsumeAsync();
         foreach (var label in new[] { "PackageExport", "PackageReference" })
             await (await session.RunAsync($"CREATE INDEX {label.ToLowerInvariant()}_match IF NOT EXISTS FOR (n:{label}) ON (n.matchKey)")).ConsumeAsync();
         await (await session.RunAsync("CREATE INDEX packagereference_pending IF NOT EXISTS FOR (n:PackageReference) ON (n.pending)")).ConsumeAsync();
-        await (await session.RunAsync("MATCH ()-[r]->() WHERE r.packageReferenceKey IS NULL SET r.packageReferenceKey = ''")).ConsumeAsync();
+        // Use an implicit transaction so each batch commits before the next one starts.
+        cancellationToken.ThrowIfCancellationRequested();
+        await (await session.RunAsync($$"""
+            MATCH ()-[r]->() WHERE r.packageReferenceKey IS NULL
+            CALL {
+                WITH r
+                SET r.packageReferenceKey = ''
+            } IN TRANSACTIONS OF {{InitializationBatchSize}} ROWS
+            """)).ConsumeAsync();
     }
 
     public async Task BeginPackageReferenceIndexAsync(string projectContext, string generation, CancellationToken cancellationToken = default)

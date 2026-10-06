@@ -18,6 +18,7 @@ namespace CodeMeridian.Infrastructure.Graph;
 public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAsyncDisposable
 {
     private const int DeleteBatchSize = 500;
+    private const int InitializationBatchSize = 500;
 
     private readonly IDriver _driver;
     private readonly ILogger<Neo4jCodeGraphRepository> _logger;
@@ -95,22 +96,24 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
                 "CREATE INDEX codenode_changecount IF NOT EXISTS FOR (n:CodeNode) ON (n.changeCount)")).ConsumeAsync();
         });
 
-        await session.ExecuteWriteAsync(async tx =>
-        {
-            await (await tx.RunAsync(
-                """
+        // Batched subqueries require an implicit transaction, outside ExecuteWriteAsync.
+        cancellationToken.ThrowIfCancellationRequested();
+        await (await session.RunAsync(
+                $$"""
                 MATCH (n:CodeNode)
                 WHERE n.nameNormalized IS NULL
                    OR (n.namespace IS NOT NULL AND n.namespaceNormalized IS NULL)
                    OR (n.filePath IS NOT NULL AND n.filePathNormalized IS NULL)
                    OR (n.projectContext IS NOT NULL AND n.projectContextNormalized IS NULL)
-                SET n.nameNormalized = toLower(n.name),
-                    n.namespaceNormalized = CASE WHEN n.namespace IS NULL THEN NULL ELSE toLower(n.namespace) END,
-                    n.filePathNormalized = CASE WHEN n.filePath IS NULL THEN NULL ELSE toLower(n.filePath) END,
-                    n.projectContextNormalized = CASE WHEN n.projectContext IS NULL THEN NULL ELSE toLower(n.projectContext) END
+                CALL {
+                    WITH n
+                    SET n.nameNormalized = toLower(n.name),
+                        n.namespaceNormalized = CASE WHEN n.namespace IS NULL THEN NULL ELSE toLower(n.namespace) END,
+                        n.filePathNormalized = CASE WHEN n.filePath IS NULL THEN NULL ELSE toLower(n.filePath) END,
+                        n.projectContextNormalized = CASE WHEN n.projectContext IS NULL THEN NULL ELSE toLower(n.projectContext) END
+                } IN TRANSACTIONS OF {{InitializationBatchSize}} ROWS
                 """
             )).ConsumeAsync();
-        });
 
         // Vector index must be created outside an explicit transaction in Neo4j 5.x
         await using var vectorSession = _driver.AsyncSession();
@@ -129,7 +132,7 @@ public sealed partial class Neo4jCodeGraphRepository : ICodeGraphRepository, IAs
 
         _logger.LogInformation("Neo4j code graph schema ready.");
         await InitializeSqlGraphAsync(cancellationToken);
-        await InitializePackageReferencesAsync();
+        await InitializePackageReferencesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<CodeNode>> QueryNodesAsync(
