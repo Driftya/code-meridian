@@ -12,10 +12,10 @@
   },
   "dependencies": {
     "pgsql-parser": "18.2.8",
-    "@pgsql/traverse": "18.0.0"
+    "@pgsql/traverse": "18.7.10"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.4",
     "@vitest/coverage-v8": "5.0.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
