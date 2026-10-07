@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE,chrome=1" />
 <link href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAn1BMVEUAAADCAAAAAAA3yDfUAAA3yDfUAAA8PDzr6+sAAAD4+Pg3yDeQkJDTAADt7e3V1dU3yDdCQkIAAADbMTHUAABBykHUAAA2yDY3yDfr6+vTAAB3diDR0dGYcHDUAAAjhiPSAAA3yDeuAADUAAA3yDf////OCALg9+BLzktBuzRelimzKgv87+/dNTVflSn1/PWz6rO126g5yDlYniy0KgwjJ0TyAAAAI3RSTlMABAj0WD6rJcsN7X1HzMqUJyYW+/X08+bltqSeaVRBOy0cE+citBEAAADBSURBVDjLlczXEoIwFIThJPYGiL0XiL3r+z+bBOJs9JDMuLffP8v+Gxfc6aIyDQVjQcnqnvRDEQwLJYtXpZT+YhDHKIjLbS+OUeT4TjkKi6OwOArq+yeKXD9uDqQQbcOjyCy0e6bTojZSftX+U6zUQ7OuittDu1k0WHqRFfdXQijgjKfF6ZwAikvmKD6OQjmKWUcDigkztm5FZN05nMON9ZcoinlBmTNnAUdBnRbUUbgdBZwWbkcBpwXcVsBtxfjb31j1QB5qeebOAAAAAElFTkSuQmCC" rel="icon" type="image/x-icon" />
-<title>index.ts - Coverage Report</title>
+<title>application.ts - Coverage Report</title>
 <style type="text/css">:root {
     color-scheme: light;
     --green: #0aad0a;
@@ -857,7 +857,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <table>
 <tr>
 <th>Class:</th>
-<td class="limit-width " title="index.ts">index.ts</td>
+<td class="limit-width " title="application.ts">application.ts</td>
 </tr>
 <tr>
 <th>Assembly:</th>
@@ -865,7 +865,7 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </tr>
 <tr>
 <th>File(s):</th>
-<td class="overflow-wrap"><a href="#homerunnerworkcodemeridiancodemeridiantoolsTsIndexersrcindexts" class="navigatetohash">/home/runner/work/code-meridian/code-meridian/tools/TsIndexer/src/index.ts</a></td>
+<td class="overflow-wrap"><a href="#homerunnerworkcodemeridiancodemeridiantoolsSqlIndexersrcapplicationts" class="navigatetohash">/home/runner/work/code-meridian/code-meridian/tools/SqlIndexer/src/application.ts</a></td>
 </tr>
 </table>
 </div>
@@ -876,28 +876,28 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Line coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar0">100%</div>
+<div class="large cardpercentagebar cardpercentagebar4">95%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered lines:</th>
-<td class="limit-width right" title="8">8</td>
+<td class="limit-width right" title="43">43</td>
 </tr>
 <tr>
 <th>Uncovered lines:</th>
-<td class="limit-width right" title="0">0</td>
+<td class="limit-width right" title="2">2</td>
 </tr>
 <tr>
 <th>Coverable lines:</th>
-<td class="limit-width right" title="8">8</td>
+<td class="limit-width right" title="45">45</td>
 </tr>
 <tr>
 <th>Total lines:</th>
-<td class="limit-width right" title="13">13</td>
+<td class="limit-width right" title="75">75</td>
 </tr>
 <tr>
 <th>Line coverage:</th>
-<td class="limit-width right" title="8 of 8">100%</td>
+<td class="limit-width right" title="43 of 45">95.5%</td>
 </tr>
 </table>
 </div>
@@ -906,20 +906,20 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 <div class="card">
 <div class="card-header">Branch coverage</div>
 <div class="card-body">
-<div class="large cardpercentagebar cardpercentagebar50">50%</div>
+<div class="large cardpercentagebar cardpercentagebar15">85%</div>
 <div class="table">
 <table>
 <tr>
 <th>Covered branches:</th>
-<td class="limit-width right" title="1">1</td>
+<td class="limit-width right" title="17">17</td>
 </tr>
 <tr>
 <th>Total branches:</th>
-<td class="limit-width right" title="2">2</td>
+<td class="limit-width right" title="20">20</td>
 </tr>
 <tr>
 <th>Branch coverage:</th>
-<td class="limit-width right" title="1 of 2">50%</td>
+<td class="limit-width right" title="17 of 20">85%</td>
 </tr>
 </table>
 </div>
@@ -935,32 +935,113 @@ code { font-family: Consolas, monospace; font-size: 0.9em; }
 </div>
 </div>
 </div>
+<h1>Metrics</h1>
+<div class="table-responsive">
+<table class="overview table-fixed">
+<colgroup>
+<col class="column-min-200" />
+</colgroup>
+<thead><tr><th>Method</th></tr></thead>
+<tbody>
+<tr><td title="constructor()V"><a href="#file0_line21" class="navigatetohash">constructor()</a></td></tr>
+<tr><td title="run()V"><a href="#file0_line24" class="navigatetohash">run()</a></td></tr>
+<tr><td title="(anonymous_2)()V"><a href="#file0_line49" class="navigatetohash">(anonymous_2)()V</a></td></tr>
+<tr><td title="(anonymous_3)()V"><a href="#file0_line62" class="navigatetohash">(anonymous_3)()V</a></td></tr>
+</tbody>
+</table>
+</div>
 <h1>File(s)</h1>
-<h2 id="homerunnerworkcodemeridiancodemeridiantoolsTsIndexersrcindexts">/home/runner/work/code-meridian/code-meridian/tools/TsIndexer/src/index.ts</h2>
+<h2 id="homerunnerworkcodemeridiancodemeridiantoolsSqlIndexersrcapplicationts">/home/runner/work/code-meridian/code-meridian/tools/SqlIndexer/src/application.ts</h2>
 <div class="table-responsive">
 <table class="lineAnalysis">
 <thead><tr><th></th><th>#</th><th>Line</th><th></th><th>Line coverage</th></tr></thead>
 <tbody>
-<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line1"></a><code>1</code></td><td></td><td class="lightgray"><code>import&nbsp;{&nbsp;parseCommandLine&nbsp;}&nbsp;from&nbsp;&#39;./cli/program.js&#39;;</code></td></tr>
-<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line2"></a><code>2</code></td><td></td><td class="lightgray"><code>import&nbsp;{&nbsp;TypeScriptIndexerApplication&nbsp;}&nbsp;from&nbsp;&#39;./application/type-script-indexer-application.js&#39;;</code></td></tr>
-<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line3"></a><code>3</code></td><td></td><td class="lightgray"><code></code></td></tr>
-<tr class="coverableline" title="Covered (4 visits)" data-coverage="{'AllTestMethods': {'VC': '4', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">4</td><td class="rightmargin right"><a id="file0_line4"></a><code>4</code></td><td></td><td class="lightgreen"><code>try&nbsp;{</code></td></tr>
-<tr class="coverableline" title="Covered (4 visits)" data-coverage="{'AllTestMethods': {'VC': '4', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">4</td><td class="rightmargin right"><a id="file0_line5"></a><code>5</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;const&nbsp;options&nbsp;=&nbsp;await&nbsp;parseCommandLine(process.argv);</code></td></tr>
-<tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line6"></a><code>6</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;const&nbsp;application&nbsp;=&nbsp;new&nbsp;TypeScriptIndexerApplication();</code></td></tr>
-<tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line7"></a><code>7</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;const&nbsp;exitCode&nbsp;=&nbsp;await&nbsp;application.run(options);</code></td></tr>
-<tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line8"></a><code>8</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;process.exitCode&nbsp;=&nbsp;exitCode;</code></td></tr>
-<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line9"></a><code>9</code></td><td></td><td class="lightgray"><code>}&nbsp;catch&nbsp;(error)&nbsp;{</code></td></tr>
-<tr class="coverableline" title="Partially covered (2 visits, 1 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line10"></a><code>10</code></td><td class="percentagebar percentagebar50"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;const&nbsp;message&nbsp;=&nbsp;error&nbsp;instanceof&nbsp;Error&nbsp;?&nbsp;error.message&nbsp;:&nbsp;String(error);</code></td></tr>
-<tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line11"></a><code>11</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;console.error(`error:&nbsp;${message}`);</code></td></tr>
-<tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line12"></a><code>12</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;process.exitCode&nbsp;=&nbsp;1;</code></td></tr>
-<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line13"></a><code>13</code></td><td></td><td class="lightgray"><code>}</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line1"></a><code>1</code></td><td></td><td class="lightgray"><code>import&nbsp;fs&nbsp;from&nbsp;&#39;node:fs&#39;;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line2"></a><code>2</code></td><td></td><td class="lightgray"><code>import&nbsp;path&nbsp;from&nbsp;&#39;node:path&#39;;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line3"></a><code>3</code></td><td></td><td class="lightgray"><code>import&nbsp;{&nbsp;createHash&nbsp;}&nbsp;from&nbsp;&#39;node:crypto&#39;;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line4"></a><code>4</code></td><td></td><td class="lightgray"><code>import&nbsp;{&nbsp;readIndexerBatchFile&nbsp;}&nbsp;from&nbsp;&#39;../../IndexerShared/dist/index.js&#39;;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line5"></a><code>5</code></td><td></td><td class="lightgray"><code>import&nbsp;type&nbsp;{&nbsp;SqlAnalysisResult,&nbsp;SqlGraphSnapshot,&nbsp;SqlSettings,&nbsp;SqlSource&nbsp;}&nbsp;from&nbsp;&#39;./contracts.js&#39;;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line6"></a><code>6</code></td><td></td><td class="lightgray"><code>import&nbsp;{&nbsp;SqlDialectRegistry&nbsp;}&nbsp;from&nbsp;&#39;./dialect-registry.js&#39;;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line7"></a><code>7</code></td><td></td><td class="lightgray"><code>import&nbsp;{&nbsp;mapSqlGraph&nbsp;}&nbsp;from&nbsp;&#39;./graph-mapper.js&#39;;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line8"></a><code>8</code></td><td></td><td class="lightgray"><code>import&nbsp;{&nbsp;selectSqlSource&nbsp;}&nbsp;from&nbsp;&#39;./settings.js&#39;;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line9"></a><code>9</code></td><td></td><td class="lightgray"><code></code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line10"></a><code>10</code></td><td></td><td class="lightgray"><code>export&nbsp;interface&nbsp;SqlRunOptions&nbsp;{</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line11"></a><code>11</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;root:&nbsp;string;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line12"></a><code>12</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;project:&nbsp;string;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line13"></a><code>13</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;serverUrl:&nbsp;string;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line14"></a><code>14</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;batchFile:&nbsp;string;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line15"></a><code>15</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;settings:&nbsp;SqlSettings;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line16"></a><code>16</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;cacheFile:&nbsp;string;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line17"></a><code>17</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;force?:&nbsp;boolean;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line18"></a><code>18</code></td><td></td><td class="lightgray"><code>}</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line19"></a><code>19</code></td><td></td><td class="lightgray"><code></code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line20"></a><code>20</code></td><td></td><td class="lightgray"><code>export&nbsp;class&nbsp;SqlIndexerApplication&nbsp;{</code></td></tr>
+<tr class="coverableline" title="Covered (3 visits)" data-coverage="{'AllTestMethods': {'VC': '3', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">3</td><td class="rightmargin right"><a id="file0_line21"></a><code>21</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;constructor(private&nbsp;readonly&nbsp;registry:&nbsp;SqlDialectRegistry,</code></td></tr>
+<tr class="coverableline" title="Covered (3 visits)" data-coverage="{'AllTestMethods': {'VC': '3', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">3</td><td class="rightmargin right"><a id="file0_line22"></a><code>22</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;private&nbsp;readonly&nbsp;publish:&nbsp;(snapshot:&nbsp;SqlGraphSnapshot,&nbsp;signal?:&nbsp;AbortSignal)&nbsp;=&gt;&nbsp;Promise&lt;void&gt;)&nbsp;{}</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line23"></a><code>23</code></td><td></td><td class="lightgray"><code></code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line24"></a><code>24</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;async&nbsp;run(options:&nbsp;SqlRunOptions,&nbsp;signal?:&nbsp;AbortSignal):&nbsp;Promise&lt;number&gt;&nbsp;{</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line25"></a><code>25</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;batch&nbsp;=&nbsp;readIndexerBatchFile(options.root,&nbsp;options.batchFile);</code></td></tr>
+<tr class="coverableline" title="Partially covered (12 visits, 1 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line26"></a><code>26</code></td><td class="percentagebar percentagebar50"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(batch.files.length&nbsp;&gt;&nbsp;10_000)&nbsp;throw&nbsp;new&nbsp;Error(&#39;SQL&nbsp;inventory&nbsp;exceeds&nbsp;10,000&nbsp;files.&#39;);</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line27"></a><code>27</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;let&nbsp;sourceBytes&nbsp;=&nbsp;0;</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line28"></a><code>28</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;groups&nbsp;=&nbsp;new&nbsp;Map&lt;string,&nbsp;SqlSource[]&gt;();</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line29"></a><code>29</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;for&nbsp;(const&nbsp;file&nbsp;of&nbsp;batch.files.sort())&nbsp;{</code></td></tr>
+<tr class="coverableline" title="Covered (20 visits)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line30"></a><code>30</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;relative&nbsp;=&nbsp;path.relative(options.root,&nbsp;file).replace(/\\/g,&nbsp;&#39;/&#39;);</code></td></tr>
+<tr class="coverableline" title="Partially covered (20 visits, 4 of 5 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line31"></a><code>31</code></td><td class="percentagebar percentagebar80"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(relative.startsWith(&#39;../&#39;)&nbsp;||&nbsp;path.isAbsolute(relative)&nbsp;||&nbsp;!/\.sql$/i.test(relative))</code></td></tr>
+<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line32"></a><code>32</code></td><td></td><td class="lightred"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;throw&nbsp;new&nbsp;Error(`Invalid&nbsp;SQL&nbsp;source&nbsp;path:&nbsp;${relative}`);</code></td></tr>
+<tr class="coverableline" title="Covered (20 visits)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line33"></a><code>33</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;selection&nbsp;=&nbsp;selectSqlSource(relative,&nbsp;options.settings);</code></td></tr>
+<tr class="coverableline" title="Covered (20 visits)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line34"></a><code>34</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;this.registry.resolve(selection.dialect);</code></td></tr>
+<tr class="coverableline" title="Covered (20 visits)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line35"></a><code>35</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;bytes&nbsp;=&nbsp;fs.statSync(file).size;</code></td></tr>
+<tr class="coverableline" title="Covered (20 visits)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line36"></a><code>36</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sourceBytes&nbsp;+=&nbsp;bytes;</code></td></tr>
+<tr class="coverableline" title="Partially covered (20 visits, 3 of 4 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'orange'}}"><td class="orange">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line37"></a><code>37</code></td><td class="percentagebar percentagebar70"><i class="icon-fork"></i></td><td class="lightorange"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(bytes&nbsp;&gt;&nbsp;4&nbsp;*&nbsp;1024&nbsp;*&nbsp;1024&nbsp;||&nbsp;sourceBytes&nbsp;&gt;&nbsp;64&nbsp;*&nbsp;1024&nbsp;*&nbsp;1024)</code></td></tr>
+<tr class="coverableline" title="Not covered (0 visits)" data-coverage="{'AllTestMethods': {'VC': '0', 'LVS': 'red'}}"><td class="red">&nbsp;</td><td class="leftmargin rightmargin right">0</td><td class="rightmargin right"><a id="file0_line38"></a><code>38</code></td><td></td><td class="lightred"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;throw&nbsp;new&nbsp;Error(&#39;SQL&nbsp;source&nbsp;budget&nbsp;exceeded&nbsp;(4&nbsp;MiB&nbsp;per&nbsp;file,&nbsp;64&nbsp;MiB&nbsp;per&nbsp;scope).&#39;);</code></td></tr>
+<tr class="coverableline" title="Covered (20 visits)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line39"></a><code>39</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;source&nbsp;=&nbsp;{&nbsp;path:&nbsp;relative,&nbsp;scope:&nbsp;selection.scope,&nbsp;text:&nbsp;fs.readFileSync(file,&nbsp;&#39;utf8&#39;),&nbsp;fileRole:&nbsp;batch.file</code></td></tr>
+<tr class="coverableline" title="Covered (20 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line40"></a><code>40</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;group&nbsp;=&nbsp;groups.get(selection.dialect)&nbsp;??&nbsp;[];</code></td></tr>
+<tr class="coverableline" title="Covered (20 visits)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line41"></a><code>41</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;group.push(source);</code></td></tr>
+<tr class="coverableline" title="Covered (20 visits)" data-coverage="{'AllTestMethods': {'VC': '20', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">20</td><td class="rightmargin right"><a id="file0_line42"></a><code>42</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;groups.set(selection.dialect,&nbsp;group);</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line43"></a><code>43</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line44"></a><code>44</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;//&nbsp;Validate&nbsp;defaults&nbsp;even&nbsp;for&nbsp;an&nbsp;empty&nbsp;inventory,&nbsp;before&nbsp;permitting&nbsp;deletion.</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line45"></a><code>45</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;this.registry.resolve(options.settings.defaultDialect);</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line46"></a><code>46</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;fingerprint&nbsp;=&nbsp;createHash(&#39;sha256&#39;).update(JSON.stringify({&nbsp;contract:&nbsp;&#39;1&#39;,&nbsp;settings:&nbsp;options.settings,</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line47"></a><code>47</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;defaultAnalyzer:&nbsp;this.registry.resolve(options.settings.defaultDialect).versionFingerprint,</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line48"></a><code>48</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;project:&nbsp;options.project,&nbsp;server:&nbsp;options.serverUrl,</code></td></tr>
+<tr class="coverableline" title="Covered (10 visits)" data-coverage="{'AllTestMethods': {'VC': '10', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">10</td><td class="rightmargin right"><a id="file0_line49"></a><code>49</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sources:&nbsp;[...groups].map(([dialect,&nbsp;sources])&nbsp;=&gt;&nbsp;[this.registry.resolve(dialect).versionFingerprint,&nbsp;sources])&nbsp;}))</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits, 5 of 5 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line50"></a><code>50</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(!options.force&nbsp;&amp;&amp;&nbsp;fs.existsSync(options.cacheFile)&nbsp;&amp;&amp;&nbsp;fs.readFileSync(options.cacheFile,&nbsp;&#39;utf8&#39;)&nbsp;===&nbsp;fingerprint</code></td></tr>
+<tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line51"></a><code>51</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;console.log(&#39;SQL:&nbsp;unchanged&nbsp;source,&nbsp;configuration,&nbsp;and&nbsp;parser&nbsp;fingerprint.&#39;);</code></td></tr>
+<tr class="coverableline" title="Covered (2 visits)" data-coverage="{'AllTestMethods': {'VC': '2', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">2</td><td class="rightmargin right"><a id="file0_line52"></a><code>52</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return&nbsp;0;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line53"></a><code>53</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
+<tr class="coverableline" title="Covered (9 visits)" data-coverage="{'AllTestMethods': {'VC': '9', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">9</td><td class="rightmargin right"><a id="file0_line54"></a><code>54</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;snapshot:&nbsp;SqlGraphSnapshot&nbsp;=&nbsp;{&nbsp;contractVersion:&nbsp;&#39;1&#39;,&nbsp;projectContext:&nbsp;options.project,&nbsp;files:&nbsp;[]&nbsp;};</code></td></tr>
+<tr class="coverableline" title="Covered (9 visits)" data-coverage="{'AllTestMethods': {'VC': '9', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">9</td><td class="rightmargin right"><a id="file0_line55"></a><code>55</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;for&nbsp;(const&nbsp;[dialect,&nbsp;sources]&nbsp;of&nbsp;groups)&nbsp;{</code></td></tr>
+<tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line56"></a><code>56</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;signal?.throwIfAborted();</code></td></tr>
+<tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line57"></a><code>57</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;result:&nbsp;SqlAnalysisResult&nbsp;=&nbsp;await&nbsp;this.registry.resolve(dialect).analyze(sources,&nbsp;signal);</code></td></tr>
+<tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line58"></a><code>58</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;snapshot.files.push(...mapSqlGraph(options.project,&nbsp;result,&nbsp;options.settings).files);</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line59"></a><code>59</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
+<tr class="coverableline" title="Covered (9 visits)" data-coverage="{'AllTestMethods': {'VC': '9', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">9</td><td class="rightmargin right"><a id="file0_line60"></a><code>60</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;signal?.throwIfAborted();</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line61"></a><code>61</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;await&nbsp;this.publish(snapshot,&nbsp;signal);</code></td></tr>
+<tr class="coverableline" title="Covered (14 visits)" data-coverage="{'AllTestMethods': {'VC': '14', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">14</td><td class="rightmargin right"><a id="file0_line62"></a><code>62</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;failed&nbsp;=&nbsp;snapshot.files.filter(f&nbsp;=&gt;&nbsp;f.status&nbsp;===&nbsp;&#39;failed&#39;);</code></td></tr>
+<tr class="coverableline" title="Covered (8 visits)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line63"></a><code>63</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;for&nbsp;(const&nbsp;file&nbsp;of&nbsp;snapshot.files)&nbsp;{</code></td></tr>
+<tr class="coverableline" title="Covered (14 visits)" data-coverage="{'AllTestMethods': {'VC': '14', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">14</td><td class="rightmargin right"><a id="file0_line64"></a><code>64</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;console.log(`SQL&nbsp;${file.status}:&nbsp;${file.path}&nbsp;(${file.nodes.length}&nbsp;nodes,&nbsp;${file.edges.length}&nbsp;edges)`);</code></td></tr>
+<tr class="coverableline" title="Covered (14 visits)" data-coverage="{'AllTestMethods': {'VC': '14', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">14</td><td class="rightmargin right"><a id="file0_line65"></a><code>65</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;for&nbsp;(const&nbsp;diagnostic&nbsp;of&nbsp;file.diagnostics.slice(0,&nbsp;5))&nbsp;console.warn(`&nbsp;&nbsp;${diagnostic}`);</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line66"></a><code>66</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;&nbsp;&nbsp;}</code></td></tr>
+<tr class="coverableline" title="Covered (8 visits, 2 of 2 branches are covered)" data-coverage="{'AllTestMethods': {'VC': '8', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">8</td><td class="rightmargin right"><a id="file0_line67"></a><code>67</code></td><td class="percentagebar percentagebar100"><i class="icon-fork"></i></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;(failed.length)&nbsp;return&nbsp;1;</code></td></tr>
+<tr class="coverableline" title="Covered (6 visits)" data-coverage="{'AllTestMethods': {'VC': '6', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">6</td><td class="rightmargin right"><a id="file0_line68"></a><code>68</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;signal?.throwIfAborted();</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line69"></a><code>69</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;fs.mkdirSync(path.dirname(options.cacheFile),&nbsp;{&nbsp;recursive:&nbsp;true&nbsp;});</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line70"></a><code>70</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;const&nbsp;temporary&nbsp;=&nbsp;`${options.cacheFile}.${process.pid}.tmp`;</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line71"></a><code>71</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;fs.writeFileSync(temporary,&nbsp;fingerprint);</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line72"></a><code>72</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;fs.renameSync(temporary,&nbsp;options.cacheFile);</code></td></tr>
+<tr class="coverableline" title="Covered (12 visits)" data-coverage="{'AllTestMethods': {'VC': '12', 'LVS': 'green'}}"><td class="green">&nbsp;</td><td class="leftmargin rightmargin right">12</td><td class="rightmargin right"><a id="file0_line73"></a><code>73</code></td><td></td><td class="lightgreen"><code>&nbsp;&nbsp;&nbsp;&nbsp;return&nbsp;0;</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line74"></a><code>74</code></td><td></td><td class="lightgray"><code>&nbsp;&nbsp;}</code></td></tr>
+<tr class="" title="Not coverable" data-coverage="{'AllTestMethods': {'VC': '', 'LVS': 'gray'}}"><td class="gray">&nbsp;</td><td class="leftmargin rightmargin right"></td><td class="rightmargin right"><a id="file0_line75"></a><code>75</code></td><td></td><td class="lightgray"><code>}</code></td></tr>
 </tbody>
 </table>
 </div>
-<div class="footer">Generated by: ReportGenerator 5.5.11.0<br />09/28/2026 - 18:00:13<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
+<div class="footer">Generated by: ReportGenerator 5.5.11.0<br />10/07/2026 - 13:55:58<br /><a href="https://github.com/danielpalme/ReportGenerator">GitHub</a> | <a href="https://reportgenerator.io">reportgenerator.io</a></div></div>
 <div class="containerright">
 <div class="containerrightfixed">
 <h1>Methods/Properties</h1>
+<a href="#file0_line21" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - constructor()V"><i class="icon-cube"></i>constructor()V</a><br />
+<a href="#file0_line24" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - run()V"><i class="icon-cube"></i>run()V</a><br />
+<a href="#file0_line49" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - (anonymous_2)()V"><i class="icon-cube"></i>(anonymous_2)()V</a><br />
+<a href="#file0_line62" class="navigatetohash percentagebar percentagebar100" title="Line coverage: 100% - (anonymous_3)()V"><i class="icon-cube"></i>(anonymous_3)()V</a><br />
 <br/></div>
 </div></div>
 <script type="text/javascript">/* <![CDATA[ */ /* Chartist.js 0.11.4
