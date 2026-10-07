@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Infrastructure.Integration.Tests;
 
+[Collection(Neo4jCodeGraphRepositoryCollection.Name)]
 public sealed class Neo4jGraphReadRepositoryIntegrationTests : IAsyncLifetime
 {
     private readonly Neo4jOptions _options;
