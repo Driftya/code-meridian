@@ -12,6 +12,15 @@ dotnet tool install -g CodeMeridian.Indexer
 
 ## Use
 
+Inspect local project composition before choosing an indexer or query workflow:
+
+```powershell
+codemeridian profile .
+codemeridian profile . --format json
+```
+
+The profile detects files independently of analyzer skip flags and reports support/configuration separately from indexing readiness. By default it runs locally. Use `codemeridian profile . --publish` to retain complete discovery on the authenticated server, then query MCP `get_project_profile`. Partial discovery preserves the previous inventory. Neither mode runs source scripts; semantic indexing readiness remains unknown and PowerShell indexing is currently unsupported. Exit code 2 indicates partial discovery, including linked or inaccessible paths. See [project profile details](../../docs/indexing.md#inspect-a-local-project-before-indexing).
+
 The indexer sends data to a running CodeMeridian backend. Run `codemeridian serve` in a dedicated runtime folder for the shared MCP server and Neo4j stack, then run `codemeridian init .` in each indexed project or `codemeridian init --global` for user-wide defaults.
 
 To create local runtime files and start Neo4j plus the MCP server with Docker Compose:

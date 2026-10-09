@@ -2,6 +2,37 @@
 
 The unified indexer CLI scans a target directory and runs the available language indexers. It currently supports C#, TypeScript/JavaScript/TSX/JSX, and documentation ingestion.
 
+## Inspect A Local Project Before Indexing
+
+Run `codemeridian profile` to discover repository contents without indexing, contacting the server, evaluating project files, or executing scripts:
+
+```powershell
+codemeridian profile .
+codemeridian profile C:\Projects\MyDocs --project MyDocs --format json
+codemeridian profile . --skip-csharp --skip-sql
+```
+
+The versioned profile separates observed file kinds, analyzer support, configuration, and indexing readiness. It detects C#, TypeScript/JavaScript (including declaration files separately), Markdown/text, HTML/CSS/SCSS, SQL, PowerShell, configuration, assets, and other files. PowerShell analysis is currently reported as unsupported.
+
+Discovery uses the existing indexing exclusion policy independently of analyzer skip flags. Output includes counts, up to five example paths per file kind, up to 50 observed root records with the total root count, and up to 20 discovery warnings with the total warning count. Root records are source/configuration evidence, not evaluated project membership. Source and configuration values are not returned.
+
+Indexing state is `unknown`: discovery does not verify semantic graph evidence or worker/runtime availability. Publish a complete discovery explicitly when the server should retain it:
+
+```powershell
+codemeridian profile . --project MyDocs --publish
+codemeridian profile . --publish --url http://localhost:5100 --format json
+```
+
+Publication uses the configured server URL and API key, reserves a server-issued generation before scanning, and atomically replaces the accepted file inventory. Partial discovery preserves the previous complete inventory. Failed publication exits with code 1 and does not report uploaded evidence. Neither mode executes repository scripts or runs semantic analyzers. Published JSON output retains the profile shape and changes `evidenceSource` to `uploaded_discovery`.
+
+Read the retained facts using MCP `get_project_profile(projectContext, targetPath?)`, SDK `GetProjectProfileAsync`, or authenticated `GET /api/v1/project-profiles/?projectContext=MyDocs&targetPath=docs/README.md`. Responses contain bounded profile summaries and one optional target lookup, rather than the whole inventory. A missing profile returns `unknown`; a newer reserved but unpublished generation returns `stale` and retains the previous profile. A target absent from that stale inventory remains `unknown`.
+
+The SDK also provides `BeginProjectProfileAsync` and `PublishProjectProfileAsync`, corresponding to authenticated `POST /api/v1/project-profiles/begin` and `POST /api/v1/project-profiles/`. Uploads require contract version `1.0`, a complete profile, normalized relative paths, consistent counts and summaries, and at most 100,000 inventory files. Repeating an identical published generation is idempotent; older or conflicting uploads return HTTP 409.
+
+An available profile describes uploaded discovery, not current checkout freshness. Revision/parser fingerprints, analyzer completion tracking, automatic index-command publication, and capability-aware workflow routing remain planned.
+
+Exit codes are 0 for complete discovery, 1 for invalid input/configuration or failure, and 2 for partial discovery. Symbolic links/junctions are not followed; skipped links or inaccessible entries produce partial discovery rather than an apparently empty complete project.
+
 ## Start the Server
 
 Run `codemeridian serve` in a dedicated runtime folder for the shared backend, not inside every indexed repository.

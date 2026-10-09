@@ -2,6 +2,7 @@ using CodeMeridian.Indexer.Cli.Commands;
 using CodeMeridian.Indexer.Cli.Configuration;
 using CodeMeridian.Indexer.Cli.SessionEvaluation;
 using CodeMeridian.Tooling.Composition;
+using CodeMeridian.Tooling.Discovery;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CodeMeridian.Indexer.Cli.Composition;
@@ -21,6 +22,9 @@ internal static class IndexerCliServiceCollectionExtensions
         services.AddTransient<ClearCommand>();
         services.AddTransient<ServeCommand>();
         services.AddTransient<StatusCommand>();
+        services.AddTransient<RepositoryInventoryDiscovery>();
+        services.AddTransient<LocalProjectProfileBuilder>();
+        services.AddTransient<ProjectProfileCommand>();
         services.AddTransient<RelationshipHealthReportCommand>();
         services.AddTransient<TypeScriptScopeCatalogWriter>();
         services.AddTransient<PrContextReportCommand>();

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Indexer.Cli.Commands;
 
-internal sealed class RootCommandFactory(
+internal sealed partial class RootCommandFactory(
     IServiceProvider services,
     IToolConfigurationService configurationService,
     IndexCommandSettingsFactory settingsFactory,
@@ -40,6 +40,7 @@ internal sealed class RootCommandFactory(
         root.Add(CreateCheckDriftCommand());
         root.Add(CreateEvaluateSessionCommand());
         root.Add(CreateClearCommand());
+        root.Add(CreateProfileCommand());
 
         return root;
     }

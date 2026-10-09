@@ -8,6 +8,7 @@ using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.GraphQueries;
 using CodeMeridian.Core.Knowledge;
 using CodeMeridian.Core.KeywordGraph;
+using CodeMeridian.Core.Projects;
 
 namespace CodeMeridian.Infrastructure;
 
@@ -22,6 +23,8 @@ public static class DependencyInjection
 
         // Register concrete types so the initializer can access them directly
         services.AddSingleton<Neo4jCodeGraphRepository>();
+        services.AddSingleton<Neo4jProjectProfileRepository>();
+        services.AddSingleton<IProjectProfileRepository>(sp => sp.GetRequiredService<Neo4jProjectProfileRepository>());
         services.AddSingleton<Neo4jGraphReadRepository>();
         services.AddSingleton<Neo4jKeywordGraphRepository>();
         services.AddSingleton<Neo4jChangeContextRepository>();

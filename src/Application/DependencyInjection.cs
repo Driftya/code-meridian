@@ -1,6 +1,7 @@
 using CodeMeridian.Application.ClientExtensions;
 using CodeMeridian.Application.GraphQueries;
 using CodeMeridian.Application.Services;
+using CodeMeridian.Application.Projects;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -45,6 +46,7 @@ public static class DependencyInjection
         services.AddTransient<IProjectAnalysisOptionsResolver, ProjectAnalysisOptionsResolver>();
         services.AddTransient<IGraphQueryService, GraphQueryService>();
         services.AddTransient<ICodebaseQueryService, CodebaseQueryService>();
+        services.AddTransient<ProjectProfileService>();
         services.AddSingleton<PackageReferenceMatcher>();
         services.AddTransient<PackageReferenceService>();
         services.AddTransient<ICodebaseStatusService, CodebaseStatusService>();

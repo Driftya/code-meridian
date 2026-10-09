@@ -309,6 +309,31 @@
     "sha256": "4ba166a3fa3b83de30d2040d101842548d22666f729ef827531b035195357dfe"
   },
   {
+    "name": "get_project_profile",
+    "required": [
+      "status",
+      "project",
+      "generation",
+      "latestGeneration",
+      "publishedAt",
+      "profile",
+      "target",
+      "warnings"
+    ],
+    "properties": [
+      "status",
+      "project",
+      "generation",
+      "latestGeneration",
+      "publishedAt",
+      "profile",
+      "target",
+      "warnings",
+      "contractVersion"
+    ],
+    "sha256": "c92472771115fc5e82d5320e4cac1eeacdb0f0d1380025417a340c9b02c3c568"
+  },
+  {
     "name": "list_client_extension_examples",
     "required": [],
     "properties": [],

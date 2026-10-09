@@ -1,8 +1,8 @@
 {
   "protocolVersion": "2025-11-25",
   "handshakeMethod": "initialize",
-  "toolCount": 67,
-  "annotationCount": 67,
+  "toolCount": 68,
+  "annotationCount": 68,
   "structuredToolNames": [
     "answer_change_context_challenge",
     "build_minimal_context",
@@ -14,6 +14,7 @@
     "get_change_context",
     "get_client_extension_contract",
     "get_client_extension_example",
+    "get_project_profile",
     "list_client_extension_examples",
     "record_change_context_challenge_note",
     "start_change_context_challenge"

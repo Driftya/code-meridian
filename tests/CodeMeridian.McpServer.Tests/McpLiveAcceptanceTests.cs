@@ -19,6 +19,7 @@ public sealed class McpLiveAcceptanceTests
     private const string ProjectContext = "CodeMeridian";
     private static readonly HashSet<string> StructuredToolNames =
     [
+        "get_project_profile",
         "answer_change_context_challenge",
         "check_graph_freshness",
         "find_impact",
@@ -62,8 +63,8 @@ public sealed class McpLiveAcceptanceTests
         var toolsPayloadBytes = Encoding.UTF8.GetByteCount(toolsExchange.ResponseBody);
 
         client.NegotiatedProtocolVersion.Should().Be(ModernProtocolVersion);
-        tools.Tools.Should().HaveCount(67);
-        warmTools.Tools.Should().HaveCount(67);
+        tools.Tools.Should().HaveCount(68);
+        warmTools.Tools.Should().HaveCount(68);
         toolsPayloadBytes.Should().BeLessThan(512 * 1024);
         tools.TimeToLive.Should().Be(TimeSpan.FromMinutes(5));
         tools.CacheScope.Should().Be(CacheScope.Private);
@@ -104,6 +105,10 @@ public sealed class McpLiveAcceptanceTests
         var tools = await client.ListToolsAsync();
         var calls = new[]
         {
+            new StructuredCall("get_project_profile", new Dictionary<string, object?>
+            {
+                ["projectContext"] = ProjectContext
+            }),
             new StructuredCall("check_graph_freshness", new Dictionary<string, object?>
             {
                 ["projectContext"] = ProjectContext
@@ -163,7 +168,7 @@ public sealed class McpLiveAcceptanceTests
         await using var client = await CreateClientAsync(httpClient, DownLevelProtocolVersion);
 
         client.NegotiatedProtocolVersion.Should().Be(DownLevelProtocolVersion);
-        (await client.ListToolsAsync()).Should().HaveCount(67);
+        (await client.ListToolsAsync()).Should().HaveCount(68);
 
         var result = await client.CallToolAsync(
             "get_client_extension_contract",

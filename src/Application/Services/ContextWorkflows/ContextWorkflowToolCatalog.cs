@@ -4,6 +4,7 @@ public static class ContextWorkflowToolCatalog
 {
     private static readonly ContextWorkflowToolDescriptor[] ToolDefinitions =
     [
+        Tool("get_project_profile", "QueryAndExploration", "Read uploaded discovery, analyzer configuration, and target inventory before choosing tools; indexing readiness may remain unknown.", worksFromVagueGoal: true),
         Tool("query_codebase", "QueryAndExploration", "Natural-language structural search.", worksFromVagueGoal: true),
         Tool("get_architectural_overview", "QueryAndExploration", "High-level project structure map.", worksFromVagueGoal: true),
         Tool("search_documentation", "QueryAndExploration", "Search indexed docs, ADRs, README files, and comments.", worksFromVagueGoal: true),

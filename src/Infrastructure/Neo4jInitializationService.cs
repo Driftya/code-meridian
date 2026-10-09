@@ -13,12 +13,14 @@ internal sealed class Neo4jInitializationService(
     Neo4jCodeGraphRepository codeGraph,
     Neo4jKeywordGraphRepository keywordGraph,
     Neo4jVectorRepository vectorStore,
+    Neo4jProjectProfileRepository projectProfiles,
     ILogger<Neo4jInitializationService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
+            await projectProfiles.InitializeAsync(stoppingToken);
             await codeGraph.InitializeAsync(stoppingToken);
             await keywordGraph.InitializeAsync(stoppingToken);
             await vectorStore.InitializeAsync(stoppingToken);

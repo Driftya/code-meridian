@@ -8,7 +8,7 @@ namespace CodeMeridian.Sdk;
 /// Register via <see cref="DependencyInjection.AddCodeMeridianClient"/> and inject
 /// <see cref="CodeMeridianClient"/> wherever you need to talk to CodeMeridian.
 /// </summary>
-public sealed class CodeMeridianClient(HttpClient httpClient)
+public sealed partial class CodeMeridianClient(HttpClient httpClient)
 {
     public async Task BeginPackageReferenceIndexAsync(string projectContext, string generation, CancellationToken cancellationToken = default)
     {
