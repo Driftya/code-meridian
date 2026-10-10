@@ -20,7 +20,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.*" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.*" />
     <PackageReference Include="Microsoft.Build.Locator" Version="1.*" />
-    <PackageReference Include="Microsoft.Build.Framework" Version="17.11.48" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="18.10.1" ExcludeAssets="runtime" PrivateAssets="all" />
 
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.*" />
