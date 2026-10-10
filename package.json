@@ -16,6 +16,6 @@
     "index:html-css": "npm run index --workspace codemeridian-html-css-indexer"
   },
   "devDependencies": {
-    "jsdom": "30.1.1"
+    "jsdom": "30.1.2"
   }
 }
