@@ -12,12 +12,12 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "postcss": "^8.5.28",
+    "postcss": "^8.5.29",
     "postcss-scss": "^4.0.9",
     "ts-morph": "^28.0.0"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.4",
     "@vitest/coverage-v8": "^5.0.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
