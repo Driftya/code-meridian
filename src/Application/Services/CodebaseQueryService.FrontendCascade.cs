@@ -7,7 +7,7 @@ public sealed partial class CodebaseQueryService
 {
     private const int FrontendCascadeQueryLimit = 10000;
 
-    public async Task<string> FindFrontendCascadeConflictsAsync(
+    private async Task<string> FindFrontendCascadeConflictsCoreAsync(
         string? projectContext = null,
         string? filter = null,
         bool excludeTests = true,

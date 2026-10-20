@@ -5,4 +5,7 @@ public sealed record StoredProjectProfile(
     long LatestGeneration,
     DateTimeOffset PublishedAt,
     ProjectProfile Profile,
-    ProjectInventoryFile? Target);
+    ProjectInventoryFile? Target)
+{
+    public IReadOnlyList<ProjectAnalyzerOutcome> AnalyzerOutcomes { get; init; } = [];
+}

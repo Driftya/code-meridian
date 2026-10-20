@@ -2,6 +2,8 @@
 
 Use CodeMeridian before guessing from filenames or broad file scans.
 
+Read `get_project_profile(projectContext, targetPath?)` before choosing a language-specific edit workflow. Observed file kinds are independent of enabled analyzers and indexed coverage. Markdown/text targets use document context; do not resolve their filenames or headings as code symbols. `plan_context_workflow` can select `document_review` and reports blocked/unknown readiness when coverage is missing. Published discovery alone, a successful process exit, or a local cache does not prove complete semantic evidence. PowerShell is detected but currently unsupported. Keep code-specific pre-edit checks for callable code targets.
+
 ## When To Use CodeMeridian
 
 Use graph tools for:
@@ -24,6 +26,8 @@ Use terminal search for:
 - external command results
 
 ## Required Pre-Edit Flow
+
+Inspect each tool's applicability before treating its output as analysis. `ready` authorizes a planned step; `ok` marks an executed query, including a legitimate empty result. Unknown, not-indexed, disabled, unsupported, partial, stale, and failed statuses are not clean checks. Required unavailable steps block a workflow; omitted optional steps remain explained. Use canonical IDs returned for the target's actual project, and do not use root-only outcomes for project-wide relationship queries. When evidence is unavailable, continue bounded profile/freshness inspection and local source work with the limitation stated; do not automatically index or run scripts.
 
 For code edits:
 

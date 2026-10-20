@@ -20,6 +20,9 @@ public sealed class ProjectProfileService(IProjectProfileRepository repository)
             stored.LatestGeneration, stored.PublishedAt, stored.Profile,
             targetPath is null ? null : new ProjectProfileTarget(targetPath,
                 stored.Target is not null ? "observed" : stale ? "unknown" : "absent", stored.Target?.Kind),
-            stale ? ["A newer discovery generation was reserved but has not been published. The previous complete inventory is retained."] : []);
+            stale ? ["A newer discovery generation was reserved but has not been published. The previous complete inventory is retained."] : [])
+        {
+            AnalyzerOutcomes = stored.AnalyzerOutcomes
+        };
     }
 }

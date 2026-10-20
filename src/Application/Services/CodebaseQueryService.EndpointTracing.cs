@@ -5,7 +5,7 @@ namespace CodeMeridian.Application.Services;
 
 public partial class CodebaseQueryService
 {
-    public async Task<string> TraceEndpointAsync(
+    private async Task<string> TraceEndpointCoreAsync(
         string route,
         string? projectContext = null,
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,

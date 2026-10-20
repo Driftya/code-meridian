@@ -6,7 +6,7 @@ namespace CodeMeridian.Application.Services;
 
 public partial class CodebaseQueryService
 {
-    public async Task<string> AnalyzeFeatureImplementationPathAsync(
+    private async Task<string> AnalyzeFeatureImplementationPathCoreAsync(
         string feature,
         string? projectContext = null,
         bool includeTests = true,

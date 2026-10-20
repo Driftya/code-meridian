@@ -18,7 +18,12 @@ public sealed record TestShieldResult(
     string? SuggestedTestCommand,
     bool Truncated)
 {
+    public ContextWorkflows.ContextWorkflowApplicability? Applicability { get; init; }
     public string ToMarkdown()
+        => Applicability is { Status: not "ok" } ? Applicability.ToMarkdown("find_test_shield")
+            : (Applicability is null ? "" : Applicability.ToMarkdown("find_test_shield") + "\n\n") + ToSourceMarkdown();
+
+    private string ToSourceMarkdown()
     {
         if (!TargetFound)
         {

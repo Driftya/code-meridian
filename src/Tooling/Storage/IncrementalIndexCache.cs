@@ -7,7 +7,7 @@ public sealed class IncrementalIndexCache
 {
     private const int CacheVersion = 4;
     private readonly FileInfo _cacheFile;
-    private readonly CacheState _state;
+    private CacheState _state;
 
     private IncrementalIndexCache(FileInfo cacheFile, CacheState state)
     {
@@ -80,18 +80,29 @@ public sealed class IncrementalIndexCache
         return new IncrementalIndexPlan(changed, deleted, nextState);
     }
 
-    public void Save(IncrementalIndexPlan plan)
+    public bool HasPublicationFor(string serverUrl) => _state.PublishedGeneration is > 0
+        && _state.ProfileObservedAt is not null && _state.ServerIdentity == ServerIdentity(serverUrl);
+
+    public bool MatchesPublication(string serverUrl, long? generation, DateTimeOffset? observedAt) =>
+        HasPublicationFor(serverUrl) && _state.PublishedGeneration == generation && _state.ProfileObservedAt == observedAt;
+
+    public void Save(IncrementalIndexPlan plan, string? serverUrl = null, long? generation = null,
+        DateTimeOffset? observedAt = null)
     {
         _cacheFile.Directory?.Create();
         var state = new CacheState
         {
             Version = CacheVersion,
-            Files = [.. plan.NextState]
+            Files = [.. plan.NextState],
+            ServerIdentity = serverUrl is not null && generation is > 0 && observedAt is not null ? ServerIdentity(serverUrl) : null,
+            PublishedGeneration = generation,
+            ProfileObservedAt = observedAt
         };
 
         File.WriteAllText(
             _cacheFile.FullName,
             JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+        _state = state;
     }
 
     private static string Hash(string value)
@@ -100,10 +111,16 @@ public sealed class IncrementalIndexCache
         return Convert.ToHexString(hash)[..12].ToLowerInvariant();
     }
 
+    private static string ServerIdentity(string serverUrl) => Hash(new Uri(serverUrl, UriKind.Absolute)
+        .GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped).TrimEnd('/'));
+
     private sealed class CacheState
     {
         public int Version { get; set; } = CacheVersion;
         public List<CacheEntry> Files { get; set; } = [];
+        public string? ServerIdentity { get; set; }
+        public long? PublishedGeneration { get; set; }
+        public DateTimeOffset? ProfileObservedAt { get; set; }
     }
 
     public sealed record CacheEntry(string Path, long LastWriteUtcTicks, long Length, string ContentHash)

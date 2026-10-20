@@ -11,4 +11,7 @@ public sealed record ProjectProfileResponse(
     JsonElement? Profile,
     ProjectProfileTargetResponse? Target,
     IReadOnlyList<string> Warnings,
-    string ContractVersion);
+    string ContractVersion)
+{
+    public IReadOnlyList<JsonElement> AnalyzerOutcomes { get; init; } = [];
+}

@@ -4,6 +4,11 @@ namespace CodeMeridian.Sdk;
 
 public sealed partial class CodeMeridianClient
 {
+    public async Task PublishProjectAnalyzerOutcomesAsync<TSnapshot>(TSnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PostAsJsonAsync("/api/v1/project-profiles/outcomes", snapshot, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
     public async Task<long> BeginProjectProfileAsync(string projectContext, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PostAsJsonAsync("/api/v1/project-profiles/begin", new { projectContext }, cancellationToken);

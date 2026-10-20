@@ -6,7 +6,7 @@ namespace CodeMeridian.Application.Services;
 
 public sealed partial class CodebaseQueryService
 {
-    public async Task<string> FindConfigDefinitionsAsync(
+    private async Task<string> FindConfigDefinitionsCoreAsync(
         string canonicalKey,
         string? projectContext = null,
         CancellationToken cancellationToken = default)
@@ -35,7 +35,7 @@ public sealed partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindConfigUsageAsync(
+    private async Task<string> FindConfigUsageCoreAsync(
         string canonicalKey,
         string? projectContext = null,
         CancellationToken cancellationToken = default)

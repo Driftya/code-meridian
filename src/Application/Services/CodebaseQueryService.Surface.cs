@@ -5,7 +5,7 @@ namespace CodeMeridian.Application.Services;
 
 public partial class CodebaseQueryService
 {
-    public async Task<string> FindImplementationSurfaceAsync(
+    private async Task<string> FindImplementationSurfaceCoreAsync(
         string goal,
         string? conceptsCsv = null,
         string? projectContext = null,
@@ -116,7 +116,7 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> PlanEditRouteAsync(
+    private async Task<string> PlanEditRouteCoreAsync(
         string goal,
         string? conceptsCsv = null,
         string? projectContext = null,
@@ -229,7 +229,7 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> ResolveExactSymbolAsync(
+    private async Task<string> ResolveExactSymbolCoreAsync(
         string symbol,
         string? filePath = null,
         int? line = null,

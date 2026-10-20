@@ -6,7 +6,7 @@ namespace CodeMeridian.Application.Services;
 
 public sealed partial class CodebaseQueryService
 {
-    public async Task<string> FindBridgesAsync(
+    private async Task<string> FindBridgesCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -29,7 +29,7 @@ public sealed partial class CodebaseQueryService
             articulationPoints = await articulationTask;
             bridgeEdges = await bridgeEdgesTask;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (projectProfiles is null && ex is not OperationCanceledException)
         {
             return $"Risky core analysis failed: {ex.Message}\n" +
                    "Ensure the Graph Data Science plugin is installed.";

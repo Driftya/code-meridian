@@ -14,7 +14,12 @@ public sealed record ConnectionAnalysisResult(
     IReadOnlyList<ConnectionEdgeResult> Edges,
     IReadOnlyList<string> FrontendSignals)
 {
+    public ContextWorkflows.ContextWorkflowApplicability? Applicability { get; init; }
     public string ToMarkdown(ContextDetailLevel detailLevel)
+        => Applicability is { Status: not "ok" } ? Applicability.ToMarkdown("find_connection")
+            : (Applicability is null ? "" : Applicability.ToMarkdown("find_connection") + "\n\n") + ToSourceMarkdown(detailLevel);
+
+    private string ToSourceMarkdown(ContextDetailLevel detailLevel)
     {
         if (!PathFound)
         {

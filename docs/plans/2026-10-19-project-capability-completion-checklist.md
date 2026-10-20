@@ -1,0 +1,126 @@
+# Project Capabilities: Remaining Delivery Checklist
+
+Date: 2026-10-19
+
+Status: active. **12 completed foundation items; 40 open delivery items.**
+
+This is the current progress tracker for the five October 8 plans. Their detailed designs are retained under [references/project-capabilities/](references/project-capabilities/). This checklist consolidates overlapping work; it does not replace their semantics or expand their MVPs.
+
+The baseline includes committed and uncommitted implementation in this working tree. Checked items mean implemented with identified verification evidence, not deployed. Unchecked items can have partial groundwork but have not met their completion criteria. Counts describe checklist items, not equal-sized work or an effort percentage. Keep IDs stable, update the counts when a box changes, and record the verifying test or acceptance result before checking an item.
+
+## Progress
+
+| Workstream | Completed | Open | Current state |
+|---|---:|---:|---|
+| Discovery and producer evidence | 8 | 12 | Foundation implemented; semantic worker coverage remains unaudited |
+| Capability-aware routing | 4 | 5 | Shared guards implemented; scope and optional-section refinements remain |
+| Repository constraints and Markdown | 0 | 9 | Planned; current document extraction is insufficient for structural validation |
+| Offline PowerShell | 0 | 10 | Detected but unsupported; parser worker not implemented |
+| Shared release acceptance | 0 | 4 | Existing tests cover delivered slices; full roadmap acceptance remains |
+| **Total** | **12** | **40** | **52 tracked items** |
+
+## Completed Baseline
+
+- [x] I01 — Local `profile` discovery classifies accepted files and observed roots, respects exclusions/reparse boundaries, and bounds examples and warnings. Evidence: `RepositoryInventoryDiscovery`, `LocalProjectProfileBuilder`, and their discovery/profile fixtures.
+- [x] I02 — Observed content, analyzer support/configuration, and indexing readiness are distinct; disabled/skipped analyzers do not hide files, and PowerShell detection does not claim support. Evidence: `ProjectProfile`, `LocalProjectProfileBuilderTests`.
+- [x] I03 — Server-issued generations support atomic complete-inventory publication, idempotent retries, stale/conflict rejection, and retention on incomplete discovery. Evidence: `ProjectProfileSnapshot`, `Neo4jProjectProfileRepository`, profile publication/persistence tests.
+- [x] I04 — Authenticated API/SDK and structured MCP profile reads expose bounded summaries and target lookup; missing/stale profiles remain explicit. Evidence: `ProjectProfileService`, `ProjectProfileClientTests`, `ProjectProfileEndpointTests`.
+- [x] I05 — Analyzer running/terminal outcomes are generation-scoped; failed, partial, delta, and unaudited completion do not establish complete coverage. Evidence: `IndexProfileRun`, outcome contracts/storage, `IndexProfileRunReporterTests`.
+- [x] I06 — Incremental/no-change/watch paths reconcile server identity, generation, observation, and known fingerprints; failures do not advance the cache. Evidence: `IndexProfileReconciliationTests`, `IncrementalIndexCacheTests`.
+- [x] I07 — Optional Git observations, resolved configuration hashes, and loaded managed implementation/parser fingerprints flow through profiles and outcomes. Evidence: `ProjectRevisionReaderTests`, `ProjectAnalysisFingerprintTests`. Actual Node worker fingerprints and content binding remain A01/A02.
+- [x] I08 — Document read/upload failures affect outcomes; replacement removes stale chunks; search excludes removed inventory sources and rechecks generation. Evidence: `DocumentOutcomeTests`, `DocumentIndexRunCoordinatorTests`, document routing tests.
+- [x] I09 — Catalog requirements and deterministic per-step planning use project/target evidence; document edits avoid callable resolution, unavailable optional steps are visible, and required steps cannot be truncated into success. Evidence: `ContextWorkflowToolRequirements`, `ContextWorkflowToolPolicy`, `ToolCapabilityPolicyTests`, `ProjectCapabilityRoutingTests`.
+- [x] I10 — Shared Application guards protect direct query families; results distinguish unavailable analysis from executed empty findings, and context packs omit unaudited test sections. Evidence: `DirectCapabilityGuardTests`, `KeywordCapabilityGuardTests`, structured MCP schema tests.
+- [x] I11 — Execution revalidates readiness/generation, resolves exact targets, preserves required ordering, and discards stale or unverified cross-project results. Evidence: `DirectCapabilityGuardTests`, `CodebaseQueryServiceContextWorkflowTests`.
+- [x] I12 — Applicability contracts, tool descriptions, dependency-impact metadata, feature docs, and bundled agent guidance describe the delivered routing behavior. Evidence: `docs/context-workflows.md`, `ToolDependencyCatalog`, MCP schema snapshots, bundled capability packs. New feature guidance remains E04.
+
+## A — Finish Discovery And Producer Evidence
+
+Reference: [discovery and capability profiles](references/project-capabilities/2026-10-08-project-discovery-capability-profile-plan.md).
+
+- [ ] A01 — Report actual TypeScript/JavaScript, frontend, and SQL worker/parser/runtime identities from the executing workers; publish and compare those fingerprints. Done when missing identity remains unknown and version changes invalidate reuse in worker-to-profile tests.
+- [ ] A02 — Bind outcomes to analyzed file content/revisions, not only observational Git state. Done when source changes during a pass cannot publish fresh complete evidence for different bytes, with unchanged/changed/deleted-file fixtures.
+- [ ] A03 — Audit C# definitions/dependencies and publish trustworthy per-scope coverage, including project loading, skipped/failed files, diagnostics, and legitimate zero-edge results. Done when worker reports drive readiness without inferring it from process exit.
+- [ ] A04 — Audit TypeScript/JavaScript definitions/dependencies and root membership, including imports and unresolved constructs. Done when partial roots and skipped/failed files cannot authorize full project queries.
+- [ ] A05 — Audit frontend relationship coverage and separately define/publish cascade evidence. Done when generic frontend relationships cannot authorize unsupported specificity/source-order analysis.
+- [ ] A06 — Audit configuration definitions, code/config usage, and configured architecture-rule evidence as separate capabilities. Done when definition-only or invalid-policy inputs cannot claim usage/rule readiness.
+- [ ] A07 — Audit SQL outcomes per supported dialect/scope, including parse/publication failures and owned dependency facts. Done when SQL object evidence is explicit and does not grant generic callable compatibility.
+- [ ] A08 — Publish audited test-to-code and namespace-classification capabilities for each supported language. Done when fixture-backed producer reports, rather than generic dependency edges or test file roles, establish those capabilities.
+- [ ] A09 — Publish audited graph-projection and embedding evidence, including projection node/edge filters and embedding completeness. Done when mixed SQL/frontend content and provider failure cannot silently inherit callable/semantic coverage.
+- [ ] A10 — Add scoped producer evidence for change/architecture history and keyword relationships. Done when those queries distinguish absent/unavailable evidence from executed empty results and reject stale producer identities.
+- [ ] A11 — Define safe last-good evidence reuse across delta generations. Done when unchanged verified facts remain usable only with content/config/parser/inventory binding, while failed/deleted/rebound scopes invalidate the affected evidence.
+- [ ] A12 — Complete per-worker/root membership and project aggregation rules. Done when target/root/project coverage is explicit, overlapping or incomplete roots cannot imply full coverage, and configured architecture applicability is discoverable without assuming default rules ran.
+
+## B — Finish Routing And Scope Refinements
+
+Reference: [capability-aware tool routing](references/project-capabilities/2026-10-08-capability-aware-tool-routing-plan.md).
+
+- [ ] B01 — Evaluate composite report requirements from enabled sections/flags. Done when a disabled optional test/document/projection section does not block a usable report, while unavailable requested sections are omitted or blocked with explicit coverage.
+- [ ] B02 — Add root/target-filtered document query storage and transport support. Done when results stay within the evaluated scope and a matching complete root outcome can safely authorize that query; current project-wide fallback must remain conservative.
+- [ ] B03 — Add root-filtered graph queries where tool semantics allow them, with scope-aware revalidation. Done when unrelated roots cannot contribute facts or readiness and cross-root traversals have a documented evidence boundary.
+- [ ] B04 — Audit existing SQL/frontend query conformance per tool: identifiers, node kinds, edges, filters, snippets, projection behavior, and response types. Done when a compatibility matrix and focused tests enable only proven combinations; matching edge names alone are insufficient.
+- [ ] B05 — Integrate placement and Markdown-reference capabilities into plans, direct guards, and reports after C is implemented. Done when document-only and mixed targets receive appropriate per-rule outcomes without namespace or callable prerequisites. PowerShell activation is tracked separately in D09.
+
+## C — Build Repository Constraints And Markdown Validation
+
+Reference: [repository constraints and Markdown](references/project-capabilities/2026-10-08-repository-constraints-markdown-plan.md).
+
+- [ ] C01 — Define versioned parser-independent group, placement, reference, exception, severity, and outcome contracts plus configuration validation. Done when existing namespace configuration stays compatible and invalid/custom/unknown policies cannot silently fall back to an all-clear default.
+- [ ] C02 — Implement inventory-only placement evaluation with overlapping groups, allowed/denied paths, explicit exceptions, and normalized case-aware paths. Done when Markdown, SQL, scripts, and assets can be checked without semantic indexers; missing/excluded/unobserved remain distinct.
+- [ ] C03 — Expose a bounded project/optional-target repository-constraint query through Application, API/SDK, and MCP. Done when rule IDs, reasons, evidence locations, applicability, and evaluation coverage round-trip with auth/cancellation/schema tests.
+- [ ] C04 — Audit `DocumentReferenceExtractor` fidelity and select/pin a syntax-aware Markdown parser through a compatibility spike. Done when extraction fixtures establish the supported syntax and document search keeps its existing behavior; regex extraction is not treated as validation.
+- [ ] C05 — Extract stable file-level reference facts with source spans, link/image kind, raw/normalized targets, fragments, parser fingerprint, and inventory generation. Done when inline/reference-style forms, code fences, escapes, HTML limits, URL decoding, and root-relative/anchor semantics have explicit fixtures.
+- [ ] C06 — Resolve local references against inventory and target-group rules. Done when missing, forbidden, excluded/unobserved, external, fragment-only, unsupported, and out-of-repository cases are distinct; no remote fetch or outside-repository traversal occurs.
+- [ ] C07 — Publish owned Markdown-reference evidence generation-safely and handle retries, changed links, renames/deletions, and parse failures. Done when failed/stale chunks cannot claim current structural coverage and searchable document chunks share stable file identity without becoming code symbols.
+- [ ] C08 — Compose new per-rule results with existing architecture reports and capability profiles. Done when document-only fixtures evaluate placement/references while namespace rules are inapplicable, and incomplete inventory/parsing cannot produce clean validation.
+- [ ] C09 — Complete constraint-specific verification and user guidance. Done when Core validation, parser/pipeline, Application, transport, and persistence fixtures cover path case/separators/spaces/traversal, policy errors, reference forms, failure/replay, and backward-compatible namespace behavior.
+
+## D — Build Offline PowerShell Indexing
+
+Reference: [PowerShell indexing](references/project-capabilities/2026-10-08-powershell-indexing-plan.md).
+
+- [ ] D01 — Complete the .NET 10 native parser/package compatibility spike and pin the tested version. Done when clean Windows/Linux packaging and supported syntax/encoding work without depending on globally installed PowerShell; record the compatibility decision.
+- [ ] D02 — Implement a dedicated parser worker for scripts/modules with functions, filters, lexical bodies, parameters, command occurrences, bounded extents/snippets, and exact parse diagnostics. Done when syntax/encoding/unsupported constructs have source-backed extraction fixtures.
+- [ ] D03 — Define stable project/path/scope/kind/name identities and graph mapping. Done when duplicate declarations are deterministic, line moves do not become the sole identity, and reused node/edge kinds satisfy their existing query semantics.
+- [ ] D04 — Implement conservative static binding for lexical definitions and supported script/dot-source paths. Done when command case, visibility, shadowing, redefinitions, working-directory semantics, narrowly supported `$PSScriptRoot`, and dynamic invocations produce resolved/unresolved/indeterminate/external outcomes honestly.
+- [ ] D05 — Extract literal module imports/requires/using and `.psd1` exports/metadata without evaluation. Done when supported export visibility restricts binding and wildcard/computed exports or ambiguous modules retain explicit limits.
+- [ ] D06 — Prove non-execution and bounded analysis behavior. Done when side-effect fixtures never run, profiles/modules are not loaded, no runspace/pipeline invocation occurs, and cancellation/path-boundary fixtures pass.
+- [ ] D07 — Implement analyzer-owned generation-safe publication, failure recovery, deletion, and cross-file rebinding/cache invalidation. Done when replay/transport failure preserves manual/other-language facts and unchanged consumers are rebound after declarations/imports/exports change.
+- [ ] D08 — Integrate opt-in configuration/schema/templates, `--skip-powershell`, CLI dispatch, exclusions, full/incremental/watch/dry-run behavior, and exit semantics. Done when settings precedence, spaces/non-ASCII paths, skipped inventory, and failed-run cache retention have fixtures.
+- [ ] D09 — Publish PowerShell fingerprints/outcomes and audit generic exact/context/impact/connection/snippet queries before enabling capabilities. Done when only proven query combinations become ready and unsupported classes/data flow/Pester shields remain explicit limitations.
+- [ ] D10 — Ship worker/parser packaging, Windows/Linux CI and clean-install smoke tests, and `supports.md`. Done when syntax/binding/platform/version limits are documented and first-release phases D01-D09 work from the packaged CLI without globally installed PowerShell.
+
+## E — Close Shared Acceptance And Rollout
+
+Reference: [roadmap and acceptance matrix](references/project-capabilities/2026-10-08-project-capability-roadmap.md).
+
+- [ ] E01 — Run the complete synthetic repository matrix across discovery, indexing, routing, and queries. Done when C# only, TypeScript without tsconfig, Markdown only, Markdown/PowerShell, disabled/enabled SQL, mixed roots, unsupported/empty/inaccessible repositories, and failed/skipped/stale passes have explicit expected outcomes.
+- [ ] E02 — Run profile/outcome, constraint/reference, and PowerShell publication/query integration against an isolated Neo4j database. Done when concurrency, replay, deletion, ownership preservation, and failure recovery pass together; existing shared-server temporary fixtures do not close this gate.
+- [ ] E03 — Verify fresh-process and packaged-client rollout with persisted caches, old profile/client compatibility, authenticated API/SDK/MCP forwarding, bounded results, schema discovery, and cancellation. Done when the full implemented feature set works outside unit fixtures on Windows/Linux.
+- [ ] E04 — Update final feature/CLI/schema/agent/dependency-impact guidance and record release acceptance evidence. Done when documentation matches shipped capabilities, every remaining item is closed or explicitly rescheduled, and any optional external-repository acceptance has its own read-only scope and recorded result.
+
+## Recommended Delivery Order
+
+1. Finish producer identity/content/scope guarantees and current-language coverage in A; these are the main reason implemented code tools still report unknown readiness in production.
+2. Refine section requirements and scoped queries in B01-B04 once their evidence contracts are stable.
+3. Deliver inventory placement first (C01-C03), then Markdown structure (C04-C09) and B05. Placement does not depend on Markdown parsing or PowerShell indexing.
+4. Run D01 early to settle parser feasibility; deliver the PowerShell worker D02-D10 using the shared publication contracts. It can progress independently from C after coordinating CLI/configuration changes.
+5. Close E as an integrated release gate, using each workstream's focused tests throughout implementation.
+
+No automatic indexing, dependency installation, source-script execution, or external-repository edits are implied by this checklist. Deferred MVP exclusions in the reference plans remain deferred: arbitrary validators, narrative/canon validation, chapter numbering/front matter, PowerShell classes/enums/data flow, Pester shields, and PSScriptAnalyzer integration.
+
+## Evidence And Verification Baseline
+
+Reviewed on 2026-10-19: the five source plans, current uncommitted changes, profile/outcome publication seams, tool policy/guard implementation, `LocalProjectProfileBuilder`, `ProjectAnalysisFingerprints`, `IndexProfileRun`, `ArchitectureRuleSet`, and `DocumentReferenceExtractor`. The latter still uses regex; architecture contracts still describe namespace layers/dependencies; the profile builder explicitly marks PowerShell unsupported. No dedicated PowerShell worker or repository-constraint query was found in the reviewed source surfaces.
+
+CodeMeridian's live profile returned unknown, and no `ProjectProfile` graph nodes were found. Indexed documentation contains both old plan snapshots and newer implementation notes. Local source and the working-tree plans control this baseline; graph absence is not proof of feature absence.
+
+Previously recorded verification on 2026-10-16: 511 Application tests, 364 Indexer tests, and 74 focused MCP/API/schema/forwarding tests passed. These counts describe that implementation snapshot, not fresh October 19 runtime acceptance or complete producer coverage. The routing batch did not run live Neo4j acceptance.
+
+## Reference Plans
+
+- [Roadmap](references/project-capabilities/2026-10-08-project-capability-roadmap.md)
+- [Discovery and capability profiles](references/project-capabilities/2026-10-08-project-discovery-capability-profile-plan.md)
+- [Capability-aware tool routing](references/project-capabilities/2026-10-08-capability-aware-tool-routing-plan.md)
+- [Repository constraints and Markdown](references/project-capabilities/2026-10-08-repository-constraints-markdown-plan.md)
+- [Offline PowerShell indexing](references/project-capabilities/2026-10-08-powershell-indexing-plan.md)

@@ -1,5 +1,7 @@
 # Offline PowerShell Indexing
 
+> Reference design. Current delivery status and task checkboxes: [Project capability completion checklist](../../2026-10-19-project-capability-completion-checklist.md). Original design dates and implementation notes are retained below.
+
 Date: 2026-10-08
 
 Status: planned.

@@ -24,6 +24,7 @@ internal static class IndexerCliServiceCollectionExtensions
         services.AddTransient<StatusCommand>();
         services.AddTransient<RepositoryInventoryDiscovery>();
         services.AddTransient<LocalProjectProfileBuilder>();
+        services.AddTransient<IndexProfileRunReporter>();
         services.AddTransient<ProjectProfileCommand>();
         services.AddTransient<RelationshipHealthReportCommand>();
         services.AddTransient<TypeScriptScopeCatalogWriter>();

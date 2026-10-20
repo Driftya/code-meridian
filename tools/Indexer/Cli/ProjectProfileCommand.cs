@@ -70,6 +70,8 @@ internal sealed class ProjectProfileCommand(
             "CodeMeridian project profile",
             $"  Project     : {profile.Project}",
             $"  Evidence    : {profile.EvidenceSource}",
+            $"  Revision    : {profile.Revision?.Commit ?? "unknown"} (dirty: {profile.Revision?.Dirty?.ToString().ToLowerInvariant() ?? "unknown"})",
+            $"  Configuration fingerprint: {profile.ConfigurationFingerprint ?? "unknown"}",
             $"  Discovery   : {profile.DiscoveryState}",
             $"  Files       : {profile.FileCount}",
             $"  Roots       : {profile.AnalysisRootCount} (showing {profile.AnalysisRoots.Count})",
@@ -85,6 +87,9 @@ internal sealed class ProjectProfileCommand(
         lines.Add("Analyzer support and configuration (not indexing readiness):");
         lines.AddRange(profile.Analyzers.Select(analyzer =>
             $"  {analyzer.Id}: support={(analyzer.Supported ? "supported" : "unsupported")}, configuration={analyzer.ConfigurationState}, indexing={analyzer.IndexingState}"));
+        lines.AddRange(profile.Analyzers.Select(analyzer => analyzer.Fingerprint is { } fingerprint
+            ? $"  {analyzer.Id} fingerprints: implementation={fingerprint.Implementation}, parser={fingerprint.Parser}"
+            : $"  {analyzer.Id} fingerprints: unknown"));
         if (profile.WarningCount > 0)
         {
             lines.Add("");

@@ -1,8 +1,10 @@
 # Project Awareness And Repository Analysis Roadmap
 
+> Reference design. Current delivery status and task checkboxes: [Project capability completion checklist](../../2026-10-19-project-capability-completion-checklist.md). Original design dates and implementation notes are retained below.
+
 Date: 2026-10-08
 
-Status: in progress; plan 1 local discovery, persisted inventory, explicit CLI publication, and API/SDK/MCP queries implemented. Analyzer outcome tracking, tool routing, repository constraints, and PowerShell indexing remain planned.
+Status: in progress; plan 1 discovery/publication, analyzer outcomes, cache reconciliation, Git observations, configuration hashes, and managed fingerprints implemented. Plan 2 shared tool requirements, per-step routing, direct query guards, and execution revalidation implemented for existing query families. Node runtime fingerprints, producer coverage audits, narrowed/root-scoped queries, repository constraints, and PowerShell indexing remain planned.
 
 ## Goal
 

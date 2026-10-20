@@ -12,10 +12,12 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
         CancellationToken cancellationToken = default)
     {
         var count = 0;
+        var failedFiles = 0;
         var mcpToolFiles = DocumentMcpToolReferenceExtractor.BuildMcpToolFileMap(rootPath, projectContext);
 
         foreach (var file in files)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 var relPath = Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/');
@@ -53,13 +55,14 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
                 await client.IngestDocumentsAsync(requests, cancellationToken);
                 count += requests.Count;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                failedFiles++;
                 logger.LogWarning("Skipped {File}: {Error}", file.Name, ex.Message);
             }
         }
 
-        return new DocumentStats(count);
+        return new DocumentStats(count) { FailedFiles = failedFiles };
     }
 
     private static string NormalizeRelatedNodeId(string nodeId)

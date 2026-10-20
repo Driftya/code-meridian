@@ -14,4 +14,6 @@ public sealed record ProjectProfile(
 {
     public string ContractVersion { get; init; } = "1.0";
     public string EvidenceSource { get; init; } = "local_discovery";
+    public ProjectRepositoryRevision? Revision { get; init; }
+    public string? ConfigurationFingerprint { get; init; }
 }

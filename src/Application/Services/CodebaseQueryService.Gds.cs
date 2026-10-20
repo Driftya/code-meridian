@@ -11,7 +11,7 @@ namespace CodeMeridian.Application.Services;
 
 public partial class CodebaseQueryService
 {
-    public async Task<string> GetPageRankAsync(
+    private async Task<string> GetPageRankCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -23,7 +23,7 @@ public partial class CodebaseQueryService
             {
                 results = await codeGraph.GetPageRankAsync(projectContext, limit: 20, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (projectProfiles is null && ex is not OperationCanceledException)
             {
                 return $"PageRank failed: {ex.Message}\n" +
                        "Ensure the Graph Data Science plugin is installed (`NEO4J_PLUGINS: '[\"graph-data-science\"]'` in docker-compose).";
@@ -73,7 +73,7 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> GetBetweennessAsync(
+    private async Task<string> GetBetweennessCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -85,7 +85,7 @@ public partial class CodebaseQueryService
             {
                 results = await codeGraph.GetBetweennessAsync(projectContext, limit: 20, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (projectProfiles is null && ex is not OperationCanceledException)
             {
                 return $"Betweenness Centrality failed: {ex.Message}\n" +
                        "Ensure the Graph Data Science plugin is installed.";
@@ -130,7 +130,7 @@ public partial class CodebaseQueryService
         {
             results = await codeGraph.GetBetweennessAsync(projectContext, limit: 12, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (projectProfiles is null && ex is not OperationCanceledException)
         {
             return $"Bridge detection failed: {ex.Message}\n" +
                    "Ensure the Graph Data Science plugin is installed.";
@@ -166,7 +166,7 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindNaturalModulesAsync(
+    private async Task<string> FindNaturalModulesCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -178,7 +178,7 @@ public partial class CodebaseQueryService
             {
                 results = await codeGraph.FindNaturalModulesAsync(projectContext, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (projectProfiles is null && ex is not OperationCanceledException)
             {
                 return $"Community detection failed: {ex.Message}\n" +
                        "Ensure the Graph Data Science plugin is installed.";
@@ -238,7 +238,7 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> SuggestExtractionsAsync(
+    private async Task<string> SuggestExtractionsCoreAsync(
         string? projectContext = null,
         int limit = 8,
         CancellationToken cancellationToken = default)
@@ -251,7 +251,7 @@ public partial class CodebaseQueryService
             {
                 communities = await codeGraph.FindNaturalModulesAsync(projectContext, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (projectProfiles is null && ex is not OperationCanceledException)
             {
                 return $"Extraction suggestion failed: {ex.Message}\n" +
                        "Ensure the Graph Data Science plugin is installed.";
@@ -392,7 +392,7 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> FindSimilarToNodeAsync(
+    private async Task<string> FindSimilarToNodeCoreAsync(
         string nodeId,
         string? projectContext = null,
         CancellationToken cancellationToken = default)
@@ -450,7 +450,7 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> FindHybridSearchAsync(
+    private async Task<string> FindHybridSearchCoreAsync(
         string query,
         string? nearNodeId = null,
         int maxHops = 3,
@@ -459,8 +459,12 @@ public partial class CodebaseQueryService
         int limit = 10,
         CancellationToken cancellationToken = default)
     {
+        if (projectProfiles is not null && projectContext is null && nearNodeId is not null)
+            projectContext = (await codeGraph.GetContextForEditingAsync(nearNodeId, cancellationToken))?.Node?.ProjectContext
+                ?? throw new InvalidOperationException("The hybrid search anchor's project could not be confirmed.");
         if (!await embeddingProvider.IsAvailableAsync(cancellationToken))
         {
+            if (projectProfiles is not null) throw new InvalidOperationException("The embedding provider became unavailable.");
             return "Hybrid search requires embeddings to be enabled. " +
                    "Set `Embedding__Enabled=true` and re-index code nodes with embeddings stored on them.";
         }
@@ -468,6 +472,7 @@ public partial class CodebaseQueryService
         var queryEmbedding = await embeddingProvider.GenerateEmbeddingAsync(query, cancellationToken);
         if (queryEmbedding is null or { Length: 0 })
         {
+            if (projectProfiles is not null) throw new InvalidOperationException("The embedding provider could not generate a query embedding.");
             return "Hybrid search could not generate a query embedding. " +
                    "Check the embedding provider configuration and try again.";
         }
@@ -508,7 +513,7 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindDuplicateCandidatesAsync(
+    private async Task<string> FindDuplicateCandidatesCoreAsync(
         string? projectContext = null,
         string? namespaceFilter = null,
         string? nodeType = null,
@@ -1275,6 +1280,3 @@ public partial class CodebaseQueryService
         string Reason,
         string? DominantNamespace);
 }
-
-
-

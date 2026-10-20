@@ -13,11 +13,14 @@ public sealed record ImpactAnalysisResult(
     IReadOnlyList<ImpactFindingResult> Findings,
     bool Truncated)
 {
+    public ContextWorkflows.ContextWorkflowApplicability? Applicability { get; init; }
     public IReadOnlyList<PackageDependencyResult> PotentialPackageConsumers { get; init; } = [];
 
     public string ToMarkdown(ContextDetailLevel detailLevel, bool includeConfidence)
     {
+        if (Applicability is { Status: not "ok" }) return Applicability.ToMarkdown("find_impact");
         var text = ToSourceMarkdown(detailLevel, includeConfidence);
+        if (Applicability is not null) text = Applicability.ToMarkdown("find_impact") + "\n\n" + text;
         if (PotentialPackageConsumers.Count == 0) return text;
         var builder = new StringBuilder(text);
         builder.AppendLine("\n\n### Potential package consumers");

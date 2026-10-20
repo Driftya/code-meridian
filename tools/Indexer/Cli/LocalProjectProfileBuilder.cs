@@ -43,7 +43,11 @@ internal sealed class LocalProjectProfileBuilder(RepositoryInventoryDiscovery di
             inventory.IsComplete ? "complete" : "partial", observed.Length, summaries,
             roots.OrderBy(root => root.Kind, StringComparer.Ordinal).ThenBy(root => root.Path, StringComparer.Ordinal)
                 .Take(MaximumRoots).ToArray(), roots.Count,
-            BuildAnalyzers(settings), inventory.Warnings, inventory.WarningCount);
+            BuildAnalyzers(settings), inventory.Warnings, inventory.WarningCount)
+        {
+            Revision = ProjectRevisionReader.Read(settings.RootPath, cancellationToken),
+            ConfigurationFingerprint = ProjectAnalysisFingerprints.Configuration(settings)
+        };
         return new ProjectProfileSnapshot(generation, profile,
             observed.Select(file => new ProjectInventoryFile(file.Path, file.Kind)).ToArray());
 
@@ -83,7 +87,7 @@ internal sealed class LocalProjectProfileBuilder(RepositoryInventoryDiscovery di
         };
     }
 
-    private static ProjectAnalyzerProfile[] BuildAnalyzers(ResolvedIndexerSettings settings) =>
+    internal static ProjectAnalyzerProfile[] BuildAnalyzers(ResolvedIndexerSettings settings) =>
     [
         Analyzer("csharp", !settings.SkipCSharp, ["callable_definitions", "callable_dependencies"],
             ["Local discovery does not evaluate project files or verify parser/runtime availability."]),
@@ -102,5 +106,6 @@ internal sealed class LocalProjectProfileBuilder(RepositoryInventoryDiscovery di
     ];
 
     private static ProjectAnalyzerProfile Analyzer(string id, bool enabled, string[] capabilities, string[] limitations) =>
-        new(id, true, enabled ? "enabled" : "disabled", "unknown", capabilities, limitations);
+        new(id, true, enabled ? "enabled" : "disabled", "unknown", capabilities, limitations)
+        { Fingerprint = ProjectAnalysisFingerprints.Analyzer(id) };
 }

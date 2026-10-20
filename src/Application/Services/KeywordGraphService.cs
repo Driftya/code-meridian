@@ -3,6 +3,8 @@ using System.Text;
 using CodeMeridian.Core.KeywordGraph;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using CodeMeridian.Application.Projects;
+using CodeMeridian.Application.Services.ContextWorkflows;
 
 namespace CodeMeridian.Application.Services;
 
@@ -11,7 +13,8 @@ public sealed class KeywordGraphService(
     IKeywordExtractionService extractionService,
     IOptions<KeywordEnrichmentOptions> options,
     IOptions<KeywordClassificationOptions> classificationOptions,
-    ILogger<KeywordGraphService> logger) : IKeywordGraphService
+    ILogger<KeywordGraphService> logger,
+    ProjectProfileService? projectProfiles = null) : IKeywordGraphService
 {
     private readonly KeywordEnrichmentOptions keywordOptions = options.Value;
     private readonly KeywordClassificationOptions keywordClassificationOptions = classificationOptions.Value;
@@ -185,6 +188,38 @@ public sealed class KeywordGraphService(
         double? minimumScore = null,
         int limit = 20,
         CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(sourceNodeId)) return "Missing `sourceNodeId`. Pass the canonical graph node ID you want to expand from.";
+        if (projectProfiles is null)
+            return await FindRelatedKnowledgeCoreAsync(sourceNodeId, targetKinds, minimumSharedKeywords, minimumScore, limit, cancellationToken);
+        try
+        {
+            var sources = await keywordGraph.GetKeywordSourceNodesByIdAsync([sourceNodeId], cancellationToken: cancellationToken);
+            var exact = sources.Where(source => source.Id == sourceNodeId).Take(2).ToArray();
+            if (exact.Length != 1 || string.IsNullOrWhiteSpace(exact[0].ProjectContext))
+                return new ContextWorkflowApplicability("unknown", null, null, null, ["Confirm an exact source node and its project before querying lexical relationships."])
+                    .ToMarkdown("find_related_knowledge");
+            var profile = await projectProfiles.GetAsync(exact[0].ProjectContext!, cancellationToken: cancellationToken);
+            var applicability = ContextWorkflowToolPolicy.Evaluate("find_related_knowledge", profile);
+            if (applicability.Status != "ready") return applicability.ToMarkdown("find_related_knowledge");
+            var output = await FindRelatedKnowledgeCoreAsync(sourceNodeId, targetKinds, minimumSharedKeywords, minimumScore, limit, cancellationToken);
+            var current = await projectProfiles.GetAsync(exact[0].ProjectContext!, cancellationToken: cancellationToken);
+            var after = ContextWorkflowToolPolicy.Evaluate("find_related_knowledge", current);
+            if (current.Generation != profile.Generation || after.Status != "ready")
+                return (after with { Status = "stale", Coverage = "unknown", Reasons = ["Lexical relationship evidence changed during the query; results were discarded."] }).ToMarkdown("find_related_knowledge");
+            return (after with { Status = "ok" }).ToMarkdown("find_related_knowledge") + "\n\n" + output;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new ContextWorkflowApplicability("failed", null, null, null, ["Lexical capability evidence or query execution failed."])
+                .ToMarkdown("find_related_knowledge");
+        }
+    }
+
+    private async Task<string> FindRelatedKnowledgeCoreAsync(
+        string sourceNodeId, IReadOnlyList<string>? targetKinds, int? minimumSharedKeywords, double? minimumScore,
+        int limit, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(sourceNodeId))
             return "Missing `sourceNodeId`. Pass the canonical graph node ID you want to expand from.";

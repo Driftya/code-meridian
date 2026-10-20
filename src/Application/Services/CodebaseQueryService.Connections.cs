@@ -12,7 +12,7 @@ public partial class CodebaseQueryService
         return result.ToMarkdown(detailLevel);
     }
 
-    public async Task<ConnectionAnalysisResult> FindConnectionResultAsync(
+    private async Task<ConnectionAnalysisResult> FindConnectionResultCoreAsync(
         string fromId,
         string toId,
         CancellationToken cancellationToken = default)

@@ -20,6 +20,8 @@ The files in `meridian-agent-capabilities/` are intentionally provider-neutral w
 
 ## Recommended Usage
 
+Read `get_project_profile(projectContext, targetPath?)` before choosing an analysis family. Observed content, supported capabilities, enabled configuration, and verified coverage are separate facts. Markdown/text edits use `document_review`; callable, configuration, test, architecture, and frontend tools require their own published evidence. Inspect applicability and omitted optional steps. `ok` means executed, including valid empty results; unavailable coverage does not mean a clean check. Keep unknown evidence explicit and use profile/freshness discovery plus scoped source reads instead of automatically indexing, ingesting, installing workers, or running scripts.
+
 ### Context Follows The Target Folder
 
 The CodeMeridian agents and skills resolve project context from the supplied target, including a file or directory outside the current checkout. They inspect its owning Git/worktree or configured solution root and applicable local `meridian.json`, confirm fallback names against indexed evidence, and retain a separate root/context/freshness map for each relevant scope. Nested index roots can exist within one Git repository; an external path can also be relevant without being indexed.

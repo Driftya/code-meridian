@@ -6,7 +6,7 @@ namespace CodeMeridian.Application.Services;
 
 public partial class CodebaseQueryService
 {
-    public async Task<string> GetArchitectureWeatherReportAsync(
+    private async Task<string> GetArchitectureWeatherReportCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {

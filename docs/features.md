@@ -19,6 +19,8 @@ See [MCP 2 Capabilities](mcp-2-capabilities.md) for result contracts, task limit
 
 ## Query and Exploration
 
+Analysis tools apply project-specific readiness at the Application boundary. Supply an explicit project or a project-qualified canonical target. A published profile describes inventory; tool execution also needs declared capabilities and complete matching outcomes for the requested scope. String results expose an applicability status and coverage; structured impact, connection, test-shield, cross-project, and context-pack responses include additive `applicability`. An `ok` result executed, even if it found nothing; blocked/unknown/partial/stale/failed results did not establish a clean check. Profile/freshness discovery and static metadata remain available. See [Context Workflows](context-workflows.md) and the [requirement audit](plans/references/project-capabilities/2026-10-08-capability-aware-tool-routing-plan.md) and [completion checklist](plans/2026-10-19-project-capability-completion-checklist.md) for producer and scope limitations.
+
 ### `query_codebase`
 
 Natural-language search over the code graph. Ask about classes, methods, call graphs, dependencies, or structural relationships in plain English.

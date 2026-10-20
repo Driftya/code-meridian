@@ -8,7 +8,7 @@ namespace CodeMeridian.Application.Services;
 
 public partial class CodebaseQueryService
 {
-    public async Task<string> FindGodClassesAsync(
+    private async Task<string> FindGodClassesCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -40,7 +40,7 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindStaleKnowledgeAsync(
+    private async Task<string> FindStaleKnowledgeCoreAsync(
         string? projectContext = null,
         int limit = 25,
         CancellationToken cancellationToken = default)
@@ -201,7 +201,7 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> FindDownstreamAsync(
+    private async Task<string> FindDownstreamCoreAsync(
         string nodeId,
         int depth = 5,
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
@@ -264,7 +264,7 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> FindCyclesAsync(
+    private async Task<string> FindCyclesCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -291,7 +291,7 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindArchitectureErosionTimelineAsync(
+    private async Task<string> FindArchitectureErosionTimelineCoreAsync(
         string? projectContext = null,
         int days = 30,
         CancellationToken cancellationToken = default)
@@ -349,7 +349,7 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindArchitectureViolationsAsync(
+    private async Task<string> FindArchitectureViolationsCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -379,7 +379,7 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindHighChurnAsync(
+    private async Task<string> FindHighChurnCoreAsync(
         string? projectContext = null,
         int threshold = 3,
         CancellationToken cancellationToken = default)
@@ -435,7 +435,7 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> FindSmellPathsAsync(
+    private async Task<string> FindSmellPathsCoreAsync(
         string? projectContext = null,
         int maxDepth = 4,
         CancellationToken cancellationToken = default)

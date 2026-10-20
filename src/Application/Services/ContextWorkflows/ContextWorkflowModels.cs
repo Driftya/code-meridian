@@ -23,7 +23,12 @@ public sealed record ContextWorkflowPlanResult(
     IReadOnlyList<string> Warnings,
     IReadOnlyList<string> FinalResponseGuidance,
     IReadOnlyList<string> SupportedWorkflowTypes,
-    string? Error = null);
+    string? Error = null)
+{
+    public string ContractVersion { get; init; } = "1.1";
+    public ContextWorkflowApplicability? Applicability { get; init; }
+    public IReadOnlyList<ContextWorkflowStep> OmittedSteps { get; init; } = [];
+}
 
 public sealed record ContextWorkflowStep(
     int Order,
@@ -38,7 +43,10 @@ public sealed record ContextWorkflowStep(
     bool MutatesGraph,
     bool Destructive,
     bool RequiresEmbeddings,
-    bool RequiresExactTarget);
+    bool RequiresExactTarget)
+{
+    public ContextWorkflowApplicability? Applicability { get; init; }
+}
 
 public sealed record ContextWorkflowToolDescriptor(
     string Name,
@@ -49,7 +57,14 @@ public sealed record ContextWorkflowToolDescriptor(
     bool Destructive = false,
     bool RequiresEmbeddings = false,
     bool RequiresExactTarget = false,
-    bool WorksFromVagueGoal = false);
+    bool WorksFromVagueGoal = false)
+{
+    public IReadOnlyList<string> RequiredCapabilities { get; init; } = [];
+    public IReadOnlyList<string> SupportedFileKinds { get; init; } = [];
+    public IReadOnlyList<ContextWorkflowCapabilityAlternative> CapabilityAlternatives { get; init; } = [];
+    public bool ReadinessExempt { get; init; }
+    public bool AllowsTargetScope { get; init; }
+}
 
 public sealed record ContextWorkflowRecipe(
     string WorkflowType,
@@ -77,7 +92,11 @@ public sealed record ContextWorkflowExecutionResult(
     string Summary,
     IReadOnlyList<ContextWorkflowStepExecutionResult> Steps,
     IReadOnlyList<string> Warnings,
-    string? Error = null);
+    string? Error = null)
+{
+    public string ContractVersion { get; init; } = "1.1";
+    public ContextWorkflowApplicability? Applicability { get; init; }
+}
 
 public sealed record ContextWorkflowStepExecutionResult(
     int Order,
@@ -85,4 +104,7 @@ public sealed record ContextWorkflowStepExecutionResult(
     bool Required,
     string Status,
     string? Output = null,
-    string? Error = null);
+    string? Error = null)
+{
+    public ContextWorkflowApplicability? Applicability { get; init; }
+}

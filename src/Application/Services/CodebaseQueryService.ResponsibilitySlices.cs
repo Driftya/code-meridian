@@ -6,7 +6,7 @@ namespace CodeMeridian.Application.Services;
 
 public sealed partial class CodebaseQueryService
 {
-    public async Task<string> SuggestResponsibilitySlicesAsync(
+    private async Task<string> SuggestResponsibilitySlicesCoreAsync(
         string target,
         string? projectContext = null,
         int maxSlices = 6,

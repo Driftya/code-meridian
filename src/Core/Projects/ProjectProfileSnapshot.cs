@@ -17,6 +17,9 @@ public sealed record ProjectProfileSnapshot(
         if (Profile.DiscoveryState != "complete" || Profile.WarningCount != 0 || Profile.Warnings is null || Profile.Warnings.Count != 0)
             return "Only complete discovery can replace the published inventory.";
         if (Profile.ObservedAt == default) return "Discovery observation time is required.";
+        if (Profile.Revision?.Validate() is { } revisionError) return revisionError;
+        if (Profile.ConfigurationFingerprint is not null && !ProjectAnalyzerFingerprint.ValidHash(Profile.ConfigurationFingerprint))
+            return "Configuration fingerprint must be a SHA-256 hash.";
         if (Files is null || Files.Count > 100000 || Profile.FileCount != Files.Count)
             return "Inventory must contain at most 100000 files and match the declared file count.";
         if (Profile.FileKinds is null || Profile.FileKinds.Count > 32
@@ -73,6 +76,8 @@ public sealed record ProjectProfileSnapshot(
                 || analyzer.SupportedCapabilities.Any(capability => !ValidName(capability, 64))
                 || analyzer.Limitations is null || analyzer.Limitations.Count > 8
                 || analyzer.Limitations.Any(limit => !ValidName(limit, 512))
+                || analyzer.Fingerprint?.Validate() is not null
+                || (!analyzer.Supported && analyzer.Fingerprint is not null)
                 || (!analyzer.Supported && analyzer.SupportedCapabilities.Count > 0))
                 return "Analyzer metadata is invalid; discovery cannot claim semantic indexing readiness.";
         }

@@ -6,6 +6,23 @@ internal static class ToolDependencyCatalog
 
     public static IReadOnlyList<ToolDependencyEdge> Edges { get; } =
     [
+        Edge("get_project_profile", "tool_capability_policy", "generation-scoped evidence and scope contract", "hard",
+            "Capability readiness depends on observed target kinds, declared capabilities, matching analyzer outcomes, and current generations.",
+            ["tests/CodeMeridian.Application.Tests/Services/ToolCapabilityPolicyTests.cs"],
+            ["docs/plans/references/project-capabilities/2026-10-08-capability-aware-tool-routing-plan.md", "docs/context-workflows.md"]),
+        Edge("tool_capability_policy", "plan_context_workflow", "per-step applicability and omitted optional steps", "hard",
+            "The planner retains required steps, explains omitted optional steps, and blocks when required evidence is unavailable.",
+            ["tests/CodeMeridian.Application.Tests/Services/ToolCapabilityPolicyTests.cs"], ["docs/context-workflows.md"]),
+        Edge("tool_capability_policy", "execute_context_workflow", "execution readiness and generation revalidation", "hard",
+            "The executor applies the same requirements as direct calls and discards stale outputs.",
+            ["tests/CodeMeridian.Application.Tests/Services/DirectCapabilityGuardTests.cs"], ["docs/context-workflows.md"]),
+        Edge("tool_capability_policy", "direct_query_guards", "query authorization, result applicability, and coverage", "hard",
+            "Application query entry points must distinguish checks that did not run from executed empty results.",
+            ["tests/CodeMeridian.Application.Tests/Services/DirectCapabilityGuardTests.cs", "tests/CodeMeridian.McpServer.Tests/McpStructuredResultsEndpointTests.cs"],
+            ["docs/features.md", "docs/context-workflows.md"]),
+        Edge("direct_query_guards", "build_minimal_context", "optional test evidence and blocked structured results", "hard",
+            "Context packs omit unaudited test sections instead of presenting an empty shield as verified coverage.",
+            ["tests/CodeMeridian.Application.Tests/Services/DirectCapabilityGuardTests.cs"], ["docs/context-workflows.md"]),
         Edge(
             "suggest_extractions",
             "plan_context_workflow",
@@ -244,6 +261,9 @@ internal static class ToolDependencyCatalog
     private static IReadOnlyDictionary<string, ToolDependencySubject> BuildSubjects() =>
         new[]
         {
+            Subject("get_project_profile", "Tool", "Get Project Profile", "Published inventory, capabilities, and generation-scoped analyzer evidence.", []),
+            Subject("tool_capability_policy", "Contract", "Tool Capability Policy", "Shared deterministic applicability requirements for plans, execution, and direct queries.", ["capability routing", "tool readiness"]),
+            Subject("direct_query_guards", "Contract", "Direct Query Guards", "Application guards and bounded applicability results for query entry points.", []),
             Subject("plan_context_workflow", "Tool", "Plan Context Workflow", "MCP/application workflow planner for ordered CodeMeridian tool recipes.", ["mcp__codemeridian.plan_context_workflow"]),
             Subject("execute_context_workflow", "Tool", "Execute Context Workflow", "MCP/application workflow executor for approved read-only workflow steps.", ["mcp__codemeridian.execute_context_workflow"]),
             Subject("find_test_shield", "Tool", "Find Test Shield", "Graph test-shield tool for direct, indirect, and unshielded verification paths.", ["mcp__codemeridian.find_test_shield"]),

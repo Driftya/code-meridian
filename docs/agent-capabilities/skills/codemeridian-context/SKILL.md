@@ -16,7 +16,7 @@ Resolve scope before querying the graph. Start from each user-supplied file's pa
 2. Inspect the nearest applicable `meridian.json` on that ancestor chain, including the owning root, and read its `project`. Do not continue into an unrelated parent repository. A nested config may define a separately indexed subproject inside the same Git repository.
 3. Honor a project context explicitly supplied for that target by the user or established by its actual index invocation. Global configuration, an inherited `CodeMeridian_Project`, or the current repository's config is not evidence that an external target belongs to that context. If local identity is missing, solution (`.sln`/`.slnx`), workspace, package and root-folder names are candidates; confirm with a bounded graph lookup of a known file/symbol and its returned `projectContext`. State unresolved ambiguity instead of silently selecting a name.
 4. Keep a scope map: target path, owning/index root, project context, identity evidence, and freshness. Convert file hints relative to that target's index root. A `.csproj`/framework build scope is distinct from the repository's graph project context. Resolve each external target independently; a path outside the current checkout is useful context, not grounds for discarding it or automatically assigning a different project name.
-5. Query the resolved context with `check_graph_freshness`, `resolve_exact_symbol` and the normal context tools. Use returned canonical node IDs; never fabricate IDs by prefixing the current project. If the target is unindexed, keep its source/config as explicitly unindexed evidence and continue useful scoped work.
+5. Read `get_project_profile(projectContext, targetPath?)` before choosing a tool family. Markdown/text edits use `document_review`; code, configuration, test, architecture, and frontend checks need their own declared evidence. Inspect applicability, scope, and omitted optional steps. `ok` means executed, including valid empty results; unknown/not-indexed/disabled/unsupported/partial/stale/failed evidence is not a clean check. Use profile/freshness discovery and labeled source reads when evidence is unavailable; do not automatically index, ingest, install workers, or run scripts. Use returned canonical IDs for the target's actual project, never fabricated prefixes.
 
 Keep discovery narrow: inspect ancestors and root markers, not every sibling repository. Read external context relevant to the request; a reference path does not by itself authorize editing, indexing or running build scripts in that repository.
 
@@ -210,4 +210,3 @@ If CodeMeridian cannot answer the task:
 2. Fall back to normal repository search.
 3. Keep the search narrow.
 4. Recommend re-indexing if the graph appears stale.
-

@@ -7,7 +7,12 @@ public sealed record CrossProjectDependencyResult(
     string ContractVersion, string? ProjectContext,
     IReadOnlyList<CrossProjectEdgeResult> Edges, IReadOnlyList<PackageDependencyResult> PackageReferences, bool Truncated)
 {
+    public ContextWorkflows.ContextWorkflowApplicability? Applicability { get; init; }
     public string ToMarkdown()
+        => Applicability is { Status: not "ok" } ? Applicability.ToMarkdown("find_cross_project_dependencies")
+            : (Applicability is null ? "" : Applicability.ToMarkdown("find_cross_project_dependencies") + "\n\n") + ToSourceMarkdown();
+
+    private string ToSourceMarkdown()
     {
         if (Edges.Count == 0 && PackageReferences.Count == 0)
             return $"No cross-project dependencies found{(ProjectContext is not null ? $" involving '{ProjectContext}'" : "")}. All edges appear to be within single projects.";

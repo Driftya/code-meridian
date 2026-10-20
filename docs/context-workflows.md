@@ -2,6 +2,20 @@
 
 CodeMeridian can plan and optionally execute deterministic tool workflows for agent tasks. This helps an agent decide which CodeMeridian tools to call, in what order, and where to stop when graph evidence is weak.
 
+## Project-Aware Document Routing
+
+Supply `projectContext` so the planner can read the uploaded project profile. An observed Markdown/text edit target selects `document_review`: `get_project_profile`, then `search_documentation`. A Markdown-only repository can use the same route without a target. Mixed repositories classify the target from inventory; a chapter does not inherit an application's callable capabilities. Unsupported script edit targets are blocked.
+
+Plans expose additive contract version `1.1` and `applicability` with status, profile generation, observed target kind, scope, and reasons. Missing or stale profiles keep manual advice but block callable edit execution. Document readiness distinguishes missing/unknown evidence, disabled/unsupported analyzers, unpublished indexing, partial/failed passes, and successful complete project document coverage. Required document steps are retained and the route is blocked if `maxSteps` would omit one.
+
+Execution revalidates requirements and profile generation for every step and discards stale outputs. Direct analysis calls use the same Application policy. Profile lookup, freshness inspection, client metadata, and the static tool-dependency inventory remain available without semantic readiness. Neither planning nor execution re-indexes, ingests documents, installs workers, or executes repository scripts to become ready.
+
+The catalog now covers callable, configuration, test, architecture, GDS, semantic, frontend, and keyword query requirements. Required unavailable steps block execution; optional unavailable steps appear in `omittedSteps` with reasons. `maxSteps` can omit optional steps but cannot create a successful shortened route by removing a required step. Verified C#/TypeScript fixtures preserve normal ordering and focused defaults.
+
+Applicability includes version, project, generation, target kind, scope, coverage, bounded reasons/limitations, and next actions. Plans and executions use additive contract version `1.1`. String analyses return `Tool applicability status: ...`; structured impact, connection, test-shield, cross-project, and minimal-context results add `applicability`. `ok` identifies an executed check, including zero findings. Unknown, disabled, unsupported, not-indexed, partial, stale, and failed checks do not masquerade as clean analyses. Context packs can omit unaudited test sections and record the omission as a degradation.
+
+Relationship queries require complete project evidence. Exact file-filtered symbol lookup alone can use matching root coverage. Canonical targets are checked against their owning project and accepted inventory; unverified cross-project connections are rejected. Composite reports conservatively require all declared evidence families even when optional flags narrow a section. Current CLI code/configuration/SQL coverage is still unaudited, and keyword/cascade/history/projection capabilities are not invented. Root-scoped document queries, safe delta evidence reuse, repository placement/reference checks, and PowerShell analysis remain planned. See the [requirement audit](plans/references/project-capabilities/2026-10-08-capability-aware-tool-routing-plan.md) and [completion checklist](plans/2026-10-19-project-capability-completion-checklist.md) for exact limits.
+
 ## Tools
 
 ### `plan_context_workflow`

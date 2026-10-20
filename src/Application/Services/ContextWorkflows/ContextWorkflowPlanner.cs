@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CodeMeridian.Application.Projects;
 
 namespace CodeMeridian.Application.Services.ContextWorkflows;
 
@@ -26,7 +27,7 @@ public sealed class ContextWorkflowPlanner
             throw new InvalidOperationException($"Workflow recipes reference unknown tools: {string.Join(", ", MissingRecipeTools)}");
     }
 
-    public ContextWorkflowPlanResult Plan(ContextWorkflowPlanRequest request)
+    public ContextWorkflowPlanResult Plan(ContextWorkflowPlanRequest request, ProjectProfileResult? profile = null)
     {
         if (string.IsNullOrWhiteSpace(request.Goal))
             return Invalid("Goal is required.", request.ProjectContext, request.Target);
@@ -42,12 +43,12 @@ public sealed class ContextWorkflowPlanner
         var selectedRecipeSteps = SelectRecipeSteps(recipe, request.IncludeOptionalSteps);
         var steps = selectedRecipeSteps
             .Select((step, index) => BuildStep(index + 1, step, request))
-            .Take(maxSteps)
+            .Take(profile is null ? maxSteps : int.MaxValue)
             .Select((step, index) => step with { Order = index + 1 })
             .ToArray();
 
         var warnings = BuildWarnings(recipe, request, selectedRecipeSteps, steps);
-        return new ContextWorkflowPlanResult(
+        var result = new ContextWorkflowPlanResult(
             Status: "valid",
             WorkflowId: recipe.WorkflowType,
             WorkflowType: recipe.WorkflowType,
@@ -60,6 +61,23 @@ public sealed class ContextWorkflowPlanner
             Warnings: warnings,
             FinalResponseGuidance: recipe.FinalResponseGuidance,
             SupportedWorkflowTypes: SupportedWorkflowTypes);
+        if (result.WorkflowType == "document_review" && profile is null)
+            profile = new ProjectProfileResult("unknown", request.ProjectContext ?? "unspecified", null, null, null, null, null, []);
+        if (profile is null) return result;
+        result = ContextWorkflowProfilePolicy.Apply(request, result, profile);
+        if (result.WorkflowType == "document_review" || result.Steps.Count <= maxSteps) return result;
+        if (result.Steps.Count(step => step.Required) > maxSteps)
+            return result with { Status = "blocked", Error = "maxSteps cannot omit required capability checks or analyses.",
+                Warnings = result.Warnings.Append("Required steps were retained; increase maxSteps before execution.").ToArray() };
+        var optionalBudget = maxSteps - result.Steps.Count(step => step.Required);
+        var allowedOptional = result.Steps.Where(step => !step.Required).Take(optionalBudget).ToArray();
+        var excluded = result.Steps.Where(step => !step.Required && !allowedOptional.Contains(step)).ToArray();
+        return result with
+        {
+            Steps = result.Steps.Where(step => step.Required || allowedOptional.Contains(step)).Select((step, index) => step with { Order = index + 1 }).ToArray(),
+            OmittedSteps = result.OmittedSteps.Concat(excluded).ToArray(),
+            Warnings = result.Warnings.Concat(excluded.Select(step => $"Omitted optional {step.Tool}: maxSteps budget.")).ToArray()
+        };
     }
 
     public static ContextWorkflowRecipe GetRecipe(string workflowType) => RecipeByType[workflowType];
@@ -268,6 +286,10 @@ public sealed class ContextWorkflowPlanner
 
     private static IReadOnlyList<ContextWorkflowRecipe> BuildRecipes() =>
     [
+        Recipe("document_review", "Review document context using inventory and searchable text evidence.", "low", false,
+            [Step("get_project_profile", true, "Check uploaded inventory and document evidence.", "Project profile."),
+             Step("search_documentation", true, "Read indexed document context before editing or reviewing.", "Indexed document text.")],
+            ["document review"]),
         Recipe(
             "before_edit",
             "Plan safe graph checks before editing a known class, method, file, endpoint, or feature.",

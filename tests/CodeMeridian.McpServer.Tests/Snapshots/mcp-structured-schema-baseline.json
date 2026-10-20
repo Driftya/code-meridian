@@ -79,9 +79,10 @@
       "explainedFiles",
       "snippets",
       "degradations",
-      "truncation"
+      "truncation",
+      "applicability"
     ],
-    "sha256": "e61f8ad18fade85d9f32c156b9c3a0f34f0c0c95ca0834240ca9ee3b350bffae"
+    "sha256": "33f4b99ed6abba72153fd3de9df6b58e72510fa17acfdc8fb31618160250ceee"
   },
   {
     "name": "check_graph_freshness",
@@ -137,9 +138,10 @@
       "truncated",
       "nodes",
       "edges",
-      "frontendSignals"
+      "frontendSignals",
+      "applicability"
     ],
-    "sha256": "737b0a7e02d5dd737a176b6744198df45c7f695b556700199e5daa3f19f812ad"
+    "sha256": "dab7d9dfd21d6bb7c1a5623edef9360503eb7f01ab2c35b1408ef27662df9b5e"
   },
   {
     "name": "find_cross_project_dependencies",
@@ -155,9 +157,10 @@
       "projectContext",
       "edges",
       "packageReferences",
-      "truncated"
+      "truncated",
+      "applicability"
     ],
-    "sha256": "c3dca4c838f2dcdff2abf5f3ac5b97bd2299f511825b8be097b30c6589405aa7"
+    "sha256": "579c22beaf909197f1eda13b545f9bd7c632d4070c07625f118e1f9c00640a4b"
   },
   {
     "name": "find_impact",
@@ -182,9 +185,10 @@
       "relationshipCompleteness",
       "findings",
       "truncated",
+      "applicability",
       "potentialPackageConsumers"
     ],
-    "sha256": "fd395fdf573b02a235267b6b4a5fe7c4ecdeea3fcbc20cddb950f2247f31559e"
+    "sha256": "78cd744efbbf9b83230c93b598968015dcdb167ccf2827bef88684ecc097b226"
   },
   {
     "name": "find_test_shield",
@@ -218,9 +222,10 @@
       "focusedRecommendations",
       "unshieldedNodes",
       "suggestedTestCommand",
-      "truncated"
+      "truncated",
+      "applicability"
     ],
-    "sha256": "21cd04a153c84cf4d12cac847d552629258b92224a57b32b761adcf82e25453a"
+    "sha256": "0d6baf999e174c2f158e221736d92284f361805bb47f9b5680d7c0818faa525e"
   },
   {
     "name": "get_change_context",
@@ -329,9 +334,10 @@
       "profile",
       "target",
       "warnings",
-      "contractVersion"
+      "contractVersion",
+      "analyzerOutcomes"
     ],
-    "sha256": "c92472771115fc5e82d5320e4cac1eeacdb0f0d1380025417a340c9b02c3c568"
+    "sha256": "c8182a6fb77105b075bbec90415601d3fe59f3a11cd6c2afd6b75cc59a5bc702"
   },
   {
     "name": "list_client_extension_examples",

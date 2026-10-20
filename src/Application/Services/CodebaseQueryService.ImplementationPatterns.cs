@@ -6,7 +6,7 @@ namespace CodeMeridian.Application.Services;
 
 public sealed partial class CodebaseQueryService
 {
-    public async Task<string> FindImplementationPatternsAsync(
+    private async Task<string> FindImplementationPatternsCoreAsync(
         string query,
         string? projectContext = null,
         bool excludeTests = true,

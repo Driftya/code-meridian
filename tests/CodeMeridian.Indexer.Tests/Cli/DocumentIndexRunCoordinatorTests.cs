@@ -6,7 +6,7 @@ namespace CodeMeridian.Indexer.Tests.Cli;
 public sealed class DocumentIndexRunCoordinatorTests
 {
     [Fact]
-    public void BuildPlan_WhenNoChangedFilesProvided_ReturnsAllDocumentationFilesWithoutDeletes()
+    public void BuildPlan_WhenNoChangedFilesProvided_ReplacesAllCurrentDocumentChunks()
     {
         using var workspace = TestWorkspace.Create();
         workspace.WriteFile("docs/guide.md", "# guide");
@@ -18,7 +18,7 @@ public sealed class DocumentIndexRunCoordinatorTests
         plan.FilesToIngest.Select(file => Path.GetRelativePath(workspace.Root.FullName, file.FullName).Replace('\\', '/'))
             .Should()
             .BeEquivalentTo(["docs/guide.md", "notes.txt"]);
-        plan.FilesToDelete.Should().BeEmpty();
+        plan.FilesToDelete.Should().BeEquivalentTo(["docs/guide.md", "notes.txt"]);
     }
 
     [Fact]

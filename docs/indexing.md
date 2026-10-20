@@ -29,7 +29,33 @@ Read the retained facts using MCP `get_project_profile(projectContext, targetPat
 
 The SDK also provides `BeginProjectProfileAsync` and `PublishProjectProfileAsync`, corresponding to authenticated `POST /api/v1/project-profiles/begin` and `POST /api/v1/project-profiles/`. Uploads require contract version `1.0`, a complete profile, normalized relative paths, consistent counts and summaries, and at most 100,000 inventory files. Repeating an identical published generation is idempotent; older or conflicting uploads return HTTP 409.
 
-An available profile describes uploaded discovery, not current checkout freshness. Revision/parser fingerprints, analyzer completion tracking, automatic index-command publication, and capability-aware workflow routing remain planned.
+An available profile describes uploaded discovery. It includes optional `revision` (`commit`, nullable `dirty`) and `configurationFingerprint` facts, plus optional analyzer `fingerprint` records with separate `implementation` and `parser` SHA-256 identities. New metadata is additive within contract `1.0`; older uploads without it remain accepted and expose unknown provenance.
+
+Revision discovery uses bounded, read-only Git commands with optional index writes and fsmonitor hooks disabled. It records a full commit hash and observed dirty state, including untracked files, without reading remotes or executing repository scripts. Missing Git, an unborn HEAD, timeouts, or unavailable metadata leave revision evidence unknown without changing file-discovery completeness. Dirty state is a repository observation, not a hash of working-tree contents or proof that files stayed unchanged during indexing.
+
+The configuration fingerprint hashes an explicit allowlist of resolved indexing options, including analyzer selection, SQL options, configuration patterns, file roles, architecture path, repository-evaluation permission, and producer bindings. Credentials, server URL, cache location, and full/delta run selection are excluded. C#, document, and configuration fingerprints identify loaded implementation and parser modules using assembly identity and module version IDs. They are separate from the CLI reporter version and do not establish semantic coverage. Node worker/parser fingerprints remain unknown pending worker runtime reporting; package manifests alone do not establish the parser that ran.
+
+## Analyzer Outcomes And Document Readiness
+
+Actual indexing passes now reserve and publish complete discovery before running analyzers. Dry runs, capability listing, and verified unchanged-cache exits do not publish a new profile or invent a successful outcome. External-only reference indexing is outside the repository inventory and does not publish repository outcomes. Partial discovery stops the pass with exit code 2; failed profile/outcome publication prevents the cache from advancing.
+
+Before using an incremental selection or taking an unchanged-cache exit, the CLI checks that the cache belongs to the configured server and matches its available profile generation and discovery observation time. The observation time prevents a reused generation number after a server reset from matching an older cache. Missing, stale, or replaced profiles and legacy caches without publication metadata trigger a full file selection. A failed server check exits with code 1 and preserves the cache. Only a successful indexing pass saves the publication link; server identity is hashed without credentials. Watch callbacks use the same check. Dry runs and external-only indexing skip repository-profile reconciliation.
+
+Reconciliation also compares the current resolved configuration fingerprint, enabled analyzer fingerprints, and known Git commit against the published profile. Changed or missing metadata forces a full selection. Dirty-state changes alone preserve eligibility for ordinary file deltas. Node worker fingerprints cannot detect parser upgrades yet; their compatibility stays unknown.
+
+The profile query includes `analyzerOutcomes`, separately from the discovery-only analyzer metadata. Each outcome has an analyzer, repository-relative scope, state (`running`, `succeeded`, `partial`, or `failed`), selection mode (`full` or `delta`), coverage (`complete`, `partial`, or `unknown`), observation time, CLI reporter version, and bounded limitations. Reporter version is not a parser fingerprint. Reports must match the latest published inventory generation. Terminal outcomes are immutable; a new discovery generation clears prior outcomes. The authenticated outcome endpoint is `POST /api/v1/project-profiles/outcomes`; SDK forwarding is `PublishProjectAnalyzerOutcomesAsync`.
+
+Outcomes carry the same optional analyzer fingerprint as their published discovery generation. The server rejects mismatches with HTTP 409, and document readiness reports stale evidence when stored outcome fingerprints differ from the profile. Legacy profiles and outcomes with matching absent fingerprints remain compatible; absence does not establish parser identity.
+
+A successful document pass can report complete coverage when every current document was selected, old chunks were removed before replacement, and all file reads/uploads succeeded. Skipped failures produce partial outcomes and exit code 2. Cancellation is propagated. Document searches with profiles exclude sources outside the current accepted inventory and detect generation changes during queries. Search results remain bounded; zero results mean no matches were returned within that scope, not that every possible document topic was checked.
+
+Delta passes that omit unchanged documents report unknown coverage; last-good semantic facts can remain stored but do not establish readiness for the new generation. Use a full pass to refresh document coverage:
+
+```powershell
+codemeridian index . --project MyDocs --no-incremental
+```
+
+C#, TypeScript, frontend, configuration, and SQL process completion is recorded, but coverage remains unknown until each worker's file-level publication and relationship semantics are audited. PowerShell remains unsupported. Matching fingerprints identify the recorded inputs and managed modules; they do not establish complete semantic coverage, Node parser compatibility, or freshness of a remote user's checkout. Per-file content/revision binding and safe reuse of last-good coverage across delta generations remain planned.
 
 Exit codes are 0 for complete discovery, 1 for invalid input/configuration or failure, and 2 for partial discovery. Symbolic links/junctions are not followed; skipped links or inaccessible entries produce partial discovery rather than an apparently empty complete project.
 

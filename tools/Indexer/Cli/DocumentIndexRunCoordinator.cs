@@ -24,7 +24,9 @@ internal static class DocumentIndexRunCoordinator
             changedFiles);
 
         if (changedFiles is null)
-            return new DocumentIndexRunPlan(changedDocumentFiles, []);
+            return new DocumentIndexRunPlan(changedDocumentFiles,
+                DocumentIndexingSelection.FilterDocumentationRelativePaths(deletedFiles.Concat(
+                    changedDocumentFiles.Select(file => Path.GetRelativePath(rootPath.FullName, file.FullName))), rootPath));
 
         var deletedDocumentFiles = DocumentIndexingSelection.FilterDocumentationRelativePaths(deletedFiles, rootPath);
         var changedDocumentRelativePaths = DocumentIndexingSelection.FilterDocumentationRelativePaths(changedFiles, rootPath);

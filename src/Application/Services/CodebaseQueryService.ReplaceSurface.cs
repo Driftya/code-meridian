@@ -5,7 +5,7 @@ namespace CodeMeridian.Application.Services;
 
 public partial class CodebaseQueryService
 {
-    public async Task<string> ReplaceSurfaceAsync(
+    private async Task<string> ReplaceSurfaceCoreAsync(
         string fromDependency,
         string toDependency,
         string? projectContext = null,

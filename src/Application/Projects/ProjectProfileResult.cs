@@ -14,6 +14,7 @@ public sealed record ProjectProfileResult(
     IReadOnlyList<string> Warnings)
 {
     public string ContractVersion { get; init; } = "1.0";
+    public IReadOnlyList<ProjectAnalyzerOutcome> AnalyzerOutcomes { get; init; } = [];
 
     public string ToMarkdown()
     {
@@ -28,8 +29,10 @@ public sealed record ProjectProfileResult(
         }
         text.AppendLine($"**Generation:** {Generation} | **Latest reserved:** {LatestGeneration}");
         text.AppendLine($"**Observed:** {Profile.ObservedAt:O} | **Published:** {PublishedAt:O}");
+        text.AppendLine($"**Revision:** {Profile.Revision?.Commit ?? "unknown"} | **Dirty at discovery:** {Profile.Revision?.Dirty?.ToString().ToLowerInvariant() ?? "unknown"}");
+        text.AppendLine($"**Configuration fingerprint:** {Profile.ConfigurationFingerprint ?? "unknown"}");
         text.AppendLine($"**Files:** {Profile.FileCount} | **Root records:** {Profile.AnalysisRoots.Count} of {Profile.AnalysisRootCount}");
-        text.AppendLine("Semantic indexing readiness remains unknown; published discovery is not evidence that analyzers completed.");
+        text.AppendLine("Discovery and analyzer completion are separate facts. Readiness requires successful coverage of the requested scope.");
         text.AppendLine();
         text.AppendLine("| File kind | Count | Examples |");
         text.AppendLine("|---|---:|---|");
@@ -38,7 +41,14 @@ public sealed record ProjectProfileResult(
         if (Target is not null)
             text.AppendLine($"**Target:** `{Target.Path}` — {Target.Status}" + (Target.Kind is null ? "" : $" ({Target.Kind})"));
         foreach (var analyzer in Profile.Analyzers)
+        {
             text.AppendLine($"- {analyzer.Id}: support={(analyzer.Supported ? "supported" : "unsupported")}, configuration={analyzer.ConfigurationState}, indexing={analyzer.IndexingState}");
+            text.AppendLine(analyzer.Fingerprint is { } fingerprint
+                ? $"  Implementation fingerprint: {fingerprint.Implementation}; parser fingerprint: {fingerprint.Parser}"
+                : "  Implementation/parser fingerprints: unknown");
+        }
+        foreach (var outcome in AnalyzerOutcomes)
+            text.AppendLine($"- {outcome.Analyzer} scope `{outcome.Scope}`: state={outcome.State}, coverage={outcome.Coverage}, mode={outcome.Mode}");
         foreach (var warning in Warnings) text.AppendLine($"- {warning}");
         return text.ToString();
     }

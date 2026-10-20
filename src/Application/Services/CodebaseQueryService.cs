@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Text;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.Knowledge;
+using CodeMeridian.Application.Projects;
+using CodeMeridian.Application.Services.ContextWorkflows;
 using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Application.Services;
@@ -19,6 +21,7 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
     private readonly IProjectAnalysisOptionsResolver analysisOptionsResolver;
     private readonly IIndexedFileRoleClassifier fileRoleClassifier;
     private readonly IAnalysisProfilePolicy analysisProfilePolicy;
+    private readonly ProjectProfileService? projectProfiles;
     private readonly AsyncLocal<ResolvedProjectAnalysisOptions?> currentAnalysisResolution = new();
 
     private CodebaseAnalysisOptions analysisOptions =>
@@ -93,7 +96,8 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         IOptions<CodebaseAnalysisOptions> analysisOptions,
         IOptions<CodebaseIndexingOptions> indexingOptions,
         IAnalysisProfilePolicy analysisProfilePolicy,
-        IProjectAnalysisOptionsResolver analysisOptionsResolver)
+        IProjectAnalysisOptionsResolver analysisOptionsResolver,
+        ProjectProfileService? projectProfiles = null)
     {
         this.codeGraph = codeGraph;
         this.vectorStore = vectorStore;
@@ -102,9 +106,10 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         fileRoleClassifier = new ConfiguredIndexedFileRoleClassifier(indexingOptions);
         this.analysisProfilePolicy = analysisProfilePolicy;
         this.analysisOptionsResolver = analysisOptionsResolver;
+        this.projectProfiles = projectProfiles;
     }
 
-    public async Task<string> QueryStructureAsync(
+    private async Task<string> QueryStructureCoreAsync(
         string query,
         string? projectContext = null,
         CancellationToken cancellationToken = default)
@@ -143,7 +148,7 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> GetOverviewAsync(
+    private async Task<string> GetOverviewCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -190,10 +195,46 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
+        ProjectProfileResult? documentProfile = null;
+        ContextWorkflowApplicability? documentApplicability = null;
+        string DocumentStatus(string status, string message)
+        {
+            if (documentApplicability is not null) RecordApplicability("search_documentation", documentApplicability with { Status = status, Reasons = [message], Coverage = status == "ok" ? "complete" : "unknown" });
+            return $"Document search status: {status}. {message}";
+        }
+        if (projectProfiles is not null)
+        {
+            documentProfile = await GetWorkflowProfileAsync(projectContext, null, cancellationToken);
+            documentApplicability = ContextWorkflowToolPolicy.Evaluate("search_documentation", documentProfile!);
+            if (documentApplicability.Status != "ready") return DocumentStatus(documentApplicability.Status, string.Join(" ", documentApplicability.Reasons));
+        }
         var results = await vectorStore.SearchByTextAsync(query, projectContext, topK: 8, cancellationToken);
+        if (documentProfile is not null)
+        {
+            var accepted = new List<KnowledgeDocument>();
+            foreach (var document in results)
+            {
+                if (string.IsNullOrWhiteSpace(document.Source)) continue;
+                string path;
+                try { path = CodeMeridian.Core.Projects.ProjectProfilePath.Normalize(document.Source); }
+                catch (ArgumentException) { continue; }
+                var source = await projectProfiles!.GetAsync(projectContext!, path, cancellationToken);
+                if (source.Status != "available" || source.Generation != documentProfile.Generation)
+                    return DocumentStatus("stale", "Inventory changed during the query; repeat against current coverage.");
+                if (source.Target is { Status: "observed", Kind: "markdown" or "text" }) accepted.Add(document);
+            }
+            results = accepted;
+            var current = await projectProfiles!.GetAsync(projectContext!, cancellationToken: cancellationToken);
+            if (current.Status != "available" || current.Generation != documentProfile.Generation
+                || ContextWorkflowToolPolicy.Evaluate("search_documentation", current).Status != "ready")
+                return DocumentStatus("stale", "Inventory or coverage changed during the query; repeat against current evidence.");
+        }
+
+        if (documentApplicability is not null) RecordApplicability("search_documentation", documentApplicability with { Status = "ok" });
 
         if (results.Count == 0)
-            return "No documentation found. Ingest docs via the ingest_document MCP tool or POST /api/v1/knowledge/documents.";
+            return projectProfiles is null ? "No documentation found. Ingest docs via the ingest_document MCP tool or POST /api/v1/knowledge/documents."
+                : "Document search status: ok. No matching documents returned within the accepted inventory and published document coverage.";
 
         var sb = new StringBuilder();
         sb.AppendLine($"Found **{results.Count}** relevant documents:\n");
@@ -209,7 +250,7 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindDiagnosticsAsync(
+    private async Task<string> FindDiagnosticsCoreAsync(
         string? projectContext = null,
         string? severity = null,
         CancellationToken cancellationToken = default)
@@ -220,7 +261,7 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
             $"Diagnostics{(projectContext is not null ? $" — {projectContext}" : "")}");
     }
 
-    public async Task<string> FindDiagnosticsForNodeAsync(
+    private async Task<string> FindDiagnosticsForNodeCoreAsync(
         string nodeId,
         CancellationToken cancellationToken = default)
     {

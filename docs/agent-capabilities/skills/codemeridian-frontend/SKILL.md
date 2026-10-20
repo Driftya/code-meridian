@@ -10,6 +10,8 @@ The goal is to make frontend work use the indexed HTML/CSS/SCSS relationship gra
 
 ## Target Scope
 
+Read `get_project_profile(projectContext, targetPath?)` before selecting frontend tools. Generic connection evidence, cascade/specificity metadata, and duplicate-value analysis have separate requirements; stylesheet presence or another analyzer's edges do not establish readiness. Respect applicability and omitted optional steps. Treat unknown, partial, stale, failed, disabled, or unsupported checks as evidence gaps, and continue bounded source work without automatically indexing, ingesting, installing dependencies, or running scripts.
+
 Resolve supplied components, styles and shared-library paths from their own location, including paths outside the current checkout. Find the owning Git/worktree or configured workspace root and the nearest applicable ancestor `meridian.json` (`project`) within that root. Nested configs can define separate index roots. Honor explicit user/index-invocation context; current/global/environment defaults do not prove external ownership. Workspace, package, solution (`.sln`/`.slnx`) and folder names are only candidates until a bounded known-file/symbol graph lookup confirms the context.
 
 Keep target -> index root -> project context, evidence and freshness; use root-relative paths and returned canonical IDs. Start new paths at the nearest existing parent. Preserve useful unindexed external styles/components as labeled evidence. Discover through ancestors rather than scanning sibling repositories; reading external context does not authorize unrelated edits, indexing or builds.

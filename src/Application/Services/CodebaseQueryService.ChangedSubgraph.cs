@@ -6,7 +6,7 @@ namespace CodeMeridian.Application.Services;
 
 public partial class CodebaseQueryService
 {
-    public async Task<string> AnalyzeChangedSubgraphAsync(
+    private async Task<string> AnalyzeChangedSubgraphCoreAsync(
         IReadOnlyCollection<string> changedFiles,
         string? projectContext = null,
         int impactDepth = 2,

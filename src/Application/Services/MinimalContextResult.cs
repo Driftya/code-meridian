@@ -29,6 +29,7 @@ public sealed record MinimalContextResult(
     IReadOnlyList<MinimalContextDegradationResult> Degradations,
     MinimalContextTruncationResult Truncation)
 {
+    public ContextWorkflows.ContextWorkflowApplicability? Applicability { get; init; }
     internal static MinimalContextResult NotFound(
         string requestedTarget,
         string? goal,
@@ -46,6 +47,10 @@ public sealed record MinimalContextResult(
             new MinimalContextTruncationResult(false, false, false, false, false, false, false, false, false));
 
     public string ToMarkdown(ContextDetailLevel detailLevel)
+        => Applicability is { Status: not "ok" } ? Applicability.ToMarkdown("build_minimal_context")
+            : (Applicability is null ? "" : Applicability.ToMarkdown("build_minimal_context") + "\n\n") + ToSourceMarkdown(detailLevel);
+
+    private string ToSourceMarkdown(ContextDetailLevel detailLevel)
     {
         if (!TargetFound)
             return $"Target `{RequestedTarget}` not found in the graph. Run query_codebase first to find the correct node ID.";

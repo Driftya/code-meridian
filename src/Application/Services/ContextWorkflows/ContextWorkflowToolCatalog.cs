@@ -35,6 +35,13 @@ public static class ContextWorkflowToolCatalog
         Tool("find_architecture_violations", "GraphAnalytics", "Find configured architecture boundary violations."),
         Tool("find_smell_paths", "GraphAnalytics", "Find graph paths that violate architecture rules."),
         Tool("find_high_churn", "GraphAnalytics", "Find nodes with high indexed change count."),
+        Tool("get_pagerank", "GraphAnalytics", "Rank graph nodes with PageRank."),
+        Tool("get_betweenness", "GraphAnalytics", "Rank graph nodes by betweenness."),
+        Tool("find_natural_modules", "GraphAnalytics", "Find graph communities."),
+        Tool("find_bridges", "GraphAnalytics", "Find graph bridge nodes."),
+        Tool("get_architecture_weather_report", "GraphAnalytics", "Report indexed architecture signals."),
+        Tool("analyze_changed_subgraph", "GraphAnalytics", "Analyze an explicitly selected changed subgraph."),
+        Tool("find_frontend_cascade_conflicts", "GraphAnalytics", "Compare indexed frontend cascade metadata."),
 
         Tool("find_similar_nodes", "SemanticAndHybridSearch", "Find semantically similar nodes.", requiresEmbeddings: true, requiresExactTarget: true),
         Tool("hybrid_search", "SemanticAndHybridSearch", "Semantic search constrained by graph neighborhood.", requiresEmbeddings: true, worksFromVagueGoal: true),
@@ -99,5 +106,6 @@ public static class ContextWorkflowToolCatalog
         bool requiresEmbeddings = false,
         bool requiresExactTarget = false,
         bool worksFromVagueGoal = false) =>
-        new(name, category, description, readOnly, mutatesGraph, destructive, requiresEmbeddings, requiresExactTarget, worksFromVagueGoal);
+        ContextWorkflowToolRequirements.Apply(new(name, category, description, readOnly, mutatesGraph, destructive,
+            requiresEmbeddings, requiresExactTarget, worksFromVagueGoal));
 }

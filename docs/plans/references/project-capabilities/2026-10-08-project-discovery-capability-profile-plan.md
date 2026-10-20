@@ -1,8 +1,10 @@
 # Project Discovery And Capability Profiles
 
+> Reference design. Current delivery status and task checkboxes: [Project capability completion checklist](../../2026-10-19-project-capability-completion-checklist.md). Original design dates and implementation notes are retained below.
+
 Date: 2026-10-08
 
-Status: in progress; local discovery, persisted inventory/generations, and authenticated API/SDK/MCP exposure implemented. Analyzer outcome tracking and routing remain planned.
+Status: in progress; discovery/publication, generation-scoped analyzer outcomes, incremental server/cache reconciliation, Git revision observations, resolved configuration and managed analyzer/parser fingerprints, and initial document routing implemented. Node runtime fingerprints, complete per-worker coverage, and broader routing remain planned.
 
 Dependency: foundation for the [roadmap](2026-10-08-project-capability-roadmap.md).
 
@@ -18,7 +20,17 @@ Automated fixtures cover composition, exclusions, unsupported PowerShell, disabl
 
 Core validation, application status handling, CLI publication order/full inventory, SDK forwarding, authenticated API/MCP contracts, and Neo4j persistence/concurrency/deletion tests cover this slice. The Neo4j test uses a unique temporary project on the configured database and removes its fixture records; it does not claim isolated-database acceptance.
 
-Remaining work: revision and parser fingerprints, per-root analyzer outcomes, automatic publication from index commands, and capability-aware routing integration.
+Actual index passes now publish discovery before analysis and record analyzer/scope running and terminal outcomes against that generation. Stale reports and conflicting terminal rewrites are rejected. New generations clear old outcomes; delta/unaudited worker completion does not claim complete coverage. Publication failure prevents cache advancement. Document read/upload failures produce partial outcomes, and cancellation is propagated. Full document passes replace current file chunks before ingestion; searches exclude sources absent from the accepted inventory and recheck generation.
+
+Initial capability routing uses complete document coverage for Markdown/text edit workflows and direct document queries. Other worker coverage remains unknown; process exit alone is insufficient proof. Dry runs, no-change cache exits, and external-only reference scopes do not invent repository outcomes.
+
+Incremental runs now reconcile the cache's server identity, published generation, and discovery observation time before selecting a delta or exiting without changes. Missing/stale/replaced profiles and legacy caches force a full selection; failed checks retain the cache and exit unsuccessfully. Successful passes persist the publication link only after all work completes. Watch callbacks share the check; dry runs and external-only reference indexing bypass repository-profile reconciliation. Focused fixtures cover fresh-process persistence, generation reuse, server changes, matching no-change exits, forced full selections, cancellation, and failure retention.
+
+Optional Git revision observations, resolved indexing-configuration hashes, and loaded .NET implementation/parser fingerprints now flow through local profiles, publication, API/SDK/MCP queries, and analyzer outcomes. Missing metadata stays unknown and older `1.0` uploads remain compatible. Incremental reuse compares published configuration/analyzer identities and known Git commits; mismatches force full selection, while ordinary dirty-state changes do not suppress file deltas. Outcome publication and document readiness reject fingerprint mismatches. Fixtures cover clean/dirty/untracked/detached Git states, disabled fsmonitor hooks, unchanged index bytes, settings changes, transport/credential exclusions, managed/unknown worker identities, validation, SDK/MCP round trips, and schema compatibility.
+
+The companion routing plan now adds shared requirements, per-step evaluation, direct query guards, and execution revalidation across existing query families. Readiness remains unknown for unaudited producer capabilities.
+
+Remaining work: Node worker/runtime fingerprints, per-file content/revision binding, fully audited per-worker/root coverage, safe last-good evidence reuse across delta generations, narrower/root-filtered queries, and repository/PowerShell integration. Git metadata is observational, not proof that content stayed unchanged throughout a pass.
 
 ## Problem And Intended Behavior
 

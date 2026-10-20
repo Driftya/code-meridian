@@ -162,8 +162,13 @@ public sealed class IndexCommandHandlerTests
             includeTypeScript: true,
             includeDocs: false,
             includeConfiguration: false);
-        cache.Save(IndexExecutionPlanBuilder.BuildPlan(cache, workspace.Root, indexableFiles, forceFull: true));
-        var handler = CreateHandler(settings);
+        var observedAt = DateTimeOffset.UtcNow;
+        cache.Save(IndexExecutionPlanBuilder.BuildPlan(cache, workspace.Root, indexableFiles, forceFull: true),
+            settings.CodeMeridianUrl, 3, observedAt);
+        var handler = CreateHandler(settings, new IndexProfileRunReporter(new(new RepositoryInventoryDiscovery()))
+        {
+            HttpClientFactory = (url, _) => new HttpClient(new CurrentProfileHandler(observedAt, settings)) { BaseAddress = new Uri(url) }
+        });
         using var output = new StringWriter();
         var originalOut = Console.Out;
         try
@@ -469,7 +474,7 @@ public sealed class IndexCommandHandlerTests
         roots[0].FullName.Should().Be(workspace.Root.FullName);
     }
 
-    private static IndexCommandHandler CreateHandler(ResolvedIndexerSettings settings)
+    private static IndexCommandHandler CreateHandler(ResolvedIndexerSettings settings, IndexProfileRunReporter? profileReporter = null)
         => new(
             Options.Create(settings),
             new ProjectDiscoveryService(),
@@ -478,7 +483,7 @@ public sealed class IndexCommandHandlerTests
             new TypeScriptScopeCatalogWriter((url, _) => new HttpClient(new SuccessfulHandler())
             {
                 BaseAddress = new Uri(url)
-            }));
+            }), profileReporter);
 
     private static ResolvedIndexerSettings CreateSettings(
         DirectoryInfo root,
@@ -520,6 +525,20 @@ public sealed class IndexCommandHandlerTests
         };
 
     private sealed record TypeScriptBatchEntry(string Path, string FileRole);
+
+    private sealed class CurrentProfileHandler(DateTimeOffset observedAt, ResolvedIndexerSettings settings) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = System.Net.Http.Json.JsonContent.Create(new
+                {
+                    status = "available", project = "CodeMeridian", generation = 3, latestGeneration = 3,
+                    profile = new { observedAt, configurationFingerprint = ProjectAnalysisFingerprints.Configuration(settings),
+                        analyzers = LocalProjectProfileBuilder.BuildAnalyzers(settings) }, contractVersion = "1.0"
+                })
+            });
+    }
 
     private sealed class SuccessfulHandler : HttpMessageHandler
     {

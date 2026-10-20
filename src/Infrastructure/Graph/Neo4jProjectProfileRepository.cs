@@ -8,7 +8,7 @@ using Neo4j.Driver;
 
 namespace CodeMeridian.Infrastructure.Graph;
 
-public sealed class Neo4jProjectProfileRepository : IProjectProfileRepository, IAsyncDisposable
+public sealed partial class Neo4jProjectProfileRepository : IProjectProfileRepository, IAsyncDisposable
 {
     private readonly IDriver _driver;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -58,6 +58,7 @@ public sealed class Neo4jProjectProfileRepository : IProjectProfileRepository, I
         if (snapshot.Validate() is { } error) throw new ArgumentException(error, nameof(snapshot));
         var inputJson = JsonSerializer.Serialize(snapshot, JsonOptions);
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(inputJson)));
+        var legacyFingerprint = ProjectProfilePublicationFingerprint.Legacy(snapshot);
         var profileJson = JsonSerializer.Serialize(snapshot.Profile with { EvidenceSource = "uploaded_discovery" }, JsonOptions);
         var project = snapshot.Profile.Project;
         await using var session = _driver.AsyncSession();
@@ -77,7 +78,8 @@ public sealed class Neo4jProjectProfileRepository : IProjectProfileRepository, I
             var published = record["published"].As<long>();
             var oldFingerprint = record["fingerprint"].As<string?>();
             await cursor.ConsumeAsync();
-            if (snapshot.Generation == published && oldFingerprint == fingerprint) return;
+            if (snapshot.Generation == published && (oldFingerprint == fingerprint
+                || legacyFingerprint is not null && oldFingerprint == legacyFingerprint)) return;
             if (snapshot.Generation <= published || snapshot.Generation > latest)
                 throw new ProjectProfileConflictException("The generation is stale, unreserved, or already published with different content.");
 
@@ -99,7 +101,8 @@ public sealed class Neo4jProjectProfileRepository : IProjectProfileRepository, I
             await (await tx.RunAsync("""
                 MATCH (s:ProjectProfileState {project: $project})
                 SET s.generation = $generation, s.profileJson = $profileJson,
-                    s.fingerprint = $fingerprint, s.publishedAt = timestamp(), s.updatedAt = timestamp()
+                    s.fingerprint = $fingerprint, s.publishedAt = timestamp(), s.updatedAt = timestamp(),
+                    s.outcomesJson = '[]'
                 """, new { project, generation = snapshot.Generation, profileJson, fingerprint })).ConsumeAsync();
         });
     }
@@ -117,7 +120,8 @@ public sealed class Neo4jProjectProfileRepository : IProjectProfileRepository, I
                 WHERE s.profileJson IS NOT NULL
                 OPTIONAL MATCH (f:ProjectInventoryFile {project: $project, path: $targetPath, generation: s.generation})
                 RETURN s.profileJson AS profile, s.generation AS generation, s.nextGeneration AS latest,
-                    s.publishedAt AS publishedAt, f.path AS path, f.kind AS kind
+                    s.publishedAt AS publishedAt, f.path AS path, f.kind AS kind,
+                    coalesce(s.outcomesJson, '[]') AS outcomes
                 """, new { project, targetPath });
             if (!await cursor.FetchAsync()) return null;
             var record = cursor.Current;
@@ -126,7 +130,10 @@ public sealed class Neo4jProjectProfileRepository : IProjectProfileRepository, I
             var path = record["path"].As<string?>();
             var target = path is null ? null : new ProjectInventoryFile(path, record["kind"].As<string>());
             return new StoredProjectProfile(record["generation"].As<long>(), record["latest"].As<long>(),
-                DateTimeOffset.FromUnixTimeMilliseconds(record["publishedAt"].As<long>()), profile, target);
+                DateTimeOffset.FromUnixTimeMilliseconds(record["publishedAt"].As<long>()), profile, target)
+            {
+                AnalyzerOutcomes = JsonSerializer.Deserialize<ProjectAnalyzerOutcome[]>(record["outcomes"].As<string>(), JsonOptions) ?? []
+            };
         });
     }
 

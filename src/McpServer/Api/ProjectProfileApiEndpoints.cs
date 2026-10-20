@@ -31,6 +31,14 @@ internal static class ProjectProfileApiEndpoints
             try { return Results.Ok(await service.GetAsync(projectContext, targetPath, ct)); }
             catch (ArgumentException ex) { return Results.BadRequest(ex.Message); }
         });
+        group.MapPost("/outcomes", async (ProjectAnalyzerOutcomeSnapshot snapshot, IProjectProfileRepository repository, CancellationToken ct) =>
+        {
+            if (snapshot.Validate() is { } error) return Results.BadRequest(error);
+            try { await repository.PublishOutcomesAsync(snapshot, ct); }
+            catch (ProjectProfileConflictException ex) { return Results.Conflict(ex.Message); }
+            catch (ArgumentException ex) { return Results.BadRequest(ex.Message); }
+            return Results.Ok(new { generation = snapshot.Generation });
+        });
         return app;
     }
 

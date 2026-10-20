@@ -10,6 +10,8 @@ The goal is to identify the smallest useful set of tests before changing behavio
 
 ## Target Scope
 
+Read `get_project_profile(projectContext, targetPath?)` before choosing test tools. A successful code pass does not prove complete test-to-code evidence. Use `find_test_shield` or coverage-gap analysis only when their applicability permits it; omitted/unknown test sections are not an empty verified shield. Document targets use document context. Keep unknown scopes explicit and continue with bounded source/manual test planning without automatically indexing, ingesting, installing workers, or running scripts.
+
 Resolve each supplied file/directory, including external paths, against its own Git/worktree or configured solution root. Read the nearest applicable ancestor `meridian.json` (`project`) within that root; nested configs may define distinct index roots. Honor explicit user/index-invocation context. Current-repository/global/environment defaults do not establish external ownership. Solution (`.sln`/`.slnx`), workspace, package and folder names are fallback candidates requiring bounded graph confirmation. Start new paths from the nearest existing parent and report unresolved scope instead of guessing.
 
 Keep target -> index root -> project context, identity evidence and freshness. Use root-relative file hints and returned canonical IDs. A build-project/framework scope is separate from graph project context. Retain relevant unindexed external sources/tests as labeled evidence; discover through ancestors, not scans of sibling repositories. A reference path alone does not authorize external edits, indexing or build/test commands.
@@ -359,4 +361,3 @@ If CodeMeridian cannot provide enough test context:
 4. Avoid broad file dumps.
 5. Recommend re-indexing if graph freshness is stale.
 6. Continue only with clearly stated assumptions.
-

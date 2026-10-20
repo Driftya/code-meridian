@@ -10,7 +10,9 @@ public sealed partial class CodebaseTools
     [Description(
         "Plan the recommended sequence of CodeMeridian tools for a task. " +
         "Use this when an agent needs to know which CodeMeridian tools to call, in what order, and why. " +
-        "The planner is deterministic and returns ordered steps, required/optional flags, input hints, expected outputs, stop conditions, and execution guidance.")]
+        "Supply projectContext for profile-aware routing. Observed Markdown/text edits use document_review; missing coverage can block execution. " +
+        "The planner evaluates declared capabilities per step, explains omitted optional steps, and blocks missing required evidence. " +
+        "It returns ordered steps, applicability/coverage, input hints, expected outputs, stop conditions, and execution guidance.")]
     public Task<string> PlanContextWorkflowAsync(
         [Description("Plain-language task goal, e.g. 'Plan how to refactor CodebaseQueryService safely'.")]
         string goal,
@@ -18,7 +20,7 @@ public sealed partial class CodebaseTools
         string? target = null,
         [Description("Optional project name to scope the workflow.")]
         string? projectContext = null,
-        [Description("Optional workflow type. Supported examples: before_edit, feature_implementation, refactor_planning, responsibility_slice_planning, architecture_review, dependency_replacement, diagnostic_review, configuration_review, semantic_discovery, knowledge_health, documentation_ingestion, client_extension_discovery.")]
+        [Description("Optional workflow type. Supported examples: document_review, before_edit, feature_implementation, refactor_planning, responsibility_slice_planning, architecture_review, dependency_replacement, diagnostic_review, configuration_review, semantic_discovery, knowledge_health, documentation_ingestion, client_extension_discovery.")]
         string? workflowType = null,
         [Description("Maximum number of steps to return. Default 12.")]
         int maxSteps = 12,
@@ -44,6 +46,7 @@ public sealed partial class CodebaseTools
     [Description(
         "Execute an approved read-only context workflow plan and return step results. " +
         "This tool refuses graph-mutating or destructive steps unless explicitly approved, and it stops when a required step lacks the target input it needs. " +
+        "It revalidates scope, capability coverage, and profile generation for every step and discards stale outputs. " +
         "Use plan_context_workflow first when the user only asked for a plan.")]
     public Task<string> ExecuteContextWorkflowAsync(
         [Description("Plain-language task goal.")]

@@ -11,7 +11,7 @@ public sealed partial class CodebaseQueryService
         WriteIndented = true
     };
 
-    public Task<string> PlanContextWorkflowAsync(
+    public async Task<string> PlanContextWorkflowAsync(
         string goal,
         string? target = null,
         string? projectContext = null,
@@ -31,9 +31,9 @@ public sealed partial class CodebaseQueryService
             maxSteps,
             includeOptionalSteps,
             includeStopConditions,
-            includeExecutionHints));
+            includeExecutionHints), await GetWorkflowProfileAsync(projectContext, target, cancellationToken));
 
-        return Task.FromResult(JsonSerializer.Serialize(result, WorkflowJsonOptions));
+        return JsonSerializer.Serialize(result, WorkflowJsonOptions);
     }
 
     public async Task<string> ExecuteContextWorkflowAsync(
@@ -56,12 +56,12 @@ public sealed partial class CodebaseQueryService
             maxSteps,
             includeOptionalSteps,
             IncludeStopConditions: true,
-            IncludeExecutionHints: true));
+            IncludeExecutionHints: true), await GetWorkflowProfileAsync(projectContext, target, cancellationToken));
 
         if (plan.Status != "valid")
         {
             return SerializeExecution(new ContextWorkflowExecutionResult(
-                Status: "validation_error",
+                Status: plan.Status == "blocked" ? "blocked" : "validation_error",
                 WorkflowId: plan.WorkflowId,
                 WorkflowType: plan.WorkflowType,
                 Project: plan.Project,
@@ -69,7 +69,7 @@ public sealed partial class CodebaseQueryService
                 Summary: plan.Summary,
                 Steps: [],
                 Warnings: plan.Warnings,
-                Error: plan.Error));
+                Error: plan.Error) { Applicability = plan.Applicability });
         }
 
         var mutatingSteps = plan.Steps.Where(step => step.MutatesGraph || step.Destructive).ToArray();
@@ -93,21 +93,65 @@ public sealed partial class CodebaseQueryService
         }
 
         var results = new List<ContextWorkflowStepExecutionResult>();
+        var executionTarget = target;
         foreach (var step in plan.Steps)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await ExecuteWorkflowStepAsync(step, goal, target, projectContext, secondaryTarget, toDependency, cancellationToken);
+            if (projectProfiles is not null)
+            {
+                var current = await GetWorkflowProfileAsync(projectContext, target, cancellationToken);
+                if (current is not null && (step.Tool == "search_documentation" && plan.WorkflowType != "document_review"
+                    || plan.WorkflowType == "feature_implementation" && current.Target?.Kind is "markdown" or "text"))
+                    current = current with { Target = null };
+                var readiness = ContextWorkflowToolPolicy.Evaluate(step.Tool, current!);
+                if (current?.Generation != plan.Applicability?.ProfileGeneration || readiness.Status != "ready")
+                {
+                    var applicability = readiness with { Status = current?.Generation != plan.Applicability?.ProfileGeneration ? "stale" : readiness.Status };
+                    results.Add(new(step.Order, step.Tool, step.Required, applicability.Status, Error: string.Join(" ", applicability.Reasons)) { Applicability = applicability });
+                    if (step.Required || applicability.Status == "stale") break;
+                    continue;
+                }
+                if (step.RequiresExactTarget && executionTarget is not null && !executionTarget.Contains("::", StringComparison.Ordinal))
+                {
+                    executionTarget = await ResolveCanonicalNodeIdAsync(executionTarget, projectContext, cancellationToken);
+                    if (!executionTarget.Contains("::", StringComparison.Ordinal))
+                    {
+                        results.Add(new(step.Order, step.Tool, step.Required, "missing_input", Error: "Resolve an unambiguous canonical node ID before executing this exact-target step."));
+                        break;
+                    }
+                }
+            }
+            var result = await ExecuteWorkflowStepAsync(step, goal, step.Tool is "resolve_exact_symbol" or "search_documentation" ? target : executionTarget,
+                projectContext, secondaryTarget, toDependency, cancellationToken);
             results.Add(result);
 
-            if (step.Required && result.Status is "missing_input" or "unsupported_tool" or "failed")
+            if (step.Required && result.Status != "completed")
                 break;
         }
+
+        if (projectProfiles is not null && results.Count > 0
+            && results.Count(result => result.Required && result.Status == "completed") == plan.Steps.Count(step => step.Required))
+        {
+            var current = await GetWorkflowProfileAsync(projectContext, target, cancellationToken);
+            var replanned = WorkflowPlanner.Plan(new(goal, target, projectContext, workflowType, maxSteps, includeOptionalSteps), current);
+            if (current?.Generation != plan.Applicability?.ProfileGeneration || replanned.Status != "valid")
+            {
+                results = results.Select(result => result with { Output = null }).ToList();
+                var stale = (replanned.Applicability ?? plan.Applicability!) with { Status = "stale", Coverage = "unknown",
+                    Reasons = ["Profile generation or required coverage changed during execution; outputs were discarded."] };
+                results.Add(new(results.Count + 1, "get_project_profile", true, "stale", Error: stale.Reasons[0]) { Applicability = stale });
+            }
+        }
+
+        if (results.Any(result => result.Status == "stale")) results = results.Select(result => result with { Output = null }).ToList();
 
         var status = results.Any(result => result.Status is "failed")
             ? "failed"
             : results.Any(result => result.Status is "missing_input" or "unsupported_tool")
                 ? "stopped"
-                : "completed";
+                : results.Any(result => result.Status == "stale" || result.Required && result.Status is not "completed")
+                    || results.Count(result => result.Required && result.Status == "completed") != plan.Steps.Count(step => step.Required) ? "blocked"
+                : projectProfiles is not null && plan.Applicability?.Status == "unknown" ? "completed_with_unknown_coverage" : "completed";
 
         return SerializeExecution(new ContextWorkflowExecutionResult(
             Status: status,
@@ -117,7 +161,7 @@ public sealed partial class CodebaseQueryService
             Target: plan.Target,
             Summary: plan.Summary,
             Steps: results,
-            Warnings: plan.Warnings));
+            Warnings: plan.Warnings) { Applicability = results.LastOrDefault(item => item.Applicability is not null)?.Applicability ?? plan.Applicability });
     }
 
     private async Task<ContextWorkflowStepExecutionResult> ExecuteWorkflowStepAsync(
@@ -139,13 +183,20 @@ public sealed partial class CodebaseQueryService
                 Error: "execute_context_workflow does not execute graph-mutating tools.");
         }
 
+        var previousCapabilityScope = capabilityExecution.Value;
+        var capabilityScope = new CapabilityExecutionScope(step.Tool);
+        capabilityExecution.Value = capabilityScope;
         try
         {
             var output = step.Tool switch
             {
+                "get_project_profile" => (await GetWorkflowProfileAsync(projectContext, target, cancellationToken))?.ToMarkdown()
+                    ?? "Project profile is unknown; supply an explicit project context.",
                 "query_codebase" => await QueryStructureAsync(goal, projectContext, cancellationToken),
                 "get_architectural_overview" => await GetOverviewAsync(projectContext, cancellationToken),
                 "search_documentation" => await SearchDocumentationAsync(target ?? goal, projectContext, cancellationToken),
+                "find_config_definitions" => await FindConfigDefinitionsAsync(target ?? goal, projectContext, cancellationToken),
+                "find_config_usage" => await FindConfigUsageAsync(target ?? goal, projectContext, cancellationToken),
                 "find_impact" => await WithTargetAsync(step, target, nodeId => FindImpactAsync(nodeId, cancellationToken: cancellationToken)),
                 "find_hotspots" => await FindHotspotsAsync(projectContext, cancellationToken),
                 "find_connection" => await WithTwoTargetsAsync(step, target, secondaryTarget, (fromId, toId) => FindConnectionAsync(fromId, toId, cancellationToken: cancellationToken)),
@@ -186,6 +237,11 @@ public sealed partial class CodebaseQueryService
                 _ => await UnsupportedAsync(step)
             };
 
+            if (capabilityScope.Applicability is { } applicability)
+                return new(step.Order, step.Tool, step.Required, applicability.Status == "ok" ? "completed" : applicability.Status,
+                    Output: applicability.Status == "ok" ? output : null,
+                    Error: applicability.Status == "ok" ? null : output) { Applicability = applicability };
+
             if (IsSemanticallyFailedWorkflowOutput(step.Tool, output))
             {
                 return new ContextWorkflowStepExecutionResult(
@@ -206,11 +262,13 @@ public sealed partial class CodebaseQueryService
         {
             return new ContextWorkflowStepExecutionResult(step.Order, step.Tool, step.Required, "unsupported_tool", Error: ex.Message);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new ContextWorkflowStepExecutionResult(step.Order, step.Tool, step.Required, "failed", Error: ex.Message);
         }
+        finally { capabilityExecution.Value = previousCapabilityScope; }
     }
+
 
     private static async Task<string> WithTargetAsync(
         ContextWorkflowStep step,
@@ -235,7 +293,9 @@ public sealed partial class CodebaseQueryService
         if (LooksLikeCanonicalNodeId(target))
             return $"Target is already canonical: `{target}`.";
 
-        return await ResolveExactSymbolAsync(target, projectContext: projectContext, cancellationToken: cancellationToken);
+        var profile = await GetWorkflowProfileAsync(projectContext, target, cancellationToken);
+        return await ResolveExactSymbolAsync(profile?.Target?.Path is { } path ? Path.GetFileNameWithoutExtension(path) : target,
+            filePath: profile?.Target?.Path, projectContext: projectContext, cancellationToken: cancellationToken);
     }
 
     private static bool IsSemanticallyFailedWorkflowOutput(string tool, string output) =>

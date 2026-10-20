@@ -124,6 +124,25 @@ public sealed class IncrementalIndexCacheTests
         resumedPlan.DeletedFiles.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Save_PublicationIsServerScopedAndDoesNotPersistCredentials()
+    {
+        using var workspace = TestWorkspace.Create();
+        var cache = IncrementalIndexCache.Load(workspace.GetRepoCacheDirectory(), "Project");
+        var plan = cache.BuildPlan(workspace.Root, [], forceFull: true);
+        var observedAt = DateTimeOffset.UtcNow;
+
+        cache.Save(plan, "http://user:secret@LOCALHOST:5100/", 7, observedAt);
+
+        cache.MatchesPublication("http://localhost:5100", 7, observedAt).Should().BeTrue();
+        cache.HasPublicationFor("http://localhost:5101").Should().BeFalse();
+        cache.HasPublicationFor("https://localhost:5100").Should().BeFalse();
+        var contents = File.ReadAllText(workspace.GetRepoCacheDirectory().GetFiles("indexer-files-*.json").Single().FullName);
+        contents.Should().NotContain("secret").And.NotContain("localhost");
+        cache.Save(plan);
+        cache.HasPublicationFor("http://localhost:5100").Should().BeFalse();
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         private TestWorkspace(DirectoryInfo root)

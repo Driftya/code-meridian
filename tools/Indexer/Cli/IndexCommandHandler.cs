@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
-using CodeMeridian.DocumentIndexer.Pipeline;
 using CodeMeridian.Indexer.Cli.Configuration;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
@@ -15,14 +14,17 @@ using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Indexer.Cli.Commands;
 
-internal sealed class IndexCommandHandler(
+internal sealed partial class IndexCommandHandler(
     IOptions<ResolvedIndexerSettings> settings,
     IProjectDiscoveryService projectDiscoveryService,
     IIndexerStoragePathService storagePathService,
     DiagnosticsCommand diagnosticsCommand,
-    TypeScriptScopeCatalogWriter typeScriptScopeCatalogWriter)
+    TypeScriptScopeCatalogWriter typeScriptScopeCatalogWriter,
+    IndexProfileRunReporter? profileReporter = null)
 {
     private readonly ResolvedIndexerSettings _settings = settings.Value;
+    private readonly IndexProfileRunReporter _profileReporter = profileReporter
+        ?? new(new LocalProjectProfileBuilder(new RepositoryInventoryDiscovery()));
 
     public async Task<int> RunAsync()
     {
@@ -80,7 +82,11 @@ internal sealed class IndexCommandHandler(
             return 0;
         }
 
-        if (_settings.Incremental && !_settings.Clear && !context.IncrementalPlan.HasChanges && !SqlIndexRunCoordinator.IsEnabled(_settings))
+        context = await ReconcileExecutionContextAsync(context, _settings.Clear);
+        if (context is null) return 1;
+
+        if (_settings.Incremental && !_settings.Clear && context.ChangedFiles is not null
+            && !context.IncrementalPlan.HasChanges && !SqlIndexRunCoordinator.IsEnabled(_settings))
         {
             if (!_settings.SkipTypeScript)
             {
@@ -110,8 +116,6 @@ internal sealed class IndexCommandHandler(
         if (exitCode != 0)
             return exitCode;
 
-        context.Cache.Save(context.IncrementalPlan);
-
         if (!_settings.Watch)
             return 0;
 
@@ -127,20 +131,18 @@ internal sealed class IndexCommandHandler(
         };
 
         var watchLoop = new IndexWatchLoop(_settings.RootPath, logger);
-        await watchLoop.RunAsync(async (_, _) =>
+        await watchLoop.RunAsync(async (_, cancellationToken) =>
         {
-            var watchContext = BuildExecutionContext(clear: false);
-            if (!watchContext.IncrementalPlan.HasChanges && !SqlIndexRunCoordinator.IsEnabled(_settings))
+            var watchContext = await ReconcileExecutionContextAsync(BuildExecutionContext(clear: false), clear: false, cancellationToken);
+            if (watchContext is null) return;
+            if (watchContext.ChangedFiles is not null && !watchContext.IncrementalPlan.HasChanges && !SqlIndexRunCoordinator.IsEnabled(_settings))
                 return;
 
-            var watchExitCode = await RunIndexPassAsync(
+            await RunIndexPassAsync(
                 watchContext,
                 clear: false,
                 changedFiles: watchContext.ChangedFiles,
                 deletedFiles: watchContext.DeletedFiles);
-
-            if (watchExitCode == 0)
-                watchContext.Cache.Save(watchContext.IncrementalPlan);
         }, cts.Token);
 
         return 0;
@@ -177,122 +179,6 @@ internal sealed class IndexCommandHandler(
         return 0;
     }
 
-    private async Task<int> RunIndexPassAsync(
-        IndexExecutionContext context,
-        bool clear,
-        IReadOnlyCollection<string>? changedFiles,
-        IReadOnlyCollection<string> deletedFiles)
-    {
-        var exitCode = 0;
-        var clearNextIndexer = clear;
-
-        if (SqlIndexRunCoordinator.IsEnabled(_settings))
-        {
-            exitCode = await SqlIndexRunCoordinator.RunAsync(_settings, context.CacheDirectory, clear || !_settings.Incremental);
-            if (exitCode != 0) return exitCode;
-            // SQL publication owns its deletions, including edges between shared objects.
-            deletedFiles = deletedFiles.Where(path => !path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase)).ToArray();
-        }
-
-        if (context.HasCSharp)
-        {
-            exitCode = await RunCSharpIndexerAsync(clearNextIndexer, changedFiles, deletedFiles);
-            if (exitCode != 0)
-                return exitCode;
-
-            clearNextIndexer = false;
-        }
-
-        if (context.HasTypeScript)
-        {
-            exitCode = await RunTypeScriptIndexerAsync(context, changedFiles, deletedFiles);
-            if (exitCode != 0)
-                return exitCode;
-
-            clearNextIndexer = false;
-        }
-
-        if (context.HasHtmlCss)
-        {
-            exitCode = await RunHtmlCssIndexerAsync(context, changedFiles, deletedFiles);
-            if (exitCode != 0)
-                return exitCode;
-
-            clearNextIndexer = false;
-        }
-
-        if (IncludesDocs)
-        {
-            exitCode = await RunDocumentIndexerAsync(changedFiles, deletedFiles);
-            if (exitCode != 0)
-                return exitCode;
-        }
-
-        if (context.HasConfiguration)
-        {
-            exitCode = await RunConfigurationIndexerAsync(clear, changedFiles, deletedFiles);
-            if (exitCode != 0)
-                return exitCode;
-        }
-
-        if (!_settings.SkipDiagnostics && !_settings.ExternalOnly)
-        {
-            exitCode = await diagnosticsCommand.RunAsync(
-                _settings.RootPath,
-                context.TypeScriptRoots,
-                _settings.Project,
-                _settings.CodeMeridianUrl,
-                _settings.ApiKey,
-                _settings.AllowRepoScripts);
-            if (exitCode != 0)
-                return exitCode;
-        }
-
-        if (!_settings.SkipTypeScript && !_settings.ExternalOnly)
-        {
-            await typeScriptScopeCatalogWriter.WriteAsync(
-                _settings.Project,
-                _settings.CodeMeridianUrl,
-                _settings.ApiKey,
-                context.TypeScriptRoots);
-        }
-
-        if (_settings.RebuildKeywords && !_settings.ExternalOnly)
-            return await RebuildKeywordGraphAsync();
-
-        return 0;
-    }
-
-    private async Task<int> RunDocumentIndexerAsync(
-        IReadOnlyCollection<string>? changedFiles,
-        IReadOnlyCollection<string> deletedFiles)
-    {
-        var services = new ServiceCollection();
-        services.AddLogging(builder => builder
-            .AddConsole()
-            .AddFilter("System.Net.Http.HttpClient", LogLevel.Warning)
-            .AddFilter("Microsoft", LogLevel.Warning)
-            .SetMinimumLevel(LogLevel.Information));
-
-        services.AddCodeMeridianClient(_settings.CodeMeridianUrl, _settings.ApiKey);
-        services.AddTransient<DocumentIndexerPipeline>();
-
-        await using var provider = services.BuildServiceProvider();
-        var pipeline = provider.GetRequiredService<DocumentIndexerPipeline>();
-
-        var documentPlan = DocumentIndexRunCoordinator.BuildPlan(_settings.RootPath, changedFiles, deletedFiles);
-
-        if (changedFiles is not null && documentPlan.FilesToDelete.Count > 0)
-            await new ProjectFileDeletionService(_settings.CodeMeridianUrl, _settings.ApiKey, _settings.Project, _settings.RootPath).DeleteAsync(documentPlan.FilesToDelete);
-
-        if (documentPlan.FilesToIngest.Count == 0)
-            return 0;
-
-        var logger = provider.GetRequiredService<ILogger<DocumentIndexerPipeline>>();
-        logger.LogInformation("Found {Count} documentation files to ingest.", documentPlan.FilesToIngest.Count);
-        await pipeline.IngestAsync(documentPlan.FilesToIngest.ToArray(), _settings.Project, _settings.RootPath.FullName, CancellationToken.None);
-        return 0;
-    }
 
     private void PrintDryRun(
         bool hasCSharp,

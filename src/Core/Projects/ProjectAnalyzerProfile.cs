@@ -6,4 +6,7 @@ public sealed record ProjectAnalyzerProfile(
     string ConfigurationState,
     string IndexingState,
     IReadOnlyList<string> SupportedCapabilities,
-    IReadOnlyList<string> Limitations);
+    IReadOnlyList<string> Limitations)
+{
+    public ProjectAnalyzerFingerprint? Fingerprint { get; init; }
+}

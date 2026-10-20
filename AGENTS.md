@@ -21,11 +21,14 @@ Read this first. Use the detailed references under `docs/agent/` when the task n
 
 Use CodeMeridian proactively. Prefer graph tools over terminal scans when the graph can answer the question.
 
+Check `get_project_profile(projectContext, targetPath?)` before selecting language-specific edit tools. Markdown/text edits use document context and `document_review`; do not treat headings or filenames as callable symbols. Missing profiles and unaudited coverage remain unknown. PowerShell is detected but currently unsupported.
+
 ### Trigger rules
 
 | Situation | Tool to call |
 |-----------|--------------|
-| Before any non-trivial edit | `build_minimal_context` |
+| Before a non-trivial callable-code edit | `build_minimal_context` |
+| Before a Markdown/text edit | `get_project_profile`, then `search_documentation` when document coverage is ready |
 | Before editing a specific method/class | `resolve_exact_symbol`, then `get_context_for_editing` |
 | Before a refactor | `find_impact` and `find_test_shield` |
 | Before deleting code | `find_unreferenced` |

@@ -24,7 +24,7 @@ public partial class CodebaseQueryService
         return result.ToMarkdown(detailLevel, includeConfidence);
     }
 
-    public async Task<ImpactAnalysisResult> FindImpactResultAsync(
+    private async Task<ImpactAnalysisResult> FindImpactResultCoreAsync(
         string nodeId,
         int depth = 5,
         bool includeConfidence = false,
@@ -135,7 +135,7 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindHotspotsAsync(
+    private async Task<string> FindHotspotsCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -190,7 +190,7 @@ public partial class CodebaseQueryService
         });
     }
 
-    public async Task<string> FindUnreferencedAsync(
+    private async Task<string> FindUnreferencedCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -229,7 +229,7 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default) =>
         (await FindCrossProjectDependenciesResultAsync(projectContext, cancellationToken)).ToMarkdown();
 
-    public async Task<CrossProjectDependencyResult> FindCrossProjectDependenciesResultAsync(
+    private async Task<CrossProjectDependencyResult> FindCrossProjectDependenciesResultCoreAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
     {
@@ -239,7 +239,7 @@ public partial class CodebaseQueryService
                 GraphNodeResult.FromNode(edge.Source), GraphNodeResult.FromNode(edge.Target), edge.RelationshipType)).ToArray(),
             (references ?? []).Take(25).Select(PackageDependencyResult.FromDependency).ToArray(), edges.Count >= 100 || references?.Count > 25);
     }
-    public async Task<string> FindCoverageGapsAsync(
+    private async Task<string> FindCoverageGapsCoreAsync(
         string? projectContext = null,
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
@@ -297,7 +297,7 @@ public partial class CodebaseQueryService
         CancellationToken cancellationToken = default) =>
         (await FindTestShieldResultAsync(nodeId, projectContext, depth, limit, cancellationToken)).ToMarkdown();
 
-    public async Task<TestShieldResult> FindTestShieldResultAsync(
+    private async Task<TestShieldResult> FindTestShieldResultCoreAsync(
         string nodeId,
         string? projectContext = null,
         int depth = 2,
@@ -483,7 +483,7 @@ public partial class CodebaseQueryService
             entry.Reason,
             $"`{entry.TestNode.Id}` -[{entry.MatchType}]-> `{entry.ProtectedNode.Id}`");
 
-    public async Task<string> FindRecentlyChangedAsync(
+    private async Task<string> FindRecentlyChangedCoreAsync(
         string? projectContext = null,
         string window = "24h",
         CancellationToken cancellationToken = default)
@@ -515,7 +515,7 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> FindLargeNodesAsync(
+    private async Task<string> FindLargeNodesCoreAsync(
         string? projectContext = null,
         int classThreshold = 400,
         int methodThreshold = 40,
@@ -562,7 +562,7 @@ public partial class CodebaseQueryService
         return sb.ToString();
     }
 
-    public async Task<string> GetContextForEditingAsync(
+    private async Task<string> GetContextForEditingCoreAsync(
         string nodeId,
         ContextDetailLevel detailLevel = ContextDetailLevel.Compact,
         CancellationToken cancellationToken = default)
@@ -1261,7 +1261,7 @@ public partial class CodebaseQueryService
             detailLevel,
             cancellationToken)).ToMarkdown(detailLevel);
 
-    public async Task<MinimalContextResult> BuildMinimalContextResultAsync(
+    private async Task<MinimalContextResult> BuildMinimalContextResultCoreAsync(
         string target,
         string? goal = null,
         int maxTokens = 3000,
