@@ -77,6 +77,7 @@ public sealed class CSharpIndexer(
         }
         var semanticCatalog = CSharpSemanticModelCatalog.Create(sources);
         var configurationConstants = CSharpConfigurationConstantRegistry.BuildFromRoots(semanticCatalog.Roots);
+        var extractedFiles = new List<(string Path, CSharpSemanticFile File)>();
         LogClassificationSummary(files, rootPath, projectContext, fileRoleClassifier, logger);
 
         foreach (var file in resolutionFiles.OrderBy(file => file.FullName, StringComparer.Ordinal))
@@ -100,6 +101,7 @@ public sealed class CSharpIndexer(
                     semanticFile);
                 nodes.AddRange(fileNodes);
                 edges.AddRange(fileEdges);
+                extractedFiles.Add((Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/'), semanticFile));
                 analysis.Extracted();
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -110,6 +112,8 @@ public sealed class CSharpIndexer(
         }
 
         analysis.Semantic(semanticCatalog.GetSemanticDiagnostics(cancellationToken));
+        var callableAudit = CSharpCallableDefinitionAuditor.Analyze(extractedFiles, nodes, cancellationToken);
+        analysis.CallableDefinitions(callableAudit.Summary, callableAudit.Samples);
 
         PackageReferenceSnapshot? packageSnapshot = null;
         if (packageIndexingOptions?.Value.AllowProjectEvaluation == true)

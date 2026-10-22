@@ -10,9 +10,16 @@ internal sealed class CSharpAnalysisReportBuilder(string rootPath, int requested
     private int _failedFiles;
     private int _parseErrors;
     private int _semanticErrors;
+    private CSharpCallableDefinitionSummary? _callableDefinitions;
 
     public void Read() => _readFiles++;
     public void Extracted() => _extractedFiles++;
+
+    public void CallableDefinitions(CSharpCallableDefinitionSummary summary, IReadOnlyList<CSharpAnalysisDiagnostic> samples)
+    {
+        _callableDefinitions = summary;
+        _samples.AddRange(samples.Take(8 - _samples.Count));
+    }
 
     public void Failed(FileInfo file, string stage, Exception exception)
     {
@@ -59,6 +66,7 @@ internal sealed class CSharpAnalysisReportBuilder(string rootPath, int requested
         new(requestedFiles, _readFiles, _extractedFiles, _failedFiles, skippedFiles, _parseErrors, _samples.ToArray())
         {
             SemanticErrors = _semanticErrors,
+            CallableDefinitions = _callableDefinitions,
             CallRelationships = CSharpRelationshipSummary.From(calls),
             TypeRelationships = CSharpRelationshipSummary.From(types)
         };

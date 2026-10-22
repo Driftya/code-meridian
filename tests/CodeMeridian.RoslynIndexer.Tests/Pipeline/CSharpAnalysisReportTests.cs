@@ -34,6 +34,8 @@ public sealed class CSharpAnalysisReportTests : IDisposable
         stats.Analysis.CallRelationships.HasValidAccounting.Should().BeTrue();
         stats.Analysis.TypeRelationships.Should().NotBeNull();
         stats.Analysis.TypeRelationships!.Attempted.Should().Be(0);
+        stats.Analysis.CallableDefinitions!.HasGaps.Should().BeFalse();
+        stats.Analysis.ContractVersion.Should().Be("1.2");
         _handler.Reports.Should().ContainSingle().Which.GetProperty("Coverage").GetString().Should().Be("unknown");
     }
 
@@ -150,9 +152,27 @@ public sealed class CSharpAnalysisReportTests : IDisposable
         stats.Analysis!.ReadFiles.Should().Be(1);
         stats.Analysis.ExtractedFiles.Should().Be(0);
         stats.Analysis.FailedFiles.Should().Be(1);
+        stats.Analysis.CallableDefinitions!.Candidates.Should().Be(0);
         stats.Analysis.DiagnosticSamples.Where(diagnostic => diagnostic.Stage == "extract")
             .Should().ContainSingle();
         stats.Analysis.ExitCode.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task CallableGapsArePersistedWithBoundedPrivateDiagnostics()
+    {
+        var file = Write("Example.cs", "class Example {" + string.Join('\n',
+            Enumerable.Range(0, 20).Select(index => $"int PrivateValue{index} => {index};")) + "}");
+
+        var stats = await Indexer().IndexAsync([file], "Example", _root.FullName);
+
+        stats.Analysis!.CallableDefinitions.Should().Be(new CSharpCallableDefinitionSummary(20, 0, 20, 0));
+        stats.Analysis.DiagnosticSamples.Should().HaveCount(8).And.OnlyContain(sample => sample.Stage == "definitions");
+        stats.Analysis.Coverage.Should().Be("partial");
+        stats.Analysis.ExitCode.Should().Be(0);
+        var report = _handler.Reports.Single();
+        report.GetProperty("CallableDefinitions").GetProperty("Unrepresented").GetInt32().Should().Be(20);
+        report.GetRawText().Should().NotContain("PrivateValue");
     }
 
     [Fact]
