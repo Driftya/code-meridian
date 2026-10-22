@@ -91,6 +91,13 @@ internal static class CSharpCallEdgeResolver
             var receiverCanonicalTypeHint = receiverIdentity?.CanonicalName;
             var receiverKind = ReadProperty(edge, "receiverKind");
             var semanticTargetDeclaringTypeHint = ReadProperty(edge, "semanticTargetDeclaringTypeHint");
+            // Runtime dispatch can target local or external members. A syntax type hint of
+            // "dynamic" is not an external type and cannot authorize a name-only match.
+            if (receiverKind == "Dynamic" || receiverTypeHint == "dynamic")
+            {
+                outcomes.Record(RelationshipResolutionDisposition.Indeterminate, "dynamic_receiver", source, edge);
+                continue;
+            }
             // A compiler-bound declaration is stronger evidence than name/arity heuristics,
             // including overloads, inherited methods and reduced extension calls.
             if (ReadProperty(edge, "semanticTargetDeclarationPath") is { } declarationPath

@@ -64,7 +64,11 @@ internal static class CSharpInvocationEvidenceExtractor
         var semanticEvidence = semanticModel is null
             ? null
             : ResolveSemanticEvidence(invocation, receiver, semanticModel);
-        if (semanticEvidence?.ReceiverType is not null)
+        if (receiver is not null && semanticModel?.GetTypeInfo(receiver).Type?.TypeKind == TypeKind.Dynamic)
+        {
+            receiverEvidence = new ReceiverEvidence("Dynamic", null, "semantic-model-dynamic", "Unknown");
+        }
+        else if (semanticEvidence?.ReceiverType is not null)
         {
             receiverEvidence = new ReceiverEvidence(
                 "TypedOrStatic",

@@ -109,6 +109,8 @@ public sealed class CSharpIndexer(
             }
         }
 
+        analysis.Semantic(semanticCatalog.GetSemanticDiagnostics(cancellationToken));
+
         PackageReferenceSnapshot? packageSnapshot = null;
         if (packageIndexingOptions?.Value.AllowProjectEvaluation == true)
         {
@@ -190,7 +192,7 @@ public sealed class CSharpIndexer(
             edges.GroupBy(edge => string.Join('|', edge.EvidenceKind ?? "unknown", edge.Resolver ?? "unknown",
                     edge.EvidenceReason ?? "unknown", edge.EvidenceDetails?.GetValueOrDefault("fileRole") ?? "Unknown"), StringComparer.Ordinal)
                 .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal))
-        { Analysis = analysis.Build() };
+        { Analysis = analysis.Build(callResolution.Stats, referenceResolution.Stats) };
         await PersistIndexRunAsync(client, logger, projectContext, stats, cancellationToken);
         if (packageSnapshot is not null)
         {

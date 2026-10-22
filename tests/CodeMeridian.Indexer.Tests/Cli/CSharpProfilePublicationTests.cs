@@ -21,6 +21,9 @@ public sealed class CSharpProfilePublicationTests : IDisposable
     [InlineData("class Main {}", true, 0, "succeeded", "unknown")]
     [InlineData("", true, 0, "succeeded", "unknown")]
     [InlineData("class Main {}", false, 0, "succeeded", "unknown")]
+    [InlineData("class Main { Missing field; void Run() { DoesNotExist(); } }", true, 0, "partial", "partial")]
+    [InlineData("class Main { void Run(dynamic receiver) { receiver.Execute(); } }", true, 0, "partial", "partial")]
+    [InlineData("class Main { void Run() { System.Console.WriteLine(); } }", true, 0, "succeeded", "unknown")]
     [InlineData("class {", true, 2, "partial", "partial")]
     [InlineData("using Alias = System.String; using Alias = System.Int32; class Main {}", true, 2, "partial", "partial")]
     public async Task TerminalOutcomesUseWorkerEvidence(string source, bool full, int exitCode, string state, string coverage)
@@ -39,6 +42,8 @@ public sealed class CSharpProfilePublicationTests : IDisposable
         terminal.Mode.Should().Be(full ? "full" : "delta");
         terminal.Limitations.Should().Contain(limit => limit.StartsWith("C# worker:"));
         terminal.Limitations.Should().Contain(limit => limit.Contains("unaudited"));
+        terminal.Limitations.Should().Contain(limit => limit.Contains("semantic errors"));
+        terminal.Limitations.Should().Contain(limit => limit.StartsWith("Observed relationships:"));
         terminal.SourceFingerprint.Should().Be(_snapshot!.Profile.SourceFingerprint);
         terminal.Fingerprint.Should().Be(_snapshot.Profile.Analyzers.Single(analyzer => analyzer.Id == "csharp").Fingerprint);
     }

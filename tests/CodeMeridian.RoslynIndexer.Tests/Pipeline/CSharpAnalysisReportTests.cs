@@ -28,6 +28,12 @@ public sealed class CSharpAnalysisReportTests : IDisposable
         stats.Analysis.ExitCode.Should().Be(0);
         stats.Analysis.Coverage.Should().Be("unknown");
         stats.Analysis.ProjectModel.Should().Be("synthetic_compilation");
+        stats.Analysis.SemanticErrors.Should().Be(0);
+        stats.Analysis.CallRelationships.Should().NotBeNull();
+        stats.Analysis.CallRelationships!.Attempted.Should().Be(0);
+        stats.Analysis.CallRelationships.HasValidAccounting.Should().BeTrue();
+        stats.Analysis.TypeRelationships.Should().NotBeNull();
+        stats.Analysis.TypeRelationships!.Attempted.Should().Be(0);
         _handler.Reports.Should().ContainSingle().Which.GetProperty("Coverage").GetString().Should().Be("unknown");
     }
 
@@ -64,6 +70,75 @@ public sealed class CSharpAnalysisReportTests : IDisposable
     }
 
     [Fact]
+    public async Task SemanticErrorsProducePartialEvidenceWithoutClaimingTheProjectBuildFailed()
+    {
+        var file = Write("Example.cs", "class Example { Missing field; void Run() { DoesNotExist(); } }");
+
+        var stats = await Indexer().IndexAsync([file], "Example", _root.FullName);
+
+        stats.Analysis!.ParseErrors.Should().Be(0);
+        stats.Analysis.SemanticErrors.Should().BeGreaterThan(0);
+        stats.Analysis.ExtractedFiles.Should().Be(1);
+        stats.Analysis.Coverage.Should().Be("partial");
+        stats.Analysis.ExitCode.Should().Be(0);
+        stats.Analysis.DiagnosticSamples.Should().Contain(diagnostic => diagnostic.Stage == "semantic"
+            && diagnostic.FilePath == "Example.cs" && diagnostic.Code == "CS0246" && diagnostic.LineNumber == 1);
+        stats.Analysis.Limitations.Should().Contain(limit => limit.Contains("synthetic compilation"));
+        _handler.Reports.Should().ContainSingle().Which.GetProperty("SemanticErrors").GetInt32().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task SemanticDiagnosticsAreBoundedAndContainNoSourceText()
+    {
+        var source = "class Example {\n" + string.Join('\n', Enumerable.Range(0, 20)
+            .Select(index => $"MissingSecretType{index} field{index};")) + "\n}";
+
+        var stats = await Indexer().IndexAsync([Write("Example.cs", source)], "Example", _root.FullName);
+
+        stats.Analysis!.SemanticErrors.Should().Be(20);
+        stats.Analysis.DiagnosticSamples.Should().HaveCount(8).And.OnlyContain(diagnostic =>
+            diagnostic.Stage == "semantic" && diagnostic.Code == "CS0246" && diagnostic.LineNumber >= 2);
+        JsonSerializer.Serialize(stats.Analysis).Should().NotContain("MissingSecretType");
+    }
+
+    [Theory]
+    [InlineData("class Example { void Run(dynamic receiver) { receiver.Execute(); } }")]
+    [InlineData("class Example { void Run(dynamic receiver) { receiver.Execute(); } void Execute() {} }")]
+    [InlineData("class Example { void Run() { var receiver = (dynamic)new object(); receiver.Execute(); } }")]
+    public async Task IndeterminateCallsProducePartialEvidenceEvenWithoutCompilerErrors(string source)
+    {
+        var file = Write("Example.cs", source);
+
+        var stats = await Indexer().IndexAsync([file], "Example", _root.FullName);
+
+        stats.Analysis!.SemanticErrors.Should().Be(0);
+        stats.Analysis.CallRelationships!.Attempted.Should().Be(1);
+        stats.Analysis.CallRelationships.Indeterminate.Should().Be(1);
+        stats.Analysis.CallRelationships.HasValidAccounting.Should().BeTrue();
+        stats.Analysis.Coverage.Should().Be("partial");
+        stats.Analysis.ExitCode.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ExternalCallsAndDuplicateLocalCallsHaveExplicitAccountingWithoutClaimingCompleteCoverage()
+    {
+        var file = Write("Example.cs", "class Example { void Run() { Save(); Save(); System.Console.WriteLine(); } void Save() {} }");
+
+        var stats = await Indexer().IndexAsync([file], "Example", _root.FullName);
+
+        stats.Analysis!.SemanticErrors.Should().Be(0);
+        var calls = stats.Analysis.CallRelationships!;
+        calls.Attempted.Should().Be(3);
+        calls.ResolvedLocal.Should().Be(2);
+        calls.ExternalOrUnindexed.Should().Be(1);
+        calls.DuplicateEdges.Should().Be(1);
+        calls.UniqueResolvedEdges.Should().Be(1);
+        calls.HasValidAccounting.Should().BeTrue();
+        stats.Analysis.Coverage.Should().Be("unknown");
+        _handler.Reports.Single().GetProperty("CallRelationships").GetProperty("Attempted").GetInt32().Should().Be(3);
+    }
+
+    [Fact]
     public async Task ExtractionFailureDoesNotPublishPartOfTheFailedFile()
     {
         // Duplicate aliases cause the existing syntax walker's alias map construction to fail.
@@ -75,7 +150,8 @@ public sealed class CSharpAnalysisReportTests : IDisposable
         stats.Analysis!.ReadFiles.Should().Be(1);
         stats.Analysis.ExtractedFiles.Should().Be(0);
         stats.Analysis.FailedFiles.Should().Be(1);
-        stats.Analysis.DiagnosticSamples.Should().ContainSingle().Which.Stage.Should().Be("extract");
+        stats.Analysis.DiagnosticSamples.Where(diagnostic => diagnostic.Stage == "extract")
+            .Should().ContainSingle();
         stats.Analysis.ExitCode.Should().Be(2);
     }
 

@@ -8,9 +8,13 @@ namespace CodeMeridian.RoslynIndexer.Pipeline;
 internal sealed class CSharpSemanticModelCatalog
 {
     private readonly IReadOnlyDictionary<string, CSharpSemanticFile> _files;
+    private readonly CSharpCompilation _compilation;
 
-    private CSharpSemanticModelCatalog(IReadOnlyDictionary<string, CSharpSemanticFile> files) =>
+    private CSharpSemanticModelCatalog(IReadOnlyDictionary<string, CSharpSemanticFile> files, CSharpCompilation compilation)
+    {
         _files = files;
+        _compilation = compilation;
+    }
 
     public static CSharpSemanticModelCatalog Create(IReadOnlyDictionary<string, string> sources)
     {
@@ -63,13 +67,20 @@ internal sealed class CSharpSemanticModelCatalog
                 compilation.GetSemanticModel(tree, ignoreAccessibility: true)),
             StringComparer.OrdinalIgnoreCase);
 
-        return new CSharpSemanticModelCatalog(semanticFiles);
+        return new CSharpSemanticModelCatalog(semanticFiles, compilation);
     }
 
     public CSharpSemanticFile? Find(FileInfo file) =>
         _files.GetValueOrDefault(Path.GetFullPath(file.FullName));
 
     public IEnumerable<CompilationUnitSyntax> Roots => _files.Values.Select(file => file.Root);
+
+    // Query the compilation once per stage rather than compiling each file independently.
+    // Parse diagnostics are reported separately; synthetic imports and location-free errors
+    // are retained as compilation limitations, never evaluated-project build failures.
+    public IEnumerable<Diagnostic> GetSemanticDiagnostics(CancellationToken cancellationToken) =>
+        _compilation.GetDeclarationDiagnostics(cancellationToken)
+            .Concat(_compilation.GetMethodBodyDiagnostics(cancellationToken));
 
     private static IEnumerable<MetadataReference> BuildRuntimeReferences()
     {
