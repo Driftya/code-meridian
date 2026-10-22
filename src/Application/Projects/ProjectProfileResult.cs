@@ -31,6 +31,7 @@ public sealed record ProjectProfileResult(
         text.AppendLine($"**Observed:** {Profile.ObservedAt:O} | **Published:** {PublishedAt:O}");
         text.AppendLine($"**Revision:** {Profile.Revision?.Commit ?? "unknown"} | **Dirty at discovery:** {Profile.Revision?.Dirty?.ToString().ToLowerInvariant() ?? "unknown"}");
         text.AppendLine($"**Configuration fingerprint:** {Profile.ConfigurationFingerprint ?? "unknown"}");
+        text.AppendLine($"**Source fingerprint:** {Profile.SourceFingerprint ?? "unknown"}");
         text.AppendLine($"**Files:** {Profile.FileCount} | **Root records:** {Profile.AnalysisRoots.Count} of {Profile.AnalysisRootCount}");
         text.AppendLine("Discovery and analyzer completion are separate facts. Readiness requires successful coverage of the requested scope.");
         text.AppendLine();
@@ -48,7 +49,7 @@ public sealed record ProjectProfileResult(
                 : "  Implementation/parser fingerprints: unknown");
         }
         foreach (var outcome in AnalyzerOutcomes)
-            text.AppendLine($"- {outcome.Analyzer} scope `{outcome.Scope}`: state={outcome.State}, coverage={outcome.Coverage}, mode={outcome.Mode}");
+            text.AppendLine($"- {outcome.Analyzer} scope `{outcome.Scope}`: state={outcome.State}, coverage={outcome.Coverage}, mode={outcome.Mode}, source={outcome.SourceFingerprint ?? "unknown"}");
         foreach (var warning in Warnings) text.AppendLine($"- {warning}");
         return text.ToString();
     }

@@ -23,6 +23,16 @@ function application(publish = vi.fn().mockResolvedValue(undefined)) {
 }
 
 describe('SQL publication and cache', () => {
+  it('invalidates its own cache when the actual worker or parser identity changes', async () => {
+    const options = fixture(); const { app, publish } = application();
+    options.workerFingerprint = { implementation: 'worker-v1', parser: 'parser-v1' };
+    await app.run(options); await app.run(options);
+    expect(publish).toHaveBeenCalledTimes(1);
+    await app.run({ ...options, workerFingerprint: { ...options.workerFingerprint, parser: 'parser-v2' } });
+    await app.run({ ...options, workerFingerprint: { implementation: 'worker-v2', parser: 'parser-v2' } });
+    expect(publish).toHaveBeenCalledTimes(3);
+  });
+
   it('skips unchanged runs and reanalyzes unchanged references after declaration changes', async () => {
     const options = fixture(); const { app, publish } = application();
     expect(await app.run(options)).toBe(0);

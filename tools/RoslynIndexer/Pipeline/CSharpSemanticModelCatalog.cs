@@ -12,18 +12,18 @@ internal sealed class CSharpSemanticModelCatalog
     private CSharpSemanticModelCatalog(IReadOnlyDictionary<string, CSharpSemanticFile> files) =>
         _files = files;
 
-    public static CSharpSemanticModelCatalog Create(IEnumerable<FileInfo> files)
+    public static CSharpSemanticModelCatalog Create(IReadOnlyDictionary<string, string> sources)
     {
-        var sourceFiles = files.ToArray();
+        var sourceFiles = sources.Keys.Select(path => new FileInfo(path)).ToArray();
         var projectInputs = CSharpSemanticProjectInputs.Read(sourceFiles);
         var parseOptions = new CSharpParseOptions(
             LanguageVersion.Preview,
             DocumentationMode.Parse);
-        var trees = sourceFiles
-            .Select(file => CSharpSyntaxTree.ParseText(
-                File.ReadAllText(file.FullName),
+        var trees = sources
+            .Select(source => CSharpSyntaxTree.ParseText(
+                source.Value,
                 parseOptions,
-                file.FullName,
+                source.Key,
                 Encoding.UTF8))
             .ToArray();
         IEnumerable<SyntaxTree> compilationTrees = trees;
@@ -68,6 +68,8 @@ internal sealed class CSharpSemanticModelCatalog
 
     public CSharpSemanticFile? Find(FileInfo file) =>
         _files.GetValueOrDefault(Path.GetFullPath(file.FullName));
+
+    public IEnumerable<CompilationUnitSyntax> Roots => _files.Values.Select(file => file.Root);
 
     private static IEnumerable<MetadataReference> BuildRuntimeReferences()
     {

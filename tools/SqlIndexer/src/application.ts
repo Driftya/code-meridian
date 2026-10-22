@@ -6,6 +6,7 @@ import type { SqlAnalysisResult, SqlGraphSnapshot, SqlSettings, SqlSource } from
 import { SqlDialectRegistry } from './dialect-registry.js';
 import { mapSqlGraph } from './graph-mapper.js';
 import { selectSqlSource } from './settings.js';
+import type { WorkerIdentity } from '../../IndexerShared/dist/index.js';
 
 export interface SqlRunOptions {
   root: string;
@@ -15,6 +16,7 @@ export interface SqlRunOptions {
   settings: SqlSettings;
   cacheFile: string;
   force?: boolean;
+  workerFingerprint?: WorkerIdentity['fingerprint'];
 }
 
 export class SqlIndexerApplication {
@@ -44,6 +46,7 @@ export class SqlIndexerApplication {
     // Validate defaults even for an empty inventory, before permitting deletion.
     this.registry.resolve(options.settings.defaultDialect);
     const fingerprint = createHash('sha256').update(JSON.stringify({ contract: '1', settings: options.settings,
+      worker: options.workerFingerprint,
       defaultAnalyzer: this.registry.resolve(options.settings.defaultDialect).versionFingerprint,
       project: options.project, server: options.serverUrl,
       sources: [...groups].map(([dialect, sources]) => [this.registry.resolve(dialect).versionFingerprint, sources]) })).digest('hex');

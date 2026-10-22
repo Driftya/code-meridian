@@ -31,6 +31,17 @@ public sealed class ProjectAnalyzerOutcomeSnapshotTests
         (Snapshot() with { Outcomes = [Outcome() with { Scope = "../outside" }] }).Validate().Should().NotBeNull();
         (Snapshot() with { Outcomes = [Outcome(), Outcome()] }).Validate().Should().NotBeNull();
         (Snapshot() with { Outcomes = [Outcome() with { Fingerprint = new("cli/1.0", "unknown") }] }).Validate().Should().NotBeNull();
+        (Snapshot() with { Outcomes = [Outcome() with { SourceFingerprint = "sha256:abc" }] }).Validate().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void SourceBindingIsOptionalForLegacyUploadsAndRoundTripsWhenKnown()
+    {
+        Snapshot().Validate().Should().BeNull();
+        var snapshot = Snapshot() with { Outcomes = [Outcome() with { SourceFingerprint = "sha256:" + new string('a', 64) }] };
+        snapshot.Validate().Should().BeNull();
+        var decoded = System.Text.Json.JsonSerializer.Deserialize<ProjectAnalyzerOutcomeSnapshot>(System.Text.Json.JsonSerializer.Serialize(snapshot))!;
+        decoded.Outcomes.Single().SourceFingerprint.Should().Be(snapshot.Outcomes.Single().SourceFingerprint);
     }
 
     private static ProjectAnalyzerOutcome Outcome() => new("documents", ".", "succeeded", "complete", "full", DateTimeOffset.UtcNow, "cli/test", []);

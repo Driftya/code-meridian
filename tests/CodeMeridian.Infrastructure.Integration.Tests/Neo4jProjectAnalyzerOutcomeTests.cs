@@ -26,6 +26,11 @@ public sealed class Neo4jProjectAnalyzerOutcomeTests
             await mismatched.Should().ThrowAsync<ProjectProfileConflictException>();
             var missingFingerprint = () => repository.PublishOutcomesAsync(running with { Outcomes = [running.Outcomes[0] with { Fingerprint = null }] });
             await missingFingerprint.Should().ThrowAsync<ProjectProfileConflictException>();
+            var mismatchedSource = () => repository.PublishOutcomesAsync(running with { Outcomes = [running.Outcomes[0] with
+                { SourceFingerprint = "sha256:" + new string('b', 64) }] });
+            await mismatchedSource.Should().ThrowAsync<ProjectProfileConflictException>();
+            var missingSource = () => repository.PublishOutcomesAsync(running with { Outcomes = [running.Outcomes[0] with { SourceFingerprint = null }] });
+            await missingSource.Should().ThrowAsync<ProjectProfileConflictException>();
             await repository.PublishOutcomesAsync(running);
             var completed = running with { Outcomes = [Outcome(".", "succeeded", "complete")] };
             await repository.PublishOutcomesAsync(completed);
@@ -37,6 +42,7 @@ public sealed class Neo4jProjectAnalyzerOutcomeTests
             await using var restarted = new Neo4jProjectProfileRepository(Options.Create(options));
             (await restarted.GetAsync(project))!.AnalyzerOutcomes.Should().HaveCount(3);
             (await restarted.GetAsync(project))!.AnalyzerOutcomes.Should().OnlyContain(outcome => outcome.Fingerprint == Fingerprint());
+            (await restarted.GetAsync(project))!.AnalyzerOutcomes.Should().OnlyContain(outcome => outcome.SourceFingerprint == Fingerprint().Implementation);
             var invalidScope = () => repository.PublishOutcomesAsync(new(project, generation, [Outcome("missing", "succeeded", "complete")]));
             await invalidScope.Should().ThrowAsync<ArgumentException>();
             var unsupported = () => repository.PublishOutcomesAsync(new(project, generation,
@@ -59,10 +65,12 @@ public sealed class Neo4jProjectAnalyzerOutcomeTests
     }
 
     private static ProjectAnalyzerOutcome Outcome(string scope, string state, string coverage) =>
-        new("documents", scope, state, coverage, "full", DateTimeOffset.UtcNow, "cli/test", []) { Fingerprint = Fingerprint() };
+        new("documents", scope, state, coverage, "full", DateTimeOffset.UtcNow, "cli/test", [])
+            { Fingerprint = Fingerprint(), SourceFingerprint = Fingerprint().Implementation };
     private static ProjectAnalyzerFingerprint Fingerprint() => new("sha256:" + new string('a', 64), "sha256:" + new string('a', 64));
     private static ProjectProfileSnapshot Inventory(string project, long generation) => new(generation,
         new(project, DateTimeOffset.UtcNow, "complete", 2, [new("markdown", 2, ["docs/story/chapter.md", "docs/support/README.md"])], [], 0,
-            [new("documents", true, "enabled", "unknown", ["document_search"], []) { Fingerprint = Fingerprint() }, new("powershell", false, "unsupported", "unknown", [], [])], [], 0),
+            [new("documents", true, "enabled", "unknown", ["document_search"], []) { Fingerprint = Fingerprint() }, new("powershell", false, "unsupported", "unknown", [], [])], [], 0)
+            { SourceFingerprint = Fingerprint().Implementation },
         [new("docs/story/chapter.md", "markdown"), new("docs/support/README.md", "markdown")]);
 }

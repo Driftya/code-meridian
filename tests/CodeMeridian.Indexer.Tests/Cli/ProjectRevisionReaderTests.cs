@@ -83,6 +83,7 @@ public sealed class ProjectRevisionReaderTests : IDisposable
         var settings = new ResolvedIndexerSettings { RootPath = _root, Project = "Fixture", CodeMeridianUrl = "http://localhost",
             StorageMode = IndexerStorageMode.Repository, SkipCSharp = true, SkipTypeScript = true, SkipConfiguration = true };
         var snapshot = new LocalProjectProfileBuilder(new RepositoryInventoryDiscovery()).BuildSnapshot(settings, 3);
+        snapshot = snapshot with { Profile = snapshot.Profile with { SourceFingerprint = "sha256:" + new string('a', 64) } };
         var cache = IncrementalIndexCache.Load(new DirectoryInfo(Path.Combine(_root.FullName, ".meridian", "cache")), "Fixture");
         cache.Save(cache.BuildPlan(_root, [new FileInfo(file)], forceFull: true), settings.CodeMeridianUrl, 3, snapshot.Profile.ObservedAt);
         var reporter = new IndexProfileRunReporter(new(new RepositoryInventoryDiscovery()))

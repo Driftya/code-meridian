@@ -11,4 +11,5 @@ public sealed record ProjectAnalyzerOutcome(
     IReadOnlyList<string> Limitations)
 {
     public ProjectAnalyzerFingerprint? Fingerprint { get; init; }
+    public string? SourceFingerprint { get; init; }
 }

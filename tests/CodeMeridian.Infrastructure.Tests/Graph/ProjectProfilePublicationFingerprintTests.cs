@@ -20,9 +20,30 @@ public sealed class ProjectProfilePublicationFingerprintTests
         ProjectProfilePublicationFingerprint.Legacy(snapshot).Should().Be(expected);
     }
 
+    [Fact]
+    public void PreSourceBindingRetriesPreserveRevisionConfigurationAndAnalyzerMetadata()
+    {
+        var snapshot = Snapshot();
+        var hash = "sha256:" + new string('a', 64);
+        snapshot = snapshot with { Profile = snapshot.Profile with
+        {
+            Revision = new(new string('a', 40), false), ConfigurationFingerprint = hash,
+            Analyzers = [snapshot.Profile.Analyzers[0] with { Fingerprint = new(hash, hash) }]
+        } };
+        // Reproduce the previous payload by removing only the newly added optional property.
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        var payload = System.Text.Json.JsonSerializer.Serialize(snapshot, options)
+            .Replace(",\"sourceFingerprint\":null", "", StringComparison.Ordinal);
+        var expected = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
+        ProjectProfilePublicationFingerprint.BeforeSourceBinding(snapshot).Should().Be(expected);
+        ProjectProfilePublicationFingerprint.BeforeSourceBinding(snapshot with { Profile = snapshot.Profile with { SourceFingerprint = hash } })
+            .Should().BeNull();
+    }
+
     [Theory]
     [InlineData("revision")]
     [InlineData("configuration")]
+    [InlineData("source")]
     [InlineData("analyzer")]
     public void KnownMetadataCannotBeStrippedToAcceptAConflictingRetry(string metadata)
     {
@@ -33,6 +54,7 @@ public sealed class ProjectProfilePublicationFingerprintTests
         {
             "revision" => profile with { Revision = new(new string('a', 40), false) },
             "configuration" => profile with { ConfigurationFingerprint = hash },
+            "source" => profile with { SourceFingerprint = hash },
             _ => profile with { Analyzers = [profile.Analyzers[0] with { Fingerprint = new(hash, hash) }] }
         } };
 

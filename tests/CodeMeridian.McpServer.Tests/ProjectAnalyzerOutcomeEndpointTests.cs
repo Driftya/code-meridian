@@ -26,10 +26,11 @@ public sealed class ProjectAnalyzerOutcomeEndpointTests
         var profile = new ProjectProfile("Docs", DateTimeOffset.UtcNow, "complete", 1,
             [new("markdown", 1, ["chapter.md"])], [], 0,
             [new("documents", true, "enabled", "unknown", ["document_search"], []) { Fingerprint = fingerprint }], [], 0)
-        { Revision = new(new string('a', 40), true), ConfigurationFingerprint = hash };
+        { Revision = new(new string('a', 40), true), ConfigurationFingerprint = hash, SourceFingerprint = hash };
         repository.GetAsync("Docs", Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(
             new StoredProjectProfile(1, 1, DateTimeOffset.UtcNow, profile, new("chapter.md", "markdown"))
-            { AnalyzerOutcomes = [new("documents", ".", "succeeded", "complete", "full", DateTimeOffset.UtcNow, "cli/test", []) { Fingerprint = fingerprint }] });
+            { AnalyzerOutcomes = [new("documents", ".", "succeeded", "complete", "full", DateTimeOffset.UtcNow, "cli/test", [])
+                { Fingerprint = fingerprint, SourceFingerprint = hash }] });
         var vector = Substitute.For<IVectorRepository>();
         var graph = Substitute.For<ICodeGraphRepository>();
         graph.GetContextForEditingAsync("Docs::Class::Chapter", Arg.Any<CancellationToken>()).Returns(new EditingContext(
@@ -52,6 +53,8 @@ public sealed class ProjectAnalyzerOutcomeEndpointTests
         facts.StructuredContent!.Value.GetProperty("analyzerOutcomes")[0].GetProperty("coverage").GetString().Should().Be("complete");
         facts.StructuredContent.Value.GetProperty("profile").GetProperty("revision").GetProperty("dirty").GetBoolean().Should().BeTrue();
         facts.StructuredContent.Value.GetProperty("profile").GetProperty("configurationFingerprint").GetString().Should().Be(hash);
+        facts.StructuredContent.Value.GetProperty("profile").GetProperty("sourceFingerprint").GetString().Should().Be(hash);
+        facts.StructuredContent.Value.GetProperty("analyzerOutcomes")[0].GetProperty("sourceFingerprint").GetString().Should().Be(hash);
         facts.StructuredContent.Value.GetProperty("analyzerOutcomes")[0].GetProperty("fingerprint").GetProperty("parser").GetString().Should().Be(hash);
         facts.Content.OfType<TextContentBlock>().Single().Text.Should().Contain("parser fingerprint");
         var tool = (await client.ListToolsAsync()).Single(item => item.Name == "get_project_profile");
@@ -59,6 +62,7 @@ public sealed class ProjectAnalyzerOutcomeEndpointTests
         http.DefaultRequestHeaders.Authorization = new("Bearer", GraphQlWebApplicationFactory.ApiKey);
         var api = await new CodeMeridianClient(http).GetProjectProfileAsync("Docs");
         api.Profile!.Value.GetProperty("revision").GetProperty("commit").GetString().Should().Be(profile.Revision!.Commit);
+        api.Profile.Value.GetProperty("sourceFingerprint").GetString().Should().Be(hash);
         var impact = await client.CallToolAsync("find_impact", new Dictionary<string, object?> { ["nodeId"] = "Docs::Class::Chapter" });
         impact.IsError.Should().NotBe(true);
         impact.StructuredContent!.Value.GetProperty("applicability").GetProperty("status").GetString().Should().Be("not_applicable");
@@ -79,12 +83,14 @@ public sealed class ProjectAnalyzerOutcomeEndpointTests
         using var http = factory.CreateClient();
         var snapshot = new ProjectAnalyzerOutcomeSnapshot("Docs", 1,
             [new("documents", ".", "succeeded", "complete", "full", DateTimeOffset.UtcNow, "cli/test", [])
-                { Fingerprint = new("sha256:" + new string('a', 64), "sha256:" + new string('a', 64)) }]);
+                { Fingerprint = new("sha256:" + new string('a', 64), "sha256:" + new string('a', 64)),
+                    SourceFingerprint = "sha256:" + new string('a', 64) }]);
         (await http.PostAsJsonAsync("/api/v1/project-profiles/outcomes", snapshot)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         http.DefaultRequestHeaders.Authorization = new("Bearer", GraphQlWebApplicationFactory.ApiKey);
         await new CodeMeridianClient(http).PublishProjectAnalyzerOutcomesAsync(snapshot);
         await repository.Received(1).PublishOutcomesAsync(Arg.Is<ProjectAnalyzerOutcomeSnapshot>(s => s.Generation == 1
-            && s.Outcomes[0].Fingerprint == snapshot.Outcomes[0].Fingerprint), Arg.Any<CancellationToken>());
+            && s.Outcomes[0].Fingerprint == snapshot.Outcomes[0].Fingerprint
+            && s.Outcomes[0].SourceFingerprint == snapshot.Outcomes[0].SourceFingerprint), Arg.Any<CancellationToken>());
         (await http.PostAsJsonAsync("/api/v1/project-profiles/outcomes", snapshot with {
             Outcomes = [snapshot.Outcomes[0] with { Mode = "delta" }]
         })).StatusCode.Should().Be(HttpStatusCode.BadRequest);

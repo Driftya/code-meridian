@@ -49,6 +49,7 @@ public sealed class ProjectProfileSnapshotTests
     {
         var snapshot = Snapshot();
         (snapshot with { Profile = snapshot.Profile with { ConfigurationFingerprint = value } }).Validate().Should().NotBeNull();
+        (snapshot with { Profile = snapshot.Profile with { SourceFingerprint = value } }).Validate().Should().NotBeNull();
         (snapshot with { Profile = snapshot.Profile with { Analyzers = [snapshot.Profile.Analyzers[0] with
             { Fingerprint = new(value, value) }] } }).Validate().Should().NotBeNull();
     }
@@ -61,12 +62,13 @@ public sealed class ProjectProfileSnapshotTests
         var fingerprint = "sha256:" + new string('a', 64);
         var enriched = snapshot with { Profile = snapshot.Profile with
         {
-            Revision = new(new string('a', 40), true), ConfigurationFingerprint = fingerprint,
+            Revision = new(new string('a', 40), true), ConfigurationFingerprint = fingerprint, SourceFingerprint = fingerprint,
             Analyzers = [snapshot.Profile.Analyzers[0] with { Fingerprint = new(fingerprint, fingerprint) }]
         } };
         enriched.Validate().Should().BeNull();
         var decoded = System.Text.Json.JsonSerializer.Deserialize<ProjectProfileSnapshot>(System.Text.Json.JsonSerializer.Serialize(enriched))!;
         decoded.Profile.Revision.Should().Be(enriched.Profile.Revision);
+        decoded.Profile.SourceFingerprint.Should().Be(enriched.Profile.SourceFingerprint);
         decoded.Profile.Analyzers[0].Fingerprint.Should().Be(enriched.Profile.Analyzers[0].Fingerprint);
         (snapshot with { Profile = snapshot.Profile with { Revision = new("not-a-commit", false) } }).Validate().Should().NotBeNull();
     }

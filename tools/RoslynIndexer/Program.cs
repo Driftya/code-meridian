@@ -108,7 +108,8 @@ internal sealed class RoslynIndexCommandHandler(IOptions<RoslynIndexerSettings> 
         await using var provider = services.BuildServiceProvider();
         var pipeline = provider.GetRequiredService<IndexerPipeline>();
 
-        await pipeline.RunAsync(_settings.RootPath, _settings.Project, _settings.Clear);
+        var stats = await pipeline.RunAsync(_settings.RootPath, _settings.Project, _settings.Clear);
+        if (stats.Analysis!.ExitCode != 0) return stats.Analysis.ExitCode;
 
         if (!_settings.Watch)
             return 0;

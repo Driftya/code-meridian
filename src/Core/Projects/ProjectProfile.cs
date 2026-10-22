@@ -16,4 +16,5 @@ public sealed record ProjectProfile(
     public string EvidenceSource { get; init; } = "local_discovery";
     public ProjectRepositoryRevision? Revision { get; init; }
     public string? ConfigurationFingerprint { get; init; }
+    public string? SourceFingerprint { get; init; }
 }

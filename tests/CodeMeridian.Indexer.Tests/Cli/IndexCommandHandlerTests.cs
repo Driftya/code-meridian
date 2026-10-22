@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using CodeMeridian.Core.Projects;
 using CodeMeridian.Indexer.Cli.Commands;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Tooling.Discovery;
@@ -167,6 +168,7 @@ public sealed class IndexCommandHandlerTests
             settings.CodeMeridianUrl, 3, observedAt);
         var handler = CreateHandler(settings, new IndexProfileRunReporter(new(new RepositoryInventoryDiscovery()))
         {
+            WorkerFingerprintReader = (_, _) => Task.FromResult<ProjectAnalyzerFingerprint?>(WorkerFingerprint),
             HttpClientFactory = (url, _) => new HttpClient(new CurrentProfileHandler(observedAt, settings)) { BaseAddress = new Uri(url) }
         });
         using var output = new StringWriter();
@@ -526,6 +528,9 @@ public sealed class IndexCommandHandlerTests
 
     private sealed record TypeScriptBatchEntry(string Path, string FileRole);
 
+    private static readonly ProjectAnalyzerFingerprint WorkerFingerprint =
+        new("sha256:" + new string('a', 64), "sha256:" + new string('b', 64));
+
     private sealed class CurrentProfileHandler(DateTimeOffset observedAt, ResolvedIndexerSettings settings) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
@@ -535,7 +540,9 @@ public sealed class IndexCommandHandlerTests
                 {
                     status = "available", project = "CodeMeridian", generation = 3, latestGeneration = 3,
                     profile = new { observedAt, configurationFingerprint = ProjectAnalysisFingerprints.Configuration(settings),
-                        analyzers = LocalProjectProfileBuilder.BuildAnalyzers(settings) }, contractVersion = "1.0"
+                        sourceFingerprint = "sha256:" + new string('a', 64),
+                        analyzers = LocalProjectProfileBuilder.BuildAnalyzers(settings).Select(analyzer =>
+                            NodeWorkerIdentity.IsWorker(analyzer.Id) ? analyzer with { Fingerprint = WorkerFingerprint } : analyzer) }, contractVersion = "1.0"
                 })
             });
     }

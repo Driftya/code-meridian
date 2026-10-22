@@ -9,11 +9,12 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
         FileInfo[] files,
         string projectContext,
         string rootPath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<FileInfo, CancellationToken, Task<string>>? readContent = null)
     {
         var count = 0;
         var failedFiles = 0;
-        var mcpToolFiles = DocumentMcpToolReferenceExtractor.BuildMcpToolFileMap(rootPath, projectContext);
+        var mcpToolFiles = await DocumentMcpToolReferenceExtractor.BuildMcpToolFileMapAsync(rootPath, projectContext, cancellationToken, readContent);
 
         foreach (var file in files)
         {
@@ -21,7 +22,8 @@ public sealed partial class DocumentIndexerPipeline(CodeMeridianClient client, I
             try
             {
                 var relPath = Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/');
-                var content = await File.ReadAllTextAsync(file.FullName, cancellationToken);
+                var content = readContent is null ? await File.ReadAllTextAsync(file.FullName, cancellationToken)
+                    : await readContent(file, cancellationToken);
 
                 if (string.IsNullOrWhiteSpace(content))
                     continue;

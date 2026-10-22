@@ -15,5 +15,8 @@ public sealed record IndexStats(
     string Mode,
     bool UsedFullResolutionCatalog,
     IReadOnlyDictionary<string, int> EdgeEvidenceCounts,
-    IReadOnlyDictionary<string, int> EdgeEvidenceGroups);
+    IReadOnlyDictionary<string, int> EdgeEvidenceGroups)
+{
+    public CSharpAnalysisReport? Analysis { get; init; }
+}
 public sealed record DocumentStats(int Documents);

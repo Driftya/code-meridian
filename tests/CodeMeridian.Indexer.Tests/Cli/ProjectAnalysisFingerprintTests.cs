@@ -29,7 +29,7 @@ public sealed class ProjectAnalysisFingerprintTests
     [InlineData("frontend")]
     [InlineData("sql")]
     [InlineData("powershell")]
-    public void UnauditedWorkersHaveUnknownFingerprints(string analyzer) =>
+    public void LocalDiscoveryDoesNotInventWorkerFingerprints(string analyzer) =>
         ProjectAnalysisFingerprints.Analyzer(analyzer).Should().BeNull();
 
     [Fact]

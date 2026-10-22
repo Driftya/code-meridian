@@ -59,6 +59,7 @@ public sealed partial class Neo4jProjectProfileRepository : IProjectProfileRepos
         var inputJson = JsonSerializer.Serialize(snapshot, JsonOptions);
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(inputJson)));
         var legacyFingerprint = ProjectProfilePublicationFingerprint.Legacy(snapshot);
+        var beforeSourceFingerprint = ProjectProfilePublicationFingerprint.BeforeSourceBinding(snapshot);
         var profileJson = JsonSerializer.Serialize(snapshot.Profile with { EvidenceSource = "uploaded_discovery" }, JsonOptions);
         var project = snapshot.Profile.Project;
         await using var session = _driver.AsyncSession();
@@ -79,7 +80,8 @@ public sealed partial class Neo4jProjectProfileRepository : IProjectProfileRepos
             var oldFingerprint = record["fingerprint"].As<string?>();
             await cursor.ConsumeAsync();
             if (snapshot.Generation == published && (oldFingerprint == fingerprint
-                || legacyFingerprint is not null && oldFingerprint == legacyFingerprint)) return;
+                || legacyFingerprint is not null && oldFingerprint == legacyFingerprint
+                || beforeSourceFingerprint is not null && oldFingerprint == beforeSourceFingerprint)) return;
             if (snapshot.Generation <= published || snapshot.Generation > latest)
                 throw new ProjectProfileConflictException("The generation is stale, unreserved, or already published with different content.");
 

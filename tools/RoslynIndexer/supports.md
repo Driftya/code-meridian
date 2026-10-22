@@ -45,6 +45,9 @@ This file is the quick reference for what the Roslyn indexer currently parses an
 
 ## Notes
 
+- Each run returns a versioned execution report with requested/read/extracted/failed/skipped file totals, parse-error counts, and at most eight diagnostic locations and codes. The informational `IndexRun` diagnostic stores the report; generation-scoped analyzer outcomes carry its totals and semantic limitations.
+- The unified CLI supplies C# source from the same snapshot-verified byte buffer used for content binding. Constants and semantic/syntax extraction share that read. Read, extraction, or parse failures return exit code 2 and prevent cache advancement. Intentionally skipped generated inputs produce partial coverage without failing an otherwise successful run.
+- Successful extraction, including a file with no dependency edges, retains unknown semantic coverage. The synthetic compilation is not an evaluated project compilation; project membership and complete definition/dependency coverage remain unaudited. Neither these execution reports nor verified source reads enable callable readiness on their own.
 - The indexer is syntax-driven. It does not require semantic compilation to walk a file.
 - Type resolution is name-based and intentionally conservative when multiple candidates share a name.
 - Call and type-reference candidates are classified as resolved local, external/unindexed, unresolved local, or indeterminate. Framework/package targets are not promised as graph nodes and do not reduce local relationship confidence.

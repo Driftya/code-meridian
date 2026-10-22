@@ -118,6 +118,7 @@ public sealed class IndexProfileReconciliationTests : IDisposable
     [InlineData("parser")]
     [InlineData("missing")]
     [InlineData("legacy")]
+    [InlineData("source")]
     public async Task ChangedOrMissingAnalysisMetadataRefreshesAnOtherwiseMatchingCache(string metadataChange)
     {
         SeedCache();
@@ -139,6 +140,28 @@ public sealed class IndexProfileReconciliationTests : IDisposable
         _outcomes.SelectMany(snapshot => snapshot.Outcomes).Select(outcome => outcome.State)
             .Should().Equal("running", "succeeded");
         CacheContents().Should().Be(before);
+    }
+
+    [Theory]
+    [InlineData("changed")]
+    [InlineData("deleted")]
+    [InlineData("added")]
+    public async Task SourceMutationBeforeAnalysisDoesNotAdvanceCache(string change)
+    {
+        SeedCache();
+        var path = Path.Combine(_root.FullName, "chapter.md");
+        File.WriteAllText(path, "# Before");
+        var before = CacheContents();
+        var reporter = Reporter(status: "unknown", onRunningOutcome: () =>
+        {
+            if (change == "changed") File.WriteAllText(path, "# Changed");
+            else if (change == "deleted") File.Delete(path);
+            else File.WriteAllText(Path.Combine(_root.FullName, "added.md"), "# Added");
+        });
+        var result = await Handler(reporter).RunAsync();
+        result.Should().Be(2);
+        CacheContents().Should().Be(before);
+        _outcomes.Last().Outcomes.Should().OnlyContain(outcome => outcome.State == "failed" && outcome.Coverage == "unknown");
     }
 
     [Theory]
@@ -179,7 +202,8 @@ public sealed class IndexProfileReconciliationTests : IDisposable
     }
 
     private IndexProfileRunReporter Reporter(string status = "available", long? generation = 3, long? latest = 3,
-        DateTimeOffset? observedAt = null, string? failAt = null, string? metadataChange = null) => new(new(new RepositoryInventoryDiscovery()))
+        DateTimeOffset? observedAt = null, string? failAt = null, string? metadataChange = null,
+        Action? onRunningOutcome = null) => new(new(new RepositoryInventoryDiscovery()))
     {
         HttpClientFactory = (_, _) => new HttpClient(new Respond(async request =>
         {
@@ -192,11 +216,13 @@ public sealed class IndexProfileReconciliationTests : IDisposable
                     profile = new { observedAt = observedAt ?? _observedAt,
                         configurationFingerprint = metadataChange == "legacy" ? null : metadataChange == "configuration"
                             ? "sha256:" + new string('b', 64) : ProjectAnalysisFingerprints.Configuration(Settings()),
+                        sourceFingerprint = metadataChange == "source" ? null : "sha256:" + new string('a', 64),
                         analyzers = PublishedAnalyzers(metadataChange) }, contractVersion = "1.0"
                 }) };
             if (request.RequestUri.AbsolutePath.EndsWith("/outcomes"))
             {
                 _outcomes.Add((await request.Content!.ReadFromJsonAsync<ProjectAnalyzerOutcomeSnapshot>())!);
+                if (_outcomes.Last().Outcomes.Any(outcome => outcome.State == "running")) onRunningOutcome?.Invoke();
                 if (failAt == "terminal-outcome" && _outcomes.Last().Outcomes.Any(outcome => outcome.State != "running"))
                     return new(HttpStatusCode.ServiceUnavailable);
             }

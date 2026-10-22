@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using CodeMeridian.Core.Projects;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Tooling.Discovery;
 
@@ -10,15 +11,7 @@ internal static class SqlIndexRunCoordinator
     public static bool IsEnabled(ResolvedIndexerSettings settings) =>
         settings.Sql?.Enabled == true && !settings.SkipSql && !settings.ExternalOnly;
 
-    public static DirectoryInfo? ResolveWorkerRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = new DirectoryInfo(Path.Combine(directory.FullName, "tools", "SqlIndexer"));
-            if (File.Exists(Path.Combine(candidate.FullName, "package.json"))) return candidate;
-        }
-        return null;
-    }
+    public static DirectoryInfo? ResolveWorkerRoot() => NodeWorkerIdentity.ResolveRoot("sql");
 
     public static IReadOnlyList<FileInfo> SelectFiles(DirectoryInfo root) =>
         root.EnumerateFiles("*", SearchOption.AllDirectories)
@@ -40,7 +33,7 @@ internal static class SqlIndexRunCoordinator
     }
 
     public static async Task<int> RunAsync(ResolvedIndexerSettings settings, DirectoryInfo cacheDirectory, bool force,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, ProjectAnalyzerFingerprint? fingerprint = null)
     {
         var worker = ResolveWorkerRoot() ?? throw new InvalidOperationException("SQL worker assets are missing from this CLI package.");
         // A tsx in another workspace does not establish that SQL parser assets exist.
@@ -74,6 +67,7 @@ internal static class SqlIndexRunCoordinator
         using var process = new Process { StartInfo = new ProcessStartInfo(tsx) { WorkingDirectory = worker.FullName, UseShellExecute = false } };
         foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
         if (!string.IsNullOrWhiteSpace(settings.ApiKey)) process.StartInfo.Environment["CODEMERIDIAN_API_KEY"] = settings.ApiKey;
+        process.StartInfo.Environment[NodeWorkerIdentity.ExpectedFingerprintVariable] = NodeWorkerIdentity.Expected(fingerprint);
         using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         ConsoleCancelEventHandler cancelHandler = (_, args) => { args.Cancel = true; linkedCancellation.Cancel(); };
         Console.CancelKeyPress += cancelHandler;

@@ -21,7 +21,7 @@ public sealed class DocumentMcpToolReferenceExtractorTests
     }
 
     [Fact]
-    public void BuildMcpToolFileMap_IndexesToolAttributesAcrossFiles()
+    public async Task BuildMcpToolFileMap_IndexesToolAttributesAcrossFiles()
     {
         using var workspace = new TempWorkspace();
         workspace.WriteFile("src/McpServer/Tools/CodebaseTools.cs", """
@@ -34,7 +34,7 @@ public sealed class DocumentMcpToolReferenceExtractorTests
             public Task<string> SearchAsync() => Task.FromResult(string.Empty);
             """);
 
-        var result = DocumentMcpToolReferenceExtractor.BuildMcpToolFileMap(workspace.Root.FullName, "Demo");
+        var result = await DocumentMcpToolReferenceExtractor.BuildMcpToolFileMapAsync(workspace.Root.FullName, "Demo");
 
         result["find_connection"].Should().BeEquivalentTo([
             "Demo:File:src/McpServer/Tools/CodebaseTools.cs",

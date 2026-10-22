@@ -107,6 +107,23 @@ public sealed class ProjectCapabilityRoutingTests
         ContextWorkflowProfilePolicy.EvaluateDocumentSearch(profile).Status.Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData("outcome")]
+    [InlineData("profile")]
+    [InlineData("legacy")]
+    [InlineData("mismatch")]
+    public void UnboundAndMismatchedSourceContentCannotAuthorizeDocumentSearch(string binding)
+    {
+        var profile = Profile("markdown");
+        profile = profile with
+        {
+            Profile = profile.Profile! with { SourceFingerprint = binding is "profile" or "legacy" ? null : profile.Profile.SourceFingerprint },
+            AnalyzerOutcomes = [Outcome() with { SourceFingerprint = binding is "outcome" or "legacy" ? null
+                : binding == "mismatch" ? "sha256:" + new string('b', 64) : Outcome().SourceFingerprint }]
+        };
+        ContextWorkflowProfilePolicy.EvaluateDocumentSearch(profile).Status.Should().Be("stale");
+    }
+
     [Fact]
     public async Task ExecutionRevalidatesGenerationBeforeDocumentSearch()
     {
@@ -158,10 +175,12 @@ public sealed class ProjectCapabilityRoutingTests
         Options.Create(new CodebaseIndexingOptions()), new DefaultAnalysisProfilePolicy(),
         new StaticProjectAnalysisOptionsResolver(new CodebaseAnalysisOptions()), new ProjectProfileService(repository));
 
-    private static ProjectAnalyzerOutcome Outcome() => new("documents", ".", "succeeded", "complete", "full", DateTimeOffset.UtcNow, "cli/test", []);
+    private static ProjectAnalyzerOutcome Outcome() => new("documents", ".", "succeeded", "complete", "full", DateTimeOffset.UtcNow, "cli/test", [])
+        { SourceFingerprint = "sha256:" + new string('a', 64) };
     private static ProjectProfileResult Profile(string targetKind) => new("available", "Docs", 1, 1, DateTimeOffset.UtcNow,
         new("Docs", DateTimeOffset.UtcNow, "complete", 2, [new("markdown", 1, ["chapter.md"]), new("csharp", 1, ["src/A.cs"])], [], 0,
-            [new("documents", true, "enabled", "unknown", ["document_search"], [])], [], 0),
+            [new("documents", true, "enabled", "unknown", ["document_search"], [])], [], 0)
+            { SourceFingerprint = "sha256:" + new string('a', 64) },
         new(targetKind == "markdown" ? "chapter.md" : targetKind == "csharp" ? "src/A.cs" : "Publish.ps1", "observed", targetKind), [])
         { AnalyzerOutcomes = [Outcome()] };
     private static StoredProjectProfile Stored() => new(1, 1, DateTimeOffset.UtcNow, Profile("markdown").Profile!, new("chapter.md", "markdown"))

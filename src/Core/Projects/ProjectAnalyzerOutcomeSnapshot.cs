@@ -24,6 +24,7 @@ public sealed record ProjectAnalyzerOutcomeSnapshot(
                 || outcome.Mode is not ("full" or "delta") || outcome.ObservedAt == default
                 || !ProjectProfileSnapshot.ValidName(outcome.ReporterVersion, 200)
                 || outcome.Fingerprint?.Validate() is not null
+                || outcome.SourceFingerprint is not null && !ProjectAnalyzerFingerprint.ValidHash(outcome.SourceFingerprint)
                 || outcome.Limitations is null || outcome.Limitations.Count > 8
                 || outcome.Limitations.Any(limit => !ProjectProfileSnapshot.ValidName(limit, 512)))
                 return "Analyzer outcome metadata is invalid.";

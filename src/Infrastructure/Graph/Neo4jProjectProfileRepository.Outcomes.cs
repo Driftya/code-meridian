@@ -34,6 +34,8 @@ public sealed partial class Neo4jProjectProfileRepository
                     throw new ArgumentException("Outcomes require an enabled supported analyzer.", nameof(snapshot));
                 if (outcome.Fingerprint != analyzer.Fingerprint)
                     throw new ProjectProfileConflictException("Analyzer fingerprints must match the published discovery generation.");
+                if (outcome.SourceFingerprint != profile.SourceFingerprint)
+                    throw new ProjectProfileConflictException("Outcome source fingerprints must match the published discovery generation.");
                 if (outcome.Scope != ".")
                 {
                     var scopeRecord = await (await tx.RunAsync("""

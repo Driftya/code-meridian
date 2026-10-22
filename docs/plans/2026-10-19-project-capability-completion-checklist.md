@@ -2,7 +2,7 @@
 
 Date: 2026-10-19
 
-Status: active. **12 completed foundation items; 40 open delivery items.**
+Status: active. **14 completed items (12 foundation, 2 delivery); 38 open delivery items.**
 
 This is the current progress tracker for the five October 8 plans. Their detailed designs are retained under [references/project-capabilities/](references/project-capabilities/). This checklist consolidates overlapping work; it does not replace their semantics or expand their MVPs.
 
@@ -12,12 +12,12 @@ The baseline includes committed and uncommitted implementation in this working t
 
 | Workstream | Completed | Open | Current state |
 |---|---:|---:|---|
-| Discovery and producer evidence | 8 | 12 | Foundation implemented; semantic worker coverage remains unaudited |
+| Discovery and producer evidence | 10 | 10 | Worker identities, source binding, and C# execution reports implemented; semantic worker coverage remains unaudited |
 | Capability-aware routing | 4 | 5 | Shared guards implemented; scope and optional-section refinements remain |
 | Repository constraints and Markdown | 0 | 9 | Planned; current document extraction is insufficient for structural validation |
 | Offline PowerShell | 0 | 10 | Detected but unsupported; parser worker not implemented |
 | Shared release acceptance | 0 | 4 | Existing tests cover delivered slices; full roadmap acceptance remains |
-| **Total** | **12** | **40** | **52 tracked items** |
+| **Total** | **14** | **38** | **52 tracked items** |
 
 ## Completed Baseline
 
@@ -27,7 +27,7 @@ The baseline includes committed and uncommitted implementation in this working t
 - [x] I04 — Authenticated API/SDK and structured MCP profile reads expose bounded summaries and target lookup; missing/stale profiles remain explicit. Evidence: `ProjectProfileService`, `ProjectProfileClientTests`, `ProjectProfileEndpointTests`.
 - [x] I05 — Analyzer running/terminal outcomes are generation-scoped; failed, partial, delta, and unaudited completion do not establish complete coverage. Evidence: `IndexProfileRun`, outcome contracts/storage, `IndexProfileRunReporterTests`.
 - [x] I06 — Incremental/no-change/watch paths reconcile server identity, generation, observation, and known fingerprints; failures do not advance the cache. Evidence: `IndexProfileReconciliationTests`, `IncrementalIndexCacheTests`.
-- [x] I07 — Optional Git observations, resolved configuration hashes, and loaded managed implementation/parser fingerprints flow through profiles and outcomes. Evidence: `ProjectRevisionReaderTests`, `ProjectAnalysisFingerprintTests`. Actual Node worker fingerprints and content binding remain A01/A02.
+- [x] I07 — Optional Git observations, resolved configuration hashes, and loaded managed implementation/parser fingerprints flow through profiles and outcomes. Evidence: `ProjectRevisionReaderTests`, `ProjectAnalysisFingerprintTests`. Node worker identities are recorded in A01; content binding is recorded in A02.
 - [x] I08 — Document read/upload failures affect outcomes; replacement removes stale chunks; search excludes removed inventory sources and rechecks generation. Evidence: `DocumentOutcomeTests`, `DocumentIndexRunCoordinatorTests`, document routing tests.
 - [x] I09 — Catalog requirements and deterministic per-step planning use project/target evidence; document edits avoid callable resolution, unavailable optional steps are visible, and required steps cannot be truncated into success. Evidence: `ContextWorkflowToolRequirements`, `ContextWorkflowToolPolicy`, `ToolCapabilityPolicyTests`, `ProjectCapabilityRoutingTests`.
 - [x] I10 — Shared Application guards protect direct query families; results distinguish unavailable analysis from executed empty findings, and context packs omit unaudited test sections. Evidence: `DirectCapabilityGuardTests`, `KeywordCapabilityGuardTests`, structured MCP schema tests.
@@ -38,9 +38,9 @@ The baseline includes committed and uncommitted implementation in this working t
 
 Reference: [discovery and capability profiles](references/project-capabilities/2026-10-08-project-discovery-capability-profile-plan.md).
 
-- [ ] A01 — Report actual TypeScript/JavaScript, frontend, and SQL worker/parser/runtime identities from the executing workers; publish and compare those fingerprints. Done when missing identity remains unknown and version changes invalidate reuse in worker-to-profile tests.
-- [ ] A02 — Bind outcomes to analyzed file content/revisions, not only observational Git state. Done when source changes during a pass cannot publish fresh complete evidence for different bytes, with unchanged/changed/deleted-file fixtures.
-- [ ] A03 — Audit C# definitions/dependencies and publish trustworthy per-scope coverage, including project loading, skipped/failed files, diagnostics, and legitimate zero-edge results. Done when worker reports drive readiness without inferring it from process exit.
+- [x] A01 — Report actual TypeScript/JavaScript, frontend, and SQL worker/parser/runtime identities from the executing workers; publish and compare those fingerprints. Evidence: `worker-identity.test.ts`, `worker-identity-process.test.ts`, `NodeWorkerIdentityTests`, and SQL cache fixtures verify actual installed versions/runtime bytes, source and compiled entrypoints, profile/outcome publication, missing-identity rejection, identity-change rejection before indexing, and cache invalidation. See the October 20 delivery evidence below.
+- [x] A02 — Bind outcomes to analyzed file content/revisions, not only observational Git state. Evidence: `AnalyzedSourceSnapshotTests`, `IndexProfileRunReporterTests`, `IndexProfileReconciliationTests`, Core validation/round-trip tests, capability routing tests, publication fingerprint tests, and MCP/API/SDK/schema fixtures cover unchanged/changed/deleted/added inputs, transient different-byte reads, delayed publication, upload-time invalidation, cache retention, and legacy evidence rejection. See the October 20 source-binding evidence below.
+- [ ] A03 — Audit C# definitions/dependencies and publish trustworthy per-scope coverage, including project loading, skipped/failed files, diagnostics, and legitimate zero-edge results. Done when worker reports drive readiness without inferring it from process exit. In progress: snapshot-verified single reads, execution reports, bounded parse diagnostics, skipped/failed input accounting, and partial-outcome publication are implemented. Exact project membership/loading and callable semantic audits remain open; successful extraction still publishes unknown coverage. See the October 21 evidence below.
 - [ ] A04 — Audit TypeScript/JavaScript definitions/dependencies and root membership, including imports and unresolved constructs. Done when partial roots and skipped/failed files cannot authorize full project queries.
 - [ ] A05 — Audit frontend relationship coverage and separately define/publish cascade evidence. Done when generic frontend relationships cannot authorize unsupported specificity/source-order analysis.
 - [ ] A06 — Audit configuration definitions, code/config usage, and configured architecture-rule evidence as separate capabilities. Done when definition-only or invalid-policy inputs cannot claim usage/rule readiness.
@@ -110,6 +110,36 @@ Reference: [roadmap and acceptance matrix](references/project-capabilities/2026-
 No automatic indexing, dependency installation, source-script execution, or external-repository edits are implied by this checklist. Deferred MVP exclusions in the reference plans remain deferred: arbitrary validators, narrative/canon validation, chapter numbering/front matter, PowerShell classes/enums/data flow, Pester shields, and PSScriptAnalyzer integration.
 
 ## Evidence And Verification Baseline
+
+### 2026-10-21: A03 C# Execution Evidence (Partial Delivery)
+
+The Roslyn worker returns a versioned execution report with requested/read/extracted/failed/skipped file totals, parse-error counts, and up to eight diagnostic locations and codes. It stores that informational report on the existing `IndexRun` diagnostic. The unified CLI forwards the report's totals and limitations into generation-scoped outcomes. Read/extraction/parse failures return exit code 2 and retain the prior cache; intentional generated-file exclusions produce partial coverage while allowing the rest of the index pass to continue. A failed file does not contribute partially extracted nodes or edges. Cancellation and upload failures propagate.
+
+C# constants, syntax extraction, and semantic enrichment now consume a single text read per source file; the unified CLI verifies its exact byte buffer against the captured source snapshot. Transient different-byte reads remain invalid even if source is restored. Empty files and valid zero-dependency files have explicit successful execution evidence without using positive node/edge counts as a completeness test.
+
+A03 remains unchecked: the existing synthetic compilation does not establish evaluated project membership, project-specific parsing/compilation settings, or complete callable definitions/dependencies. Successful runs retain unknown semantic coverage, and the current outcome scope remains conservative at project scope. Root membership/aggregation remains A12. This slice does not authorize new callable queries or claim live persistence acceptance.
+
+Verification: all 424 Indexer and 101 RoslynIndexer tests passed. `CSharpProfilePublicationTests` covers full/delta/zero-edge/parse/extraction/skipped/missing-report outcomes, source restoration, and upload failure. `CSharpAnalysisReportTests` covers missing inputs, bounded diagnostics, single-read parsing, failed-file isolation, generated-file exclusions, cancellation, and upload failure. No repository indexing, dependency installation, source-script execution, deployment, or live Neo4j acceptance was performed.
+
+### 2026-10-20: A01 Worker Identities
+
+Node workers now expose a bounded, versioned `--describe-worker` protocol before repository configuration or source discovery. Reports identify the executing Node runtime, resolved parser packages and their runtime file hashes, the compiler bundled by ts-morph, and the PostgreSQL grammar loaded by the WASM parser. Worker/shared implementation bytes and resolved runtime identities feed the existing implementation/parser fingerprint contract. Discovery probes do not restore dependencies, index source files, or contact the backend.
+
+Normal index publication and cache reconciliation probe the same worker assets used for execution. Missing, malformed, unavailable, timed-out, and incompatible reports leave identity unknown; matching null identities cannot authorize cache reuse. Workers check the published expected identity before analysis and their startup identity again after analysis. SQL's separate cache includes the reported worker fingerprint. The standalone local `profile` command remains discovery-only and does not invent worker fingerprints. Worker identities alone do not establish audited semantic coverage or bind analyzed repository source content; source binding is delivered separately below and A03-A12 remain open.
+
+### 2026-10-20: A02 Source Binding
+
+Normal indexing now captures a versioned SHA-256 identity over the complete accepted inventory's sorted paths, kinds, and raw file hashes. Profiles and generation-scoped outcomes carry this optional `SourceFingerprint`; storage rejects mismatched bindings, and routing rejects missing or mismatched source identities. Older 1.0 payloads remain readable and valid uploads, with publication retry hashes preserved, but unbound outcomes cannot establish readiness and unbound profiles cannot authorize cache reuse. Standalone local/published `profile` remains discovery-only.
+
+The CLI re-enumerates and hashes inputs around each analyzer and before terminal publication. All terminal outcomes wait until the final check, so a later source change also invalidates earlier completed analyzers. Changed/added/deleted/unreadable inputs fail the pass without advancing the CLI cache. A change detected after terminal upload reserves a new generation, making the uploaded evidence stale. Document parsing and local MCP-tool reference extraction consume text decoded from the exact byte buffer checked against the captured hash; a transient mismatching read remains invalid even if the file is restored. Missing document reads cannot claim complete coverage or advance the cache.
+
+Binding is deliberately conservative across the whole accepted inventory; unrelated accepted-file changes also invalidate the pass. Other workers carry the captured snapshot identity with unknown coverage. Their actual source-read reports and semantic coverage still require the A03-A10 audits before complete coverage can be enabled. This does not implement A11 last-good reuse or A12 root membership/aggregation.
+
+Verification: 415 Indexer, 519 Application, 68 Core, 22 DocumentIndexer, 25 Infrastructure unit tests, and 29 focused MCP/API/forwarding/wire tests passed. The Neo4j integration project builds with updated source-binding persistence/conflict fixtures; those live database fixtures were not run. No repository indexing or deployment was performed.
+
+Verification on Windows with existing dependencies: `npm run build`; all 390 Indexer tests; 15 shared-worker tests (including fresh source/compiled worker processes); 92 TypeScript tests; 7 frontend tests; and 14 SQL tests passed. No repository indexing, dependency installation, or live Neo4j acceptance was performed.
+
+### Earlier Baseline
 
 Reviewed on 2026-10-19: the five source plans, current uncommitted changes, profile/outcome publication seams, tool policy/guard implementation, `LocalProjectProfileBuilder`, `ProjectAnalysisFingerprints`, `IndexProfileRun`, `ArchitectureRuleSet`, and `DocumentReferenceExtractor`. The latter still uses regex; architecture contracts still describe namespace layers/dependencies; the profile builder explicitly marks PowerShell unsupported. No dedicated PowerShell worker or repository-constraint query was found in the reviewed source surfaces.
 

@@ -1,7 +1,6 @@
 using CodeMeridian.Sdk;
 using CodeMeridian.Application.Services;
 using CodeMeridian.Core.CodeGraph;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Globalization;
@@ -41,39 +40,72 @@ public sealed class CSharpIndexer(
         CancellationToken cancellationToken = default,
         FileInfo[]? resolutionFiles = null,
         bool isIncremental = false,
-        bool refreshCanonicalTypes = false)
+        bool refreshCanonicalTypes = false,
+        Func<FileInfo, CancellationToken, Task<string>>? readSource = null,
+        int skippedFiles = 0)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var usedFullResolutionCatalog = !isIncremental || resolutionFiles is not null;
         resolutionFiles ??= files;
+        var requestedFiles = resolutionFiles.Length + skippedFiles;
         if (packageIndexingOptions?.Value.AllowProjectEvaluation == true)
         {
             bool OwnedFile(FileInfo file) => !Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/').StartsWith("../", StringComparison.Ordinal);
+            skippedFiles += resolutionFiles.Count(file => !OwnedFile(file));
             resolutionFiles = resolutionFiles.Where(OwnedFile).ToArray();
             files = files.Where(OwnedFile).ToArray();
         }
         var nodes = new List<IngestNodeRequest>();
         var edges = new List<IngestEdgeRequest>();
-        var configurationConstants = CSharpConfigurationConstantRegistry.Build(resolutionFiles);
-        var semanticCatalog = CSharpSemanticModelCatalog.Create(resolutionFiles);
-        LogClassificationSummary(files, rootPath, projectContext, fileRoleClassifier, logger);
-
-        foreach (var file in resolutionFiles)
+        var analysis = new CSharpAnalysisReportBuilder(rootPath, requestedFiles, skippedFiles);
+        var sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in resolutionFiles.OrderBy(file => file.FullName, StringComparer.Ordinal))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
+                sources.Add(file.FullName, readSource is null
+                    ? await File.ReadAllTextAsync(file.FullName, cancellationToken)
+                    : await readSource(file, cancellationToken));
+                analysis.Read();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                analysis.Failed(file, "read", ex);
+                logger.LogWarning("Could not read {File} ({ExceptionType}).", file.Name, ex.GetType().Name);
+            }
+        }
+        var semanticCatalog = CSharpSemanticModelCatalog.Create(sources);
+        var configurationConstants = CSharpConfigurationConstantRegistry.BuildFromRoots(semanticCatalog.Roots);
+        LogClassificationSummary(files, rootPath, projectContext, fileRoleClassifier, logger);
+
+        foreach (var file in resolutionFiles.OrderBy(file => file.FullName, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!sources.ContainsKey(file.FullName)) continue;
+            try
+            {
+                var semanticFile = semanticCatalog.Find(file)!;
+                analysis.Parsed(file, semanticFile.Root.GetDiagnostics());
+                var fileNodes = new List<IngestNodeRequest>();
+                var fileEdges = new List<IngestEdgeRequest>();
                 ExtractFromFile(
                     file,
                     rootPath,
                     projectContext,
-                    nodes,
-                    edges,
+                    fileNodes,
+                    fileEdges,
                     configurationConstants,
                     databaseTracingOptions.Value,
-                    semanticCatalog.Find(file));
+                    semanticFile);
+                nodes.AddRange(fileNodes);
+                edges.AddRange(fileEdges);
+                analysis.Extracted();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogWarning("Skipped {File}: {Error}", file.Name, ex.Message);
+                analysis.Failed(file, "extract", ex);
+                logger.LogWarning("Could not extract {File} ({ExceptionType}).", file.Name, ex.GetType().Name);
             }
         }
 
@@ -157,7 +189,8 @@ public sealed class CSharpIndexer(
                 .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal),
             edges.GroupBy(edge => string.Join('|', edge.EvidenceKind ?? "unknown", edge.Resolver ?? "unknown",
                     edge.EvidenceReason ?? "unknown", edge.EvidenceDetails?.GetValueOrDefault("fileRole") ?? "Unknown"), StringComparer.Ordinal)
-                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal));
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal))
+        { Analysis = analysis.Build() };
         await PersistIndexRunAsync(client, logger, projectContext, stats, cancellationToken);
         if (packageSnapshot is not null)
         {
@@ -180,6 +213,7 @@ public sealed class CSharpIndexer(
         {
             ["externalKind"] = "IndexRun",
             ["relationshipHealthSchemaVersion"] = "2",
+            ["analysisReport"] = JsonSerializer.Serialize(stats.Analysis),
             ["edgeEvidenceCounts"] = JsonSerializer.Serialize(stats.EdgeEvidenceCounts),
             ["edgeEvidenceGroups"] = JsonSerializer.Serialize(stats.EdgeEvidenceGroups),
             ["language"] = "CSharp",
@@ -420,13 +454,12 @@ public sealed class CSharpIndexer(
         List<IngestEdgeRequest> edges,
         CSharpConfigurationConstantRegistry configurationConstants,
         DatabaseTracingOptions databaseTracingOptions,
-        CSharpSemanticFile? semanticFile)
+        CSharpSemanticFile semanticFile)
     {
-        var root = semanticFile?.Root
-            ?? CSharpSyntaxTree.ParseText(File.ReadAllText(file.FullName), path: file.FullName).GetCompilationUnitRoot();
+        var root = semanticFile.Root;
 
         var relPath = Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/');
-        var walker = new CSharpAstWalker(relPath, projectContext, nodes, edges, semanticFile?.SemanticModel);
+        var walker = new CSharpAstWalker(relPath, projectContext, nodes, edges, semanticFile.SemanticModel);
         walker.Visit(root);
         CSharpRouteExtractor.Extract(root, relPath, projectContext, nodes, edges);
         CSharpConfigurationUsageExtractor.Extract(root, relPath, projectContext, nodes, edges, configurationConstants);

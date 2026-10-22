@@ -1,11 +1,18 @@
 import { parseCommandLine } from './cli/program.js';
 import { HtmlCssIndexerApplication } from './application/html-css-indexer-application.js';
+import { describeWorker, verifyWorkerIdentity } from '../../IndexerShared/dist/index.js';
+import { workerIdentity } from './worker-identity.js';
 
 try {
-  const options = await parseCommandLine(process.argv);
-  const application = new HtmlCssIndexerApplication();
-  const exitCode = await application.run(options);
-  process.exitCode = exitCode;
+  const identity = workerIdentity();
+  if (!describeWorker(identity)) {
+    verifyWorkerIdentity(identity);
+    const options = await parseCommandLine(process.argv);
+    const application = new HtmlCssIndexerApplication();
+    const exitCode = await application.run(options);
+    process.exitCode = exitCode;
+    verifyWorkerIdentity(workerIdentity(), JSON.stringify(identity.fingerprint));
+  }
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`error: ${message}`);

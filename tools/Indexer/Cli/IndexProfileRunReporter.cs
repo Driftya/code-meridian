@@ -9,6 +9,7 @@ namespace CodeMeridian.Indexer.Cli.Commands;
 internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder)
 {
     internal Func<string, string?, HttpClient> HttpClientFactory { get; init; } = CreateHttpClient;
+    internal Func<string, CancellationToken, Task<ProjectAnalyzerFingerprint?>> WorkerFingerprintReader { get; init; } = NodeWorkerIdentity.ReadAsync;
 
     public async Task<bool> IsCacheCurrentAsync(ResolvedIndexerSettings settings, IncrementalIndexCache cache,
         CancellationToken cancellationToken = default)
@@ -23,24 +24,29 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
             && details.TryGetProperty("observedAt", out var observation)
             && observation.ValueKind == System.Text.Json.JsonValueKind.String && observation.TryGetDateTimeOffset(out var observedAt)
             && cache.MatchesPublication(settings.CodeMeridianUrl, profile.Generation, observedAt)
-            && AnalysisMetadataMatches(details, settings, cancellationToken);
+            && await AnalysisMetadataMatchesAsync(details, settings, cancellationToken);
     }
 
-    private static bool AnalysisMetadataMatches(JsonElement profile, ResolvedIndexerSettings settings, CancellationToken cancellationToken)
+    private async Task<bool> AnalysisMetadataMatchesAsync(JsonElement profile, ResolvedIndexerSettings settings, CancellationToken cancellationToken)
     {
         if (!profile.TryGetProperty("configurationFingerprint", out var configuration)
             || configuration.ValueKind != JsonValueKind.String
             || configuration.GetString() != ProjectAnalysisFingerprints.Configuration(settings)
             || !profile.TryGetProperty("analyzers", out var analyzers) || analyzers.ValueKind != JsonValueKind.Array)
             return false;
+        if (!profile.TryGetProperty("sourceFingerprint", out var source) || source.ValueKind != JsonValueKind.String
+            || source.GetString() is not { Length: 71 } sourceHash || !sourceHash.StartsWith("sha256:", StringComparison.Ordinal)
+            || !sourceHash.Skip(7).All(char.IsAsciiHexDigit)) return false;
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         var published = analyzers.Deserialize<ProjectAnalyzerProfile[]>(options);
         if (published is null) return false;
         foreach (var expected in LocalProjectProfileBuilder.BuildAnalyzers(settings).Where(analyzer => analyzer.Supported && analyzer.ConfigurationState == "enabled"))
         {
+            var fingerprint = NodeWorkerIdentity.IsWorker(expected.Id)
+                ? await WorkerFingerprintReader(expected.Id, cancellationToken) : expected.Fingerprint;
             var matches = published.Where(analyzer => analyzer?.Id == expected.Id).ToArray();
-            if (matches.Length != 1 || matches[0] is not { Supported: true, ConfigurationState: "enabled" }
-                || matches[0].Fingerprint != expected.Fingerprint) return false;
+            if (fingerprint is null || matches.Length != 1 || matches[0] is not { Supported: true, ConfigurationState: "enabled" }
+                || matches[0].Fingerprint != fingerprint) return false;
         }
         var revision = profile.TryGetProperty("revision", out var metadata) && metadata.ValueKind == JsonValueKind.Object
             ? metadata.Deserialize<ProjectRepositoryRevision>(options) : null;
@@ -64,9 +70,26 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
                 Console.Error.WriteLine("Discovery is partial; indexing was not started and the previous complete profile was retained.");
                 return 2;
             }
+            var analyzers = snapshot.Profile.Analyzers.ToArray();
+            for (var index = 0; index < analyzers.Length; index++)
+            {
+                var analyzer = analyzers[index];
+                if (NodeWorkerIdentity.IsWorker(analyzer.Id) && analyzer.ConfigurationState == "enabled")
+                    analyzers[index] = analyzer with { Fingerprint = await WorkerFingerprintReader(analyzer.Id, cancellationToken) };
+            }
+            var source = AnalyzedSourceSnapshot.Capture(settings.RootPath, snapshot.Files, cancellationToken);
+            snapshot = snapshot with { Profile = snapshot.Profile with { Analyzers = analyzers, SourceFingerprint = source.Fingerprint } };
             if (snapshot.Validate() is { } error) throw new InvalidOperationException(error);
             await client.PublishProjectProfileAsync(snapshot, cancellationToken);
-            return await run(new IndexProfileRun(client, snapshot));
+            var report = new IndexProfileRun(client, snapshot, source);
+            int exitCode;
+            try { exitCode = await run(report); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                await report.CompleteAsync(1, cancellationToken);
+                throw;
+            }
+            return await report.CompleteAsync(exitCode, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

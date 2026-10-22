@@ -120,13 +120,32 @@ public sealed class ToolCapabilityPolicyTests
         ContextWorkflowToolCatalog.All.Should().OnlyContain(tool => tool.ReadinessExempt || tool.RequiredCapabilities.Count > 0);
     }
 
+    [Theory]
+    [InlineData("outcome")]
+    [InlineData("profile")]
+    [InlineData("legacy")]
+    [InlineData("mismatch")]
+    public void UnboundAndMismatchedSourceContentCannotAuthorizeCallableQueries(string binding)
+    {
+        var profile = Profile();
+        profile = profile with
+        {
+            Profile = profile.Profile! with { SourceFingerprint = binding is "profile" or "legacy" ? null : profile.Profile.SourceFingerprint },
+            AnalyzerOutcomes = [Outcome() with { SourceFingerprint = binding is "outcome" or "legacy" ? null
+                : binding == "mismatch" ? "sha256:" + new string('b', 64) : Outcome().SourceFingerprint }]
+        };
+        ContextWorkflowToolPolicy.Evaluate("find_impact", profile).Status.Should().Be("stale");
+    }
+
     internal static ProjectProfileResult Profile(string kind = "csharp", string analyzer = "csharp", string[]? capabilities = null) =>
         new("available", "Fixture", 1, 1, DateTimeOffset.UtcNow,
             new("Fixture", DateTimeOffset.UtcNow, "complete", 1, [new(kind, 1, ["src/A.cs"])], [], 0,
                 [new(analyzer, analyzer != "powershell", analyzer == "powershell" ? "unsupported" : "enabled", "unknown",
-                    capabilities ?? ["callable_definitions", "callable_dependencies"], [])], [], 0),
+                    capabilities ?? ["callable_definitions", "callable_dependencies"], [])], [], 0)
+                { SourceFingerprint = "sha256:" + new string('a', 64) },
             new("src/A.cs", "observed", kind), [])
         { AnalyzerOutcomes = [Outcome() with { Analyzer = analyzer }] };
 
-    internal static ProjectAnalyzerOutcome Outcome() => new("csharp", ".", "succeeded", "complete", "full", DateTimeOffset.UtcNow, "cli/test", []);
+    internal static ProjectAnalyzerOutcome Outcome() => new("csharp", ".", "succeeded", "complete", "full", DateTimeOffset.UtcNow, "cli/test", [])
+        { SourceFingerprint = "sha256:" + new string('a', 64) };
 }

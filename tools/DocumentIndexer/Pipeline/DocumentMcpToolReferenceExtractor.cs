@@ -4,7 +4,8 @@ namespace CodeMeridian.DocumentIndexer.Pipeline;
 
 internal static partial class DocumentMcpToolReferenceExtractor
 {
-    public static IReadOnlyDictionary<string, List<string>> BuildMcpToolFileMap(string rootPath, string projectContext)
+    public static async Task<IReadOnlyDictionary<string, List<string>>> BuildMcpToolFileMapAsync(string rootPath, string projectContext,
+        CancellationToken cancellationToken = default, Func<FileInfo, CancellationToken, Task<string>>? readContent = null)
     {
         var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var toolsRoot = Path.Combine(rootPath, "src", "McpServer", "Tools");
@@ -13,8 +14,10 @@ internal static partial class DocumentMcpToolReferenceExtractor
 
         foreach (var file in Directory.EnumerateFiles(toolsRoot, "*.cs", SearchOption.AllDirectories))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var relPath = Path.GetRelativePath(rootPath, file).Replace('\\', '/');
-            var content = File.ReadAllText(file);
+            var content = readContent is null ? await File.ReadAllTextAsync(file, cancellationToken)
+                : await readContent(new FileInfo(file), cancellationToken);
             foreach (Match match in McpToolAttributeRegex().Matches(content))
             {
                 var toolName = match.Groups["tool"].Value.Trim();

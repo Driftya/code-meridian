@@ -26,7 +26,7 @@ internal static class ProjectAnalysisFingerprints
             "csharp" => [typeof(Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree).Assembly, typeof(Microsoft.CodeAnalysis.SyntaxTree).Assembly],
             "documents" => [typeof(DocumentIndexerPipeline).Assembly],
             "configuration" => [typeof(ProjectAnalysisFingerprints).Assembly, typeof(YamlDotNet.Core.Parser).Assembly, typeof(JsonDocument).Assembly],
-            _ => [] // Node workers must report their actual parser/runtime evidence before it can be fingerprinted.
+            _ => [] // Node identities are supplied separately by executing the worker's describe mode.
         };
         if (parsers.Length == 0) return null;
         var implementation = analyzer == "csharp" ? typeof(IndexerPipeline).Assembly

@@ -14,18 +14,18 @@ public sealed class IndexerPipeline(
     CodeMeridianClient client,
     ILogger<IndexerPipeline> logger)
 {
-    public async Task RunAsync(
+    public async Task<IndexStats> RunAsync(
         DirectoryInfo root,
         string projectContext,
         bool clear,
         IReadOnlyCollection<string>? changedFiles = null,
         IReadOnlyCollection<string>? deletedFiles = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<FileInfo, CancellationToken, Task<string>>? readSource = null)
     {
         if (!root.Exists)
         {
-            logger.LogError("Directory does not exist: {Path}", root.FullName);
-            return;
+            throw new DirectoryNotFoundException($"Directory does not exist: {root.FullName}");
         }
 
         logger.LogInformation("=== CodeMeridian Indexer ===");
@@ -46,7 +46,8 @@ public sealed class IndexerPipeline(
         }
 
         // -- Phase 1: C# code graph --------------------------------------------
-        var allCsFiles = CSharpProjectScope.EnumerateCSharpFiles(root)
+        var discoveredCsFiles = CSharpProjectScope.EnumerateCSharpFiles(root);
+        var allCsFiles = discoveredCsFiles
             .Where(f => !IsGenerated(f.FullName))
             .ToArray();
         var csFiles = allCsFiles
@@ -76,7 +77,9 @@ public sealed class IndexerPipeline(
             cancellationToken,
             allCsFiles,
             changedFiles is not null,
-            refreshCanonicalTypes: deletedFiles?.Any(IsCSharpSourcePath) == true);
+            refreshCanonicalTypes: deletedFiles?.Any(IsCSharpSourcePath) == true,
+            readSource: readSource,
+            skippedFiles: discoveredCsFiles.Count - allCsFiles.Length);
 
         logger.LogInformation(
             "Code graph: {Nodes} nodes and {Edges} edges ingested from {IngestedFiles} changed file(s) using {ScannedFiles} scan file(s).",
@@ -86,6 +89,7 @@ public sealed class IndexerPipeline(
             stats.ScannedFiles);
 
         logger.LogInformation("=== Indexing complete for '{Project}' ===", projectContext);
+        return stats;
     }
 
     private static bool IsGenerated(string path) =>

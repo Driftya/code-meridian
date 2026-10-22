@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
+using CodeMeridian.Core.Projects;
 using CodeMeridian.Indexer.Cli.Configuration;
 using CodeMeridian.RoslynIndexer.Pipeline;
 using CodeMeridian.Sdk;
@@ -148,10 +149,11 @@ internal sealed partial class IndexCommandHandler(
         return 0;
     }
 
-    private async Task<int> RunCSharpIndexerAsync(
+    private async Task<IndexStats> RunCSharpIndexerAsync(
         bool clear,
         IReadOnlyCollection<string>? changedFiles,
-        IReadOnlyCollection<string> deletedFiles)
+        IReadOnlyCollection<string> deletedFiles,
+        IndexProfileRun? report)
     {
         var services = new ServiceCollection();
 
@@ -175,8 +177,8 @@ internal sealed partial class IndexCommandHandler(
         await using var provider = services.BuildServiceProvider();
         var pipeline = provider.GetRequiredService<IndexerPipeline>();
 
-        await pipeline.RunAsync(_settings.RootPath, _settings.Project, clear, changedFiles, deletedFiles);
-        return 0;
+        return await pipeline.RunAsync(_settings.RootPath, _settings.Project, clear, changedFiles, deletedFiles,
+            readSource: report is null ? null : report.ReadSourceAsync);
     }
 
 
@@ -307,7 +309,8 @@ internal sealed partial class IndexCommandHandler(
     private async Task<int> RunTypeScriptIndexerAsync(
         IndexExecutionContext context,
         IReadOnlyCollection<string>? changedFiles,
-        IReadOnlyCollection<string> deletedFiles)
+        IReadOnlyCollection<string> deletedFiles,
+        ProjectAnalyzerFingerprint? fingerprint)
     {
         if (changedFiles is not null || deletedFiles.Count > 0)
         {
@@ -360,7 +363,7 @@ internal sealed partial class IndexCommandHandler(
                 tsxCommand,
                 tsArgs,
                 tsIndexerRoot,
-                CreateTypeScriptIndexerEnvironment());
+                WorkerEnvironment(fingerprint));
             if (exitCode != 0)
                 return exitCode;
         }
@@ -371,7 +374,8 @@ internal sealed partial class IndexCommandHandler(
     private async Task<int> RunHtmlCssIndexerAsync(
         IndexExecutionContext context,
         IReadOnlyCollection<string>? changedFiles,
-        IReadOnlyCollection<string> deletedFiles)
+        IReadOnlyCollection<string> deletedFiles,
+        ProjectAnalyzerFingerprint? fingerprint)
     {
         if (changedFiles is not null || deletedFiles.Count > 0)
         {
@@ -416,7 +420,7 @@ internal sealed partial class IndexCommandHandler(
                 tsxCommand,
                 args,
                 htmlCssIndexerRoot,
-                CreateHtmlCssIndexerEnvironment());
+                WorkerEnvironment(fingerprint));
             if (exitCode != 0)
                 return exitCode;
         }
@@ -537,40 +541,18 @@ internal sealed partial class IndexCommandHandler(
             ? new Dictionary<string, string?>()
             : new Dictionary<string, string?> { ["CodeMeridian_Auth_ApiKey"] = _settings.ApiKey };
 
-    private IReadOnlyDictionary<string, string?> CreateHtmlCssIndexerEnvironment() =>
-        CreateTypeScriptIndexerEnvironment();
-
-    private DirectoryInfo? ResolveTypeScriptIndexerRoot()
+    private IReadOnlyDictionary<string, string?> WorkerEnvironment(ProjectAnalyzerFingerprint? fingerprint)
     {
-        var repositoryRoot = projectDiscoveryService.FindRepositoryRoot(new DirectoryInfo(Directory.GetCurrentDirectory()))
-            ?? projectDiscoveryService.FindRepositoryRoot(new DirectoryInfo(AppContext.BaseDirectory));
-
-        if (repositoryRoot is not null)
+        var environment = new Dictionary<string, string?>(CreateTypeScriptIndexerEnvironment())
         {
-            var sourceRoot = new DirectoryInfo(Path.Combine(repositoryRoot.FullName, "tools", "TsIndexer"));
-            if (File.Exists(Path.Combine(sourceRoot.FullName, "src", "index.ts")))
-                return sourceRoot;
-        }
-
-        var packagedRoot = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "tools", "TsIndexer"));
-        return File.Exists(Path.Combine(packagedRoot.FullName, "src", "index.ts")) ? packagedRoot : null;
+            [NodeWorkerIdentity.ExpectedFingerprintVariable] = NodeWorkerIdentity.Expected(fingerprint)
+        };
+        return environment;
     }
 
-    private DirectoryInfo? ResolveHtmlCssIndexerRoot()
-    {
-        var repositoryRoot = projectDiscoveryService.FindRepositoryRoot(new DirectoryInfo(Directory.GetCurrentDirectory()))
-            ?? projectDiscoveryService.FindRepositoryRoot(new DirectoryInfo(AppContext.BaseDirectory));
+    private DirectoryInfo? ResolveTypeScriptIndexerRoot() => NodeWorkerIdentity.ResolveRoot("typescript", projectDiscoveryService);
 
-        if (repositoryRoot is not null)
-        {
-            var sourceRoot = new DirectoryInfo(Path.Combine(repositoryRoot.FullName, "tools", "HtmlCssIndexer"));
-            if (File.Exists(Path.Combine(sourceRoot.FullName, "src", "index.ts")))
-                return sourceRoot;
-        }
-
-        var packagedRoot = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "tools", "HtmlCssIndexer"));
-        return File.Exists(Path.Combine(packagedRoot.FullName, "src", "index.ts")) ? packagedRoot : null;
-    }
+    private DirectoryInfo? ResolveHtmlCssIndexerRoot() => NodeWorkerIdentity.ResolveRoot("frontend", projectDiscoveryService);
 
     private IReadOnlyList<DirectoryInfo> ResolveHtmlCssRoots(IReadOnlyList<DirectoryInfo> typeScriptRoots)
     {

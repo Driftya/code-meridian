@@ -12,12 +12,14 @@ internal sealed class CSharpConfigurationConstantRegistry
     private CSharpConfigurationConstantRegistry(Dictionary<string, string> values) => _values = values;
 
     public static CSharpConfigurationConstantRegistry Build(IEnumerable<FileInfo> files)
+        => BuildFromRoots(files.Select(file => CSharpSyntaxTree.ParseText(File.ReadAllText(file.FullName), path: file.FullName).GetCompilationUnitRoot()));
+
+    public static CSharpConfigurationConstantRegistry BuildFromRoots(IEnumerable<CompilationUnitSyntax> roots)
     {
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        foreach (var file in files)
+        foreach (var root in roots)
         {
-            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(file.FullName), path: file.FullName).GetCompilationUnitRoot();
             foreach (var field in root.DescendantNodes().OfType<FieldDeclarationSyntax>())
             {
                 if (!field.Modifiers.Any(modifier => modifier.IsKind(SyntaxKind.ConstKeyword)) || field.Declaration.Type.ToString() != "string")

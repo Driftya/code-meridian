@@ -20,6 +20,8 @@ public sealed record ProjectProfileSnapshot(
         if (Profile.Revision?.Validate() is { } revisionError) return revisionError;
         if (Profile.ConfigurationFingerprint is not null && !ProjectAnalyzerFingerprint.ValidHash(Profile.ConfigurationFingerprint))
             return "Configuration fingerprint must be a SHA-256 hash.";
+        if (Profile.SourceFingerprint is not null && !ProjectAnalyzerFingerprint.ValidHash(Profile.SourceFingerprint))
+            return "Source fingerprint must be a SHA-256 hash.";
         if (Files is null || Files.Count > 100000 || Profile.FileCount != Files.Count)
             return "Inventory must contain at most 100000 files and match the declared file count.";
         if (Profile.FileKinds is null || Profile.FileKinds.Count > 32

@@ -70,6 +70,8 @@ public static class ContextWorkflowToolPolicy
             var partial = outcomes.FirstOrDefault(item => item.State == "partial" || item.Coverage == "partial");
             if (partial is not null) return Result("partial", $"Analyzer {id} has incomplete evidence in scope {partial.Scope}.", partial.Scope, partial.Limitations);
             if (outcomes.Any(item => item.State == "running")) return Result("not_indexed", $"Analyzer {id} is still running.");
+            if (profile.Profile.SourceFingerprint is null || outcomes.Any(item => item.SourceFingerprint != profile.Profile.SourceFingerprint))
+                return Result("stale", $"Analyzer {id} outcomes are not bound to the published source content.");
             if (outcomes.Any(item => item.State != "succeeded" || item.Mode != "full" || item.Coverage != "complete"))
                 return Result("unknown", $"A delta or unaudited outcome for {id} does not establish complete coverage.");
             if (!scoped && !outcomes.Any(item => item.Scope == "."))

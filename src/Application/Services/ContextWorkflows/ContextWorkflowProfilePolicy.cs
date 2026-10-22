@@ -30,6 +30,9 @@ public static class ContextWorkflowProfilePolicy
         if (profile.AnalyzerOutcomes.Any(item => item.Analyzer == "documents" && item.Fingerprint != analyzer.Fingerprint))
             return Result("stale", "Document outcome fingerprints do not match the published analyzer profile.", outcome.Scope);
         if (outcome.State is "failed" or "partial") return Result(outcome.State, "Document analysis did not complete this scope.", outcome.Scope);
+        if (profile.Profile.SourceFingerprint is null
+            || profile.AnalyzerOutcomes.Any(item => item.Analyzer == "documents" && item.SourceFingerprint != profile.Profile.SourceFingerprint))
+            return Result("stale", "Document outcomes are not bound to the published source content.", outcome.Scope);
         if (outcome.Coverage != "complete" || outcome.Mode != "full")
             return Result("unknown", "A completed delta or unaudited pass is insufficient to establish complete document coverage.", outcome.Scope);
         if (outcome.Scope != ".")

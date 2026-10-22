@@ -12,14 +12,18 @@ internal sealed partial class IndexCommandHandler
         bool clear,
         IReadOnlyCollection<string>? changedFiles,
         IReadOnlyCollection<string> deletedFiles)
-        => await _profileReporter.RunAsync(_settings,
+    {
+        IndexProfileRun? publication = null;
+        var exitCode = await _profileReporter.RunAsync(_settings,
             async report =>
             {
-                var exitCode = await RunIndexPassCoreAsync(context, clear, changedFiles, deletedFiles, report);
-                if (exitCode == 0)
-                    context.Cache.Save(context.IncrementalPlan, _settings.CodeMeridianUrl, report?.Generation, report?.ObservedAt);
-                return exitCode;
+                publication = report;
+                return await RunIndexPassCoreAsync(context, clear, changedFiles, deletedFiles, report);
             });
+        if (exitCode == 0)
+            context.Cache.Save(context.IncrementalPlan, _settings.CodeMeridianUrl, publication?.Generation, publication?.ObservedAt);
+        return exitCode;
+    }
 
     private async Task<int> RunIndexPassCoreAsync(
         IndexExecutionContext context, bool clear, IReadOnlyCollection<string>? changedFiles,
@@ -32,7 +36,7 @@ internal sealed partial class IndexCommandHandler
         {
             // Full reconciliation must also bypass the SQL worker's separate fingerprint cache.
             exitCode = await RunAnalyzer("sql", ["."], () => SqlIndexRunCoordinator.RunAsync(_settings, context.CacheDirectory,
-                clear || !_settings.Incremental || changedFiles is null));
+                clear || !_settings.Incremental || changedFiles is null, fingerprint: report?.Fingerprint("sql")));
             if (exitCode != 0) return exitCode;
             // SQL publication owns its deletions, including edges between shared objects.
             deletedFiles = deletedFiles.Where(path => !path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -40,7 +44,9 @@ internal sealed partial class IndexCommandHandler
 
         if (context.HasCSharp)
         {
-            exitCode = await RunAnalyzer("csharp", ["."], () => RunCSharpIndexerAsync(clearNextIndexer, changedFiles, deletedFiles));
+            exitCode = report is null
+                ? (await RunCSharpIndexerAsync(clearNextIndexer, changedFiles, deletedFiles, null)).Analysis!.ExitCode
+                : await report.RunCSharpAnalyzerAsync(() => RunCSharpIndexerAsync(clearNextIndexer, changedFiles, deletedFiles, report), changedFiles is null);
             if (exitCode != 0)
                 return exitCode;
 
@@ -49,7 +55,7 @@ internal sealed partial class IndexCommandHandler
 
         if (context.HasTypeScript)
         {
-            exitCode = await RunAnalyzer("typescript", Scopes(context.TypeScriptRoots), () => RunTypeScriptIndexerAsync(context, changedFiles, deletedFiles));
+            exitCode = await RunAnalyzer("typescript", Scopes(context.TypeScriptRoots), () => RunTypeScriptIndexerAsync(context, changedFiles, deletedFiles, report?.Fingerprint("typescript")));
             if (exitCode != 0)
                 return exitCode;
 
@@ -58,7 +64,7 @@ internal sealed partial class IndexCommandHandler
 
         if (context.HasHtmlCss)
         {
-            exitCode = await RunAnalyzer("frontend", Scopes(context.HtmlCssRoots), () => RunHtmlCssIndexerAsync(context, changedFiles, deletedFiles));
+            exitCode = await RunAnalyzer("frontend", Scopes(context.HtmlCssRoots), () => RunHtmlCssIndexerAsync(context, changedFiles, deletedFiles, report?.Fingerprint("frontend")));
             if (exitCode != 0)
                 return exitCode;
 
@@ -67,8 +73,8 @@ internal sealed partial class IndexCommandHandler
 
         if (IncludesDocs)
         {
-            exitCode = report is null ? await RunDocumentIndexerAsync(changedFiles, deletedFiles)
-                : await report.RunAnalyzerAsync("documents", ["."], () => RunDocumentIndexerAsync(changedFiles, deletedFiles),
+            exitCode = report is null ? await RunDocumentIndexerAsync(changedFiles, deletedFiles, null)
+                : await report.RunAnalyzerAsync("documents", ["."], () => RunDocumentIndexerAsync(changedFiles, deletedFiles, report),
                     report.CoversAllDocuments(changedFiles), verifiedCoverage: true);
             if (exitCode != 0)
                 return exitCode;
@@ -120,7 +126,7 @@ internal sealed partial class IndexCommandHandler
 
     private async Task<int> RunDocumentIndexerAsync(
         IReadOnlyCollection<string>? changedFiles,
-        IReadOnlyCollection<string> deletedFiles)
+        IReadOnlyCollection<string> deletedFiles, IndexProfileRun? report)
     {
         var services = new ServiceCollection();
         services.AddLogging(builder => builder
@@ -145,7 +151,8 @@ internal sealed partial class IndexCommandHandler
 
         var logger = provider.GetRequiredService<ILogger<DocumentIndexerPipeline>>();
         logger.LogInformation("Found {Count} documentation files to ingest.", documentPlan.FilesToIngest.Count);
-        var stats = await pipeline.IngestAsync(documentPlan.FilesToIngest.ToArray(), _settings.Project, _settings.RootPath.FullName, CancellationToken.None);
+        var stats = await pipeline.IngestAsync(documentPlan.FilesToIngest.ToArray(), _settings.Project, _settings.RootPath.FullName,
+            CancellationToken.None, report is null ? null : report.ReadSourceAsync);
         return stats.FailedFiles == 0 ? 0 : 2;
     }
 }
