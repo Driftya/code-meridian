@@ -482,6 +482,8 @@ Severity thresholds:
 
 ## Authentication and Configuration
 
+Active architecture JSON policies are validated before configuration is cleared or uploaded. Invalid/custom policies stop the configuration pass with exit code 2. See [repository constraint contracts and placement](repository-constraints.md) for the versioned policy extension, namespace compatibility, and current delivery limits.
+
 The indexers load `.env` from the current directory and target project roots, but existing shell environment variables still win. If no environment variable is set, they fall back to project-local `meridian.json`, then the user-level global config.
 
 Precedence for non-secret settings:

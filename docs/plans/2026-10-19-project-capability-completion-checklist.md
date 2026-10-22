@@ -2,7 +2,7 @@
 
 Date: 2026-10-19
 
-Status: active. **14 completed items (12 foundation, 2 delivery); 38 open delivery items.**
+Status: active. **16 completed items (12 foundation, 4 delivery); 36 open delivery items.**
 
 This is the current progress tracker for the five October 8 plans. Their detailed designs are retained under [references/project-capabilities/](references/project-capabilities/). This checklist consolidates overlapping work; it does not replace their semantics or expand their MVPs.
 
@@ -14,10 +14,10 @@ The baseline includes committed and uncommitted implementation in this working t
 |---|---:|---:|---|
 | Discovery and producer evidence | 10 | 10 | Worker identities, source binding, and C# execution reports implemented; semantic worker coverage remains unaudited |
 | Capability-aware routing | 4 | 5 | Shared guards implemented; scope and optional-section refinements remain |
-| Repository constraints and Markdown | 0 | 9 | Planned; current document extraction is insufficient for structural validation |
+| Repository constraints and Markdown | 2 | 7 | Validated contracts and inventory-only placement implemented; public query and Markdown structural evidence remain open |
 | Offline PowerShell | 0 | 10 | Detected but unsupported; parser worker not implemented |
 | Shared release acceptance | 0 | 4 | Existing tests cover delivered slices; full roadmap acceptance remains |
-| **Total** | **14** | **38** | **52 tracked items** |
+| **Total** | **16** | **36** | **52 tracked items** |
 
 ## Completed Baseline
 
@@ -65,8 +65,8 @@ Reference: [capability-aware tool routing](references/project-capabilities/2026-
 
 Reference: [repository constraints and Markdown](references/project-capabilities/2026-10-08-repository-constraints-markdown-plan.md).
 
-- [ ] C01 — Define versioned parser-independent group, placement, reference, exception, severity, and outcome contracts plus configuration validation. Done when existing namespace configuration stays compatible and invalid/custom/unknown policies cannot silently fall back to an all-clear default.
-- [ ] C02 — Implement inventory-only placement evaluation with overlapping groups, allowed/denied paths, explicit exceptions, and normalized case-aware paths. Done when Markdown, SQL, scripts, and assets can be checked without semantic indexers; missing/excluded/unobserved remain distinct.
+- [x] C01 — Define versioned parser-independent group, placement, reference, exception, severity, and outcome contracts plus configuration validation. Evidence: `RepositoryConstraintPolicyTests`, `ArchitectureRuleSetConfigurationTests`, `ConfigurationArchitecturePolicyTests`, and `ArchitecturePolicyLoadingTests` verify versioned round trips, strict policy validation, legacy namespace behavior, pre-upload rejection, and absence-only default fallback. See the October 22 C01-C02 evidence below.
+- [x] C02 — Implement inventory-only placement evaluation with overlapping groups, allowed/denied paths, explicit exceptions, and normalized case-aware paths. Evidence: `RepositoryPlacementEvaluatorTests` covers Markdown/SQL/PowerShell/assets without semantic indexers, overlapping groups, deny precedence, explicit exceptions, case/separators/spaces/dot segments/traversal, incomplete discovery, missing/excluded/unobserved targets, collision rejection, bounded findings, and cancellation. See the October 22 C01-C02 evidence below.
 - [ ] C03 — Expose a bounded project/optional-target repository-constraint query through Application, API/SDK, and MCP. Done when rule IDs, reasons, evidence locations, applicability, and evaluation coverage round-trip with auth/cancellation/schema tests.
 - [ ] C04 — Audit `DocumentReferenceExtractor` fidelity and select/pin a syntax-aware Markdown parser through a compatibility spike. Done when extraction fixtures establish the supported syntax and document search keeps its existing behavior; regex extraction is not treated as validation.
 - [ ] C05 — Extract stable file-level reference facts with source spans, link/image kind, raw/normalized targets, fragments, parser fingerprint, and inventory generation. Done when inline/reference-style forms, code fences, escapes, HTML limits, URL decoding, and root-relative/anchor semantics have explicit fixtures.
@@ -110,6 +110,16 @@ Reference: [roadmap and acceptance matrix](references/project-capabilities/2026-
 No automatic indexing, dependency installation, source-script execution, or external-repository edits are implied by this checklist. Deferred MVP exclusions in the reference plans remain deferred: arbitrary validators, narrative/canon validation, chapter numbering/front matter, PowerShell classes/enums/data flow, Pester shields, and PSScriptAnalyzer integration.
 
 ## Evidence And Verification Baseline
+
+### 2026-10-22: C01-C02 Contracts, Configuration Validation, And Placement
+
+Added version 1.0 parser-independent group, placement, Markdown-reference policy, exception, diagnostic, and outcome contracts in Core. Strict JSON configuration validation preserves the existing namespace layer/dependency fields and default dependency reasons while rejecting unknown/custom fields, duplicate properties/IDs, unsupported versions/severities/patterns, unknown groups, empty policies, and malformed namespace rules. Optional selectors/collections normalize to empty collections. The configuration indexer validates the active architecture policy before clearing/uploading configuration; invalid or unreadable policies and missing custom paths exit with code 2. The repository loader uses legacy defaults only when configuration is genuinely absent and unconfigured; invalid/empty/missing explicitly configured policy, duplicate/oversized entry sets, and potentially truncated previews fail rather than substitute defaults or execute an all-clear query.
+
+The inventory-only placement evaluator accepts generation-scoped admitted files, discovery state, explicit case sensitivity, known excluded paths, and an optional exact-file target. It evaluates every matching group/rule, applies explicit exceptions before deny/allow checks, normalizes separators/dot segments without lowercasing identities, rejects traversal/collisions/contradictory inventory, and distinguishes missing/excluded/unobserved targets. Partial discovery retains observed findings without claiming complete coverage or absence. Outcomes retain rule identity/severity/reasons, required capabilities, evaluated counts, total findings, bounded ordered samples, and truncation flags. Applicable reference rules remain explicitly unsupported by this evaluator. No file reads or semantic workers are needed for placement.
+
+C01 and C02 are checked. C03 public query/transport/persistence wiring, C04-C09 Markdown evidence/report integration, and B05 capability activation remain open. The new contracts/evaluator do not authorize any new production capability, certify reference resolution, or claim lossless policy persistence through existing 80-character configuration previews. Usage and limits are documented in [repository-constraints.md](../repository-constraints.md).
+
+Verification on Windows with existing dependencies: all 117 Core, 438 Indexer, 32 Infrastructure unit, and 519 Application tests passed using `dotnet test <test-project> --no-restore --verbosity minimal` (1,106 total). Named evidence fixtures are recorded on C01-C02 above. `git diff --check` passed. CodeMeridian graph queries were skipped at the user's request because recent changes may be unindexed. No repository indexing, dependency installation, deployment, or live Neo4j acceptance was performed.
 
 ### 2026-10-22: A03 Callable Syntax And Identity Accounting (Partial Delivery)
 

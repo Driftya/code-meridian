@@ -28,10 +28,11 @@ public sealed partial class Neo4jCodeGraphRepository
         string? projectContext,
         CancellationToken cancellationToken)
     {
-        var activeArchitecturePath = await LoadActiveArchitecturePathAsync(session, projectContext, cancellationToken)
-            ?? DefaultArchitectureFilePath;
-        var entries = await LoadConfigurationEntriesForFileAsync(session, activeArchitecturePath, projectContext, cancellationToken);
-        return ParseArchitectureRuleSet(entries) ?? DefaultArchitectureRules;
+        var configuredPath = await LoadActiveArchitecturePathAsync(session, projectContext, cancellationToken);
+        var (exists, entries) = await LoadConfigurationEntriesForFileAsync(session,
+            configuredPath ?? DefaultArchitectureFilePath, projectContext, cancellationToken);
+        if (!exists && configuredPath is null) return DefaultArchitectureRules;
+        return ArchitectureRuleSetConfiguration.ParseEntries(entries);
     }
 
     private async Task<string?> LoadActiveArchitecturePathAsync(
@@ -70,7 +71,7 @@ public sealed partial class Neo4jCodeGraphRepository
         return null;
     }
 
-    private async Task<IReadOnlyDictionary<string, string>> LoadConfigurationEntriesForFileAsync(
+    private async Task<(bool Exists, IReadOnlyDictionary<string, string> Entries)> LoadConfigurationEntriesForFileAsync(
         IAsyncSession session,
         string relativePath,
         string? projectContext,
@@ -81,12 +82,12 @@ public sealed partial class Neo4jCodeGraphRepository
             WHERE file.type = 'ConfigurationFile'
               AND file.filePathNormalized = $filePathNormalized
               AND ($projectContextNormalized IS NULL OR file.projectContextNormalized = $projectContextNormalized)
-            MATCH (file)-[:DefinesConfig]->(entry:CodeNode)
+            OPTIONAL MATCH (file)-[:DefinesConfig]->(entry:CodeNode)
             WHERE entry.type = 'ConfigurationEntry'
             RETURN coalesce(entry.canonicalKey, entry.name) AS canonicalKey,
                    coalesce(entry.rawValuePreview, '') AS valuePreview
             ORDER BY canonicalKey
-            LIMIT 500
+            LIMIT 1001
             """;
 
         var cursor = await session.RunAsync(cypher, new
@@ -96,122 +97,19 @@ public sealed partial class Neo4jCodeGraphRepository
         });
 
         var entries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var exists = false;
         await foreach (var record in cursor.WithCancellation(cancellationToken))
         {
+            exists = true;
             var key = record["canonicalKey"].As<string?>();
             if (string.IsNullOrWhiteSpace(key))
                 continue;
 
-            entries[key] = record["valuePreview"].As<string?>() ?? string.Empty;
+            if (entries.Count >= 1000 || !entries.TryAdd(key, record["valuePreview"].As<string?>() ?? string.Empty))
+                throw new ArgumentException("Architecture configuration entries exceed their limit or contain duplicate keys.");
         }
 
-        return entries;
-    }
-
-    private static ArchitectureRuleSet? ParseArchitectureRuleSet(IReadOnlyDictionary<string, string> entries)
-    {
-        if (entries.Count == 0)
-            return null;
-
-        var name = entries.TryGetValue("name", out var configuredName) && !string.IsNullOrWhiteSpace(configuredName)
-            ? configuredName
-            : "Configured Architecture";
-
-        var layerEntries = GroupIndexedEntries(entries, "layers");
-        var layers = layerEntries
-            .OrderBy(entry => entry.Key)
-            .Select(entry =>
-            {
-                var id = entry.Value.TryGetValue("id", out var layerId) ? layerId : string.Empty;
-                var patterns = CollectIndexedValues(entry.Value, "namespaceContainsAny");
-                return string.IsNullOrWhiteSpace(id) || patterns.Count == 0
-                    ? null
-                    : new ArchitectureLayerDefinition(id, patterns);
-            })
-            .Where(layer => layer is not null)
-            .Cast<ArchitectureLayerDefinition>()
-            .ToArray();
-
-        if (layers.Length == 0)
-            return null;
-
-        var layersById = layers.ToDictionary(layer => layer.Id, StringComparer.OrdinalIgnoreCase);
-        var ruleEntries = GroupIndexedEntries(entries, "forbiddenDependencies");
-        var rules = ruleEntries
-            .OrderBy(entry => entry.Key)
-            .Select(entry =>
-            {
-                var values = entry.Value;
-                var from = values.TryGetValue("from", out var fromLayer) ? fromLayer : string.Empty;
-                var to = values.TryGetValue("to", out var toLayer) ? toLayer : string.Empty;
-                var reason = values.TryGetValue("reason", out var configuredReason) && !string.IsNullOrWhiteSpace(configuredReason)
-                    ? configuredReason
-                    : $"{from} must not depend on {to}";
-
-                return !layersById.ContainsKey(from) || !layersById.ContainsKey(to)
-                    ? null
-                    : new ArchitectureForbiddenDependencyRule(from, to, reason);
-            })
-            .Where(rule => rule is not null)
-            .Cast<ArchitectureForbiddenDependencyRule>()
-            .ToArray();
-
-        return rules.Length == 0
-            ? null
-            : new ArchitectureRuleSet(name, layers, rules);
-    }
-
-    private static Dictionary<int, Dictionary<string, string>> GroupIndexedEntries(
-        IReadOnlyDictionary<string, string> entries,
-        string rootKey)
-    {
-        var groups = new Dictionary<int, Dictionary<string, string>>();
-        var prefix = $"{rootKey}:";
-
-        foreach (var (key, value) in entries)
-        {
-            if (!key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var remainder = key[prefix.Length..];
-            var separatorIndex = remainder.IndexOf(':');
-            if (separatorIndex <= 0)
-                continue;
-
-            if (!int.TryParse(remainder[..separatorIndex], out var index))
-                continue;
-
-            var childKey = remainder[(separatorIndex + 1)..];
-            if (!groups.TryGetValue(index, out var group))
-            {
-                group = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                groups[index] = group;
-            }
-
-            group[childKey] = value;
-        }
-
-        return groups;
-    }
-
-    private static List<string> CollectIndexedValues(
-        IReadOnlyDictionary<string, string> values,
-        string keyPrefix)
-    {
-        return values
-            .Where(entry => entry.Key.StartsWith($"{keyPrefix}:", StringComparison.OrdinalIgnoreCase))
-            .Select(entry =>
-            {
-                var suffix = entry.Key[(keyPrefix.Length + 1)..];
-                return int.TryParse(suffix, out var index)
-                    ? (Index: index, Value: entry.Value)
-                    : (Index: int.MaxValue, Value: entry.Value);
-            })
-            .OrderBy(entry => entry.Index)
-            .Select(entry => entry.Value)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        return (exists, entries);
     }
 
     private static (string WhereClause, string CaseClause, Dictionary<string, object?> Parameters) BuildArchitectureRuleCypher(

@@ -4,7 +4,7 @@
 
 Date: 2026-10-08
 
-Status: planned.
+Status: C01-C02 delivered on 2026-10-22: versioned/validated contracts and inventory-only placement evaluation. Public query, Markdown structural evidence, routing/report integration, and release acceptance remain open. See [contract and placement guidance](../../../repository-constraints.md).
 
 Depends on the inventory/profile in [plan 1](2026-10-08-project-discovery-capability-profile-plan.md); integrates with [tool routing](2026-10-08-capability-aware-tool-routing-plan.md).
 

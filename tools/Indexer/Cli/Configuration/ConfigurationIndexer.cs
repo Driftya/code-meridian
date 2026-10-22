@@ -2,6 +2,8 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using CodeMeridian.Application.Services;
+using CodeMeridian.Core.CodeGraph;
+using CodeMeridian.Core.Projects;
 using CodeMeridian.Sdk;
 using CodeMeridian.Tooling.Configuration;
 
@@ -27,6 +29,9 @@ internal sealed class ConfigurationIndexer
         CancellationToken cancellationToken = default,
         HttpMessageHandler? messageHandler = null)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!ValidateArchitecturePolicy(rootPath, architecturePath)) return 2;
+
         using var httpClient = messageHandler is null
             ? new HttpClient()
             : new HttpClient(messageHandler, disposeHandler: false);
@@ -84,6 +89,24 @@ internal sealed class ConfigurationIndexer
         await BatchIngestEdgesAsync(client, edgeRequests, cancellationToken);
 
         return 0;
+    }
+
+    private static bool ValidateArchitecturePolicy(DirectoryInfo rootPath, string? architecturePath)
+    {
+        try
+        {
+            var relativePath = ProjectProfilePath.Normalize(architecturePath ?? CodeMeridianConfigFileStore.DefaultArchitecturePath);
+            var file = new FileInfo(Path.Combine(rootPath.FullName, relativePath));
+            if (!file.Exists && relativePath == CodeMeridianConfigFileStore.DefaultArchitecturePath) return true;
+            ArchitectureRuleSetConfiguration.Parse(File.ReadAllText(file.FullName));
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or System.Text.Json.JsonException
+            or IOException or UnauthorizedAccessException)
+        {
+            Console.WriteLine("Invalid or unreadable architecture policy; configuration indexing was not started.");
+            return false;
+        }
     }
 
     private static void BuildFileRequests(
