@@ -2,7 +2,7 @@
 
 Date: 2026-10-19
 
-Status: active. **18 completed items (12 foundation, 6 delivery); 34 open delivery items.**
+Status: active. **21 completed items (12 foundation, 9 delivery); 31 open delivery items.**
 
 This is the current progress tracker for the five October 8 plans. Their detailed designs are retained under [references/project-capabilities/](references/project-capabilities/). This checklist consolidates overlapping work; it does not replace their semantics or expand their MVPs.
 
@@ -14,10 +14,10 @@ The baseline includes committed and uncommitted implementation in this working t
 |---|---:|---:|---|
 | Discovery and producer evidence | 10 | 10 | Worker identities, source binding, and C# execution reports implemented; semantic worker coverage remains unaudited |
 | Capability-aware routing | 6 | 3 | Shared guards, enabled-section reports, and scoped document search implemented; scoped graph queries and conformance remain |
-| Repository constraints and Markdown | 2 | 7 | Validated contracts and inventory-only placement implemented; public query and Markdown structural evidence remain open |
+| Repository constraints and Markdown | 5 | 4 | Placement, syntax-aware Markdown facts, and inventory reference resolution implemented; public query, publication, and report integration remain open |
 | Offline PowerShell | 0 | 10 | Detected but unsupported; parser worker not implemented |
 | Shared release acceptance | 0 | 4 | Existing tests cover delivered slices; full roadmap acceptance remains |
-| **Total** | **18** | **34** | **52 tracked items** |
+| **Total** | **21** | **31** | **52 tracked items** |
 
 ## Completed Baseline
 
@@ -68,9 +68,9 @@ Reference: [repository constraints and Markdown](references/project-capabilities
 - [x] C01 — Define versioned parser-independent group, placement, reference, exception, severity, and outcome contracts plus configuration validation. Evidence: `RepositoryConstraintPolicyTests`, `ArchitectureRuleSetConfigurationTests`, `ConfigurationArchitecturePolicyTests`, and `ArchitecturePolicyLoadingTests` verify versioned round trips, strict policy validation, legacy namespace behavior, pre-upload rejection, and absence-only default fallback. See the October 22 C01-C02 evidence below.
 - [x] C02 — Implement inventory-only placement evaluation with overlapping groups, allowed/denied paths, explicit exceptions, and normalized case-aware paths. Evidence: `RepositoryPlacementEvaluatorTests` covers Markdown/SQL/PowerShell/assets without semantic indexers, overlapping groups, deny precedence, explicit exceptions, case/separators/spaces/dot segments/traversal, incomplete discovery, missing/excluded/unobserved targets, collision rejection, bounded findings, and cancellation. See the October 22 C01-C02 evidence below.
 - [ ] C03 — Expose a bounded project/optional-target repository-constraint query through Application, API/SDK, and MCP. Done when rule IDs, reasons, evidence locations, applicability, and evaluation coverage round-trip with auth/cancellation/schema tests.
-- [ ] C04 — Audit `DocumentReferenceExtractor` fidelity and select/pin a syntax-aware Markdown parser through a compatibility spike. Done when extraction fixtures establish the supported syntax and document search keeps its existing behavior; regex extraction is not treated as validation.
-- [ ] C05 — Extract stable file-level reference facts with source spans, link/image kind, raw/normalized targets, fragments, parser fingerprint, and inventory generation. Done when inline/reference-style forms, code fences, escapes, HTML limits, URL decoding, and root-relative/anchor semantics have explicit fixtures.
-- [ ] C06 — Resolve local references against inventory and target-group rules. Done when missing, forbidden, excluded/unobserved, external, fragment-only, unsupported, and out-of-repository cases are distinct; no remote fetch or outside-repository traversal occurs.
+- [x] C04 — Audit `DocumentReferenceExtractor` fidelity and select/pin a syntax-aware Markdown parser through a compatibility spike. Evidence: search-hint audit fixtures preserve regex behavior; `MarkdownReferenceParserTests` verifies the pinned Markdig 1.4.0 CommonMark pipeline on .NET 10 Windows. See the October 23 C04-C06 evidence below.
+- [x] C05 — Extract stable file-level reference facts with source spans, link/image kind, raw/normalized targets, fragments, parser fingerprint, and inventory generation. Evidence: `MarkdownReferenceParserTests` covers inline/reference forms, code/escapes, HTML limits, destination/occurrence spans, identity/text/parser fingerprints, bounds, nesting failure, cancellation, round trips, and target semantics. See the October 23 C04-C06 evidence below.
+- [x] C06 — Resolve local references against inventory and target-group rules. Evidence: `MarkdownReferenceTargetTests`, `MarkdownReferenceEvaluatorTests`, and parser-to-evaluator fixtures cover distinct resolution/rule outcomes, case/encoding/traversal, groups/exceptions, stale/malformed evidence, bounds, and cancellation without fetching or linked-file reads. See the October 23 C04-C06 evidence below.
 - [ ] C07 — Publish owned Markdown-reference evidence generation-safely and handle retries, changed links, renames/deletions, and parse failures. Done when failed/stale chunks cannot claim current structural coverage and searchable document chunks share stable file identity without becoming code symbols.
 - [ ] C08 — Compose new per-rule results with existing architecture reports and capability profiles. Done when document-only fixtures evaluate placement/references while namespace rules are inapplicable, and incomplete inventory/parsing cannot produce clean validation.
 - [ ] C09 — Complete constraint-specific verification and user guidance. Done when Core validation, parser/pipeline, Application, transport, and persistence fixtures cover path case/separators/spaces/traversal, policy errors, reference forms, failure/replay, and backward-compatible namespace behavior.
@@ -110,6 +110,16 @@ Reference: [roadmap and acceptance matrix](references/project-capabilities/2026-
 No automatic indexing, dependency installation, source-script execution, or external-repository edits are implied by this checklist. Deferred MVP exclusions in the reference plans remain deferred: arbitrary validators, narrative/canon validation, chapter numbering/front matter, PowerShell classes/enums/data flow, Pester shields, and PSScriptAnalyzer integration.
 
 ## Evidence And Verification Baseline
+
+### 2026-10-23: C04-C06 Markdown Parsing And Inventory Reference Evaluation
+
+Audited the existing regex extractor with compatibility fixtures rather than changing searchable document/code hints. Selected and exactly pinned Markdig 1.4.0 for a separate structural parser using the default CommonMark pipeline, precise source spans, and bounded nesting. The new versioned file-level facts retain project/path identity, generation, decoded-text fingerprint, executing parser/extractor/Core assembly fingerprints, occurrence/destination spans, link/image kind, raw/unescaped targets, normalized paths, and fragments. Inline/full/collapsed/shortcut reference forms, entities/escapes, code exclusion, autolinks, line endings, bounds, raw HTML limits, and malformed/deep input have explicit fixtures. Parser nesting failures discard the file's partial facts. The [compatibility decision and supported semantics](../repository-constraints.md#markdown-parser-compatibility-decision) document the boundaries.
+
+Added parser-independent Core resolution and per-rule evaluation against explicit project/generation/case-aware inventory. Local targets decode once with strict UTF-8 validation; a leading slash is repository-root-relative and escaping traversal never touches the filesystem. Results distinguish resolved, missing, forbidden, excluded/unobserved, external, fragment-only, unsupported, and out-of-repository cases. Every applicable group/rule runs with explicit source exceptions and kind/target-group filters. Incomplete discovery/parser evidence, unsupported targets, unknown group membership, and unverified local fragments cannot establish complete validation. Findings retain source locations, rule reasons/severity, totals, and bounded samples; zero-reference inputs are legitimate.
+
+C03 remains open for lossless policy persistence and published filesystem case semantics; C07 must bind these standalone decoded-text facts to verified input bytes and owned generation-safe publication. C08-C09/B05 still cover report/routing integration and full constraint acceptance. No capability readiness, public validation endpoint, project-wide aggregation, or reference persistence is enabled by this batch.
+
+Verification on .NET 10 Windows: all 192 Core, 50 DocumentIndexer, and 441 Indexer tests passed (683 total). The DocumentIndexer/Core suites cover the new parser, target normalization, resolution, and legacy search-hint compatibility; Indexer tests cover the existing CLI integration after adding the parser dependency. The exact Markdig dependency and required transitive packages were restored from NuGet. `git diff --check` passed. CodeMeridian graph queries were skipped at the user's request because recent changes may be unindexed. No repository indexing, linked-file execution/fetching, deployment, external-repository edits, or live Neo4j acceptance was performed.
 
 ### 2026-10-22: B02 Root And Exact-Target Document Queries
 

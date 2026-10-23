@@ -7,4 +7,7 @@ public sealed record RepositoryConstraintInventory(
     string DiscoveryState,
     bool CaseSensitive,
     IReadOnlyList<ProjectInventoryFile> Files,
-    IReadOnlyList<string> ExcludedPaths);
+    IReadOnlyList<string> ExcludedPaths)
+{
+    public string? Project { get; init; }
+}
