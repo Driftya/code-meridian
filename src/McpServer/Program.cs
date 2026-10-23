@@ -145,6 +145,7 @@ app.MapOpenApi().AllowAnonymous();
 // REST API — used by the Indexer CLI and Sdk (not Copilot)
 app.MapKnowledgeApi();
 app.MapProjectProfileApi();
+app.MapDocumentSearchApi();
 app.MapEmbeddingApi();
 app.MapStatusApi();
 app.MapGraphQL(GraphQlReadContract.EndpointPath).AllowAnonymous();

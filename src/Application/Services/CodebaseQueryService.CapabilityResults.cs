@@ -43,6 +43,16 @@ public sealed partial class CodebaseQueryService
             var includeVerifiedTests = includeTests && (tests is null || tests.Status == "ready");
             var result = await BuildMinimalContextResultCoreAsync(target, goal, maxTokens, includeVerifiedTests,
                 includeExternalConcepts, includeSourceSnippets, explainPaths, detailLevel, cancellationToken);
+            if (includeVerifiedTests && tests is not null)
+            {
+                tests = await RevalidateToolAsync("find_test_shield", tests, target, cancellationToken);
+                if (tests.Status != "ready")
+                {
+                    includeVerifiedTests = false;
+                    result = await BuildMinimalContextResultCoreAsync(target, goal, maxTokens, false,
+                        includeExternalConcepts, includeSourceSnippets, explainPaths, detailLevel, cancellationToken);
+                }
+            }
             return includeTests && !includeVerifiedTests ? result with
             {
                 Degradations = result.Degradations.Append(new("test_context_omitted", tests!.Status + ": " + string.Join(" ", tests.Reasons))).ToArray()

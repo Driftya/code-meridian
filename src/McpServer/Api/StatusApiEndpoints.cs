@@ -91,7 +91,15 @@ public static class StatusApiEndpoints
                 item.Confidence,
                 item.Score,
                 item.MatchedKeywords)).ToArray(),
-            report.ReviewFocus));
+            report.ReviewFocus)
+        {
+            Applicability = report.Applicability is not { } applicability ? null : new(
+                applicability.Status, applicability.ProfileGeneration, applicability.TargetKind, applicability.Scope, applicability.Reasons)
+            {
+                ContractVersion = applicability.ContractVersion, Project = applicability.Project, Coverage = applicability.Coverage,
+                Limitations = applicability.Limitations, NextActions = applicability.NextActions
+            }
+        });
     }
 
     private static PrContextNodeSummaryResponse MapNode(ApplicationPrContextNodeSummary node) =>

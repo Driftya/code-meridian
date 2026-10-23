@@ -24,6 +24,8 @@ Read `get_project_profile(projectContext, targetPath?)` before choosing an analy
 
 ### Context Follows The Target Folder
 
+Document queries can also carry an explicit repository-relative `rootPath` or exact `targetPath` with `projectContext`. Use the path's inventory case. Matching complete root evidence can authorize that confined query; an unfiltered search still requires complete project evidence. Document-review workflows forward their observed exact target to storage. See [scoped document search](../document-search.md).
+
 The CodeMeridian agents and skills resolve project context from the supplied target, including a file or directory outside the current checkout. They inspect its owning Git/worktree or configured solution root and applicable local `meridian.json`, confirm fallback names against indexed evidence, and retain a separate root/context/freshness map for each relevant scope. Nested index roots can exist within one Git repository; an external path can also be relevant without being indexed.
 
 For example, `C:\Repos\MyApi\src\Service.cs` may belong to context `MyApi`, while `C:\Repos\SharedLibraries\src\Validator.cs` belongs to `SharedLibraries`, as established by each root's configuration and graph evidence. Query each target in its own context, then inspect cross-project dependencies and exact endpoints. The global backend connection can be shared; a global default project name does not prove that both directories share an indexed context.

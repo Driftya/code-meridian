@@ -8,9 +8,9 @@ public sealed partial class CodebaseQueryService
     private readonly AsyncLocal<CapabilityExecutionScope?> capabilityExecution = new();
 
     private async Task<ContextWorkflowApplicability?> EvaluateToolAsync(string tool, string? project, string? target,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, ContextWorkflowToolOptions? options = null)
     {
-        try { return await EvaluateToolCoreAsync(tool, project, target, cancellationToken); }
+        try { return await EvaluateToolCoreAsync(tool, project, target, cancellationToken, options); }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new("failed", null, null, null, ["Capability evidence could not be read; analysis was not authorized."])
@@ -19,11 +19,11 @@ public sealed partial class CodebaseQueryService
     }
 
     private async Task<ContextWorkflowApplicability?> EvaluateToolCoreAsync(string tool, string? project, string? target,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, ContextWorkflowToolOptions? options)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (projectProfiles is null) return null; // Explicit legacy construction preserves advisory/manual access.
-        var descriptor = ContextWorkflowToolCatalog.Get(tool);
+        var descriptor = ContextWorkflowToolCatalog.Get(tool, options);
         if (descriptor.ReadinessExempt) return null;
         var canonical = target?.Contains("::", StringComparison.Ordinal) == true;
         var nodeProject = canonical ? target![..target!.IndexOf("::", StringComparison.Ordinal)] : null;
@@ -38,16 +38,16 @@ public sealed partial class CodebaseQueryService
                 return new("unknown", profile.Generation, null, null, ["The exact target and its inventory path could not be confirmed."]) { Project = project };
             profile = await projectProfiles.GetAsync(project!, path, cancellationToken);
         }
-        var applicability = ContextWorkflowToolPolicy.Evaluate(tool, profile!);
+        var applicability = ContextWorkflowToolPolicy.Evaluate(tool, profile!, options);
         if (applicability.Status == "ready" && descriptor.RequiresEmbeddings && !await embeddingProvider.IsAvailableAsync(cancellationToken))
             return applicability with { Status = "unknown", Coverage = "unknown", Reasons = ["The required embedding provider is unavailable."] };
         return applicability;
     }
 
     private async Task<string> ExecuteCapabilityQueryAsync(string tool, string? project, string? target,
-        Func<Task<string>> query, CancellationToken cancellationToken)
+        Func<Task<string>> query, CancellationToken cancellationToken, ContextWorkflowToolOptions? options = null)
     {
-        var before = await EvaluateToolAsync(tool, project, target, cancellationToken);
+        var before = await EvaluateToolAsync(tool, project, target, cancellationToken, options);
         if (before is null) return await query();
         if (before.Status != "ready") { RecordApplicability(tool, before); return before.ToMarkdown(tool); }
         string output;
@@ -58,7 +58,7 @@ public sealed partial class CodebaseQueryService
             RecordApplicability(tool, failed);
             return failed.ToMarkdown(tool);
         }
-        var after = await RevalidateToolAsync(tool, before, target, cancellationToken);
+        var after = await RevalidateToolAsync(tool, before, target, cancellationToken, options);
         if (after.Status == "ready") after = after with { Status = "ok" };
         RecordApplicability(tool, after);
         return after.Status == "ok" ? after.ToMarkdown(tool) + "\n\n" + output : after.ToMarkdown(tool);
@@ -99,9 +99,9 @@ public sealed partial class CodebaseQueryService
     }
 
     private async Task<ContextWorkflowApplicability> RevalidateToolAsync(string tool, ContextWorkflowApplicability before,
-        string? target, CancellationToken cancellationToken)
+        string? target, CancellationToken cancellationToken, ContextWorkflowToolOptions? options = null)
     {
-        var after = await EvaluateToolAsync(tool, before.Project, target, cancellationToken);
+        var after = await EvaluateToolAsync(tool, before.Project, target, cancellationToken, options);
         if (after?.Status != "ready" || after.ProfileGeneration != before.ProfileGeneration)
             return (after ?? before) with { Status = "stale", Coverage = "unknown",
                 Reasons = ["Profile generation, target, or required coverage changed during analysis. Results were discarded; replan and retry."] };

@@ -60,6 +60,10 @@ Do not guess callers or blast radius from file names or grep output.
 | Asking for largest files, methods, or classes | `find_large_nodes` |
 | Asking for god classes or high-coupling risks | `find_god_classes` |
 
+## Document Scope
+
+For document context, `search_documentation` accepts `rootPath` for a repository-relative directory or `targetPath` for one exact observed Markdown/text file. Supply `projectContext` with either filter. Paths preserve inventory case; a root includes descendants with directory boundaries. Matching complete root evidence can authorize a confined search, while unfiltered searches still need project coverage. Document-review workflows forward their exact target to storage. See [scoped document search](../document-search.md) for path limits and overlapping-outcome rules.
+
 ## Node ID Guidance
 
 Node IDs use canonical graph IDs such as:

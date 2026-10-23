@@ -20,9 +20,18 @@ internal static class ToolDependencyCatalog
             "Application query entry points must distinguish checks that did not run from executed empty results.",
             ["tests/CodeMeridian.Application.Tests/Services/DirectCapabilityGuardTests.cs", "tests/CodeMeridian.McpServer.Tests/McpStructuredResultsEndpointTests.cs"],
             ["docs/features.md", "docs/context-workflows.md"]),
+        Edge("tool_capability_policy", "search_documentation", "document query boundaries and overlapping outcome coverage", "hard",
+            "Root and exact-file searches must filter storage to the evaluated scope and revalidate current evidence; root-only evidence cannot authorize the unfiltered fallback.",
+            ["tests/CodeMeridian.Application.Tests/Services/ScopedDocumentPolicyTests.cs", "tests/CodeMeridian.Application.Tests/Services/ScopedDocumentSearchTests.cs",
+             "tests/CodeMeridian.Infrastructure.Tests/Knowledge/ScopedDocumentStorageTests.cs", "tests/CodeMeridian.McpServer.Tests/ScopedDocumentSearchEndpointTests.cs"],
+            ["docs/document-search.md", "docs/context-workflows.md"]),
         Edge("direct_query_guards", "build_minimal_context", "optional test evidence and blocked structured results", "hard",
             "Context packs omit unaudited test sections instead of presenting an empty shield as verified coverage.",
-            ["tests/CodeMeridian.Application.Tests/Services/DirectCapabilityGuardTests.cs"], ["docs/context-workflows.md"]),
+            ["tests/CodeMeridian.Application.Tests/Services/DirectCapabilityGuardTests.cs", "tests/CodeMeridian.Application.Tests/Services/CompositeCapabilityGuardTests.cs"], ["docs/context-workflows.md"]),
+        Edge("tool_capability_policy", "pr_context_report", "enabled report requirements and generation revalidation", "hard",
+            "PR reports require current callable, test, and history evidence plus document coverage when requested; unavailable reports expose applicability and an incomplete CLI exit code.",
+            ["tests/CodeMeridian.Application.Tests/Services/PrContextReportCapabilityTests.cs", "tests/CodeMeridian.McpServer.Tests/CompositeReportEndpointTests.cs",
+             "tests/CodeMeridian.Indexer.Tests/Cli/PrContextReportCommandTests.cs"], ["docs/context-workflows.md", "docs/features/21-add-ci-friendly-context-reports.md"]),
         Edge(
             "suggest_extractions",
             "plan_context_workflow",
@@ -262,6 +271,7 @@ internal static class ToolDependencyCatalog
         new[]
         {
             Subject("get_project_profile", "Tool", "Get Project Profile", "Published inventory, capabilities, and generation-scoped analyzer evidence.", []),
+            Subject("search_documentation", "Tool", "Search Documentation", "Project, root, or exact-file document search with current scope evidence.", ["mcp__codemeridian.search_documentation"]),
             Subject("tool_capability_policy", "Contract", "Tool Capability Policy", "Shared deterministic applicability requirements for plans, execution, and direct queries.", ["capability routing", "tool readiness"]),
             Subject("direct_query_guards", "Contract", "Direct Query Guards", "Application guards and bounded applicability results for query entry points.", []),
             Subject("plan_context_workflow", "Tool", "Plan Context Workflow", "MCP/application workflow planner for ordered CodeMeridian tool recipes.", ["mcp__codemeridian.plan_context_workflow"]),

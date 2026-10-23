@@ -29,20 +29,27 @@ public partial class CodebaseQueryService
 
         await Task.WhenAll(callEdgeCountTask, cyclesTask, violationsTask, coverageGapsTask, freshnessNodesTask);
 
-        var bridgeResult = await TryGetBridgeNodesAsync(projectContext, cancellationToken);
+        var bridgeResult = await ReadOptionalReportSectionAsync("get_betweenness", projectContext,
+            () => codeGraph.GetBetweennessAsync(projectContext, limit: 10, cancellationToken), cancellationToken);
+        var bridgeNodes = bridgeResult.Value ?? [];
         var freshness = SummarizeFreshness(freshnessNodesTask.Result);
         var score = CalculateWeatherScore(
             cyclesTask.Result.Count,
             violationsTask.Result.Count,
             coverageGapsTask.Result.Count,
             freshness.LowConfidence,
-            bridgeResult.Nodes.Count);
+            bridgeNodes.Count);
 
         var sb = new StringBuilder();
         sb.AppendLine($"# Architecture Weather Report{(projectContext is not null ? $" - {projectContext}" : "")}");
         sb.AppendLine();
-        sb.AppendLine($"**Weather:** {DescribeWeather(score)}");
-        sb.AppendLine($"**Score:** {score.ToString(CultureInfo.InvariantCulture)}/100");
+        if (bridgeResult.Value is not null)
+        {
+            sb.AppendLine($"**Weather:** {DescribeWeather(score)}");
+            sb.AppendLine($"**Score:** {score.ToString(CultureInfo.InvariantCulture)}/100");
+        }
+        else
+            sb.AppendLine("**Weather and score:** unavailable; projection coverage is incomplete.");
         sb.AppendLine();
         sb.AppendLine("| Signal | Count |");
         sb.AppendLine("|---|---:|");
@@ -50,7 +57,8 @@ public partial class CodebaseQueryService
         sb.AppendLine($"| Call relationships | {callEdgeCountTask.Result.ToString("N0", CultureInfo.InvariantCulture)} |");
         sb.AppendLine($"| Namespace cycles | {cyclesTask.Result.Count.ToString("N0", CultureInfo.InvariantCulture)} |");
         sb.AppendLine($"| Architecture violations | {violationsTask.Result.Count.ToString("N0", CultureInfo.InvariantCulture)} |");
-        sb.AppendLine($"| Bridge nodes | {bridgeResult.Nodes.Count.ToString("N0", CultureInfo.InvariantCulture)} |");
+        if (bridgeResult.Value is not null)
+            sb.AppendLine($"| Bridge nodes | {bridgeNodes.Count.ToString("N0", CultureInfo.InvariantCulture)} |");
         sb.AppendLine($"| Untested methods/classes | {coverageGapsTask.Result.Count.ToString("N0", CultureInfo.InvariantCulture)} |");
         sb.AppendLine($"| Low-confidence freshness nodes | {freshness.LowConfidence.ToString("N0", CultureInfo.InvariantCulture)} |");
         sb.AppendLine();
@@ -59,35 +67,20 @@ public partial class CodebaseQueryService
         sb.AppendLine($"Medium confidence: **{freshness.MediumConfidence.ToString("N0", CultureInfo.InvariantCulture)}**");
         sb.AppendLine($"Low confidence: **{freshness.LowConfidence.ToString("N0", CultureInfo.InvariantCulture)}**");
 
-        if (!string.IsNullOrWhiteSpace(bridgeResult.Error))
+        if (bridgeResult.UnavailableReason is not null)
         {
             sb.AppendLine();
-            sb.AppendLine($"Bridge nodes: unavailable ({bridgeResult.Error})");
+            sb.AppendLine($"Bridge nodes: unavailable ({bridgeResult.UnavailableReason})");
         }
-        else if (bridgeResult.Nodes.Count > 0)
+        else if (bridgeNodes.Count > 0)
         {
             sb.AppendLine();
             sb.AppendLine("## Top Bridge Nodes");
-            foreach (var (node, scoreValue) in bridgeResult.Nodes.Take(5))
+            foreach (var (node, scoreValue) in bridgeNodes.Take(5))
                 sb.AppendLine($"- `{node.Name}` ({node.Type}) - `{node.FilePath ?? "no file"}` - score {scoreValue.ToString("0.###", CultureInfo.InvariantCulture)}");
         }
 
         return sb.ToString();
-    }
-
-    private async Task<BridgeReportResult> TryGetBridgeNodesAsync(
-        string? projectContext,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var nodes = await codeGraph.GetBetweennessAsync(projectContext, limit: 10, cancellationToken);
-            return new BridgeReportResult(nodes, null);
-        }
-        catch (Exception ex)
-        {
-            return new BridgeReportResult([], ex.Message);
-        }
     }
 
     private static FreshnessSummary SummarizeFreshness(IReadOnlyCollection<CodeNode> nodes)
@@ -127,9 +120,4 @@ public partial class CodebaseQueryService
         };
 
     private sealed record FreshnessSummary(int HighConfidence, int MediumConfidence, int LowConfidence);
-
-    private sealed record BridgeReportResult(
-        IReadOnlyList<(CodeNode Node, double Score)> Nodes,
-        string? Error);
 }
-

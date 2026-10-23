@@ -83,9 +83,9 @@ public static class ContextWorkflowToolCatalog
 
     public static bool Contains(string toolName) => Tools.ContainsKey(toolName);
 
-    public static ContextWorkflowToolDescriptor Get(string toolName) =>
+    public static ContextWorkflowToolDescriptor Get(string toolName, ContextWorkflowToolOptions? options = null) =>
         Tools.TryGetValue(toolName, out var descriptor)
-            ? descriptor
+            ? options is null ? descriptor : ContextWorkflowToolRequirements.Apply(descriptor, options)
             : throw new InvalidOperationException($"Workflow recipe references unknown CodeMeridian tool '{toolName}'.");
 
     public static IReadOnlyList<string> MissingRecipeTools(IEnumerable<ContextWorkflowRecipe> recipes) =>

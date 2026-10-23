@@ -1,13 +1,17 @@
 using CodeMeridian.Application.Projects;
 using CodeMeridian.Core.Projects;
+using CodeMeridian.Core.Knowledge;
 
 namespace CodeMeridian.Application.Services.ContextWorkflows;
 
 public static class ContextWorkflowToolPolicy
 {
-    public static ContextWorkflowApplicability Evaluate(string tool, ProjectProfileResult profile)
+    public static ContextWorkflowApplicability Evaluate(string tool, ProjectProfileResult profile, ContextWorkflowToolOptions? options = null)
+        => Evaluate(ContextWorkflowToolCatalog.Get(tool, options), profile, options?.DocumentScope);
+
+    public static ContextWorkflowApplicability Evaluate(ContextWorkflowToolDescriptor descriptor, ProjectProfileResult profile, DocumentQueryScope? documentScope = null)
     {
-        var descriptor = ContextWorkflowToolCatalog.Get(tool);
+        var tool = descriptor.Name;
         ContextWorkflowApplicability Result(string status, string reason, string? scope = null,
             IReadOnlyList<string>? limitations = null) => new(status, profile.Generation, profile.Target?.Kind,
                 scope ?? (descriptor.AllowsTargetScope ? profile.Target?.Path : "."), new[] { reason }.Concat(profile.Warnings).Take(8).ToArray())
@@ -21,7 +25,7 @@ public static class ContextWorkflowToolPolicy
         if (profile.Status == "failed") return Result("failed", "Project capability evidence could not be read.");
         if (tool == "search_documentation")
         {
-            var document = ContextWorkflowProfilePolicy.EvaluateDocumentSearch(profile);
+            var document = ContextWorkflowProfilePolicy.EvaluateDocumentSearch(profile, documentScope);
             return document with { Project = profile.Project, Coverage = document.Status == "ready" ? "complete" : "unknown",
                 NextActions = document.Status == "ready" ? [] : ["Inspect the profile and explicitly refresh complete document indexing before retrying."] };
         }

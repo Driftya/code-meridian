@@ -193,22 +193,42 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
     public async Task<string> SearchDocumentationAsync(
         string query,
         string? projectContext = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? rootPath = null,
+        string? targetPath = null)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        var scoped = rootPath is not null || targetPath is not null;
+        var scope = new DocumentQueryScope(rootPath, targetPath);
+        if (scoped && string.IsNullOrWhiteSpace(projectContext))
+            throw new ArgumentException("Scoped document search requires an explicit project context.", nameof(projectContext));
         ProjectProfileResult? documentProfile = null;
         ContextWorkflowApplicability? documentApplicability = null;
         string DocumentStatus(string status, string message)
         {
             if (documentApplicability is not null) RecordApplicability("search_documentation", documentApplicability with { Status = status, Reasons = [message], Coverage = status == "ok" ? "complete" : "unknown" });
-            return $"Document search status: {status}. {message}";
+            return $"Document search status: {status}. Scope: {scope.EvidencePath}. {message}";
         }
         if (projectProfiles is not null)
         {
-            documentProfile = await GetWorkflowProfileAsync(projectContext, null, cancellationToken);
-            documentApplicability = ContextWorkflowToolPolicy.Evaluate("search_documentation", documentProfile!);
+            documentProfile = await GetWorkflowProfileAsync(projectContext, scope.TargetPath, cancellationToken);
+            documentApplicability = ContextWorkflowToolPolicy.Evaluate("search_documentation", documentProfile!, new(DocumentScope: scope));
             if (documentApplicability.Status != "ready") return DocumentStatus(documentApplicability.Status, string.Join(" ", documentApplicability.Reasons));
         }
-        var results = await vectorStore.SearchByTextAsync(query, projectContext, topK: 8, cancellationToken);
+        IReadOnlyList<KnowledgeDocument> results;
+        try
+        {
+            results = scoped
+                ? await vectorStore.SearchByTextInScopeAsync(query, projectContext!, scope, topK: 8, cancellationToken)
+                : await vectorStore.SearchByTextAsync(query, projectContext, topK: 8, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException && documentProfile is not null)
+        {
+            return DocumentStatus("failed", "Document search execution failed; no successful results are available.");
+        }
+        if (scoped)
+            results = results.Where(document => scope.Contains(document.Source)
+                && string.Equals(document.ProjectContext, projectContext, StringComparison.OrdinalIgnoreCase)).Take(8).ToArray();
         if (documentProfile is not null)
         {
             var accepted = new List<KnowledgeDocument>();
@@ -224,9 +244,9 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
                 if (source.Target is { Status: "observed", Kind: "markdown" or "text" }) accepted.Add(document);
             }
             results = accepted;
-            var current = await projectProfiles!.GetAsync(projectContext!, cancellationToken: cancellationToken);
+            var current = await projectProfiles!.GetAsync(projectContext!, scope.TargetPath, cancellationToken);
             if (current.Status != "available" || current.Generation != documentProfile.Generation
-                || ContextWorkflowToolPolicy.Evaluate("search_documentation", current).Status != "ready")
+                || ContextWorkflowToolPolicy.Evaluate("search_documentation", current, new(DocumentScope: scope)).Status != "ready")
                 return DocumentStatus("stale", "Inventory or coverage changed during the query; repeat against current evidence.");
         }
 
@@ -234,9 +254,10 @@ public sealed partial class CodebaseQueryService : ICodebaseQueryService
 
         if (results.Count == 0)
             return projectProfiles is null ? "No documentation found. Ingest docs via the ingest_document MCP tool or POST /api/v1/knowledge/documents."
-                : "Document search status: ok. No matching documents returned within the accepted inventory and published document coverage.";
+                : DocumentStatus("ok", "No matching documents returned within the accepted inventory and published document coverage.");
 
         var sb = new StringBuilder();
+        if (scoped) sb.AppendLine(DocumentStatus("ok", "Results are confined to the requested document scope."));
         sb.AppendLine($"Found **{results.Count}** relevant documents:\n");
 
         for (var i = 0; i < results.Count; i++)

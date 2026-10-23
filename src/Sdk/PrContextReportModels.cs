@@ -19,7 +19,10 @@ public sealed record PrContextReportResponse(
     IReadOnlyList<PrContextNodeSummaryResponse> MissingTestNodes,
     IReadOnlyList<PrContextHotspotWarningResponse> HotspotWarnings,
     IReadOnlyList<PrContextRelatedDocumentResponse> RelatedDocuments,
-    IReadOnlyList<string> ReviewFocus);
+    IReadOnlyList<string> ReviewFocus)
+{
+    public PrContextReportApplicabilityResponse? Applicability { get; init; }
+}
 
 public sealed record PrContextNodeSummaryResponse(
     string Id,

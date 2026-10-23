@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeMeridian.Application.Services.ContextWorkflows;
+using CodeMeridian.Core.Knowledge;
 
 namespace CodeMeridian.Application.Services;
 
@@ -103,7 +104,9 @@ public sealed partial class CodebaseQueryService
                 if (current is not null && (step.Tool == "search_documentation" && plan.WorkflowType != "document_review"
                     || plan.WorkflowType == "feature_implementation" && current.Target?.Kind is "markdown" or "text"))
                     current = current with { Target = null };
-                var readiness = ContextWorkflowToolPolicy.Evaluate(step.Tool, current!);
+                var documentScope = step.Tool == "search_documentation" && step.InputHints.TryGetValue("targetPath", out var documentTarget)
+                    ? new DocumentQueryScope(targetPath: documentTarget) : null;
+                var readiness = ContextWorkflowToolPolicy.Evaluate(step.Tool, current!, new(DocumentScope: documentScope));
                 if (current?.Generation != plan.Applicability?.ProfileGeneration || readiness.Status != "ready")
                 {
                     var applicability = readiness with { Status = current?.Generation != plan.Applicability?.ProfileGeneration ? "stale" : readiness.Status };
@@ -194,7 +197,8 @@ public sealed partial class CodebaseQueryService
                     ?? "Project profile is unknown; supply an explicit project context.",
                 "query_codebase" => await QueryStructureAsync(goal, projectContext, cancellationToken),
                 "get_architectural_overview" => await GetOverviewAsync(projectContext, cancellationToken),
-                "search_documentation" => await SearchDocumentationAsync(target ?? goal, projectContext, cancellationToken),
+                "search_documentation" => await SearchDocumentationAsync(target ?? goal, projectContext, cancellationToken,
+                    targetPath: step.InputHints.TryGetValue("targetPath", out var documentTarget) ? documentTarget : null),
                 "find_config_definitions" => await FindConfigDefinitionsAsync(target ?? goal, projectContext, cancellationToken),
                 "find_config_usage" => await FindConfigUsageAsync(target ?? goal, projectContext, cancellationToken),
                 "find_impact" => await WithTargetAsync(step, target, nodeId => FindImpactAsync(nodeId, cancellationToken: cancellationToken)),

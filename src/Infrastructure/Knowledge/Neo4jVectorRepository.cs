@@ -10,7 +10,7 @@ namespace CodeMeridian.Infrastructure.Knowledge;
 /// Stores and queries knowledge documents using Neo4j's built-in vector index.
 /// Requires Neo4j 5.11+ with the vector index feature enabled.
 /// </summary>
-public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
+public sealed partial class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
 {
     private const string IndexName = "knowledge_vector_index";
     private readonly IDriver _driver;
@@ -20,13 +20,16 @@ public sealed class Neo4jVectorRepository : IVectorRepository, IAsyncDisposable
     public Neo4jVectorRepository(
         IOptions<Neo4jOptions> options,
         ILogger<Neo4jVectorRepository> logger)
+        : this(GraphDatabase.Driver(options.Value.Uri, AuthTokens.Basic(options.Value.Username, options.Value.Password)),
+            options.Value.EmbeddingDimensions, logger)
+    {
+    }
+
+    internal Neo4jVectorRepository(IDriver driver, int dimensions, ILogger<Neo4jVectorRepository> logger)
     {
         _logger = logger;
-        var opts = options.Value;
-        _dimensions = opts.EmbeddingDimensions;
-        _driver = GraphDatabase.Driver(
-            opts.Uri,
-            AuthTokens.Basic(opts.Username, opts.Password));
+        _dimensions = dimensions;
+        _driver = driver;
     }
 
     /// <summary>Creates the vector and full-text indexes if they do not already exist.</summary>

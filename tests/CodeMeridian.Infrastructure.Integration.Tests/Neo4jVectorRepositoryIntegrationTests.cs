@@ -84,6 +84,36 @@ public sealed class Neo4jVectorRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ScopedFullTextFiltersBeforeLimitAndKeepsExactFileChunks()
+    {
+        var project = $"Integration.Documents.Scope.{Guid.NewGuid():N}";
+        var otherProject = project + ".Other";
+        KnowledgeDocument Doc(string id, string path, string context, int repeats = 1) => new()
+        { Id = project + id, Source = path, ProjectContext = context, Content = string.Join(' ', Enumerable.Repeat("scopedchapter", repeats)) };
+        try
+        {
+            foreach (var document in new[]
+            {
+                Doc("one", "docs/design notes/A.md", project), Doc("two", "docs/design notes/A.md", project),
+                Doc("nested", "docs/design notes/nested/B.md", project),
+                Doc("prefix", "docs/design notes-old/A.md", project, 30), Doc("case", "Docs/design notes/A.md", project, 30),
+                Doc("foreign", "docs/design notes/A.md", otherProject, 30)
+            }) await _repository!.UpsertAsync(document);
+
+            var root = await _repository!.SearchByTextInScopeAsync("scopedchapter", project, new("docs/design notes"), 1);
+            root.Should().ContainSingle().Which.Source.Should().StartWith("docs/design notes/");
+            var target = await _repository.SearchByTextInScopeAsync("scopedchapter", project,
+                new("docs/design notes", "docs/design notes/A.md"));
+            target.Select(document => document.Id).Should().BeEquivalentTo(project + "one", project + "two");
+        }
+        finally
+        {
+            await _repository!.DeleteProjectAsync(project);
+            await _repository.DeleteProjectAsync(otherProject);
+        }
+    }
+
+    [Fact]
     public async Task CountAsync_WithTemporaryDocumentFixture_ReturnsMatchingCount()
     {
         var projectContext = $"Integration.Documents.{Guid.NewGuid():N}";

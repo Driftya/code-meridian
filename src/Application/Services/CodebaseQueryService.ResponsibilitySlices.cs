@@ -41,7 +41,9 @@ public sealed partial class CodebaseQueryService
             foreach (var method in methodNodes)
             {
                 var context = await codeGraph.GetContextForEditingAsync(method.Id, cancellationToken);
-                var tests = await codeGraph.FindRelatedTestsAsync(method.Id, method.ProjectContext ?? projectContext, cancellationToken);
+                var tests = includeTestPlan
+                    ? await codeGraph.FindRelatedTestsAsync(method.Id, method.ProjectContext ?? projectContext, cancellationToken)
+                    : [];
                 methodSignals.Add(ResponsibilityMethodSignals.Create(
                     method,
                     context,
@@ -49,8 +51,19 @@ public sealed partial class CodebaseQueryService
                     IsConfiguredTestNode));
             }
 
-            var docMatches = await vectorStore.SearchByTextAsync(targetNode.Name, targetNode.ProjectContext ?? projectContext, topK: 5, cancellationToken);
-            var communityLookup = await TryGetResponsibilityCommunitiesAsync(methodSignals, projectContext, cancellationToken);
+            var documents = await ReadOptionalReportSectionAsync("search_documentation", targetNode.ProjectContext ?? projectContext,
+                () => vectorStore.SearchByTextAsync(targetNode.Name, targetNode.ProjectContext ?? projectContext, topK: 5, cancellationToken), cancellationToken);
+            var docMatches = documents.Value ?? [];
+            var communities = await ReadOptionalReportSectionAsync("find_natural_modules", targetNode.ProjectContext ?? projectContext,
+                () => TryGetResponsibilityCommunitiesAsync(methodSignals, projectContext, cancellationToken), cancellationToken);
+            var communityLookup = communities.Value ?? ResponsibilityCommunityLookup.Unavailable(
+                "Community evidence: unavailable. " + communities.UnavailableReason);
+            var evidenceNotes = string.Join("\n", new[]
+            {
+                includeTestPlan ? null : "Test evidence was not requested; test protection remains unknown.",
+                documents.UnavailableReason is null ? null : "Document evidence: unavailable. " + documents.UnavailableReason,
+                communityLookup.Warning
+            }.Where(note => note is not null));
             var slices = methodSignals
                 .GroupBy(signal => signal.SliceName, StringComparer.OrdinalIgnoreCase)
                 .Select(group =>
@@ -85,7 +98,7 @@ public sealed partial class CodebaseQueryService
                     "Add discriminating caller, dependency, workflow, test, or documentation evidence before extraction.",
                     includeNamespacePlan,
                     includeMigrationSteps,
-                    hasIndexedMethodMembers: true);
+                    hasIndexedMethodMembers: true) + "\n" + evidenceNotes;
 
             if (slices.Length == 0)
                 return BuildResponsibilityDeferResult(
@@ -94,7 +107,7 @@ public sealed partial class CodebaseQueryService
                     "Indexed methods did not share enough caller, dependency, test, or workflow evidence to recommend a safe extraction.",
                     includeNamespacePlan,
                     includeMigrationSteps,
-                    hasIndexedMethodMembers: true);
+                    hasIndexedMethodMembers: true) + "\n" + evidenceNotes;
 
             if (slices.All(slice => slice.Confidence == "Low"))
                 return BuildResponsibilityDeferResult(
@@ -103,7 +116,7 @@ public sealed partial class CodebaseQueryService
                     "Indexed methods did not share enough caller, dependency, test, or workflow evidence to recommend a safe extraction.",
                     includeNamespacePlan,
                     includeMigrationSteps,
-                    hasIndexedMethodMembers: true);
+                    hasIndexedMethodMembers: true) + "\n" + evidenceNotes;
 
             var fanIn = methodSignals.Sum(signal => signal.ProductionCallers.Count);
             var fanOut = methodSignals.Sum(signal => signal.Dependencies.Count);
@@ -124,9 +137,11 @@ public sealed partial class CodebaseQueryService
                 sb.AppendLine($"**Namespace:** `{targetNode.Namespace}`");
             if (targetNode.LineCount is not null)
                 sb.AppendLine($"**Line count:** {targetNode.LineCount.Value.ToString(CultureInfo.InvariantCulture)}");
-            sb.AppendLine($"**Current risk:** {riskLevel} (fan-in {fanIn}, fan-out {fanOut}, test shield {(testCount > 0 ? "partial" : "missing")}, graph freshness {graphFreshness})");
+            sb.AppendLine($"**Current risk:** {riskLevel} (fan-in {fanIn}, fan-out {fanOut}, test shield {(!includeTestPlan ? "not requested" : testCount > 0 ? "partial" : "missing")}, graph freshness {graphFreshness})");
             sb.AppendLine($"**Recommended strategy:** `{strategy}`");
             sb.AppendLine();
+            if (evidenceNotes.Length > 0)
+                sb.AppendLine(evidenceNotes);
 
             if (includeNamespacePlan)
             {

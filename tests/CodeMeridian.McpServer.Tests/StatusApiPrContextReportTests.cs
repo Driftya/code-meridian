@@ -27,7 +27,11 @@ public sealed class StatusApiPrContextReportTests
                 [],
                 [],
                 [new Application.Services.PrContextRelatedDocument("doc-1", "docs/features/app.md", "High", 8.2d, ["app"])],
-                ["Review App changes."]));
+                ["Review App changes."])
+            {
+                Applicability = new("ok", 7, null, ".", ["Enabled report sections have complete coverage."])
+                { Project = "CodeMeridian", Coverage = "complete", Limitations = ["Published inventory scope only."], NextActions = [] }
+            });
 
         var method = typeof(StatusApiEndpoints).GetMethod("BuildPrContextReport", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
         method.Should().NotBeNull();
@@ -50,5 +54,11 @@ public sealed class StatusApiPrContextReportTests
         var payload = await JsonSerializer.DeserializeAsync<JsonElement>(context.Response.Body);
         payload.GetProperty("projectContext").GetString().Should().Be("CodeMeridian");
         payload.GetProperty("relatedDocuments")[0].GetProperty("source").GetString().Should().Be("docs/features/app.md");
+        var applicability = payload.GetProperty("applicability");
+        applicability.GetProperty("status").GetString().Should().Be("ok");
+        applicability.GetProperty("profileGeneration").GetInt64().Should().Be(7);
+        applicability.GetProperty("coverage").GetString().Should().Be("complete");
+        applicability.GetProperty("contractVersion").GetString().Should().Be("1.0");
+        applicability.GetProperty("limitations")[0].GetString().Should().Be("Published inventory scope only.");
     }
 }

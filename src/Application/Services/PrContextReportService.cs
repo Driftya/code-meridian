@@ -2,13 +2,15 @@ using System.Collections.Frozen;
 using CodeMeridian.Core.CodeGraph;
 using CodeMeridian.Core.KeywordGraph;
 using CodeMeridian.Core.Knowledge;
+using CodeMeridian.Application.Projects;
 
 namespace CodeMeridian.Application.Services;
 
-public sealed class PrContextReportService(
+public sealed partial class PrContextReportService(
     ICodeGraphRepository codeGraph,
     IVectorRepository vectorStore,
-    IKeywordExtractionService keywordExtractionService) : IPrContextReportService
+    IKeywordExtractionService keywordExtractionService,
+    ProjectProfileService? projectProfiles = null) : IPrContextReportService
 {
     private const int MaxDocsToScore = 250;
     private static readonly FrozenSet<CodeNodeType> ImpactSeedNodeTypes = new[]
@@ -32,7 +34,7 @@ public sealed class PrContextReportService(
         CodeNodeType.ConfigurationKey
     }.ToFrozenSet();
 
-    public async Task<PrContextReport> BuildAsync(
+    private async Task<PrContextReport> BuildCoreAsync(
         PrContextReportRequest request,
         CancellationToken cancellationToken = default)
     {

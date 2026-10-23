@@ -4,7 +4,8 @@ public interface ICodebaseQueryService
 {
     Task<string> QueryStructureAsync(string query, string? projectContext = null, CancellationToken cancellationToken = default);
     Task<string> GetOverviewAsync(string? projectContext = null, CancellationToken cancellationToken = default);
-    Task<string> SearchDocumentationAsync(string query, string? projectContext = null, CancellationToken cancellationToken = default);
+    Task<string> SearchDocumentationAsync(string query, string? projectContext = null, CancellationToken cancellationToken = default,
+        string? rootPath = null, string? targetPath = null);
     Task<string> FindToolDependencyImpactAsync(string? subject = null, bool includeAwarenessOnly = false, CancellationToken cancellationToken = default);
     Task<ImpactAnalysisResult> FindImpactResultAsync(string nodeId, int depth = 5, bool includeConfidence = false, CancellationToken cancellationToken = default);
     Task<string> FindImpactAsync(string nodeId, int depth = 5, ContextDetailLevel detailLevel = ContextDetailLevel.Compact, bool includeConfidence = false, CancellationToken cancellationToken = default);

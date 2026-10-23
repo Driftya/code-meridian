@@ -77,9 +77,9 @@ public sealed class CodebaseQueryServiceGetArchitectureWeatherReportTests : Code
         var result = await sut.GetArchitectureWeatherReportAsync("Shop");
 
         result.Should().Contain("# Architecture Weather Report - Shop");
-        result.Should().Contain("Bridge nodes: unavailable (No such procedure: gds.betweenness.stream)");
+        result.Should().Contain("Bridge nodes: unavailable (Section execution failed (InvalidOperationException)")
+            .And.NotContain("/100").And.NotContain("| Bridge nodes | 0 |");
     }
 
 
 }
-

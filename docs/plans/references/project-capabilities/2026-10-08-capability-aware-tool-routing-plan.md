@@ -4,7 +4,7 @@
 
 Date: 2026-10-08
 
-Status: substantially implemented for existing query families: shared requirements/policy, profile-aware per-step planning, executor and direct Application guards, result applicability, and transport/agent guidance. Worker evidence audits, narrowed composite requirements, root-scoped document queries, and future repository/PowerShell integrations remain open.
+Status: substantially implemented for existing query families: shared requirements/policy, profile-aware per-step planning, executor and direct Application guards, result applicability, transport/agent guidance, enabled-section composite requirements, and root/target-filtered document queries. Worker evidence audits, root-scoped graph queries, and future repository/PowerShell integrations remain open.
 
 Depends on [project profiles](2026-10-08-project-discovery-capability-profile-plan.md). Part of the [roadmap](2026-10-08-project-capability-roadmap.md).
 
@@ -24,15 +24,20 @@ Plans retain per-step applicability and expose `omittedSteps` for unavailable op
 
 Execution rechecks current profile generation and readiness for every step, resolves exact inputs without guessing an ambiguous canonical target, and discards outputs when evidence changes. Configuration definition/usage steps are now executable. Direct string results include a factual applicability/coverage header; structured impact, connection, test-shield, cross-project, and context-pack results expose additive nullable `applicability`. `ok` means analysis executed, including legitimate empty findings; unavailable checks return their actual status without a clean-analysis message. Unverified test sections are omitted from otherwise usable context packs and recorded as degradations.
 
-Project-wide relationship queries require full project outcomes. Only exact file-filtered symbol resolution accepts matching root evidence. Connection endpoints are checked independently; unverified cross-project paths are rejected. Embeddings require declared evidence and an available provider. GDS/query errors and cancellation cannot become successful empty results. Legacy explicit construction without the profile service retains its prior manual/advisory contract; production dependency injection supplies the profile service.
+Project-wide relationship queries require full project outcomes. Exact file-filtered symbol resolution and explicitly scoped document search accept matching root evidence. Connection endpoints are checked independently; unverified cross-project paths are rejected. Embeddings require declared evidence and an available provider. GDS/query errors and cancellation cannot become successful empty results. Legacy explicit construction without the profile service retains its prior manual/advisory contract; production dependency injection supplies the profile service.
 
 Core capabilities and outcome publication are unchanged by this routing batch: current CLI code/configuration/SQL outcomes remain unaudited and therefore unknown. Fixtures with explicitly verified capabilities demonstrate valid C#/TypeScript routes. Missing evidence does not activate a worker or install/ingest/re-index anything.
 
 ### Requirement Audit And Current Limits
 
+On 2026-10-22, B01 added enabled-section requirements for feature paths, changed-subgraph reports, responsibility slices, and PR context. Requested unavailable sections block with coverage; independent advisory document/projection sections are omitted with reasons and revalidated. Weather scores are withheld when bridge evidence is unavailable, and context packs rebuild without test data if test evidence changes. See [current section semantics](../../../context-workflows.md#composite-report-sections).
+
+On 2026-10-22, B02 added `rootPath` and `targetPath` document filters through storage, Application, REST/SDK, and MCP. Complete matching/parent root outcomes can authorize confined queries; overlapping failures remain blockers, unrelated roots are ignored, and unfiltered queries remain project-wide. Document-review workflow plans and execution carry the same exact target to storage. See [scope and path rules](../../../document-search.md).
+
 | Family | Required evidence | Scope / limits |
 |---|---|---|
 | Exact symbol resolution | callable definitions | Exact file-filtered calls may use matching root outcomes |
+| Document search | full, current, source-bound document evidence | Explicit root/exact-file filters may use a covering root outcome; overlapping incomplete evidence blocks; unfiltered queries require project coverage |
 | Structural queries, edit context, impact/downstream | callable definitions and dependencies | Full project evidence; observed non-callable targets do not inherit code support |
 | Test shield / coverage gaps | definitions, dependencies, test-to-code | No test capability is invented from generic call edges |
 | Configuration definitions / usage | configuration definitions; usage also requires code/config usage | Definition and consumer evidence are separate; current unaudited workers remain unknown |
@@ -40,7 +45,7 @@ Core capabilities and outcome publication are unchanged by this routing batch: c
 | Architecture rules / history / reports | namespace/dependency facts plus explicit rules, history, or test evidence as used | Default-rule fallbacks do not establish configured rule readiness |
 | GDS rankings / communities / bridges | callable graph plus audited graph projection | Mixed SQL/frontend nodes must not silently inherit callable projection coverage |
 | Semantic analysis | declared embeddings and available provider, plus graph requirements | Provider failure is distinct from executed zero matches |
-| Composite feature/edit/refactor reports | declared code, test, document, and/or projection evidence used by the report | Conservative union of requirements; optional report flags do not bypass the gate |
+| Composite feature/edit/refactor reports | evidence for enabled required sections; independent readiness for optional advisory sections | Disabled sections skip reads and absence claims; unavailable requested sections block or are explicitly omitted; defaults remain conservative |
 | Frontend connection / cascade | frontend relationships / dedicated cascade evidence | Source-order/specificity readiness is separate from generic frontend edges |
 | Related keyword knowledge | keyword relationship evidence for the exact source project | No keyword analyzer outcomes are currently published; this remains unknown |
 | SQL / PowerShell in generic callable tools | no audited callable compatibility | SQL targets are inapplicable; PowerShell analysis remains unsupported |
@@ -48,7 +53,7 @@ Core capabilities and outcome publication are unchanged by this routing batch: c
 
 Across required analyzers, the policy evaluates current discovery and observed target applicability, analyzer support/configuration, declared capability support, then outcome scope/fingerprints/completion. Failures across analyzers are ordered failed, stale, partial, unsupported, disabled, not indexed, unknown. Reasons and limitations remain bounded. A full repository query cannot use an unrelated root's success.
 
-Remaining work depends on stronger producer/storage evidence: audited per-worker/root capability publication, Node parser/runtime fingerprints, safe last-good evidence reuse across delta generations, root-filtered document/graph queries, narrower requirements for optional composite sections, and repository placement/Markdown reference/PowerShell capabilities from their own plans. These are explicit unknown/unsupported states, not completed integrations.
+Remaining work depends on stronger producer/storage evidence: audited per-worker/root capability publication and aggregation, safe last-good evidence reuse across delta generations, root-filtered graph queries, and repository placement/Markdown reference/PowerShell capabilities from their own plans. Node worker identities and source binding are tracked as delivered A01-A02 in the current checklist; identities alone do not establish audited semantic coverage. Remaining capabilities retain explicit unknown/unsupported states.
 
 The original workflow recipes selected tools from goal/target signals without a persisted project capability profile. A Markdown target could enter a symbol-resolution workflow, and missing language evidence could look like a successful empty query.
 

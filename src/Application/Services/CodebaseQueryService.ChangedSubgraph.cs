@@ -213,7 +213,8 @@ public partial class CodebaseQueryService
         sb.AppendLine();
 
         AppendChangedSubgraphArchitectureSection(sb, architectureFindings, smellFindings);
-        AppendChangedSubgraphDocsSection(sb, relatedDocuments);
+        if (includeDocs)
+            AppendChangedSubgraphDocsSection(sb, relatedDocuments);
 
         sb.AppendLine("> First slice limitation: this tool starts from explicit file paths only. Git working-tree and diff-hunk ingestion are follow-up work.");
 

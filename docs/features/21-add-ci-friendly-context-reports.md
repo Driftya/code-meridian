@@ -33,6 +33,9 @@
 - Added a backend `/api/v1/status/report/pr-context` endpoint and SDK support for the new report request/response.
 - Related docs are ranked from changed files and changed graph nodes using the existing keyword extraction rules, then filtered to higher-confidence Markdown matches.
 - The current report includes changed files, changed nodes, impact radius, missing-test warnings, hotspot/churn warnings, related documentation, and suggested review focus.
+- Published callable definitions/dependencies, test-to-code, and change-history coverage are required. `includeDocs` additionally requires document-search coverage; disabling it skips document reads and the Markdown documentation section.
+- API/SDK responses add nullable `applicability` with version, status, project, generation, scope, coverage, reasons, limitations, and next actions. Production reports check readiness before queries and again afterward, discarding stale results.
+- The CLI renders unavailable coverage explicitly and returns exit code 2 while still writing the requested output artifact. Successful reports return 0; transport/Git errors return 1. Responses from older servers without `applicability` retain their existing rendering and exit behavior.
 
 **Notes:**
 

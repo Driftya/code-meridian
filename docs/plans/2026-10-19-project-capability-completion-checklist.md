@@ -2,7 +2,7 @@
 
 Date: 2026-10-19
 
-Status: active. **16 completed items (12 foundation, 4 delivery); 36 open delivery items.**
+Status: active. **18 completed items (12 foundation, 6 delivery); 34 open delivery items.**
 
 This is the current progress tracker for the five October 8 plans. Their detailed designs are retained under [references/project-capabilities/](references/project-capabilities/). This checklist consolidates overlapping work; it does not replace their semantics or expand their MVPs.
 
@@ -13,11 +13,11 @@ The baseline includes committed and uncommitted implementation in this working t
 | Workstream | Completed | Open | Current state |
 |---|---:|---:|---|
 | Discovery and producer evidence | 10 | 10 | Worker identities, source binding, and C# execution reports implemented; semantic worker coverage remains unaudited |
-| Capability-aware routing | 4 | 5 | Shared guards implemented; scope and optional-section refinements remain |
+| Capability-aware routing | 6 | 3 | Shared guards, enabled-section reports, and scoped document search implemented; scoped graph queries and conformance remain |
 | Repository constraints and Markdown | 2 | 7 | Validated contracts and inventory-only placement implemented; public query and Markdown structural evidence remain open |
 | Offline PowerShell | 0 | 10 | Detected but unsupported; parser worker not implemented |
 | Shared release acceptance | 0 | 4 | Existing tests cover delivered slices; full roadmap acceptance remains |
-| **Total** | **16** | **36** | **52 tracked items** |
+| **Total** | **18** | **34** | **52 tracked items** |
 
 ## Completed Baseline
 
@@ -55,8 +55,8 @@ Reference: [discovery and capability profiles](references/project-capabilities/2
 
 Reference: [capability-aware tool routing](references/project-capabilities/2026-10-08-capability-aware-tool-routing-plan.md).
 
-- [ ] B01 — Evaluate composite report requirements from enabled sections/flags. Done when a disabled optional test/document/projection section does not block a usable report, while unavailable requested sections are omitted or blocked with explicit coverage.
-- [ ] B02 — Add root/target-filtered document query storage and transport support. Done when results stay within the evaluated scope and a matching complete root outcome can safely authorize that query; current project-wide fallback must remain conservative.
+- [x] B01 — Evaluate composite report requirements from enabled sections/flags. Evidence: `CompositeCapabilityGuardTests`, `PrContextReportCapabilityTests`, `CompositeReportEndpointTests`, `StatusApiPrContextReportTests`, weather-report fixtures, and PR CLI fixtures verify disabled reads, requested-section blocking, independent advisory projection/document coverage, stale-result rejection, cancellation, API/SDK/MCP forwarding, and incomplete CLI exit/output. See the October 22 B01 evidence below.
+- [x] B02 — Add root/target-filtered document query storage and transport support. Evidence: `DocumentQueryScopeTests`, `ScopedDocumentPolicyTests`, `ScopedDocumentSearchTests`, `ScopedDocumentStorageTests`, `ScopedDocumentSearchEndpointTests`, and `DocumentSearchClientTests` verify exact/descendant boundaries, case/path validation, matching complete root coverage, overlapping failures, stale-result rejection, bounded storage, workflow scope, authenticated API/SDK and MCP forwarding/schema. The Neo4j scoped-search integration fixture builds; live acceptance remains E02. See the October 22 B02 evidence below.
 - [ ] B03 — Add root-filtered graph queries where tool semantics allow them, with scope-aware revalidation. Done when unrelated roots cannot contribute facts or readiness and cross-root traversals have a documented evidence boundary.
 - [ ] B04 — Audit existing SQL/frontend query conformance per tool: identifiers, node kinds, edges, filters, snippets, projection behavior, and response types. Done when a compatibility matrix and focused tests enable only proven combinations; matching edge names alone are insufficient.
 - [ ] B05 — Integrate placement and Markdown-reference capabilities into plans, direct guards, and reports after C is implemented. Done when document-only and mixed targets receive appropriate per-rule outcomes without namespace or callable prerequisites. PowerShell activation is tracked separately in D09.
@@ -110,6 +110,28 @@ Reference: [roadmap and acceptance matrix](references/project-capabilities/2026-
 No automatic indexing, dependency installation, source-script execution, or external-repository edits are implied by this checklist. Deferred MVP exclusions in the reference plans remain deferred: arbitrary validators, narrative/canon validation, chapter numbering/front matter, PowerShell classes/enums/data flow, Pester shields, and PSScriptAnalyzer integration.
 
 ## Evidence And Verification Baseline
+
+### 2026-10-22: B02 Root And Exact-Target Document Queries
+
+Added a parser-independent `DocumentQueryScope` contract for ordinal inventory identities, directory-descendant boundaries, and exact file targets. Invalid/absolute/traversing paths and targets outside the selected root are rejected before evidence/storage reads. The new scoped full-text storage method requires a project and applies project, root, exact-source, and metadata predicates before the bounded result limit, with deterministic score/ID ordering. Application filters also reject malformed/out-of-scope/cross-project results and recheck each accepted document against current Markdown/text inventory. The public result remains bounded at eight chunks and 600-character content previews.
+
+Document readiness now evaluates only overlapping outcomes for explicit scoped queries. A current successful full outcome for the same scope or a covering parent authorizes the query only when all overlapping evidence matches the analyzer/source identities and remains complete. Unrelated root failures do not block a confined query or contribute readiness. Child outcomes cannot authorize a broader query; the unfiltered fallback still requires project coverage. Inventory generation, exact target, and the same scope requirements are revalidated after execution, including empty queries. Changes discard results, storage failure remains explicit, and cancellation propagates.
+
+MCP `search_documentation` exposes optional `rootPath`/`targetPath`, and a new authenticated REST endpoint plus SDK method forward the same filters. Existing unfiltered calls retain their defaults. Document-review workflow plans and execution pass the exact observed target to storage rather than authorizing a project-wide fallback from root evidence. Composite reports keep their existing project boundary. The dependency catalog and [document-search guidance](../document-search.md) record the new contracts and limits. No new per-root producer aggregation, graph traversal coverage, Markdown validation, or last-good reuse is claimed.
+
+Verification on Windows with existing dependencies: 143 Core, 575 Application, 37 Infrastructure unit, 441 Indexer, and 47 SDK tests, plus 37 focused MCP/API/forwarding/wire tests (1,280 total), passed using `dotnet test <test-project> --no-restore --verbosity minimal` with a filter for the MCP subset. `dotnet build tests/CodeMeridian.Infrastructure.Integration.Tests --no-restore --verbosity minimal` passed with zero warnings/errors, including the new root-before-limit/exact-chunk integration fixture; live Neo4j tests were not run. `git diff --check` passed. CodeMeridian graph queries were skipped at the user's request because recent changes may be unindexed. No repository indexing, dependency installation, deployment, or external-repository edits were performed.
+
+### 2026-10-22: B01 Enabled-Section Report Requirements
+
+Feature-path, changed-subgraph, and responsibility-slice entry points derive requirements from the actual flags, using the same selection for preflight and post-execution revalidation. Disabled document/test sections perform no reads or misleading absence checks. Feature risk remains unknown when tests were not requested. Requested unavailable required sections block before queries. Changed-subgraph requirements now include the namespace, architecture-policy, and history evidence used by its unconditional sections; responsibility namespace planning requires namespace evidence only when enabled.
+
+Responsibility document/community advice and weather bridge analysis have independent readiness and generation checks. Unavailable or stale advisory sections retain explicit reasons while usable required sections remain available. Weather omits unavailable bridge counts and withholds the overall score instead of counting missing evidence as zero; an audited empty bridge query still produces a legitimate zero. Optional failures do not expose backend messages, and cancellation propagates. Context packs revalidate test evidence and rebuild without test-derived data when that evidence changes, recording the omission.
+
+PR-context reports now apply the shared policy to callable, test, and history requirements, adding document coverage only when requested. API/SDK responses carry nullable versioned applicability; the CLI renders unavailable coverage, writes the requested artifact, and returns exit code 2 rather than presenting an empty successful report. Legacy responses without applicability and explicit service construction without profiles retain their prior behavior. Production DI supplies the profile service. Workflow recipes continue using default tool flags. No producer capability, SQL/frontend conformance, root-scoped query support, or placement/reference validation is authorized by this change.
+
+Verification on Windows with existing dependencies: all 542 Application, 441 Indexer, and 44 SDK tests passed, plus 35 focused MCP/API/SDK-forwarding/wire tests (1,062 total), using `dotnet test <test-project> --no-restore --verbosity minimal` with a filter for the MCP subset. New regressions first reproduced disabled flags still blocking reports and weather reading unaudited projection data as zero findings. `git diff --check` passed. CodeMeridian graph queries were skipped at the user's request because recent changes may be unindexed. No repository indexing, dependency installation, deployment, or live Neo4j acceptance was performed.
+
+C03 remains open. Inspection identified missing published filesystem case semantics and lossless policy persistence as prerequisites for a trustworthy public inventory-only placement query; the existing configuration previews remain insufficient.
 
 ### 2026-10-22: C01-C02 Contracts, Configuration Validation, And Placement
 

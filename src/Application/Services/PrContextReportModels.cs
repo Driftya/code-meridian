@@ -19,7 +19,10 @@ public sealed record PrContextReport(
     IReadOnlyList<PrContextNodeSummary> MissingTestNodes,
     IReadOnlyList<PrContextHotspotWarning> HotspotWarnings,
     IReadOnlyList<PrContextRelatedDocument> RelatedDocuments,
-    IReadOnlyList<string> ReviewFocus);
+    IReadOnlyList<string> ReviewFocus)
+{
+    public ContextWorkflows.ContextWorkflowApplicability? Applicability { get; init; }
+}
 
 public sealed record PrContextNodeSummary(
     string Id,

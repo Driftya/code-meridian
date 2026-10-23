@@ -4,8 +4,9 @@ internal static class ContextWorkflowToolRequirements
 {
     internal static readonly string[] CodeKinds = ["csharp", "typescript", "javascript"];
 
-    public static ContextWorkflowToolDescriptor Apply(ContextWorkflowToolDescriptor tool)
+    public static ContextWorkflowToolDescriptor Apply(ContextWorkflowToolDescriptor tool, ContextWorkflowToolOptions? options = null)
     {
+        options ??= new();
         var capabilities = tool.Name switch
         {
             "search_documentation" => new[] { "document_search" },
@@ -17,7 +18,7 @@ internal static class ContextWorkflowToolRequirements
                 => ["namespace_classification", "callable_dependencies", "architecture_rules"],
             "find_cycles" => ["namespace_classification", "callable_dependencies"],
             "architecture_drift_history" => ["namespace_classification", "callable_dependencies", "architecture_history"],
-            "get_architecture_weather_report" => ["namespace_classification", "callable_dependencies", "architecture_rules", "test_to_code"],
+            "get_architecture_weather_report" => ["callable_definitions", "namespace_classification", "callable_dependencies", "architecture_rules", "test_to_code"],
             "get_architectural_overview" => ["callable_definitions", "namespace_classification"],
             "find_recently_changed" or "find_high_churn" => ["callable_definitions", "change_history"],
             "find_large_nodes" => ["callable_definitions", "source_locations"],
@@ -25,7 +26,11 @@ internal static class ContextWorkflowToolRequirements
                 => ["callable_definitions", "callable_dependencies", "graph_projection"],
             "suggest_extractions" => ["callable_definitions", "callable_dependencies", "graph_projection", "test_to_code"],
             "plan_edit_route" or "replace_surface" or "find_implementation_patterns" => ["callable_definitions", "callable_dependencies", "test_to_code"],
-            "analyze_feature_implementation_path" or "suggest_responsibility_slices" or "analyze_changed_subgraph"
+            "analyze_changed_subgraph"
+                => ["callable_definitions", "callable_dependencies", "test_to_code", "document_search", "namespace_classification", "architecture_rules", "change_history"],
+            "suggest_responsibility_slices"
+                => ["callable_definitions", "callable_dependencies", "test_to_code", "namespace_classification"],
+            "analyze_feature_implementation_path"
                 => ["callable_definitions", "callable_dependencies", "test_to_code", "document_search"],
             "find_diagnostics" or "find_diagnostics_for_node" => ["diagnostics"],
             "trace_endpoint" => ["endpoint_tracing", "callable_dependencies"],
@@ -35,6 +40,11 @@ internal static class ContextWorkflowToolRequirements
                 => ["callable_definitions"],
             _ => ["callable_definitions", "callable_dependencies"]
         };
+        if (tool.Name is "analyze_feature_implementation_path" or "analyze_changed_subgraph" or "suggest_responsibility_slices")
+            capabilities = capabilities.Where(capability =>
+                (options.IncludeTests || capability != "test_to_code")
+                && (options.IncludeDocs || capability != "document_search")
+                && (options.IncludeNamespacePlan || tool.Name != "suggest_responsibility_slices" || capability != "namespace_classification")).ToArray();
         var kinds = tool.Name switch
         {
             "search_documentation" => new[] { "markdown", "text" },
@@ -50,7 +60,7 @@ internal static class ContextWorkflowToolRequirements
             RequiredCapabilities = exempt ? [] : tool.RequiresEmbeddings ? capabilities.Append("semantic_embeddings").ToArray() : capabilities,
             SupportedFileKinds = exempt ? [] : kinds,
             ReadinessExempt = exempt,
-            AllowsTargetScope = tool.Name == "resolve_exact_symbol",
+            AllowsTargetScope = tool.Name is "resolve_exact_symbol" or "search_documentation",
             CapabilityAlternatives = tool.Name == "find_connection"
                 ? [new(CodeKinds, capabilities), new(["html", "css", "scss"], ["frontend_relationships"])] : []
         };

@@ -68,19 +68,20 @@ internal sealed class PrContextReportCommand(
 
         var rendered = options.Format.Equals("json", StringComparison.OrdinalIgnoreCase)
             ? RenderJson(report)
-            : RenderMarkdown(report);
+            : RenderMarkdown(report, options.IncludeDocs);
+        var exitCode = report.Applicability is { Status: not "ok" } ? 2 : 0;
 
         if (string.IsNullOrWhiteSpace(options.OutputPath))
         {
             Console.WriteLine(rendered);
-            return 0;
+            return exitCode;
         }
 
         var outputPath = Path.GetFullPath(options.OutputPath, context.RootPath.FullName);
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
         await File.WriteAllTextAsync(outputPath, rendered);
         Console.WriteLine(outputPath);
-        return 0;
+        return exitCode;
     }
 
     private static string RenderJson(PrContextReportResponse report)
@@ -93,12 +94,20 @@ internal sealed class PrContextReportCommand(
         return JsonSerializer.Serialize(report, options);
     }
 
-    private static string RenderMarkdown(PrContextReportResponse report)
+    private static string RenderMarkdown(PrContextReportResponse report, bool includeDocs)
     {
         var writer = new StringWriter();
 
         writer.WriteLine("# PR Context Report");
         writer.WriteLine();
+        if (report.Applicability is { } applicability)
+        {
+            writer.WriteLine($"Report status: **{applicability.Status}**; generation: {applicability.ProfileGeneration}; coverage: {applicability.Coverage}.");
+            foreach (var reason in applicability.Reasons.Concat(applicability.Limitations).Concat(applicability.NextActions))
+                writer.WriteLine(reason);
+            writer.WriteLine();
+            if (applicability.Status != "ok") return writer.ToString();
+        }
         writer.WriteLine($"Project: `{report.ProjectContext ?? "unknown"}`");
         writer.WriteLine($"Base: `{report.BaseRef ?? "unknown"}`");
         writer.WriteLine($"Head: `{report.HeadRef ?? "unknown"}`");
@@ -159,17 +168,16 @@ internal sealed class PrContextReportCommand(
         }
         writer.WriteLine();
 
-        writer.WriteLine("## Related Documentation");
-        if (report.RelatedDocuments.Count == 0)
+        if (includeDocs)
         {
-            writer.WriteLine("- No related documentation cleared the keyword-confidence threshold.");
+            writer.WriteLine("## Related Documentation");
+            if (report.RelatedDocuments.Count == 0)
+                writer.WriteLine("- No related documentation cleared the keyword-confidence threshold.");
+            else
+                foreach (var document in report.RelatedDocuments)
+                    writer.WriteLine($"- `{document.Source}` - {document.Confidence} confidence; matched {string.Join(", ", document.MatchedKeywords.Select(keyword => $"`{keyword}`"))}");
+            writer.WriteLine();
         }
-        else
-        {
-            foreach (var document in report.RelatedDocuments)
-                writer.WriteLine($"- `{document.Source}` - {document.Confidence} confidence; matched {string.Join(", ", document.MatchedKeywords.Select(keyword => $"`{keyword}`"))}");
-        }
-        writer.WriteLine();
 
         writer.WriteLine("## Review Focus");
         foreach (var item in report.ReviewFocus)

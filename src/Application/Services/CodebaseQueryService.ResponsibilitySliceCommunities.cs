@@ -28,7 +28,7 @@ public sealed partial class CodebaseQueryService
                 cancellationToken);
             return ResponsibilityCommunityLookup.Create(assignments);
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return ResponsibilityCommunityLookup.Unavailable(
                 "Community detection advisory evidence is unavailable; results rely on deterministic caller, dependency, test, and workflow signals only.");

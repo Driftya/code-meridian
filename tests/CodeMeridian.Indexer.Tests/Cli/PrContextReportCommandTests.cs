@@ -119,13 +119,50 @@ public sealed class PrContextReportCommandTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData("markdown")]
+    [InlineData("json")]
+    public async Task RunAsync_WhenCoverageIsUnavailable_WritesCoverageAndReturnsIncomplete(string format)
+    {
+        var sut = new PrContextReportCommand(new StubToolConfigurationService(_root), new StubGitDiffProvider(["src/A.cs"]),
+            (_, _) => new HttpClient(new StubHandler(new("unknown", 7, null, ".", ["Required test evidence is unavailable."])))
+            { BaseAddress = new Uri("http://localhost") });
+        var outputName = "blocked." + format;
+
+        var exitCode = await sut.RunAsync(new(_root.FullName, "CodeMeridian", "http://localhost", "origin/main", "HEAD",
+            IncludeDocs: false, Format: format, OutputPath: outputName));
+
+        exitCode.Should().Be(2);
+        var content = await File.ReadAllTextAsync(Path.Combine(_root.FullName, outputName));
+        content.Should().Contain("unknown").And.Contain("Required test evidence is unavailable.");
+        if (format == "markdown") content.Should().NotContain("## Changed Nodes").And.NotContain("## Related Documentation");
+        else
+        {
+            using var payload = JsonDocument.Parse(content);
+            payload.RootElement.GetProperty("applicability").GetProperty("profileGeneration").GetInt64().Should().Be(7);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenDocumentsAreDisabled_OmitsTheirMarkdownSection()
+    {
+        var sut = new PrContextReportCommand(new StubToolConfigurationService(_root), new StubGitDiffProvider(["src/A.cs"]),
+            (_, _) => new HttpClient(new StubHandler()) { BaseAddress = new Uri("http://localhost") });
+
+        (await sut.RunAsync(new(_root.FullName, "CodeMeridian", "http://localhost", "origin/main", "HEAD",
+            IncludeDocs: false, Format: "markdown", OutputPath: "no-docs.md"))).Should().Be(0);
+
+        (await File.ReadAllTextAsync(Path.Combine(_root.FullName, "no-docs.md")))
+            .Should().NotContain("## Related Documentation");
+    }
+
     public void Dispose()
     {
         if (_root.Exists)
             _root.Delete(recursive: true);
     }
 
-    private sealed class StubHandler : HttpMessageHandler
+    private sealed class StubHandler(PrContextReportApplicabilityResponse? applicability = null) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -143,7 +180,7 @@ public sealed class PrContextReportCommandTests : IDisposable
                     [new PrContextNodeSummaryResponse("node-1", "SubscriptionService.SyncAsync", "Method", "src/Subscriptions/SubscriptionService.cs", "CodeMeridian", 10, 25)],
                     [],
                     [new PrContextRelatedDocumentResponse("doc-1", "docs/features/subscriptions.md", "High", 9.1d, ["subscription", "badge"])],
-                    ["Review the subscription path."]))
+                    ["Review the subscription path."]) { Applicability = applicability })
             });
     }
 

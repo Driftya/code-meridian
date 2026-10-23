@@ -92,7 +92,8 @@ public sealed partial class CodebaseQueryService
         bool includeSourceSnippets = false,
         CancellationToken cancellationToken = default)
         => ExecuteCapabilityQueryAsync("suggest_responsibility_slices", projectContext, null,
-            () => SuggestResponsibilitySlicesCoreAsync(target, projectContext, maxSlices, includeNamespacePlan, includeTestPlan, includeMigrationSteps, includeSourceSnippets, cancellationToken), cancellationToken);
+            () => SuggestResponsibilitySlicesCoreAsync(target, projectContext, maxSlices, includeNamespacePlan, includeTestPlan, includeMigrationSteps, includeSourceSnippets, cancellationToken), cancellationToken,
+            new(IncludeTests: includeTestPlan, IncludeNamespacePlan: includeNamespacePlan));
 
     public Task<string> FindBridgesAsync(
         string? projectContext = null,

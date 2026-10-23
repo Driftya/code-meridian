@@ -44,14 +44,19 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
     [McpServerTool(Name = "search_documentation", Title = "Search Documentation", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Full-text search over ingested documentation, ADRs, README files, and code comments. " +
-        "Use this when the user asks about decisions, patterns, or concepts rather than specific code elements.")]
+        "Use this when the user asks about decisions, patterns, or concepts rather than specific code elements. " +
+        "Optional rootPath and targetPath filter repository-relative document sources before the result limit; scoped queries require a project and matching complete evidence.")]
     public Task<string> SearchDocumentationAsync(
         [Description("Search query, e.g. 'authentication strategy', 'why was Redis chosen', 'retry policy'")]
         string query,
         [Description("Optional project name to scope the search.")]
         string? projectContext = null,
-        CancellationToken cancellationToken = default) =>
-        queryService.SearchDocumentationAsync(query, projectContext, cancellationToken);
+        CancellationToken cancellationToken = default,
+        [Description("Optional repository-relative directory root, e.g. 'docs/design'. Includes descendants; '.' searches the project. Paths use exact inventory case.")]
+        string? rootPath = null,
+        [Description("Optional exact repository-relative Markdown/text file. If rootPath is also supplied, the file must be beneath it.")]
+        string? targetPath = null) =>
+        queryService.SearchDocumentationAsync(query, projectContext, cancellationToken, rootPath, targetPath);
 
     [McpServerTool(Name = "find_tool_dependency_impact", Title = "Find Tool Dependency Impact", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(

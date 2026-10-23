@@ -30,7 +30,8 @@ public sealed partial class CodebaseQueryService
         bool includeDocs = true,
         CancellationToken cancellationToken = default)
         => ExecuteCapabilityQueryAsync("analyze_changed_subgraph", projectContext, null,
-            () => AnalyzeChangedSubgraphCoreAsync(changedFiles, projectContext, impactDepth, limit, includeDocs, cancellationToken), cancellationToken);
+            () => AnalyzeChangedSubgraphCoreAsync(changedFiles, projectContext, impactDepth, limit, includeDocs, cancellationToken), cancellationToken,
+            new(IncludeDocs: includeDocs));
 
     public Task<string> FindConfigDefinitionsAsync(
         string canonicalKey,
@@ -89,5 +90,6 @@ public sealed partial class CodebaseQueryService
         int limit = 12,
         CancellationToken cancellationToken = default)
         => ExecuteCapabilityQueryAsync("analyze_feature_implementation_path", projectContext, null,
-            () => AnalyzeFeatureImplementationPathCoreAsync(feature, projectContext, includeTests, includeDocs, includeRisk, limit, cancellationToken), cancellationToken);
+            () => AnalyzeFeatureImplementationPathCoreAsync(feature, projectContext, includeTests, includeDocs, includeRisk, limit, cancellationToken), cancellationToken,
+            new(IncludeTests: includeTests, IncludeDocs: includeDocs));
 }

@@ -75,8 +75,12 @@ public partial class CodebaseQueryService
             .DistinctBy(node => node.Id)
             .ToArray();
         var confidence = DetermineFeaturePathConfidence(feature, documents, ranked, relatedTests);
-        var status = DetermineFeatureStatus(documents, ranked, relatedTests);
-        var riskLevel = includeRisk ? DetermineFeatureRiskLevel(ranked, relatedTests) : "not_requested";
+        if (!includeDocs)
+            confidence = ("low", ranked.Length > 0 ? "found code surfaces; document evidence was not requested"
+                : "no code surface was found; document evidence was not requested");
+        var status = includeDocs ? DetermineFeatureStatus(documents, ranked, relatedTests)
+            : ranked.Length > 0 ? "possible_code_surface" : "no_code_surface_found";
+        var riskLevel = !includeRisk ? "not_requested" : !includeTests ? "unknown" : DetermineFeatureRiskLevel(ranked, relatedTests);
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Feature Implementation Path - `{feature}`");
@@ -87,16 +91,19 @@ public partial class CodebaseQueryService
             sb.AppendLine($"**Signals:** {string.Join(", ", keywords.Take(8).Select(keyword => $"`{keyword}`"))}");
         sb.AppendLine();
 
-        AppendFeatureDocuments(sb, documents);
+        if (includeDocs)
+            AppendFeatureDocuments(sb, documents);
         AppendFeatureSurfaces(sb, ranked);
         AppendLikelyTouchedAreas(sb, ranked);
         if (includeTests)
             AppendFeatureTestPlan(sb, ranked, testRecommendations);
         if (includeDocs)
             AppendFeatureDocsPlan(sb, feature, documents, ranked);
-        AppendMissingGraphEvidence(sb, feature, documents, ranked, relatedTests);
+        AppendMissingGraphEvidence(sb, feature, documents, ranked, relatedTests, includeDocs, includeTests);
         if (includeRisk)
-            AppendFeatureRisks(sb, ranked, relatedTests);
+            AppendFeatureRisks(sb, ranked, relatedTests, includeTests);
+        if (!includeTests)
+            sb.AppendLine("Test evidence was not requested; test protection and overall risk remain unknown.");
 
         sb.AppendLine();
         sb.AppendLine("CodeMeridian result: this is a graph-backed implementation map, not a claim that the feature is complete. Inspect the listed files before editing and add stronger Feature-node links when the feature is implemented.");
@@ -477,14 +484,16 @@ public partial class CodebaseQueryService
         string feature,
         IReadOnlyCollection<KnowledgeDocument> documents,
         IReadOnlyCollection<CodeNode> ranked,
-        IReadOnlyCollection<CodeNode> relatedTests)
+        IReadOnlyCollection<CodeNode> relatedTests,
+        bool includeDocs,
+        bool includeTests)
     {
         sb.AppendLine("### Missing graph evidence");
-        if (!documents.Any(document => IsFeatureDocumentMatch(document, feature)))
+        if (includeDocs && !documents.Any(document => IsFeatureDocumentMatch(document, feature)))
             sb.AppendLine("- No explicit Feature node or docs/features KnowledgeDocument matched the request strongly.");
         if (ranked.Count == 0)
             sb.AppendLine("- No CodeNode implementation surface matched the feature terms.");
-        if (relatedTests.Count == 0)
+        if (includeTests && relatedTests.Count == 0)
             sb.AppendLine("- No related test nodes were linked to the closest implementation surfaces.");
         if (!ranked.Any(IsApiNode) && !ranked.Any(node => TextMatches(node.FilePath, "McpServer")))
             sb.AppendLine("- No endpoint or MCP tool exposure node was found.");
@@ -493,7 +502,7 @@ public partial class CodebaseQueryService
         sb.AppendLine();
     }
 
-    private static void AppendFeatureRisks(StringBuilder sb, IReadOnlyCollection<CodeNode> ranked, IReadOnlyCollection<CodeNode> relatedTests)
+    private static void AppendFeatureRisks(StringBuilder sb, IReadOnlyCollection<CodeNode> ranked, IReadOnlyCollection<CodeNode> relatedTests, bool includeTests)
     {
         sb.AppendLine("### Risks");
         if (ranked.Count == 0)
@@ -509,7 +518,7 @@ public partial class CodebaseQueryService
             sb.AppendLine("- Infrastructure changes should stay behind Application/Core abstractions and avoid leaking adapter details upward.");
         if (ranked.Any(IsApiNode) || ranked.Any(node => TextMatches(node.FilePath, "McpServer")))
             sb.AppendLine("- Public endpoint/tool changes need stable response shape tests and documentation.");
-        if (relatedTests.Count == 0)
+        if (includeTests && relatedTests.Count == 0)
             sb.AppendLine("- No linked tests were found; add regression coverage before relying on this path.");
         sb.AppendLine("- Keep ranking/scoring deterministic and testable; avoid hiding planning decisions in repository-specific query code.");
         sb.AppendLine();
