@@ -6,6 +6,10 @@ internal static class ToolDependencyCatalog
 
     public static IReadOnlyList<ToolDependencyEdge> Edges { get; } =
     [
+        Edge("get_project_profile", "find_repository_constraint_violations", "generation-bound inventory and lossless constraint policy", "hard",
+            "Constraint queries require explicit source/configuration/policy binding, case semantics and exclusions; generation changes discard findings. Legacy profiles remain incomplete.",
+            ["tests/CodeMeridian.Application.Tests/RepositoryConstraintQueryTests.cs", "tests/CodeMeridian.Infrastructure.Tests/Graph/RepositoryConstraintStorageTests.cs",
+             "tests/CodeMeridian.McpServer.Tests/RepositoryConstraintEndpointTests.cs"], ["docs/repository-constraints.md"]),
         Edge("get_project_profile", "tool_capability_policy", "generation-scoped evidence and scope contract", "hard",
             "Capability readiness depends on observed target kinds, declared capabilities, matching analyzer outcomes, and current generations.",
             ["tests/CodeMeridian.Application.Tests/Services/ToolCapabilityPolicyTests.cs"],
@@ -271,6 +275,7 @@ internal static class ToolDependencyCatalog
         new[]
         {
             Subject("get_project_profile", "Tool", "Get Project Profile", "Published inventory, capabilities, and generation-scoped analyzer evidence.", []),
+            Subject("find_repository_constraint_violations", "Tool", "Find Repository Constraint Violations", "Bounded inventory-only placement with explicit per-rule applicability and coverage.", []),
             Subject("search_documentation", "Tool", "Search Documentation", "Project, root, or exact-file document search with current scope evidence.", ["mcp__codemeridian.search_documentation"]),
             Subject("tool_capability_policy", "Contract", "Tool Capability Policy", "Shared deterministic applicability requirements for plans, execution, and direct queries.", ["capability routing", "tool readiness"]),
             Subject("direct_query_guards", "Contract", "Direct Query Guards", "Application guards and bounded applicability results for query entry points.", []),

@@ -2,7 +2,7 @@
 
 Date: 2026-10-19
 
-Status: active. **21 completed items (12 foundation, 9 delivery); 31 open delivery items.**
+Status: active. **22 completed items (12 foundation, 10 delivery); 30 open delivery items.**
 
 This is the current progress tracker for the five October 8 plans. Their detailed designs are retained under [references/project-capabilities/](references/project-capabilities/). This checklist consolidates overlapping work; it does not replace their semantics or expand their MVPs.
 
@@ -14,10 +14,10 @@ The baseline includes committed and uncommitted implementation in this working t
 |---|---:|---:|---|
 | Discovery and producer evidence | 10 | 10 | Worker identities, source binding, and C# execution reports implemented; semantic worker coverage remains unaudited |
 | Capability-aware routing | 6 | 3 | Shared guards, enabled-section reports, and scoped document search implemented; scoped graph queries and conformance remain |
-| Repository constraints and Markdown | 5 | 4 | Placement, syntax-aware Markdown facts, and inventory reference resolution implemented; public query, publication, and report integration remain open |
+| Repository constraints and Markdown | 6 | 3 | Public placement query, bound policy transport, syntax-aware Markdown facts, and inventory reference resolution implemented; CLI evidence production, reference publication, and report integration remain open |
 | Offline PowerShell | 0 | 10 | Detected but unsupported; parser worker not implemented |
 | Shared release acceptance | 0 | 4 | Existing tests cover delivered slices; full roadmap acceptance remains |
-| **Total** | **21** | **31** | **52 tracked items** |
+| **Total** | **22** | **30** | **52 tracked items** |
 
 ## Completed Baseline
 
@@ -67,12 +67,12 @@ Reference: [repository constraints and Markdown](references/project-capabilities
 
 - [x] C01 — Define versioned parser-independent group, placement, reference, exception, severity, and outcome contracts plus configuration validation. Evidence: `RepositoryConstraintPolicyTests`, `ArchitectureRuleSetConfigurationTests`, `ConfigurationArchitecturePolicyTests`, and `ArchitecturePolicyLoadingTests` verify versioned round trips, strict policy validation, legacy namespace behavior, pre-upload rejection, and absence-only default fallback. See the October 22 C01-C02 evidence below.
 - [x] C02 — Implement inventory-only placement evaluation with overlapping groups, allowed/denied paths, explicit exceptions, and normalized case-aware paths. Evidence: `RepositoryPlacementEvaluatorTests` covers Markdown/SQL/PowerShell/assets without semantic indexers, overlapping groups, deny precedence, explicit exceptions, case/separators/spaces/dot segments/traversal, incomplete discovery, missing/excluded/unobserved targets, collision rejection, bounded findings, and cancellation. See the October 22 C01-C02 evidence below.
-- [ ] C03 — Expose a bounded project/optional-target repository-constraint query through Application, API/SDK, and MCP. Done when rule IDs, reasons, evidence locations, applicability, and evaluation coverage round-trip with auth/cancellation/schema tests.
+- [x] C03 — Expose a bounded project/optional-target repository-constraint query through Application, API/SDK, and MCP. Evidence: `RepositoryConstraintQueryTests`, `RepositoryConstraintEvidenceTests`, `RepositoryConstraintStorageTests`, `RepositoryConstraintEndpointTests`, `RepositoryConstraintClientTests`, and MCP discovery/schema/wire fixtures cover rule identity/reasons/locations, applicability/coverage, global bounds, explicit case/exclusion/policy evidence, source/configuration binding, authentication, cancellation, legacy profiles, and stale-result rejection. Optional profile evidence persists atomically and losslessly; existing CLI producers still return incomplete pending C08/C09 rollout integration. The live persistence fixture builds; execution remains E02. See the October 23 C03 evidence below.
 - [x] C04 — Audit `DocumentReferenceExtractor` fidelity and select/pin a syntax-aware Markdown parser through a compatibility spike. Evidence: search-hint audit fixtures preserve regex behavior; `MarkdownReferenceParserTests` verifies the pinned Markdig 1.4.0 CommonMark pipeline on .NET 10 Windows. See the October 23 C04-C06 evidence below.
 - [x] C05 — Extract stable file-level reference facts with source spans, link/image kind, raw/normalized targets, fragments, parser fingerprint, and inventory generation. Evidence: `MarkdownReferenceParserTests` covers inline/reference forms, code/escapes, HTML limits, destination/occurrence spans, identity/text/parser fingerprints, bounds, nesting failure, cancellation, round trips, and target semantics. See the October 23 C04-C06 evidence below.
 - [x] C06 — Resolve local references against inventory and target-group rules. Evidence: `MarkdownReferenceTargetTests`, `MarkdownReferenceEvaluatorTests`, and parser-to-evaluator fixtures cover distinct resolution/rule outcomes, case/encoding/traversal, groups/exceptions, stale/malformed evidence, bounds, and cancellation without fetching or linked-file reads. See the October 23 C04-C06 evidence below.
 - [ ] C07 — Publish owned Markdown-reference evidence generation-safely and handle retries, changed links, renames/deletions, and parse failures. Done when failed/stale chunks cannot claim current structural coverage and searchable document chunks share stable file identity without becoming code symbols.
-- [ ] C08 — Compose new per-rule results with existing architecture reports and capability profiles. Done when document-only fixtures evaluate placement/references while namespace rules are inapplicable, and incomplete inventory/parsing cannot produce clean validation.
+- [ ] C08 — Compose new per-rule results with existing architecture reports and capability profiles. Done when document-only fixtures evaluate placement/references while namespace rules are inapplicable, and incomplete inventory/parsing cannot produce clean validation. Integrate CLI production of the optional C03 policy/case/exclusion evidence; current profiles intentionally leave the new query incomplete.
 - [ ] C09 — Complete constraint-specific verification and user guidance. Done when Core validation, parser/pipeline, Application, transport, and persistence fixtures cover path case/separators/spaces/traversal, policy errors, reference forms, failure/replay, and backward-compatible namespace behavior.
 
 ## D — Build Offline PowerShell Indexing
@@ -110,6 +110,16 @@ Reference: [roadmap and acceptance matrix](references/project-capabilities/2026-
 No automatic indexing, dependency installation, source-script execution, or external-repository edits are implied by this checklist. Deferred MVP exclusions in the reference plans remain deferred: arbitrary validators, narrative/canon validation, chapter numbering/front matter, PowerShell classes/enums/data flow, Pester shields, and PSScriptAnalyzer integration.
 
 ## Evidence And Verification Baseline
+
+### 2026-10-23: C03 Public Repository-Constraint Query
+
+Added the Application query, authenticated REST endpoint, typed standalone SDK client, and read-only structured MCP `find_repository_constraint_violations`. Project or normalized exact-file queries return per-rule IDs/families, severity, reasons, required capabilities, applicability/coverage, evidence locations, totals, and truncation. A 1–1,000 finding limit bounds the entire response across overlapping rules. Evaluation uses inventory-only placement; applicable Markdown-reference rules remain unsupported. No callable, namespace, embedding, or projection evidence is required.
+
+The profile publication contract now accepts optional validated `constraintEvidence`: lossless policy, accepted policy source path/fingerprint, explicit filesystem case semantics, and known exclusions, bound to the profile's source/configuration identities. Evidence participates in retry hashes and is stored/replaced atomically with the inventory generation. Legacy payloads retain their serialized bytes/retry compatibility; a later profile without evidence removes the old policy. Constraint reads confine storage to the exact project/generation, bound inventory rows before collection, reject overflow/corrupt evidence, and revalidate generation/source/configuration after evaluation. Pending/changed generations discard findings; missing evidence cannot become a clean result.
+
+C03 is checked for the query/publication transport. Existing CLI discovery/indexing does not yet produce this optional policy/case/exclusion evidence, so those profiles return explicit incomplete results. CLI production, capability activation, architecture/report composition, reference publication, and full acceptance remain C07-C09/B05/E. The [query and publication guidance](../repository-constraints.md#public-query-and-publication-contract) records producer responsibilities and rollout limits. No host case defaults or legacy configuration previews are used.
+
+Verification on .NET 10 Windows with existing dependencies: all 204 Core, 604 Application, 43 Infrastructure unit, 49 SDK, and 441 Indexer tests, plus 32 focused MCP/API/discovery/schema/wire tests passed (1,373 total). The isolated-profile persistence/replay/conflict/replacement fixture builds; live Neo4j execution remains E02. The integration build reports a System.CommandLine 2.0.12/2.0.13 reference-version warning; no dependencies were changed. MCP inventory now contains 69 tools. Also refreshed the stale profile-schema fingerprint: removing the two already-shipped `sourceFingerprint` properties reproduces the old hash exactly; no profile-output fields changed in this delivery. `git diff --check` passed. CodeMeridian was skipped at the user's request. No repository indexing, dependency installation, deployment, or live database acceptance was performed.
 
 ### 2026-10-23: C04-C06 Markdown Parsing And Inventory Reference Evaluation
 

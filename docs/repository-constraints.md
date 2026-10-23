@@ -1,6 +1,6 @@
 # Repository Constraint Contracts And Placement
 
-The Core contracts, placement evaluator, and standalone Markdown reference parser/evaluator implement C01-C02 and C04-C06 of the [capability checklist](plans/2026-10-19-project-capability-completion-checklist.md). The public Application/API/SDK/MCP query, reference publication, capability activation, and architecture report composition remain open. Adding these rules does not enable a new public validation command or establish semantic analyzer readiness.
+The Core contracts, placement evaluator, standalone Markdown parser/evaluator, and public placement query implement C01-C06 of the [capability checklist](plans/2026-10-19-project-capability-completion-checklist.md). Reference publication, capability activation, CLI constraint-evidence production, and architecture report composition remain open. Placement does not establish semantic analyzer readiness.
 
 ## Configuration
 
@@ -56,7 +56,7 @@ Patterns are repository-relative globs. `*` matches within a segment, `?` matche
 
 Placement applies an explicit exception first, then denies, then allowed locations. The first matching exception records its reason as an `excepted` finding. Deny wins when both allow and deny match. Empty/omitted `allowedPaths` allows any location unless denied; empty/omitted `deniedPaths` denies nothing. A placement rule must specify at least one allow or deny pattern. Exceptions default to empty and require a reason.
 
-Reference rules select `link` and/or `image` occurrences from a source group. They must require local resolution, restrict allowed target groups, or both. Empty/omitted `allowedTargetGroups` imposes no target-group restriction. Resolution and exception execution await the Markdown implementation.
+Reference rules select `link` and/or `image` occurrences from a source group. They must require local resolution, restrict allowed target groups, or both. Empty/omitted `allowedTargetGroups` imposes no target-group restriction. The standalone Markdown evaluator implements resolution and exceptions; public reference-evidence integration remains open.
 
 `ArchitectureRuleSetConfiguration.Parse` rejects unknown properties/custom validators, duplicate JSON properties, unknown versions/groups, duplicate IDs, malformed namespace dependencies, invalid patterns, empty policies, and unsupported severities. Severities are `info`, `warning`, and `error`. Namespace policies retain their existing fields and fallback dependency reason, and must declare layers and dependencies. JSON properties retain case-insensitive compatibility. Collections are non-null after parsing; optional rule lists default to empty.
 
@@ -79,6 +79,33 @@ Input file/target paths normalize separators, repeated separators, and dot segme
 Coverage is separate from findings. Partial/unknown discovery never produces complete coverage or proves a group absent. Targets are `observed`, `excluded`, `missing` (absent from complete accepted inventory and known exclusions), or `unobserved` (absence cannot be established). Missing, excluded, or unobserved targets do not produce clean validation. Project evaluation covers admitted files only; it does not inspect excluded content.
 
 Version `1.0` outcomes retain generation, rule ID/family, severity, reason, required capabilities, evaluated-file counts, and path/location findings. Placement requires only `repository_inventory`; reference evaluation also requires `markdown_references`. Placement findings distinguish `forbidden`, `misplaced`, and `excepted`. `findingCount` includes exceptions and violations; `findingsTruncated` explicitly marks a bounded sample. The default limit is 100 findings per rule, clamped to 1-1,000, ordered by normalized path. Policy limits are 100 groups, 100 total rules, 32 patterns/exceptions per collection, 2,048 characters per path/pattern, and 512 characters per reason. Inventory files and known exclusions are each bounded at 100,000.
+
+## Public Query And Publication Contract
+
+Call MCP `find_repository_constraint_violations(projectContext, targetPath?, findingLimit=100)`, authenticated `GET /api/v1/repository-constraints?projectContext=Docs&targetPath=docs/chapter.md&findingLimit=100`, or SDK `FindRepositoryConstraintViolationsAsync`. The Application query requires only inventory/policy evidence; it does not query callable, namespace, projection, or embedding data. MCP provides version `1.0` structured results and Markdown from the same factual DTO. API/SDK preserve the same rule IDs, reasons, severity, required capabilities, coverage, applicability, evidence locations, counts, and truncation. All layers forward cancellation.
+
+The finding limit is 1–1,000 across the entire response, including exceptions. Rules retain accurate individual totals even when their sample is exhausted. Rules follow policy order; retained findings follow normalized file order. An exact target normalizes separators and dot segments, rejects absolute/escaping paths, and uses the published case semantics. Directory/subtree selection is not supported. `evaluated` means evaluation ran; findings may still report violations. Empty findings never override incomplete/unsupported coverage.
+
+The existing profile publication endpoint accepts an optional `constraintEvidence` object on `ProjectProfileSnapshot`:
+
+```json
+{
+  "contractVersion": "1.0",
+  "policyPath": ".meridian/architecture.json",
+  "policyFingerprint": "sha256:<64 hex digits identifying the policy bytes>",
+  "caseSensitive": true,
+  "policy": { "contractVersion": "1.0", "groups": [], "placementRules": [], "referenceRules": [] },
+  "excludedPaths": ["node_modules", "generated"]
+}
+```
+
+Replace the illustrative empty policy with a validated, nonempty `repositoryConstraints` policy such as the example above. The enclosing profile must carry valid `sourceFingerprint` and `configurationFingerprint` bindings. The producer must derive the policy from the same verified bytes/settings as those bindings, explicitly establish filesystem case semantics for the inventory, and supply known exclusions. The server cannot verify local filesystem facts; authenticated producers own their accuracy. A missing `caseSensitive` is unknown and rejected, not an implicit `false`. The policy path must name an accepted inventory file. Unknown constraint fields/custom validators, duplicate JSON properties, invalid policy, contradictory exclusions, noncanonical paths, or case-colliding files are rejected before replacement.
+
+Lossless policy/case/exclusion evidence is stored in the same atomic generation write as inventory. Its contents participate in the publication retry fingerprint. A later profile without evidence removes the previous generation's policy; no last-good policy is silently inherited. Existing payload bytes/retry fingerprints remain compatible when the optional object is absent. This avoids the legacy configuration graph's 80-character previews entirely.
+
+Current CLI `profile` and indexing commands do **not** produce this optional evidence yet. Their inventories remain readable; the new query returns `incomplete` / `missing_constraint_evidence` until a producer supplies it. There is no host-based case inference, default placement policy, or fallback to preview configuration. CLI production and capability/report integration remain rollout work under C08/B05/C09. This transport contract does not authorize new semantic capabilities.
+
+The query reads at most 100,000 inventory files plus one overflow sentinel, confined to project and published generation. It validates the snapshot and re-reads generation/source/configuration identity after evaluation. A pending or changed generation returns `stale` with no findings. Missing inventory/evidence returns `incomplete`; malformed evidence returns `invalid`. Applicable reference rules return `unsupported` because public structural reference evidence is not yet published. No local files or remote links are read by the query.
 
 ## Markdown Parser Compatibility Decision
 

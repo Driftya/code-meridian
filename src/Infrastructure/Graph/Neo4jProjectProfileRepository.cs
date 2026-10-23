@@ -61,6 +61,7 @@ public sealed partial class Neo4jProjectProfileRepository : IProjectProfileRepos
         var legacyFingerprint = ProjectProfilePublicationFingerprint.Legacy(snapshot);
         var beforeSourceFingerprint = ProjectProfilePublicationFingerprint.BeforeSourceBinding(snapshot);
         var profileJson = JsonSerializer.Serialize(snapshot.Profile with { EvidenceSource = "uploaded_discovery" }, JsonOptions);
+        var constraintJson = snapshot.ConstraintEvidence is null ? null : JsonSerializer.Serialize(snapshot.ConstraintEvidence, JsonOptions);
         var project = snapshot.Profile.Project;
         await using var session = _driver.AsyncSession();
         await session.ExecuteWriteAsync(async tx =>
@@ -104,8 +105,8 @@ public sealed partial class Neo4jProjectProfileRepository : IProjectProfileRepos
                 MATCH (s:ProjectProfileState {project: $project})
                 SET s.generation = $generation, s.profileJson = $profileJson,
                     s.fingerprint = $fingerprint, s.publishedAt = timestamp(), s.updatedAt = timestamp(),
-                    s.outcomesJson = '[]'
-                """, new { project, generation = snapshot.Generation, profileJson, fingerprint })).ConsumeAsync();
+                    s.outcomesJson = '[]', s.constraintJson = $constraintJson
+                """, new { project, generation = snapshot.Generation, profileJson, fingerprint, constraintJson })).ConsumeAsync();
         });
     }
 

@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddTransient<IGraphQueryService, GraphQueryService>();
         services.AddTransient<ICodebaseQueryService, CodebaseQueryService>();
         services.AddTransient<ProjectProfileService>();
+        services.AddTransient<RepositoryConstraints.RepositoryConstraintQueryService>();
         services.AddSingleton<PackageReferenceMatcher>();
         services.AddTransient<PackageReferenceService>();
         services.AddTransient<ICodebaseStatusService, CodebaseStatusService>();

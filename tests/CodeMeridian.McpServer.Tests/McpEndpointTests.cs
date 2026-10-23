@@ -13,6 +13,7 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
     [
         "query_codebase",
         "get_project_profile",
+        "find_repository_constraint_violations",
         "get_architectural_overview",
         "search_documentation",
         "find_tool_dependency_impact",
@@ -112,6 +113,7 @@ public sealed class McpEndpointTests : IClassFixture<GraphQlWebApplicationFactor
     private static readonly HashSet<string> StructuredToolNames =
     [
         "get_project_profile",
+        "find_repository_constraint_violations",
         "find_cross_project_dependencies",
         "check_graph_freshness",
         "find_impact",

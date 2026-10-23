@@ -70,6 +70,7 @@ if (mcpTaskOptions.Enabled)
 mcpServerBuilder
     .WithTools<CodebaseTools>()
     .WithTools<ProjectProfileTools>()
+    .WithTools<RepositoryConstraintTools>()
     .WithTools<KeywordTools>()
     .WithTools<KnowledgeTools>()
     .WithTools<HumanCognitiveSeedTools>()
@@ -145,6 +146,7 @@ app.MapOpenApi().AllowAnonymous();
 // REST API — used by the Indexer CLI and Sdk (not Copilot)
 app.MapKnowledgeApi();
 app.MapProjectProfileApi();
+app.MapRepositoryConstraintApi();
 app.MapDocumentSearchApi();
 app.MapEmbeddingApi();
 app.MapStatusApi();

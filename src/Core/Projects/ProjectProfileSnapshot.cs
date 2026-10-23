@@ -7,6 +7,9 @@ public sealed record ProjectProfileSnapshot(
 {
     public string ContractVersion { get; init; } = "1.0";
 
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public RepositoryConstraints.RepositoryConstraintEvidence? ConstraintEvidence { get; init; }
+
     public string? Validate()
     {
         if (ContractVersion != "1.0" || Profile?.ContractVersion != "1.0")
@@ -83,7 +86,7 @@ public sealed record ProjectProfileSnapshot(
                 || (!analyzer.Supported && analyzer.SupportedCapabilities.Count > 0))
                 return "Analyzer metadata is invalid; discovery cannot claim semantic indexing readiness.";
         }
-        return null;
+        return ConstraintEvidence?.Validate(this);
     }
 
     internal static bool ValidName(string? value, int maximumLength) =>

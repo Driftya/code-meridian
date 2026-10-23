@@ -18,7 +18,11 @@ internal static class ProjectProfileApiEndpoints
         {
             if (!request.HasJsonContentType()) return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
             ProjectProfileSnapshot? snapshot;
-            try { snapshot = await request.ReadFromJsonAsync<ProjectProfileSnapshot>(cancellationToken: ct); }
+            try
+            {
+                snapshot = await request.ReadFromJsonAsync<ProjectProfileSnapshot>(
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web) { AllowDuplicateProperties = false }, ct);
+            }
             catch (JsonException) { return Results.BadRequest("Invalid project profile JSON payload."); }
             if (snapshot is null) return Results.BadRequest("A project profile snapshot is required.");
             if (snapshot.Validate() is { } error) return Results.BadRequest(error);

@@ -9,7 +9,7 @@ internal static class ProjectProfilePublicationFingerprint
 {
     public static string? BeforeSourceBinding(ProjectProfileSnapshot snapshot)
     {
-        if (snapshot.Profile.SourceFingerprint is not null) return null;
+        if (snapshot.Profile.SourceFingerprint is not null || snapshot.ConstraintEvidence is not null) return null;
         var profile = snapshot.Profile;
         var json = JsonSerializer.Serialize(new
         {
@@ -28,7 +28,7 @@ internal static class ProjectProfilePublicationFingerprint
 
     public static string? Legacy(ProjectProfileSnapshot snapshot)
     {
-        if (snapshot.Profile.Revision is not null || snapshot.Profile.ConfigurationFingerprint is not null || snapshot.Profile.SourceFingerprint is not null
+        if (snapshot.ConstraintEvidence is not null || snapshot.Profile.Revision is not null || snapshot.Profile.ConfigurationFingerprint is not null || snapshot.Profile.SourceFingerprint is not null
             || snapshot.Profile.Analyzers.Any(analyzer => analyzer.Fingerprint is not null)) return null;
         // Older servers hashed the same 1.0 payload before these optional properties existed.
         var profile = snapshot.Profile;

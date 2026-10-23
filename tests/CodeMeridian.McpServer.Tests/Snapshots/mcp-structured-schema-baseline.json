@@ -191,6 +191,35 @@
     "sha256": "78cd744efbbf9b83230c93b598968015dcdb167ccf2827bef88684ecc097b226"
   },
   {
+    "name": "find_repository_constraint_violations",
+    "required": [
+      "project",
+      "targetPath",
+      "generation",
+      "latestGeneration",
+      "status",
+      "coverage",
+      "policyPath",
+      "policyFingerprint",
+      "evaluation",
+      "diagnostics"
+    ],
+    "properties": [
+      "project",
+      "targetPath",
+      "generation",
+      "latestGeneration",
+      "status",
+      "coverage",
+      "policyPath",
+      "policyFingerprint",
+      "evaluation",
+      "diagnostics",
+      "contractVersion"
+    ],
+    "sha256": "4e88d8697119f9ffca4f3ab1cbb733e770119c177d202344a11e5b15866e1ccf"
+  },
+  {
     "name": "find_test_shield",
     "required": [
       "contractVersion",
@@ -337,7 +366,7 @@
       "contractVersion",
       "analyzerOutcomes"
     ],
-    "sha256": "c8182a6fb77105b075bbec90415601d3fe59f3a11cd6c2afd6b75cc59a5bc702"
+    "sha256": "e5106f576db360210d45950060d156fbcba76bc4bf645f1adfccf66923582741"
   },
   {
     "name": "list_client_extension_examples",

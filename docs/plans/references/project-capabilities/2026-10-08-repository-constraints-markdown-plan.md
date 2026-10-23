@@ -4,7 +4,7 @@
 
 Date: 2026-10-08
 
-Status: C01-C02 delivered on 2026-10-22; C04-C06 delivered on 2026-10-23: versioned/validated contracts, inventory-only placement, and standalone syntax-aware Markdown extraction/reference evaluation. Public query, reference publication, routing/report integration, and release acceptance remain open. See [constraint and Markdown guidance](../../../repository-constraints.md).
+Status: C01-C02 delivered on 2026-10-22; C03-C06 delivered on 2026-10-23: versioned/validated contracts, inventory-only placement, public query/transport with optional generation-bound policy publication, and standalone syntax-aware Markdown extraction/reference evaluation. CLI constraint-evidence production, reference publication, routing/report integration, and release acceptance remain open. See [constraint and Markdown guidance](../../../repository-constraints.md).
 
 Depends on the inventory/profile in [plan 1](2026-10-08-project-discovery-capability-profile-plan.md); integrates with [tool routing](2026-10-08-capability-aware-tool-routing-plan.md).
 

@@ -1,5 +1,8 @@
+using System.Text.Json.Serialization;
+
 namespace CodeMeridian.Core.RepositoryConstraints;
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record RepositoryConstraintPolicy(
     string ContractVersion,
     IReadOnlyList<RepositoryFileGroup> Groups,

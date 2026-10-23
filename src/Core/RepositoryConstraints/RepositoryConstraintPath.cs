@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace CodeMeridian.Core.RepositoryConstraints;
 
-internal static class RepositoryConstraintPath
+public static class RepositoryConstraintPath
 {
     public static string Normalize(string path)
     {
@@ -27,7 +27,7 @@ internal static class RepositoryConstraintPath
         return string.Join('/', segments);
     }
 
-    public static bool ValidPattern(string? pattern)
+    internal static bool ValidPattern(string? pattern)
     {
         if (string.IsNullOrWhiteSpace(pattern) || pattern.Length > 2048 || pattern.Any(char.IsControl)) return false;
         pattern = pattern.Replace('\\', '/');
@@ -36,7 +36,7 @@ internal static class RepositoryConstraintPath
             && (!segment.Contains("**", StringComparison.Ordinal) || segment == "**"));
     }
 
-    public static Regex Matcher(string pattern, bool caseSensitive)
+    internal static Regex Matcher(string pattern, bool caseSensitive)
     {
         var segments = pattern.Replace('\\', '/').Split('/');
         var expression = new StringBuilder("\\A");

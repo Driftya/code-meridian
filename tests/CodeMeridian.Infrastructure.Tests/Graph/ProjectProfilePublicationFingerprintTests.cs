@@ -21,6 +21,15 @@ public sealed class ProjectProfilePublicationFingerprintTests
     }
 
     [Fact]
+    public void ConstraintEvidenceCannotBeStrippedToAcceptOlderPublicationFingerprints()
+    {
+        var snapshot = Snapshot() with { ConstraintEvidence = new("policy.json", "sha256:" + new string('a', 64), true,
+            new("1.0", [], [], []), []) };
+        ProjectProfilePublicationFingerprint.Legacy(snapshot).Should().BeNull();
+        ProjectProfilePublicationFingerprint.BeforeSourceBinding(snapshot).Should().BeNull();
+    }
+
+    [Fact]
     public void PreSourceBindingRetriesPreserveRevisionConfigurationAndAnalyzerMetadata()
     {
         var snapshot = Snapshot();

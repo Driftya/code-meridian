@@ -6,4 +6,6 @@ public interface IProjectProfileRepository
     Task PublishAsync(ProjectProfileSnapshot snapshot, CancellationToken cancellationToken = default);
     Task PublishOutcomesAsync(ProjectAnalyzerOutcomeSnapshot snapshot, CancellationToken cancellationToken = default);
     Task<StoredProjectProfile?> GetAsync(string project, string? targetPath = null, CancellationToken cancellationToken = default);
+    Task<RepositoryConstraints.StoredRepositoryConstraintSnapshot?> GetRepositoryConstraintsAsync(
+        string project, CancellationToken cancellationToken = default);
 }

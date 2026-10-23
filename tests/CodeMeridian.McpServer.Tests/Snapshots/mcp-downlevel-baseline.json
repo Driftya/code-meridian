@@ -1,8 +1,8 @@
 {
   "protocolVersion": "2025-11-25",
   "handshakeMethod": "initialize",
-  "toolCount": 68,
-  "annotationCount": 68,
+  "toolCount": 69,
+  "annotationCount": 69,
   "structuredToolNames": [
     "answer_change_context_challenge",
     "build_minimal_context",
@@ -10,6 +10,7 @@
     "find_connection",
     "find_cross_project_dependencies",
     "find_impact",
+    "find_repository_constraint_violations",
     "find_test_shield",
     "get_change_context",
     "get_client_extension_contract",

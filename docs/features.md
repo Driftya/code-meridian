@@ -383,6 +383,12 @@ Finds Clean Architecture layer violations, such as `Core` depending on `Infrastr
 Find architecture violations in CodeMeridian.
 ```
 
+### `find_repository_constraint_violations`
+
+Evaluates explicit file-placement rules using a generation-bound uploaded inventory and lossless policy, including document-only projects. Returns per-rule applicability, coverage, reasons, severity, exceptions, and bounded path findings. Accepts a required `projectContext`, optional exact `targetPath`, and `findingLimit` (1–1,000 across all rules).
+
+Missing policy/case/exclusion evidence and stale inventories cannot produce clean validation. Applicable Markdown-reference rules remain unsupported until structural publication is integrated. Existing CLI profiles do not yet publish the optional constraint evidence; see [publication contract and query usage](repository-constraints.md#public-query-and-publication-contract).
+
 ### `find_smell_paths`
 
 Finds shortest forbidden dependency paths across known architectural boundaries so a violation is explainable as a graph path instead of only a flat edge.
