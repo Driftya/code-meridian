@@ -12,7 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\CodeMeridian.Core.csproj" />
     <ProjectReference Include="..\..\src\Sdk\CodeMeridian.Sdk.csproj" />
-    <PackageReference Include="Markdig" Version="[1.4.0]" />
+    <PackageReference Include="Markdig" Version="[1.5.0]" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.*" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.*" />
