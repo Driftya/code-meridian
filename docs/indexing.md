@@ -14,6 +14,8 @@ codemeridian profile . --skip-csharp --skip-sql
 
 The versioned profile separates observed file kinds, analyzer support, configuration, and indexing readiness. It detects C#, TypeScript/JavaScript (including declaration files separately), Markdown/text, HTML/CSS/SCSS, SQL, PowerShell, configuration, assets, and other files. PowerShell analysis is currently reported as unsupported.
 
+An isolated [offline PowerShell worker](../tools/PowerShellIndexer/supports.md) now provides pinned native syntax parsing, functions/filters, bounded source facts, conservative local/import binding, and non-execution verification. It has standalone Windows/Linux x64 package smokes. Main-CLI dispatch, graph publication, opt-in configuration, and generic query activation remain open; its reports retain unknown semantic coverage and do not change the production profile's unsupported status.
+
 Discovery uses the existing indexing exclusion policy independently of analyzer skip flags. Output includes counts, up to five example paths per file kind, up to 50 observed root records with the total root count, and up to 20 discovery warnings with the total warning count. Root records are source/configuration evidence, not evaluated project membership. Source and configuration values are not returned.
 
 Indexing state is `unknown`: discovery does not verify semantic graph evidence or worker/runtime availability. Publish a complete discovery explicitly when the server should retain it:

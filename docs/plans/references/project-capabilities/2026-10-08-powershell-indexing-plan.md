@@ -4,7 +4,7 @@
 
 Date: 2026-10-08
 
-Status: planned.
+Status: offline worker D01–D06 implemented; owned publication, main-CLI integration, generic query activation, and release delivery D07–D10 remain planned. See the current checklist and [worker support boundary](../../../../tools/PowerShellIndexer/supports.md).
 
 Uses the profile contract in [plan 1](2026-10-08-project-discovery-capability-profile-plan.md) and [capability routing](2026-10-08-capability-aware-tool-routing-plan.md). Parser feasibility can be investigated independently.
 

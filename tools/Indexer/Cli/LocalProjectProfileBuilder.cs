@@ -109,7 +109,7 @@ internal sealed class LocalProjectProfileBuilder(RepositoryInventoryDiscovery di
             ["Configuration usage requires separately indexed code evidence."]),
         Analyzer("sql", settings.Sql?.Enabled == true && !settings.SkipSql, ["sql_object_dependencies"],
             ["SQL indexing is opt-in; supported dialect semantics must be checked separately."]),
-        new("powershell", false, "unsupported", "unknown", [], ["PowerShell indexing has not been implemented."])
+        new("powershell", false, "unsupported", "unknown", [], ["The offline PowerShell worker is not integrated with CLI publication or semantic query readiness."])
     ];
 
     private static ProjectAnalyzerProfile Analyzer(string id, bool enabled, string[] capabilities, string[] limitations) =>

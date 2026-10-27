@@ -44,7 +44,7 @@ public static class ContextWorkflowToolPolicy
         var alternatives = descriptor.CapabilityAlternatives.Count == 0
             ? new[] { new ContextWorkflowCapabilityAlternative(descriptor.SupportedFileKinds, descriptor.RequiredCapabilities) }
             : descriptor.CapabilityAlternatives;
-        if (profile.Target?.Kind == "powershell") return Result("unsupported", "PowerShell analysis is not implemented.");
+        if (profile.Target?.Kind == "powershell") return Result("unsupported", "PowerShell publication and semantic query capabilities are not integrated.");
         if (profile.Target?.Kind is { } targetKind && !alternatives.Any(item => item.FileKinds.Contains(targetKind)))
             return Result("not_applicable", "This tool's audited node and relationship semantics do not apply to the observed target kind.");
         var kinds = descriptor.AllowsTargetScope && profile.Target?.Kind is { } kind ? [kind]

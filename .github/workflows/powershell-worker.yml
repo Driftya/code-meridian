@@ -1,0 +1,37 @@
+name: Offline PowerShell worker
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parser-package:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            executable: CodeMeridian.PowerShellIndexer.exe
+          - os: ubuntu-latest
+            rid: linux-x64
+            executable: CodeMeridian.PowerShellIndexer
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore pinned parser graph
+        run: dotnet restore tools/PowerShellIndexer --locked-mode
+      - name: Test offline facts and non-execution
+        run: dotnet test tests/CodeMeridian.PowerShellIndexer.Tests --configuration Release
+      - name: Publish isolated self-contained worker
+        run: dotnet publish tools/PowerShellIndexer --configuration Release --runtime ${{ matrix.rid }} --self-contained true --no-restore --output .artifacts/powershell-worker
+      - name: Smoke with no global PowerShell or .NET on PATH
+        run: python tools/PowerShellIndexer/tests/packaged_smoke.py .artifacts/powershell-worker/${{ matrix.executable }}
