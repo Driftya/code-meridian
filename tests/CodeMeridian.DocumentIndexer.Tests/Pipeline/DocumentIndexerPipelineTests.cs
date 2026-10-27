@@ -192,6 +192,13 @@ public sealed class DocumentIndexerPipelineTests : IDisposable
         await sut.IngestAsync([document], "DemoProject", _root);
 
         handler.Requests.Should().HaveCount(2);
+        var facts = MarkdownReferenceParser.Parse("DemoProject", "docs/large.md", await File.ReadAllTextAsync(document.FullName), 1);
+        foreach (var request in handler.Requests)
+        {
+            request.Body.GetProperty("source").GetString().Should().Be(facts.SourcePath);
+            request.Body.GetProperty("projectContext").GetString().Should().Be(facts.Project);
+            request.Body.GetProperty("id").GetString().Should().StartWith(facts.FileId + "::part");
+        }
         handler.Requests[0].Body.GetProperty("id").GetString().Should().Be("DemoProject::doc::docs/large.md::part1");
         HasDocumentReferences(
             handler.Requests[0].Body.GetProperty("relatedDocumentIdsCsv").GetString(),

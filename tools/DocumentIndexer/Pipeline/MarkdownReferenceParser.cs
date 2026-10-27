@@ -24,6 +24,8 @@ public static class MarkdownReferenceParser
         return Hash("markdown-references-v1;commonmark;precise;depth128;no-extensions;" + string.Join(';', hashes));
     });
 
+    public static string ParserFingerprint => Fingerprint.Value;
+
     public static MarkdownReferenceDocument Parse(string project, string sourcePath, string content, long generation,
         CancellationToken cancellationToken = default)
     {

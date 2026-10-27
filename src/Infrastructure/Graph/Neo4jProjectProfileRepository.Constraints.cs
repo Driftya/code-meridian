@@ -26,7 +26,7 @@ public sealed partial class Neo4jProjectProfileRepository
                     RETURN collect({path: f.path, kind: f.kind}) AS files
                 }
                 RETURN s.generation AS generation, s.nextGeneration AS latest,
-                    s.profileJson AS profile, s.constraintJson AS constraints, files
+                    s.profileJson AS profile, s.constraintJson AS constraints, s.markdownJson AS markdown, files
                 """, new { project });
             if (!await cursor.FetchAsync()) return null;
             cancellationToken.ThrowIfCancellationRequested();
@@ -36,9 +36,16 @@ public sealed partial class Neo4jProjectProfileRepository
             var profile = JsonSerializer.Deserialize<ProjectProfile>(row["profile"].As<string>(), JsonOptions)
                 ?? throw new InvalidOperationException("Stored project profile is invalid.");
             var json = row["constraints"].As<string?>();
-            return new StoredRepositoryConstraintSnapshot(row["generation"].As<long>(), row["latest"].As<long>(),
+            var result = new StoredRepositoryConstraintSnapshot(row["generation"].As<long>(), row["latest"].As<long>(),
                 profile, files.Select(file => new ProjectInventoryFile(file["path"].As<string>(), file["kind"].As<string>())).ToArray(),
-                json is null ? null : JsonSerializer.Deserialize<RepositoryConstraintEvidence>(json, JsonOptions));
+                json is null ? null : JsonSerializer.Deserialize<RepositoryConstraintEvidence>(json, JsonOptions))
+            {
+                MarkdownEvidence = row["markdown"].As<string?>() is { } markdown
+                    ? JsonSerializer.Deserialize<MarkdownReferenceEvidence>(markdown, JsonOptions) : null
+            };
+            if (result.MarkdownEvidence?.Validate(new(result.Generation, result.Profile, result.Files)) is { } error)
+                throw new InvalidOperationException(error);
+            return result;
         });
     }
 }

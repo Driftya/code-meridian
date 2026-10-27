@@ -1,6 +1,6 @@
 # Repository Constraint Contracts And Placement
 
-The Core contracts, placement evaluator, standalone Markdown parser/evaluator, and public placement query implement C01-C06 of the [capability checklist](plans/2026-10-19-project-capability-completion-checklist.md). Reference publication, capability activation, CLI constraint-evidence production, and architecture report composition remain open. Placement does not establish semantic analyzer readiness.
+The Core contracts, placement evaluator, Markdown parser/evaluator, public placement query, and generation-bound reference publication implement C01-C07 of the [capability checklist](plans/2026-10-19-project-capability-completion-checklist.md). Public reference evaluation, capability activation, CLI constraint-policy evidence production, and architecture report composition remain open. Placement does not establish semantic analyzer readiness.
 
 ## Configuration
 
@@ -115,7 +115,7 @@ The structural parser uses [Markdig 1.4.0](https://github.com/xoofx/markdig/rele
 
 `MarkdownReferenceParser.Parse(project, sourcePath, content, generation)` creates a version `1.0` file-level document. Its identity is `project::doc::normalized/source.md`, shared with the base searchable-document identity and independent of line positions, chunk count, and generation. Occurrences retain link/image kind, exact raw destination text, the CommonMark-unescaped target, normalized local path, fragment, occurrence span, and destination span. Reference-style destination spans point to their definitions; occurrence spans point to the usages. Spans use UTF-16 offsets/lengths and one-based lines/columns, counting a tab as one code unit and treating CRLF as one newline.
 
-The text fingerprint hashes the supplied decoded text as UTF-8. The parser fingerprint hashes the loaded Markdig, extraction, and Core implementation assemblies plus the pipeline settings. These use the existing `sha256:` convention. Text evidence alone does not bind original input bytes or prove current inventory content; C07 must connect parsing to the verified source reader and publication lifecycle.
+The text fingerprint hashes the supplied decoded text as UTF-8. The parser fingerprint hashes the loaded Markdig, extraction, and Core implementation assemblies plus the pipeline settings. These use the existing `sha256:` convention. Standalone text evidence does not bind original input bytes; the unified CLI supplies that binding through the verified source reader and publication lifecycle below.
 
 | Syntax | Structural behavior |
 |---|---|
@@ -136,4 +136,20 @@ Relative destinations resolve against the source directory. A single leading sla
 
 Resolution distinguishes `resolved`, `missing` (complete discovery only), `excluded`, `unobserved` (incomplete discovery), `external`, `fragment_only`, `unsupported`, and `outside_repository`. Every matching source rule runs; target groups can overlap and any explicitly allowed group may match. Source-path exceptions retain their stated reason, and reference-kind filters restrict each rule. Missing required targets, forbidden target groups, and repository escapes are findings from executed evaluation. Unsupported/excluded/unobserved targets and unverified fragments prevent complete validation for affected rules. A missing optional target cannot prove allowed group membership. Rule outcomes retain bounded occurrence findings and accurate totals; a successful parse with zero references is legitimate evaluated evidence.
 
-This evaluates only reference rules for the supplied file. Placement remains in `RepositoryPlacementEvaluator`; namespace checks, reference persistence/replay/deletion, query transport, capability readiness, and report composition are separate checklist work.
+This evaluates only reference rules for the supplied file. Placement remains in `RepositoryPlacementEvaluator`; public reference query transport, capability readiness, and report composition are separate checklist work.
+
+## Generation-Bound Markdown Publication
+
+When document indexing is enabled, the unified CLI parses all accepted Markdown files before publishing the inventory, including during incremental passes. It uses the source snapshot's verified byte reader and BOM-aware decoding, so transient different-byte reads invalidate the pass even if a file is restored. Empty Markdown files contribute explicit zero-reference facts. Text files retain searchable ingestion without Markdown structural facts. Structural reads do not count as successful search ingestion.
+
+The existing authenticated profile publication endpoint and generic SDK upload accept optional version `1.0` `markdownEvidence` on `ProjectProfileSnapshot`. It contains the enclosing profile's `sourceFingerprint`, the executing `parserFingerprint`, `status` (`complete` or `incomplete`), and file-level `documents`. Each document retains its project/path identity, generation, text/parser fingerprints, references, and diagnostics. Complete evidence must account for every accepted Markdown file. Missing documents, inconsistent identities, malformed spans/normalization, incompatible parser identities, and unbound source fingerprints cannot be published as complete coverage.
+
+Project publication retains at most 10,000 documents, 10,000 references, and 1,000,000 combined raw/unescaped target characters. Collection limits stop before retaining a file that would exceed the bound and mark the collection incomplete; existing per-file parser limits also remain in force. Parser failure/unsupported syntax publishes incomplete evidence without turning old search hints into structural facts. Read failures or source/inventory changes prevent valid publication rather than substituting stale facts.
+
+Inventory and structural facts are stored in the same project-generation transaction. Their content participates in the existing retry fingerprint: exact retries succeed, conflicting retries fail, and generation replacement removes old reference facts, including changed links, renames, and deletions. A publication without the optional object clears retained structural evidence. Standalone discovery/profile publication does not parse documents or claim reference coverage. This path owns no code nodes, manual knowledge, or other analyzers' graph facts.
+
+Source checks bracket initial publication and the index pass. Detected source changes after publication reserve another generation so retained structural facts become stale, including when no analyzer outcomes were produced. Terminal upload/source failures retain the previous CLI cache. Consumers must check the current/latest generation and source identity; the storage read validates the persisted Markdown binding before returning facts. As with other indexed evidence, this is a snapshot and does not observe later filesystem changes until another index pass.
+
+Structural `fileId` is the existing `project::doc::source/path.md` identity. Search chunks retain the same project/source and use that base ID or its `::partN` suffix. Changing chunk count does not change the file-level structural identity or create callable symbols. Searchable chunk publication failures cannot replace parser diagnostics or authorize structural coverage.
+
+This delivery persists evidence without enabling new public reference validation or generic capabilities. C08/B05 must compose rule outcomes and enforce their readiness/freshness requirements; isolated live database acceptance remains E02.

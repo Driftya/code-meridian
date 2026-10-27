@@ -64,7 +64,13 @@ internal sealed class AnalyzedSourceSnapshot
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return Invalidate(); }
     }
 
-    public async Task<string> ReadSourceAsync(FileInfo file, CancellationToken cancellationToken)
+    public Task<string> ReadSourceAsync(FileInfo file, CancellationToken cancellationToken)
+        => ReadSourceAsync(file, true, cancellationToken);
+
+    public Task<string> ReadStructuralSourceAsync(FileInfo file, CancellationToken cancellationToken)
+        => ReadSourceAsync(file, false, cancellationToken);
+
+    private async Task<string> ReadSourceAsync(FileInfo file, bool searchableDocumentRead, CancellationToken cancellationToken)
     {
         try
         {
@@ -79,7 +85,7 @@ internal sealed class AnalyzedSourceSnapshot
             bytes.Position = 0;
             using var reader = new StreamReader(bytes, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
             var content = await reader.ReadToEndAsync(cancellationToken);
-            _readDocuments.Add(path);
+            if (searchableDocumentRead) _readDocuments.Add(path);
             return content;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

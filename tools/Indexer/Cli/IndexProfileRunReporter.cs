@@ -79,8 +79,16 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
             }
             var source = AnalyzedSourceSnapshot.Capture(settings.RootPath, snapshot.Files, cancellationToken);
             snapshot = snapshot with { Profile = snapshot.Profile with { Analyzers = analyzers, SourceFingerprint = source.Fingerprint } };
+            if (settings.IncludeDocs)
+                snapshot = snapshot with { MarkdownEvidence = await MarkdownEvidenceBuilder.BuildAsync(snapshot, settings.RootPath, source, cancellationToken) };
+            if (!source.IsCurrent(cancellationToken)) return 2;
             if (snapshot.Validate() is { } error) throw new InvalidOperationException(error);
             await client.PublishProjectProfileAsync(snapshot, cancellationToken);
+            if (!source.IsCurrent(cancellationToken))
+            {
+                await client.BeginProjectProfileAsync(settings.Project, cancellationToken);
+                return 2;
+            }
             var report = new IndexProfileRun(client, snapshot, source);
             int exitCode;
             try { exitCode = await run(report); }

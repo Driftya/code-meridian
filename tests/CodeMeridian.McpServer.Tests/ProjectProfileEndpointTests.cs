@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using CodeMeridian.Core.Projects;
+using CodeMeridian.Core.RepositoryConstraints;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,40 @@ namespace CodeMeridian.McpServer.Tests;
 
 public sealed class ProjectProfileEndpointTests
 {
+    [Fact]
+    public async Task MarkdownEvidenceIsAuthenticatedValidatedAndForwardedWithoutBecomingProfileReadiness()
+    {
+        var repository = Substitute.For<IProjectProfileRepository>();
+        await using var factory = new GraphQlWebApplicationFactory().WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IProjectProfileRepository>();
+            services.AddSingleton(repository);
+        }));
+        using var client = factory.CreateClient();
+        var hash = "sha256:" + new string('a', 64);
+        var snapshot = new ProjectProfileSnapshot(7,
+            new("Docs", DateTimeOffset.UtcNow, "complete", 1, [new("markdown", 1, ["a.md"])], [], 0, [], [], 0)
+                { SourceFingerprint = hash }, [new("a.md", "markdown")])
+        {
+            MarkdownEvidence = new(hash, hash, "complete", [new("Docs", "Docs::doc::a.md", "a.md", 7, hash, hash, "complete", [], [])])
+        };
+        (await client.PostAsJsonAsync("/api/v1/project-profiles/", snapshot)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        client.DefaultRequestHeaders.Authorization = new("Bearer", GraphQlWebApplicationFactory.ApiKey);
+        (await client.PostAsJsonAsync("/api/v1/project-profiles/", snapshot)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var received = repository.ReceivedCalls().Single(call => call.GetMethodInfo().Name == nameof(IProjectProfileRepository.PublishAsync))
+            .GetArguments()[0].Should().BeOfType<ProjectProfileSnapshot>().Subject;
+        received.MarkdownEvidence.Should().BeEquivalentTo(snapshot.MarkdownEvidence);
+        foreach (var evidence in new[]
+        {
+            snapshot.MarkdownEvidence with { SourceFingerprint = "bad" },
+            snapshot.MarkdownEvidence with { Documents = [] },
+            snapshot.MarkdownEvidence with { Documents = [snapshot.MarkdownEvidence.Documents[0] with { Generation = 8 }] }
+        })
+            (await client.PostAsJsonAsync("/api/v1/project-profiles/", snapshot with { MarkdownEvidence = evidence }))
+                .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await repository.Received(1).PublishAsync(Arg.Any<ProjectProfileSnapshot>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task ApiRequiresAuthenticationReservesPublishesAndReturnsUnknown()
     {

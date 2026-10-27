@@ -30,6 +30,15 @@ public sealed class ProjectProfilePublicationFingerprintTests
     }
 
     [Fact]
+    public void MarkdownEvidenceCannotBeStrippedToAcceptOlderPublicationFingerprints()
+    {
+        var hash = "sha256:" + new string('a', 64);
+        var snapshot = Snapshot() with { MarkdownEvidence = new(hash, hash, "complete", []) };
+        ProjectProfilePublicationFingerprint.Legacy(snapshot).Should().BeNull();
+        ProjectProfilePublicationFingerprint.BeforeSourceBinding(snapshot).Should().BeNull();
+    }
+
+    [Fact]
     public void PreSourceBindingRetriesPreserveRevisionConfigurationAndAnalyzerMetadata()
     {
         var snapshot = Snapshot();

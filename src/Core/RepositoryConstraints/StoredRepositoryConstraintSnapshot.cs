@@ -7,4 +7,7 @@ public sealed record StoredRepositoryConstraintSnapshot(
     long LatestGeneration,
     ProjectProfile Profile,
     IReadOnlyList<ProjectInventoryFile> Files,
-    RepositoryConstraintEvidence? Evidence);
+    RepositoryConstraintEvidence? Evidence)
+{
+    public MarkdownReferenceEvidence? MarkdownEvidence { get; init; }
+}

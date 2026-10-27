@@ -31,13 +31,16 @@ public sealed class Neo4jRepositoryConstraintSnapshotTests
                     { SourceFingerprint = hash, ConfigurationFingerprint = hash },
                 [new("policy.json", "configuration"), new("wrong.md", "markdown")])
             {
-                ConstraintEvidence = new("policy.json", hash, true, policy, ["excluded"])
+                ConstraintEvidence = new("policy.json", hash, true, policy, ["excluded"]),
+                MarkdownEvidence = new(hash, hash, "complete",
+                    [new(project, $"{project}::doc::wrong.md", "wrong.md", first, hash, hash, "complete", [], [])])
             };
             await repository.PublishAsync(snapshot);
             await repository.PublishAsync(snapshot);
             await using var restarted = new Neo4jProjectProfileRepository(Options.Create(options));
             var stored = await restarted.GetRepositoryConstraintsAsync(project);
             stored!.Evidence.Should().BeEquivalentTo(snapshot.ConstraintEvidence);
+            stored.MarkdownEvidence.Should().BeEquivalentTo(snapshot.MarkdownEvidence);
             stored.Files.Should().BeEquivalentTo(snapshot.Files);
             stored.Generation.Should().Be(first);
             (await restarted.GetRepositoryConstraintsAsync(project + ".other")).Should().BeNull();
@@ -45,14 +48,19 @@ public sealed class Neo4jRepositoryConstraintSnapshotTests
             {
                 ConstraintEvidence = snapshot.ConstraintEvidence with { CaseSensitive = false }
             })).Should().ThrowAsync<ProjectProfileConflictException>();
+            await FluentActions.Awaiting(() => repository.PublishAsync(snapshot with
+            {
+                MarkdownEvidence = snapshot.MarkdownEvidence with { Status = "incomplete" }
+            })).Should().ThrowAsync<ProjectProfileConflictException>();
             var next = await repository.BeginAsync(project);
             stored = await restarted.GetRepositoryConstraintsAsync(project);
             stored!.Generation.Should().Be(first);
             stored.LatestGeneration.Should().Be(next);
-            await repository.PublishAsync(snapshot with { Generation = next, ConstraintEvidence = null });
+            await repository.PublishAsync(snapshot with { Generation = next, ConstraintEvidence = null, MarkdownEvidence = null });
             stored = await restarted.GetRepositoryConstraintsAsync(project);
             stored!.Generation.Should().Be(next);
             stored.Evidence.Should().BeNull();
+            stored.MarkdownEvidence.Should().BeNull();
             await FluentActions.Awaiting(() => repository.PublishAsync(snapshot with
             {
                 ConstraintEvidence = snapshot.ConstraintEvidence with { PolicyFingerprint = "sha256:" + new string('b', 64) }

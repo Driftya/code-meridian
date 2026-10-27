@@ -2,7 +2,7 @@
 
 Date: 2026-10-19
 
-Status: active. **22 completed items (12 foundation, 10 delivery); 30 open delivery items.**
+Status: active. **23 completed items (12 foundation, 11 delivery); 29 open delivery items.**
 
 This is the current progress tracker for the five October 8 plans. Their detailed designs are retained under [references/project-capabilities/](references/project-capabilities/). This checklist consolidates overlapping work; it does not replace their semantics or expand their MVPs.
 
@@ -14,10 +14,10 @@ The baseline includes committed and uncommitted implementation in this working t
 |---|---:|---:|---|
 | Discovery and producer evidence | 10 | 10 | Worker identities, source binding, and C# execution reports implemented; semantic worker coverage remains unaudited |
 | Capability-aware routing | 6 | 3 | Shared guards, enabled-section reports, and scoped document search implemented; scoped graph queries and conformance remain |
-| Repository constraints and Markdown | 6 | 3 | Public placement query, bound policy transport, syntax-aware Markdown facts, and inventory reference resolution implemented; CLI evidence production, reference publication, and report integration remain open |
+| Repository constraints and Markdown | 7 | 2 | Public placement query, bound policy transport, syntax-aware Markdown facts, inventory reference resolution, and atomic source-bound reference publication implemented; CLI policy evidence production and routing/report integration remain open |
 | Offline PowerShell | 0 | 10 | Detected but unsupported; parser worker not implemented |
 | Shared release acceptance | 0 | 4 | Existing tests cover delivered slices; full roadmap acceptance remains |
-| **Total** | **22** | **30** | **52 tracked items** |
+| **Total** | **23** | **29** | **52 tracked items** |
 
 ## Completed Baseline
 
@@ -71,7 +71,7 @@ Reference: [repository constraints and Markdown](references/project-capabilities
 - [x] C04 — Audit `DocumentReferenceExtractor` fidelity and select/pin a syntax-aware Markdown parser through a compatibility spike. Evidence: search-hint audit fixtures preserve regex behavior; `MarkdownReferenceParserTests` verifies the pinned Markdig 1.4.0 CommonMark pipeline on .NET 10 Windows. See the October 23 C04-C06 evidence below.
 - [x] C05 — Extract stable file-level reference facts with source spans, link/image kind, raw/normalized targets, fragments, parser fingerprint, and inventory generation. Evidence: `MarkdownReferenceParserTests` covers inline/reference forms, code/escapes, HTML limits, destination/occurrence spans, identity/text/parser fingerprints, bounds, nesting failure, cancellation, round trips, and target semantics. See the October 23 C04-C06 evidence below.
 - [x] C06 — Resolve local references against inventory and target-group rules. Evidence: `MarkdownReferenceTargetTests`, `MarkdownReferenceEvaluatorTests`, and parser-to-evaluator fixtures cover distinct resolution/rule outcomes, case/encoding/traversal, groups/exceptions, stale/malformed evidence, bounds, and cancellation without fetching or linked-file reads. See the October 23 C04-C06 evidence below.
-- [ ] C07 — Publish owned Markdown-reference evidence generation-safely and handle retries, changed links, renames/deletions, and parse failures. Done when failed/stale chunks cannot claim current structural coverage and searchable document chunks share stable file identity without becoming code symbols.
+- [x] C07 — Publish owned Markdown-reference evidence generation-safely and handle retries, changed links, renames/deletions, and parse failures. Evidence: `MarkdownReferenceEvidenceTests`, `MarkdownEvidencePublicationTests`, `MarkdownEvidenceStorageTests`, `ProjectProfilePublicationFingerprintTests`, `ProjectProfileEndpointTests`, and chunk-identity fixtures verify verified-byte parsing, complete/partial bounds, atomic ownership/replacement, replay/conflict, changed/renamed/deleted inputs, cancellation, stale-source invalidation, legacy omission/clearing, authenticated transport, and separation from search readiness. The extended live persistence fixture builds; execution remains E02. See the October 27 C07 evidence below.
 - [ ] C08 — Compose new per-rule results with existing architecture reports and capability profiles. Done when document-only fixtures evaluate placement/references while namespace rules are inapplicable, and incomplete inventory/parsing cannot produce clean validation. Integrate CLI production of the optional C03 policy/case/exclusion evidence; current profiles intentionally leave the new query incomplete.
 - [ ] C09 — Complete constraint-specific verification and user guidance. Done when Core validation, parser/pipeline, Application, transport, and persistence fixtures cover path case/separators/spaces/traversal, policy errors, reference forms, failure/replay, and backward-compatible namespace behavior.
 
@@ -110,6 +110,18 @@ Reference: [roadmap and acceptance matrix](references/project-capabilities/2026-
 No automatic indexing, dependency installation, source-script execution, or external-repository edits are implied by this checklist. Deferred MVP exclusions in the reference plans remain deferred: arbitrary validators, narrative/canon validation, chapter numbering/front matter, PowerShell classes/enums/data flow, Pester shields, and PSScriptAnalyzer integration.
 
 ## Evidence And Verification Baseline
+
+### 2026-10-27: C07 Atomic Markdown Reference Publication
+
+The unified CLI now parses all accepted Markdown files through the snapshot's verified byte reader before publishing the profile, including during incremental passes. The optional versioned `markdownEvidence` envelope binds file-level parser/text facts to the enclosing inventory source fingerprint and generation. Empty files provide explicit zero-reference evidence; text documents retain their search-only behavior. Structural reads do not count as searchable ingestion, and existing callable/document capability advertisements remain unchanged.
+
+The profile transaction replaces owned structural evidence with the inventory and includes it in retry fingerprints. Exact retries remain idempotent; changed facts conflict. Changed links, renamed/deleted files, and publications without the optional envelope remove retained structural facts. Storage validates the persisted source/generation/parser/file bindings. No code nodes, manual knowledge documents, or other analyzers' graph facts are modified by this publication path. Search chunks retain the same project/source and base file identity independently of chunk count.
+
+Per-file parser diagnostics and project collection limits retain explicit incomplete status. Collection bounds are 10,000 documents, 10,000 references, and 1,000,000 combined raw/unescaped target characters; a file that exceeds a remaining collection budget is omitted as a whole. Source changes detected before publication prevent it. Changes during publication or the later index pass reserve another generation to invalidate retained structural evidence, including passes that produced no analyzer outcomes. Source-read mismatches remain invalid after file restoration, and failed passes retain their CLI cache.
+
+C07 is checked for publication and its focused verification. Public reference evaluation, project aggregation, policy/case/exclusion evidence production, report composition, and capability routing remain C08-C09/B05. Standalone discovery does not parse Markdown and a later discovery-only publication clears the optional evidence. No new generic readiness is authorized. The [publication guidance](../repository-constraints.md#generation-bound-markdown-publication) describes these boundaries.
+
+Verification on .NET 10 Windows with existing dependencies: all 224 Core, 450 Indexer, 604 Application, 49 Infrastructure unit, and 50 DocumentIndexer tests passed, plus 3 focused authenticated profile/MCP endpoint tests (1,380 total). The extended Neo4j persistence/replay/conflict/replacement fixture builds; live execution remains E02. The integration build retains the previously recorded System.CommandLine 2.0.12/2.0.13 reference-version warning. `git diff --check` passed. An initial CodeMeridian check found no published profile and an October 6 incremental index, so implementation used local sources as requested. No repository indexing, dependency installation, deployment, or live database acceptance was performed.
 
 ### 2026-10-23: C03 Public Repository-Constraint Query
 

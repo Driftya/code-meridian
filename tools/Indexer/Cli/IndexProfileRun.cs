@@ -95,9 +95,9 @@ internal sealed class IndexProfileRun(CodeMeridianClient client, ProjectProfileS
             Limitations = ["Source content or inventory changed during the index pass; no complete evidence was published."]
         }).ToArray();
         if (outcomes.Length > 0) await PublishOutcomesAsync(outcomes, cancellationToken);
-        if (current && !source.IsCurrent(cancellationToken))
+        if (!current || !source.IsCurrent(cancellationToken))
         {
-            // Terminal outcomes are immutable. A change while uploading must make this generation stale.
+            // Invalidate the profile's structural facts as well as its immutable terminal outcomes.
             await client.BeginProjectProfileAsync(snapshot.Profile.Project, cancellationToken);
             return 2;
         }
