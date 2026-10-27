@@ -1,6 +1,6 @@
 # Offline PowerShell Worker
 
-Status: D01–D06 of the [capability checklist](../../docs/plans/2026-10-19-project-capability-completion-checklist.md) provide an isolated parser, static facts, conservative bindings, and graph mapping. The main indexer does not dispatch or publish this worker yet. PowerShell remains detected but unsupported in production profiles and semantic query routing. D07–D10 cover publication, incremental rebinding, opt-in configuration, query conformance, and packaged main-CLI delivery.
+Status: the [capability checklist](../../docs/plans/2026-10-19-project-capability-completion-checklist.md) tracks the isolated parser, owned publication, and opt-in CLI integration. Production profiles report the worker as supported and disabled by default. Published process success still has unknown semantic coverage; generic PowerShell queries remain unsupported until D09 conformance is proven. D10 retains the full release gate.
 
 ## Parser Compatibility Decision
 
@@ -45,7 +45,7 @@ Facts include a script entry body, functions, filters, lexical parent bodies, or
 
 File identities hash project-relative path bytes within the explicit project. Definition identities hash the owner identity, function/filter kind, case-folded name, and deterministic duplicate ordinal. They preserve path case and do not use line position as identity. Moving declarations between lines preserves IDs; renaming, changing lexical scope/path/kind, or reordering indistinguishable duplicates may change them. Occurrence IDs use deterministic file ordinals. Source spans use UTF-16 offsets/lengths and one-based lines/columns with exclusive end positions.
 
-`PowerShellGraphMapper` produces `File` nodes for source files and `Method` nodes for script/function/filter bodies with PowerShell kind/owner metadata. A script file is never represented as a class or namespace. Only resolved callable occurrences become inferred `Calls`; dot-sourcing and module relationships use `DependsOn` with their distinct invocation metadata. Contains edges preserve lexical ownership, and edges without mapped endpoints are discarded. These are offline mappings, not publication or proof that every existing generic query is compatible; D09 must audit those queries before activation.
+`PowerShellGraphMapper` produces `File` nodes for source files and `Method` nodes for script/function/filter bodies with PowerShell kind/owner metadata. A script file is never represented as a class or namespace. Only resolved callable occurrences become inferred `Calls`; dot-sourcing and module relationships use `DependsOn` with their distinct invocation metadata. Contains edges preserve lexical ownership, and edges without mapped endpoints are discarded. These mappings can be published by the opt-in CLI, but do not prove every existing generic query compatible; D09 must audit those queries before activation.
 
 ## Conservative Binding Boundary
 
@@ -85,4 +85,27 @@ dotnet publish tools/PowerShellIndexer -c Release -r linux-x64 --self-contained 
 python tools/PowerShellIndexer/tests/packaged_smoke.py <absolute-published-executable>
 ```
 
-The package smoke uses fresh temporary synthetic repositories and child processes with empty `PATH` and nonexistent `DOTNET_ROOT`, so globally installed `pwsh` or .NET cannot supply the runtime. Windows and Linux x64 package smokes have been executed locally; the Linux run used WSL without installed `dotnet`/`pwsh`, and includes the symlink boundary fixture. Windows unit tests explicitly skip symlink creation when the required privilege is unavailable; Linux packaging verifies that boundary. The dedicated CI matrix also declares Windows/Linux unit and self-contained smoke checks; this session does not claim a remote CI run. Main-CLI packaging, live graph acceptance, and release activation remain open.
+The worker package smoke uses fresh temporary synthetic repositories and child processes with empty `PATH` and nonexistent `DOTNET_ROOT`, so globally installed `pwsh` or .NET cannot supply its runtime. Windows and Linux x64 worker package smokes have been executed locally; the Linux run used WSL without installed `dotnet`/`pwsh`, and includes the symlink boundary fixture. Windows unit tests explicitly skip symlink creation when the required privilege is unavailable. The CI matrix also declares installed-CLI publication/cache smokes on both platforms; no remote CI run is claimed. Full Linux CLI acceptance, live graph acceptance, semantic query conformance, and release activation remain open.
+
+## Opt-In CLI And Publication
+
+Enable `indexing.powershell.enabled` in `meridian.json`. `--skip-powershell` on `index` or `profile` overrides configuration without hiding observed scripts. Local PowerShell options replace global options, including an explicit disabled setting. Paths with spaces and Unicode are supported. On hosts where uniform directory case semantics cannot be observed, explicitly configure `indexing.powershell.caseSensitive`; a setting that contradicts observed semantics fails. Observed case semantics are rechecked during analysis. This fallback is an explicit repository policy, not filesystem discovery evidence.
+
+The CLI sends the complete accepted `.ps1`/`.psm1`/`.psd1` inventory to an isolated process on full, incremental, and watch passes. It rebinds unchanged consumers after source/import/export/deletion changes. Dry runs list selected files without running the worker or contacting publication. No worker build, restore, module lookup, or dependency installation runs automatically. Development fallback finds an already-built worker relative to the running CLI checkout, never in the analyzed repository. Parser dependencies are not loaded into the CLI or server.
+
+Describe mode supplies implementation/parser/core-library fingerprints and the loaded .NET runtime version. Graph-mode output has a 16,777,216-character budget, stderr an 8,192-character budget, and the CLI terminates workers after two minutes or caller cancellation. Temporary request files live outside the analyzed repository and are removed after success/failure. Successful file hashes must match the captured inventory even if different bytes were only read transiently. Source/inventory or worker identity changes fail the pass.
+
+Authenticated `POST /api/v1/knowledge/powershell` and SDK `PublishPowerShellGraphAsync` accept a bounded `PowerShellGraphSnapshot`: current generation, source and analyzer fingerprints, and all current PowerShell file outcomes. A transaction locks the same project profile state used for generation/outcome publication, checks exact inventory membership and identity collisions, replaces only PowerShell-owned edges and nodes, and records an immutable retry fingerprint. An exact retry is idempotent; different content or stale/reserved-later generations conflict. Failed files retain stale owned nodes with no retained dependency edges; removed nodes referenced by manual/other-producer edges remain tombstones. Manual edges, other languages and manual knowledge are preserved. Parsing happens before publication; transaction/transport failure cannot advance the CLI cache. Partial parsing/binding returns 2, transport/protocol failure returns 1, and successful execution returns 0 with unknown semantic coverage. No PowerShell callable/class/namespace/data-flow/Pester capability is enabled.
+
+## Bundling The Worker With The CLI
+
+Publish both self-contained workers before packing the CLI:
+
+```text
+dotnet publish tools/PowerShellIndexer -c Release -r win-x64 --self-contained true --no-restore -o .artifacts/powershell-workers/win-x64
+dotnet publish tools/PowerShellIndexer -c Release -r linux-x64 --self-contained true --no-restore -o .artifacts/powershell-workers/linux-x64
+dotnet pack tools/Indexer -c Release
+python tools/PowerShellIndexer/tests/packaged_cli_smoke.py <installed-codemeridian-executable>
+```
+
+`PowerShellWorkerArtifactsRoot` can override the staging root. Packing fails if either apphost is missing. The tool package carries separate RID folders and selects the executing platform's worker; Windows/Linux x64 are the tested worker platforms. NuGet extraction can remove Unix execute bits, so the launcher restores the user execute bit on its worker apphost when necessary; the installed worker must be writable for this repair. The main CLI requires its normal .NET 10 runtime, while each worker carries its own runtime/parser and needs no global PowerShell. The installed CLI smoke uses an authenticated local HTTP fixture to verify dispatch, source/generation binding, rebinding, deletions, partial outcomes, skip/dry-run behavior, and failed-run cache retention. That fixture does not establish Neo4j storage/query acceptance.

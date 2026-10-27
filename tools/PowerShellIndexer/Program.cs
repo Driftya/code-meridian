@@ -11,9 +11,9 @@ try
         Console.WriteLine(JsonSerializer.Serialize(PowerShellWorkerIdentity.Read(), options));
         return 0;
     }
-    if (args is not ["analyze", var requestPath])
+    if (args is not [var mode, var requestPath] || mode is not ("analyze" or "graph"))
     {
-        Console.Error.WriteLine("Usage: CodeMeridian.PowerShellIndexer --describe-worker | analyze <request.json>");
+        Console.Error.WriteLine("Usage: CodeMeridian.PowerShellIndexer --describe-worker | analyze|graph <request.json>");
         return 1;
     }
     await using var requestStream = File.OpenRead(requestPath);
@@ -31,7 +31,10 @@ try
     var request = JsonSerializer.Deserialize<PowerShellAnalysisRequest>(requestBytes.AsSpan(offset, count - offset), options)
         ?? throw new ArgumentException("An analysis request is required.");
     var report = await new PowerShellAnalyzer().AnalyzeAsync(request, cancellation.Token);
-    Console.WriteLine(JsonSerializer.Serialize(report, options));
+    if (mode == "graph")
+        Console.WriteLine(JsonSerializer.Serialize(new { report.ContractVersion, report.Project, report.Status, report.Worker,
+            files = PowerShellGraphMapper.MapFiles(report) }, options));
+    else Console.WriteLine(JsonSerializer.Serialize(report, options));
     return report.Status == "complete" ? 0 : 2;
 }
 catch (OperationCanceledException)

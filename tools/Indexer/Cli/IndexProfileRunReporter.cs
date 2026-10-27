@@ -9,7 +9,7 @@ namespace CodeMeridian.Indexer.Cli.Commands;
 internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder)
 {
     internal Func<string, string?, HttpClient> HttpClientFactory { get; init; } = CreateHttpClient;
-    internal Func<string, CancellationToken, Task<ProjectAnalyzerFingerprint?>> WorkerFingerprintReader { get; init; } = NodeWorkerIdentity.ReadAsync;
+    internal Func<string, CancellationToken, Task<ProjectAnalyzerFingerprint?>> WorkerFingerprintReader { get; init; } = PowerShellWorkerProcess.ReadFingerprintAsync;
 
     public async Task<bool> IsCacheCurrentAsync(ResolvedIndexerSettings settings, IncrementalIndexCache cache,
         CancellationToken cancellationToken = default, bool verifyInventory = false)
@@ -54,7 +54,7 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
         if (published is null) return false;
         foreach (var expected in LocalProjectProfileBuilder.BuildAnalyzers(settings).Where(analyzer => analyzer.Supported && analyzer.ConfigurationState == "enabled"))
         {
-            var fingerprint = NodeWorkerIdentity.IsWorker(expected.Id)
+            var fingerprint = IsWorker(expected.Id)
                 ? await WorkerFingerprintReader(expected.Id, cancellationToken) : expected.Fingerprint;
             var matches = published.Where(analyzer => analyzer?.Id == expected.Id).ToArray();
             if (fingerprint is null || matches.Length != 1 || matches[0] is not { Supported: true, ConfigurationState: "enabled" }
@@ -86,7 +86,7 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
             for (var index = 0; index < analyzers.Length; index++)
             {
                 var analyzer = analyzers[index];
-                if (NodeWorkerIdentity.IsWorker(analyzer.Id) && analyzer.ConfigurationState == "enabled")
+                if (IsWorker(analyzer.Id) && analyzer.ConfigurationState == "enabled")
                     analyzers[index] = analyzer with { Fingerprint = await WorkerFingerprintReader(analyzer.Id, cancellationToken) };
             }
             var source = AnalyzedSourceSnapshot.Capture(settings.RootPath, snapshot.Files, cancellationToken);
@@ -102,7 +102,13 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
                 await client.BeginProjectProfileAsync(settings.Project, cancellationToken);
                 return 2;
             }
-            var report = new IndexProfileRun(client, snapshot, source);
+            var caseSensitive = PowerShellIndexRunCoordinator.IsEnabled(settings)
+                ? DirectoryCaseSensitivity.Read(settings.RootPath, inventory.Directories, cancellationToken) : null;
+            if (caseSensitive is { } knownCase) source.BindCaseSensitivity(knownCase);
+            var report = new IndexProfileRun(client, snapshot, source)
+            {
+                CaseSensitive = caseSensitive
+            };
             int exitCode;
             try { exitCode = await run(report); }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -118,6 +124,8 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
             return 1;
         }
     }
+
+    private static bool IsWorker(string analyzer) => analyzer == "powershell" || NodeWorkerIdentity.IsWorker(analyzer);
 
     private static HttpClient CreateHttpClient(string url, string? apiKey)
     {

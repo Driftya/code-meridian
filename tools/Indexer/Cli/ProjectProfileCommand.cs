@@ -16,7 +16,7 @@ internal sealed class ProjectProfileCommand(
 
     public async Task<int> RunAsync(string? path, string? project, string format, bool skipCSharp, bool skipTypeScript,
         bool skipDocs, bool skipConfiguration, bool skipSql, bool publish = false, string? url = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool skipPowerShell = false)
     {
         if (format is not ("text" or "json"))
         {
@@ -30,7 +30,7 @@ internal sealed class ProjectProfileCommand(
                 path, project, url, Clear: false, RebuildKeywords: false, IncludeDocs: !skipDocs,
                 Watch: false, DryRun: true, ListCapabilities: false, SkipCSharp: skipCSharp,
                 SkipTypeScript: skipTypeScript, SkipConfiguration: skipConfiguration,
-                SkipDiagnostics: true, AllowRepoScripts: false, Incremental: false, Storage: null, SkipSql: skipSql));
+                SkipDiagnostics: true, AllowRepoScripts: false, Incremental: false, Storage: null, SkipSql: skipSql, SkipPowerShell: skipPowerShell));
             using var httpClient = publish ? HttpClientFactory(settings.CodeMeridianUrl, settings.ApiKey) : null;
             var client = httpClient is null ? null : new CodeMeridianClient(httpClient);
             var generation = client is null ? 0 : await client.BeginProjectProfileAsync(settings.Project, cancellationToken);

@@ -30,6 +30,7 @@ internal sealed class AnalyzedSourceSnapshot
 
     public string Fingerprint { get; }
     public string FileFingerprint(string path) => "sha256:" + _hashes[path].ToLowerInvariant();
+    public void BindCaseSensitivity(bool caseSensitive) => _constraintCaseSensitive = caseSensitive;
     public void BindConstraintInventory(RepositoryFileInventory inventory, bool caseSensitive)
     {
         _constraintExclusions = inventory.ExcludedPaths;
@@ -62,8 +63,8 @@ internal sealed class AnalyzedSourceSnapshot
                 _files.Where(file => IndexingExclusionPolicy.IsIgnoredRelativePath(file.Path)).Select(file => file.Path).ToArray());
             if (!inventory.IsComplete || !inventory.Files.SequenceEqual(_hashes.Keys.Order(StringComparer.Ordinal), StringComparer.Ordinal))
                 return Invalidate();
-            if (_constraintExclusions is not null && (!inventory.ExcludedPaths.SequenceEqual(_constraintExclusions, StringComparer.Ordinal)
-                || DirectoryCaseSensitivity.Read(_root, inventory.Directories, cancellationToken) != _constraintCaseSensitive))
+            if (_constraintExclusions is not null && !inventory.ExcludedPaths.SequenceEqual(_constraintExclusions, StringComparer.Ordinal)
+                || _constraintCaseSensitive is not null && DirectoryCaseSensitivity.Read(_root, inventory.Directories, cancellationToken) != _constraintCaseSensitive)
                 return Invalidate();
             foreach (var file in _files)
             {

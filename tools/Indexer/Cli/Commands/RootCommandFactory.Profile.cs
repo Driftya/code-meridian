@@ -18,6 +18,7 @@ internal sealed partial class RootCommandFactory
         var skipDocsOption = new Option<bool>("--skip-docs") { Description = "Report document indexing as disabled; retain detected files." };
         var skipConfigurationOption = new Option<bool>("--skip-config") { Description = "Report configuration indexing as disabled; retain detected files." };
         var skipSqlOption = new Option<bool>("--skip-sql") { Description = "Report SQL indexing as disabled; retain detected files." };
+        var skipPowerShellOption = new Option<bool>("--skip-powershell") { Description = "Report PowerShell indexing as disabled; retain detected files." };
         command.Add(pathArgument);
         command.Add(publishOption);
         command.Add(urlOption);
@@ -28,13 +29,14 @@ internal sealed partial class RootCommandFactory
         command.Add(skipDocsOption);
         command.Add(skipConfigurationOption);
         command.Add(skipSqlOption);
+        command.Add(skipPowerShellOption);
         command.SetAction((parseResult, cancellationToken) =>
             services.GetRequiredService<ProjectProfileCommand>().RunAsync(
                 parseResult.GetValue(pathArgument), parseResult.GetValue(projectOption), parseResult.GetValue(formatOption)!,
                 parseResult.GetValue(skipCSharpOption), parseResult.GetValue(skipTypeScriptOption),
                 parseResult.GetValue(skipDocsOption), parseResult.GetValue(skipConfigurationOption),
                 parseResult.GetValue(skipSqlOption), parseResult.GetValue(publishOption),
-                parseResult.GetValue(urlOption), cancellationToken));
+                parseResult.GetValue(urlOption), cancellationToken, parseResult.GetValue(skipPowerShellOption)));
         return command;
     }
 }

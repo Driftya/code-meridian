@@ -65,6 +65,9 @@
     "path": ".meridian/architecture.json"
   },
   "indexing": {
+    "powershell": {
+      "enabled": false
+    },
     "sql": {
       "enabled": false,
       "defaultDialect": "postgresql",

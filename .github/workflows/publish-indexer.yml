@@ -98,6 +98,12 @@ jobs:
         run: npm test
 
       - name: Pack indexer tool
+        run: |
+          dotnet publish tools/PowerShellIndexer -c Release -r win-x64 --self-contained true --no-restore -o .artifacts/powershell-workers/win-x64
+          dotnet publish tools/PowerShellIndexer -c Release -r linux-x64 --self-contained true --no-restore -o .artifacts/powershell-workers/linux-x64
+          dotnet build $env:PACKAGE_PROJECT -c Release --no-restore /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Create complete tool package
         run: dotnet pack $env:PACKAGE_PROJECT -c Release --no-build -o $env:PACKAGE_OUTPUT /p:Version=${{ steps.version.outputs.version }}
 
       - name: Smoke-test tool package

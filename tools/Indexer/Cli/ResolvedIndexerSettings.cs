@@ -19,6 +19,8 @@ internal sealed class ResolvedIndexerSettings
     public bool ExternalOnly { get; init; }
     public bool SkipTypeScript { get; init; }
     public bool SkipSql { get; init; }
+    public bool SkipPowerShell { get; init; }
+    public CodeMeridianPowerShellOptions? PowerShell { get; init; }
     public CodeMeridianSqlOptions? Sql { get; init; }
     public bool SkipConfiguration { get; init; }
     public IReadOnlyList<string>? ConfigurationFiles { get; init; }

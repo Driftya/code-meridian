@@ -30,6 +30,7 @@ public static class PowerShellGraphMapper
                     }
                 });
                 edges.Add(new() { SourceId = body.ParentId ?? file.FileId, TargetId = body.Id, Type = CodeEdgeType.Contains,
+                    SourceFilePath = file.Path,
                     Properties = new() { ["analyzer"] = "powershell" } });
             }
             foreach (var command in file.Commands.Where(command => command.BindingStatus == "resolved" && command.TargetId is not null))
@@ -54,5 +55,12 @@ public static class PowerShellGraphMapper
         var ids = nodes.Select(node => node.Id).ToHashSet(StringComparer.Ordinal);
         // A mapper never manufactures a target from an unresolved or absent selected source.
         return (nodes, edges.Where(edge => ids.Contains(edge.SourceId) && ids.Contains(edge.TargetId)).ToArray());
+    }
+
+    public static IReadOnlyList<PowerShellFileGraph> MapFiles(PowerShellAnalysisReport report)
+    {
+        var (nodes, edges) = Map(report);
+        return report.Files.Select(file => new PowerShellFileGraph(file.Path, file.Status, file.SourceFingerprint,
+            nodes.Where(node => node.FilePath == file.Path).ToArray(), edges.Where(edge => edge.SourceFilePath == file.Path).ToArray())).ToArray();
     }
 }

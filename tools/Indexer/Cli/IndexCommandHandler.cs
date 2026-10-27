@@ -27,7 +27,7 @@ internal sealed partial class IndexCommandHandler(
     private readonly IndexProfileRunReporter _profileReporter = profileReporter
         ?? new(new LocalProjectProfileBuilder(new RepositoryInventoryDiscovery()));
 
-    public async Task<int> RunAsync()
+    public async Task<int> RunAsync(CancellationToken cancellationToken = default)
     {
         if (_settings.ListCapabilities)
         {
@@ -61,7 +61,7 @@ internal sealed partial class IndexCommandHandler(
             Console.WriteLine($"warning: run `codemeridian init .` to merge version {_settings.CurrentConfigVersion} defaults into the existing file.");
         }
 
-        if (!context.HasCSharp && !context.HasTypeScript && !context.HasHtmlCss && !context.HasConfiguration && !IncludesDocs && !SqlIndexRunCoordinator.IsEnabled(_settings))
+        if (!context.HasCSharp && !context.HasTypeScript && !context.HasHtmlCss && !context.HasConfiguration && !IncludesDocs && !SqlIndexRunCoordinator.IsEnabled(_settings) && !PowerShellIndexRunCoordinator.IsEnabled(_settings))
         {
             if (!_settings.DryRun && !_settings.SkipTypeScript)
             {
@@ -83,11 +83,11 @@ internal sealed partial class IndexCommandHandler(
             return 0;
         }
 
-        context = await ReconcileExecutionContextAsync(context, _settings.Clear);
+        context = await ReconcileExecutionContextAsync(context, _settings.Clear, cancellationToken);
         if (context is null) return 1;
 
         if (_settings.Incremental && !_settings.Clear && context.ChangedFiles is not null
-            && !context.IncrementalPlan.HasChanges && !SqlIndexRunCoordinator.IsEnabled(_settings))
+            && !context.IncrementalPlan.HasChanges && !SqlIndexRunCoordinator.IsEnabled(_settings) && !PowerShellIndexRunCoordinator.IsEnabled(_settings))
         {
             if (!_settings.SkipTypeScript)
             {
@@ -112,7 +112,7 @@ internal sealed partial class IndexCommandHandler(
             context,
             clear: _settings.Clear,
             changedFiles: context.ChangedFiles,
-            deletedFiles: context.DeletedFiles);
+            deletedFiles: context.DeletedFiles, cancellationToken);
 
         if (exitCode != 0)
             return exitCode;
@@ -124,27 +124,32 @@ internal sealed partial class IndexCommandHandler(
         await using var provider = services.BuildServiceProvider();
         var logger = provider.GetRequiredService<ILogger<IndexCommandHandler>>();
 
-        var cts = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, e) =>
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        ConsoleCancelEventHandler onCancel = (_, e) =>
         {
             e.Cancel = true;
             cts.Cancel();
         };
 
-        var watchLoop = new IndexWatchLoop(_settings.RootPath, logger);
-        await watchLoop.RunAsync(async (_, cancellationToken) =>
+        Console.CancelKeyPress += onCancel;
+        try
         {
-            var watchContext = await ReconcileExecutionContextAsync(BuildExecutionContext(clear: false), clear: false, cancellationToken);
-            if (watchContext is null) return;
-            if (watchContext.ChangedFiles is not null && !watchContext.IncrementalPlan.HasChanges && !SqlIndexRunCoordinator.IsEnabled(_settings))
-                return;
+            var watchLoop = new IndexWatchLoop(_settings.RootPath, logger);
+            await watchLoop.RunAsync(async (_, watchToken) =>
+            {
+                var watchContext = await ReconcileExecutionContextAsync(BuildExecutionContext(clear: false), clear: false, watchToken);
+                if (watchContext is null) return;
+                if (watchContext.ChangedFiles is not null && !watchContext.IncrementalPlan.HasChanges && !SqlIndexRunCoordinator.IsEnabled(_settings) && !PowerShellIndexRunCoordinator.IsEnabled(_settings))
+                    return;
 
-            await RunIndexPassAsync(
-                watchContext,
-                clear: false,
-                changedFiles: watchContext.ChangedFiles,
-                deletedFiles: watchContext.DeletedFiles);
-        }, cts.Token);
+                await RunIndexPassAsync(
+                    watchContext,
+                    clear: false,
+                    changedFiles: watchContext.ChangedFiles,
+                    deletedFiles: watchContext.DeletedFiles, watchToken);
+            }, cts.Token);
+        }
+        finally { Console.CancelKeyPress -= onCancel; }
 
         return 0;
     }
@@ -201,6 +206,7 @@ internal sealed partial class IndexCommandHandler(
         Console.WriteLine($"  Rebuild keywords  : {_settings.RebuildKeywords}");
         Console.WriteLine($"  C# indexer        : {(hasCSharp ? "enabled" : "not applicable")}");
         SqlIndexRunCoordinator.PrintSelection(_settings);
+        PowerShellIndexRunCoordinator.PrintSelection(_settings);
         Console.WriteLine($"  TypeScript roots  : {(typeScriptRoots.Count == 0 ? "none" : typeScriptRoots.Count)}");
         Console.WriteLine($"  HTML/CSS roots    : {(htmlCssRoots.Count == 0 ? "none" : htmlCssRoots.Count)}");
         Console.WriteLine($"  Config indexer    : {(_settings.SkipConfiguration ? "skipped" : "enabled")}");
@@ -251,6 +257,7 @@ internal sealed partial class IndexCommandHandler(
             hasConfiguration,
             configurationFilePatterns,
             includeSql: SqlIndexRunCoordinator.IsEnabled(_settings))
+            .Concat(PowerShellIndexRunCoordinator.IsEnabled(_settings) ? PowerShellIndexRunCoordinator.SelectFiles(_settings.RootPath) : [])
             .Concat(cSharpFiles)
             .Concat(hasCSharp && _settings.AllowRepoScripts && !_settings.ExternalOnly ? PackageMetadataFiles.Enumerate(_settings.RootPath) : [])
             .DistinctBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
@@ -260,7 +267,8 @@ internal sealed partial class IndexCommandHandler(
             : path =>
             {
                 var file = new FileInfo(Path.Combine(_settings.RootPath.FullName, path.Replace('/', Path.DirectorySeparatorChar)));
-                return (hasCSharp && _settings.AllowRepoScripts && !_settings.ExternalOnly && PackageMetadataFiles.IsMetadata(file)
+                return (PowerShellIndexRunCoordinator.IsEnabled(_settings) && PowerShellIndexRunCoordinator.IsSourcePath(path)
+                        || hasCSharp && _settings.AllowRepoScripts && !_settings.ExternalOnly && PackageMetadataFiles.IsMetadata(file)
                         || IndexExecutionPlanBuilder.IsIndexableFile(
                            file,
                            hasCSharp,
@@ -589,6 +597,7 @@ internal sealed partial class IndexCommandHandler(
 
         Console.WriteLine($"  TS/JS/TSX/JSX   {(tsIndexerRoot is null ? "no - assets not found" : "yes")}");
         SqlIndexRunCoordinator.PrintSelection(_settings);
+        PowerShellIndexRunCoordinator.PrintSelection(_settings);
         Console.WriteLine($"  HTML/CSS/SCSS    {(ResolveHtmlCssIndexerRoot() is null ? "no - assets not found" : "yes - placeholder worker")}");
         Console.WriteLine("  Diagnostics      yes - skip with --skip-diagnostics");
         Console.WriteLine();

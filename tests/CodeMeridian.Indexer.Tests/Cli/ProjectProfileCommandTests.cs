@@ -57,7 +57,7 @@ public sealed class ProjectProfileCommandTests : IDisposable
 
         result.ExitCode.Should().Be(0);
         result.Output.Should().Contain("local_discovery").And.Contain("markdown: 1")
-            .And.Contain("server evidence has not been queried").And.Contain("powershell: support=unsupported");
+            .And.Contain("server evidence has not been queried").And.Contain("powershell: support=supported, configuration=disabled, indexing=unknown");
     }
 
     [Fact]

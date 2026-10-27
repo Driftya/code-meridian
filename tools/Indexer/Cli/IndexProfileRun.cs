@@ -13,6 +13,18 @@ internal sealed class IndexProfileRun(CodeMeridianClient client, ProjectProfileS
 
     public long Generation => snapshot.Generation;
     public DateTimeOffset ObservedAt => snapshot.Profile.ObservedAt;
+    public string SourceFingerprint => source.Fingerprint;
+    public bool? CaseSensitive { get; init; }
+    public string[] PowerShellPaths => snapshot.Files.Where(file => file.Kind == "powershell").Select(file => file.Path).ToArray();
+    public async Task PublishPowerShellAsync(CodeMeridian.Core.CodeGraph.PowerShellGraphSnapshot graph, CancellationToken cancellationToken)
+    {
+        if (graph.ValidateAgainst(snapshot.Profile, snapshot.Files) is { } error) throw new InvalidDataException(error);
+        foreach (var file in graph.Files.Where(file => file.Status != "failed"))
+            if (file.SourceFingerprint != source.FileFingerprint(file.Path))
+                throw new InvalidDataException("PowerShell worker read different bytes than the captured source inventory.");
+        if (!source.IsCurrent(cancellationToken)) throw new InvalidDataException("Sources changed before PowerShell publication.");
+        await client.PublishPowerShellGraphAsync(graph, cancellationToken);
+    }
     public ProjectAnalyzerFingerprint? Fingerprint(string analyzer) => snapshot.Profile.Analyzers.Single(item => item.Id == analyzer).Fingerprint;
 
     public bool CoversAllDocuments(IReadOnlyCollection<string>? changedFiles) => changedFiles is null
@@ -58,7 +70,7 @@ internal sealed class IndexProfileRun(CodeMeridianClient client, ProjectProfileS
         }
         var worker = workerReport?.Invoke();
         var state = exitCode == 0 ? worker?.Coverage == "partial" ? "partial" : "succeeded"
-            : (analyzer is "documents" or "csharp") && exitCode == 2 ? "partial" : "failed";
+            : (analyzer is "documents" or "csharp" or "powershell") && exitCode == 2 ? "partial" : "failed";
         // Verified source reads alone do not audit C# project membership or callable semantics.
         var sourceVerified = analyzer == "documents" && source.AllDocumentsRead;
         if (exitCode == 0 && analyzer == "documents" && fullSelection && verifiedCoverage && !sourceVerified)

@@ -244,6 +244,36 @@ public sealed class DirectCapabilityGuardTests
     private void Node() => graph.GetContextForEditingAsync(Target, Arg.Any<CancellationToken>()).Returns(new EditingContext(
         new CodeNode { Id = Target, Name = "A", Type = CodeNodeType.Class, FilePath = "src/A.cs", ProjectContext = "Fixture" }, [], [], []));
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FrontendSingleColonIdentityUsesVerifiedInventoryRatherThanPathParsing(bool wrongNode)
+    {
+        const string target = "Fixture:File:index.html";
+        var profile = ToolCapabilityPolicyTests.Profile("html", "frontend", ["frontend_relationships"]);
+        profiles.GetAsync("Fixture", Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(
+            new StoredProjectProfile(1, 1, DateTimeOffset.UtcNow, profile.Profile!, new("index.html", "html")) { AnalyzerOutcomes = profile.AnalyzerOutcomes });
+        graph.GetContextForEditingAsync(target, Arg.Any<CancellationToken>()).Returns(new EditingContext(new CodeNode
+        {
+            Id = wrongNode ? "Fixture:File:other.html" : target, Name = "index.html", Type = CodeNodeType.File,
+            FilePath = "index.html", ProjectContext = "Fixture"
+        }, [], [], []));
+        var result = await Service().FindConnectionResultAsync(target, target);
+        result.Applicability!.Status.Should().Be(wrongNode ? "unknown" : "ok");
+        if (wrongNode) await graph.DidNotReceiveWithAnyArgs().FindConnectionAsync(default!, default!, default);
+        else await graph.Received(1).FindConnectionAsync(target, target, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PublishedPowerShellMethodsCannotBorrowCallableReadinessFromCSharp()
+    {
+        profiles.GetAsync("Fixture", Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Stored() with { Target = new("main.ps1", "powershell") });
+        Node();
+        var result = await Service().FindImpactResultAsync(Target);
+        result.Applicability!.Status.Should().Be("unsupported");
+        await graph.DidNotReceiveWithAnyArgs().FindImpactAsync(default!, default, default);
+    }
+
     private static StoredProjectProfile Stored()
     {
         var profile = ToolCapabilityPolicyTests.Profile();

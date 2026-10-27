@@ -208,7 +208,8 @@ public sealed class CodeMeridianConfigFileStore
                 ReadVersion(root),
                 options.Embedding?.Enabled,
                 options.Indexing?.PackageReferences?.ProducerBindings,
-                options.Indexing?.Sql);
+                options.Indexing?.Sql,
+                options.Indexing?.PowerShell);
         }
         catch (Exception ex)
         {

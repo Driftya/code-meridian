@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddSingleton<Neo4jCodeGraphRepository>();
         services.AddSingleton<Neo4jProjectProfileRepository>();
         services.AddSingleton<IProjectProfileRepository>(sp => sp.GetRequiredService<Neo4jProjectProfileRepository>());
+        services.AddSingleton<IPowerShellGraphRepository>(sp => sp.GetRequiredService<Neo4jProjectProfileRepository>());
         services.AddSingleton<Neo4jGraphReadRepository>();
         services.AddSingleton<Neo4jKeywordGraphRepository>();
         services.AddSingleton<Neo4jChangeContextRepository>();

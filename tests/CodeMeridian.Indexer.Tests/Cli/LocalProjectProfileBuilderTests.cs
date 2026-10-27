@@ -51,7 +51,8 @@ public sealed class LocalProjectProfileBuilderTests : IDisposable
         var profile = _sut.Build(Settings());
 
         profile.FileKinds.Select(kind => kind.Kind).Should().Equal("markdown", "powershell");
-        profile.Analyzers.Single(analyzer => analyzer.Id == "powershell").Supported.Should().BeFalse();
+        profile.Analyzers.Single(analyzer => analyzer.Id == "powershell").Supported.Should().BeTrue();
+        profile.Analyzers.Single(analyzer => analyzer.Id == "powershell").ConfigurationState.Should().Be("disabled");
         profile.Analyzers.Single(analyzer => analyzer.Id == "powershell").SupportedCapabilities.Should().BeEmpty();
         profile.AnalysisRoots.Should().NotContain(root => root.Kind == "csharp" || root.Kind == "typescript");
     }
@@ -69,7 +70,7 @@ public sealed class LocalProjectProfileBuilderTests : IDisposable
         var disabled = _sut.Build(Settings(skip: true, sql: new CodeMeridianSqlOptions { Enabled = true }));
 
         disabled.FileKinds.Should().BeEquivalentTo(enabled.FileKinds);
-        enabled.Analyzers.Where(analyzer => analyzer.Supported)
+        enabled.Analyzers.Where(analyzer => analyzer.Supported && analyzer.Id != "powershell")
             .Should().OnlyContain(analyzer => analyzer.ConfigurationState == "enabled");
         disabled.Analyzers.Where(analyzer => analyzer.Supported)
             .Should().OnlyContain(analyzer => analyzer.ConfigurationState == "disabled");

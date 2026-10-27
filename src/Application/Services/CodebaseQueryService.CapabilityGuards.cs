@@ -25,8 +25,16 @@ public sealed partial class CodebaseQueryService
         if (projectProfiles is null) return null; // Explicit legacy construction preserves advisory/manual access.
         var descriptor = ContextWorkflowToolCatalog.Get(tool, options);
         if (descriptor.ReadinessExempt) return null;
-        var canonical = target?.Contains("::", StringComparison.Ordinal) == true;
-        var nodeProject = canonical ? target![..target!.IndexOf("::", StringComparison.Ordinal)] : null;
+        var separator = target?.IndexOf("::", StringComparison.Ordinal) ?? -1;
+        if (separator < 0 && target is not null)
+        {
+            // The frontend producer uses single-colon File/ExternalConcept identities.
+            var colon = target.IndexOf(':');
+            if (colon > 0 && (target.AsSpan(colon).StartsWith(":File:", StringComparison.Ordinal)
+                || target.AsSpan(colon).StartsWith(":ExternalConcept:", StringComparison.Ordinal))) separator = colon;
+        }
+        var canonical = separator > 0;
+        var nodeProject = canonical ? target![..separator] : null;
         project ??= nodeProject;
         var profile = await GetWorkflowProfileAsync(project, canonical ? null : target, cancellationToken);
         if (canonical && profile is { Status: "available", Profile: not null })
@@ -34,7 +42,7 @@ public sealed partial class CodebaseQueryService
             if (project != nodeProject)
                 return new("unknown", profile.Generation, null, null, ["The canonical target belongs to a different project; supply its actual project context."]) { Project = project };
             var context = await codeGraph.GetContextForEditingAsync(target!, cancellationToken);
-            if (context?.Node is not { FilePath: { } path } node || node.ProjectContext != project)
+            if (context?.Node is not { FilePath: { } path } node || node.ProjectContext != project || node.Id != target)
                 return new("unknown", profile.Generation, null, null, ["The exact target and its inventory path could not be confirmed."]) { Project = project };
             profile = await projectProfiles.GetAsync(project!, path, cancellationToken);
         }

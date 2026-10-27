@@ -183,4 +183,21 @@
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <PowerShellWorkerArtifactsRoot Condition="'$(PowerShellWorkerArtifactsRoot)' == ''">$(MSBuildProjectDirectory)/../../.artifacts/powershell-workers</PowerShellWorkerArtifactsRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="$(PowerShellWorkerArtifactsRoot)/win-x64/**/*"
+          Link="tools/PowerShellIndexer/win-x64/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(PowerShellWorkerArtifactsRoot)/linux-x64/**/*"
+          Link="tools/PowerShellIndexer/linux-x64/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../PowerShellIndexer/supports.md" Link="tools/PowerShellIndexer/supports.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Target Name="RequirePowerShellWorkersForPackage" BeforeTargets="GenerateNuspec">
+    <Error Condition="!Exists('$(PowerShellWorkerArtifactsRoot)/win-x64/CodeMeridian.PowerShellIndexer.exe') Or !Exists('$(PowerShellWorkerArtifactsRoot)/linux-x64/CodeMeridian.PowerShellIndexer')"
+           Text="Publish the isolated self-contained win-x64 and linux-x64 PowerShell workers under PowerShellWorkerArtifactsRoot before packing the CLI. See tools/PowerShellIndexer/supports.md." />
+  </Target>
+
 </Project>

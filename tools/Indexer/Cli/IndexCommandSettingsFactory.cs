@@ -36,6 +36,8 @@ internal sealed class IndexCommandSettingsFactory(IToolConfigurationService conf
             ExternalOnly = options.ExternalOnly,
             SkipTypeScript = options.SkipTypeScript,
             SkipSql = options.SkipSql,
+            SkipPowerShell = options.SkipPowerShell,
+            PowerShell = context.LocalConfig?.PowerShell ?? context.GlobalConfig?.PowerShell,
             Sql = context.LocalConfig?.Sql ?? context.GlobalConfig?.Sql,
             SkipConfiguration = options.SkipConfiguration,
             ConfigurationFiles = context.LocalConfig?.ConfigurationFiles ?? context.GlobalConfig?.ConfigurationFiles,

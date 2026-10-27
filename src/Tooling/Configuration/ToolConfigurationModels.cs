@@ -11,7 +11,8 @@ public sealed record CodeMeridianConfigSnapshot(
     int Version,
     bool? EmbeddingEnabled = null,
     IReadOnlyDictionary<string, string>? PackageProducerBindings = null,
-    CodeMeridianSqlOptions? Sql = null);
+    CodeMeridianSqlOptions? Sql = null,
+    CodeMeridianPowerShellOptions? PowerShell = null);
 
 public sealed record ToolConfigurationContext(
     DirectoryInfo RootPath,
@@ -46,6 +47,7 @@ public sealed class CodeMeridianArchitectureOptions
 
 public sealed class CodeMeridianIndexingOptions
 {
+    public CodeMeridianPowerShellOptions? PowerShell { get; set; }
     public CodeMeridianSqlOptions? Sql { get; set; }
     public CodeMeridianFileRoleOptions? FileRoles { get; set; }
     public CodeMeridianPackageReferenceOptions? PackageReferences { get; set; }

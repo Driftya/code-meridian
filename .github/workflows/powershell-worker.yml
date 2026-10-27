@@ -35,3 +35,13 @@ jobs:
         run: dotnet publish tools/PowerShellIndexer --configuration Release --runtime ${{ matrix.rid }} --self-contained true --no-restore --output .artifacts/powershell-worker
       - name: Smoke with no global PowerShell or .NET on PATH
         run: python tools/PowerShellIndexer/tests/packaged_smoke.py .artifacts/powershell-worker/${{ matrix.executable }}
+      - name: Stage both isolated workers for CLI package
+        run: |
+          dotnet publish tools/PowerShellIndexer -c Release -r win-x64 --self-contained true --no-restore -o .artifacts/powershell-workers/win-x64
+          dotnet publish tools/PowerShellIndexer -c Release -r linux-x64 --self-contained true --no-restore -o .artifacts/powershell-workers/linux-x64
+      - name: Pack and install complete CLI
+        run: |
+          dotnet pack tools/Indexer -c Release -o .artifacts/packages /p:Version=0.0.0-powershell-smoke
+          dotnet tool install CodeMeridian.Indexer --version 0.0.0-powershell-smoke --tool-path .artifacts/tool --add-source .artifacts/packages
+      - name: Exercise installed CLI publication and cache without PowerShell on PATH
+        run: python tools/PowerShellIndexer/tests/packaged_cli_smoke.py .artifacts/tool/${{ runner.os == 'Windows' && 'codemeridian.exe' || 'codemeridian' }}

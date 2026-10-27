@@ -11,15 +11,15 @@ internal sealed partial class IndexCommandHandler
         IndexExecutionContext context,
         bool clear,
         IReadOnlyCollection<string>? changedFiles,
-        IReadOnlyCollection<string> deletedFiles)
+        IReadOnlyCollection<string> deletedFiles, CancellationToken cancellationToken = default)
     {
         IndexProfileRun? publication = null;
         var exitCode = await _profileReporter.RunAsync(_settings,
             async report =>
             {
                 publication = report;
-                return await RunIndexPassCoreAsync(context, clear, changedFiles, deletedFiles, report);
-            });
+                return await RunIndexPassCoreAsync(context, clear, changedFiles, deletedFiles, report, cancellationToken);
+            }, cancellationToken);
         if (exitCode == 0)
             context.Cache.Save(context.IncrementalPlan, _settings.CodeMeridianUrl, publication?.Generation, publication?.ObservedAt);
         return exitCode;
@@ -27,7 +27,7 @@ internal sealed partial class IndexCommandHandler
 
     private async Task<int> RunIndexPassCoreAsync(
         IndexExecutionContext context, bool clear, IReadOnlyCollection<string>? changedFiles,
-        IReadOnlyCollection<string> deletedFiles, IndexProfileRun? report)
+        IReadOnlyCollection<string> deletedFiles, IndexProfileRun? report, CancellationToken cancellationToken)
     {
         var exitCode = 0;
         var clearNextIndexer = clear;
@@ -85,6 +85,15 @@ internal sealed partial class IndexCommandHandler
             exitCode = await RunAnalyzer("configuration", ["."], () => RunConfigurationIndexerAsync(clear, changedFiles, deletedFiles));
             if (exitCode != 0)
                 return exitCode;
+        }
+
+        if (PowerShellIndexRunCoordinator.IsEnabled(_settings))
+        {
+            if (report is null) throw new InvalidOperationException("PowerShell publication requires a current repository profile.");
+            exitCode = await report.RunAnalyzerAsync("powershell", ["."],
+                () => PowerShellIndexRunCoordinator.RunAsync(_settings, report, cancellationToken), fullSelection: true,
+                cancellationToken: cancellationToken);
+            if (exitCode != 0) return exitCode;
         }
 
         if (!_settings.SkipDiagnostics && !_settings.ExternalOnly)

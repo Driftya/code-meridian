@@ -70,6 +70,7 @@ internal sealed partial class RootCommandFactory(
         var externalOnlyOption = new Option<bool>("--external-only") { Description = "Index only C# files outside the root that are explicitly referenced by project files or .slnx." };
         var skipTypeScriptOption = new Option<bool>("--skip-typescript") { Description = "Skip TypeScript/JavaScript/TSX/JSX indexing." };
         var skipSqlOption = new Option<bool>("--skip-sql") { Description = "Skip configured SQL indexing." };
+        var skipPowerShellOption = new Option<bool>("--skip-powershell") { Description = "Skip configured offline PowerShell indexing; retain detected inventory." };
         var skipConfigurationOption = new Option<bool>("--skip-config") { Description = "Skip configuration indexing." };
         var skipDiagnosticsOption = new Option<bool>("--skip-diagnostics") { Description = "Skip project-native compiler, TypeScript, and lint diagnostics indexing." };
         var allowRepoScriptsOption = new Option<bool>("--allow-repo-scripts") { Description = "Allow repo-controlled build/lint commands and MSBuild evaluation for cross-project package references." };
@@ -91,13 +92,14 @@ internal sealed partial class RootCommandFactory(
         command.Add(externalOnlyOption);
         command.Add(skipTypeScriptOption);
         command.Add(skipSqlOption);
+        command.Add(skipPowerShellOption);
         command.Add(skipConfigurationOption);
         command.Add(skipDiagnosticsOption);
         command.Add(allowRepoScriptsOption);
         command.Add(noIncrementalOption);
         command.Add(storageOption);
 
-        command.SetAction(async parseResult =>
+        command.SetAction(async (parseResult, cancellationToken) =>
         {
             ResolvedIndexerSettings settings;
             try
@@ -127,6 +129,7 @@ internal sealed partial class RootCommandFactory(
                     SkipCSharp: parseResult.GetValue(skipCSharpOption),
                     SkipTypeScript: parseResult.GetValue(skipTypeScriptOption),
                     SkipSql: parseResult.GetValue(skipSqlOption),
+                    SkipPowerShell: parseResult.GetValue(skipPowerShellOption),
                     SkipConfiguration: parseResult.GetValue(skipConfigurationOption),
                     SkipDiagnostics: parseResult.GetValue(skipDiagnosticsOption),
                     AllowRepoScripts: parseResult.GetValue(allowRepoScriptsOption),
@@ -143,7 +146,7 @@ internal sealed partial class RootCommandFactory(
             using var scope = services.CreateScope();
             var options = Options.Create(settings);
             var handler = ActivatorUtilities.CreateInstance<IndexCommandHandler>(scope.ServiceProvider, options);
-            return await handler.RunAsync();
+            return await handler.RunAsync(cancellationToken);
         });
 
         return command;

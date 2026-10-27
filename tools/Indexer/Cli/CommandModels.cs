@@ -20,7 +20,8 @@ internal sealed record IndexCommandOptions(
     bool Incremental,
     IndexerStorageMode? Storage,
     bool ExternalOnly = false,
-    bool SkipSql = false);
+    bool SkipSql = false,
+    bool SkipPowerShell = false);
 
 internal sealed record ClearCommandOptions(
     string? Project,

@@ -14,7 +14,7 @@ internal static class ProjectAnalysisFingerprints
     {
         // Only resolved indexing options belong here; credentials and transport/cache settings do not.
         settings.SkipCSharp, settings.SkipTypeScript, settings.IncludeDocs, settings.SkipConfiguration, settings.SkipSql,
-        settings.Sql, settings.ConfigurationFiles, settings.ArchitecturePath, settings.FileRoles,
+        settings.Sql, settings.SkipPowerShell, settings.PowerShell, settings.ConfigurationFiles, settings.ArchitecturePath, settings.FileRoles,
         settings.AllowRepoScripts, settings.SkipDiagnostics, settings.RebuildKeywords,
         PackageProducerBindings = settings.PackageProducerBindings?.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToArray()
     }));

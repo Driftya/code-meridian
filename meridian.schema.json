@@ -77,6 +77,14 @@
             }
           }
         },
+        "powershell": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "caseSensitive": { "type": "boolean", "description": "Explicit repository path case policy when uniform filesystem semantics cannot be observed." }
+          }
+        },
         "sql": {
           "type": "object",
           "additionalProperties": false,

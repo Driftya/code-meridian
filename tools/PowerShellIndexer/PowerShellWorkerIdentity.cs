@@ -13,7 +13,9 @@ public sealed record PowerShellWorkerIdentity(string PackageVersion, string Pars
     public string ParserBuild { get; init; } = typeof(Parser).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
     public static PowerShellWorkerIdentity Read() => new("7.6.8", typeof(Parser).Assembly.GetName().Version!.ToString(),
         System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
-        Hash(File.ReadAllBytes(typeof(Parser).Assembly.Location)),
+        Hash(File.ReadAllBytes(typeof(Parser).Assembly.Location)
+            .Concat(File.ReadAllBytes(typeof(object).Assembly.Location))
+            .Concat(Encoding.UTF8.GetBytes(System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription)).ToArray()),
         Hash(File.ReadAllBytes(typeof(PowerShellWorkerIdentity).Assembly.Location)
             .Concat(File.ReadAllBytes(typeof(CodeMeridian.Core.CodeGraph.CodeNode).Assembly.Location)).ToArray()));
 
