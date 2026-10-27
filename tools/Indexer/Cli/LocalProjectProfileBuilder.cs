@@ -1,6 +1,7 @@
 using CodeMeridian.Core.Projects;
 using CodeMeridian.Indexer.Cli.Configuration;
 using CodeMeridian.Tooling.Discovery;
+using CodeMeridian.Tooling.Configuration;
 
 namespace CodeMeridian.Indexer.Cli.Commands;
 
@@ -14,8 +15,14 @@ internal sealed class LocalProjectProfileBuilder(RepositoryInventoryDiscovery di
 
     public ProjectProfileSnapshot BuildSnapshot(ResolvedIndexerSettings settings, long generation,
         CancellationToken cancellationToken = default)
+        => BuildSnapshot(settings, generation, out _, cancellationToken);
+
+    public ProjectProfileSnapshot BuildSnapshot(ResolvedIndexerSettings settings, long generation,
+        out RepositoryFileInventory discoveredInventory, CancellationToken cancellationToken = default)
     {
-        var inventory = discovery.Discover(settings.RootPath, cancellationToken);
+        var inventory = discovery.Discover(settings.RootPath, cancellationToken,
+            [ProjectProfilePath.Normalize(settings.ArchitecturePath ?? CodeMeridianConfigFileStore.DefaultArchitecturePath)]);
+        discoveredInventory = inventory;
         var observed = inventory.Files.Select(path =>
         {
             cancellationToken.ThrowIfCancellationRequested();

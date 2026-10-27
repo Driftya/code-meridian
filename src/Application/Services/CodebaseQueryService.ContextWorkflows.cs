@@ -199,6 +199,7 @@ public sealed partial class CodebaseQueryService
                 "get_architectural_overview" => await GetOverviewAsync(projectContext, cancellationToken),
                 "search_documentation" => await SearchDocumentationAsync(target ?? goal, projectContext, cancellationToken,
                     targetPath: step.InputHints.TryGetValue("targetPath", out var documentTarget) ? documentTarget : null),
+                "find_repository_constraint_violations" => await ExecuteRepositoryConstraintStepAsync(step, projectContext, cancellationToken),
                 "find_config_definitions" => await FindConfigDefinitionsAsync(target ?? goal, projectContext, cancellationToken),
                 "find_config_usage" => await FindConfigUsageAsync(target ?? goal, projectContext, cancellationToken),
                 "find_impact" => await WithTargetAsync(step, target, nodeId => FindImpactAsync(nodeId, cancellationToken: cancellationToken)),

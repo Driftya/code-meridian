@@ -78,9 +78,42 @@ public sealed partial class CodebaseQueryService
         => ExecuteCapabilityQueryAsync("architecture_drift_history", projectContext, null,
             () => FindArchitectureErosionTimelineCoreAsync(projectContext, days, cancellationToken), cancellationToken);
 
-    public Task<string> FindArchitectureViolationsAsync(
+    public async Task<string> FindArchitectureViolationsAsync(
         string? projectContext = null,
         CancellationToken cancellationToken = default)
-        => ExecuteCapabilityQueryAsync("find_architecture_violations", projectContext, null,
+    {
+        Projects.ProjectProfileResult? initial = null;
+        if (projectProfiles is not null && !string.IsNullOrWhiteSpace(projectContext))
+        {
+            try { initial = await projectProfiles.GetAsync(projectContext, cancellationToken: cancellationToken); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return "Architecture report unavailable: capability evidence could not be read.";
+            }
+        }
+        var namespaces = await ExecuteCapabilityQueryAsync("find_architecture_violations", projectContext, null,
             () => FindArchitectureViolationsCoreAsync(projectContext, cancellationToken), cancellationToken);
+        RepositoryConstraints.RepositoryConstraintQueryResult? constraints;
+        try
+        {
+            constraints = projectProfiles is null || string.IsNullOrWhiteSpace(projectContext) ? null
+                : await projectProfiles.FindRepositoryConstraintsAsync(projectContext, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return namespaces + "\n\nRepository constraints unavailable: evidence could not be read.";
+        }
+        if (constraints is null) return namespaces;
+        Projects.ProjectProfileResult current;
+        try { current = await projectProfiles!.GetAsync(projectContext!, cancellationToken: cancellationToken); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return "Architecture report unavailable: evidence revalidation failed; all findings were discarded.";
+        }
+        if (current.Status != "available" || current.Generation != initial?.Generation || constraints.Generation != initial?.Generation
+            || current.Profile?.SourceFingerprint != initial?.Profile?.SourceFingerprint
+            || current.Profile?.ConfigurationFingerprint != initial?.Profile?.ConfigurationFingerprint)
+            return "Architecture report unavailable: evidence changed during evaluation; all findings were discarded.";
+        return namespaces + "\n\n" + constraints.ToMarkdown();
+    }
 }

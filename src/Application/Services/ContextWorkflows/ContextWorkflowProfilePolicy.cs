@@ -17,23 +17,31 @@ public static partial class ContextWorkflowProfilePolicy
         {
             var documentScope = new DocumentQueryScope(targetPath: string.IsNullOrWhiteSpace(request.Target) ? null : profile.Target?.Path);
             var applicability = ContextWorkflowToolPolicy.Evaluate("search_documentation", profile, new(DocumentScope: documentScope));
+            var constraintApplicability = ContextWorkflowToolPolicy.Evaluate("find_repository_constraint_violations", profile);
             var steps = new[]
             {
                 DocumentStep(1, "get_project_profile", "Check uploaded discovery and target evidence.", request,
                     new("ready", profile.Generation, profile.Target?.Kind, profile.Target?.Path, []), documentScope),
                 DocumentStep(2, "search_documentation", "Read indexed document context before editing or reviewing.", request, applicability, documentScope)
             };
+            var constraintStep = DocumentStep(3, "find_repository_constraint_violations", "Evaluate placement and structural links independently of searchable text.", request, constraintApplicability, documentScope)
+                with { Required = false };
+            var includeConstraints = request.IncludeOptionalSteps != false && constraintApplicability.Status == "ready" && request.MaxSteps > steps.Length;
             var truncated = request.MaxSteps < steps.Length;
             return plan with
             {
                 WorkflowId = "document_review", WorkflowType = "document_review",
                 Summary = "Review document context using inventory and searchable text evidence.",
-                Steps = steps, RequiresApprovalBeforeExecution = false, EstimatedCost = "low",
+                Steps = includeConstraints ? [.. steps, constraintStep] : steps,
+                OmittedSteps = includeConstraints ? [] : [constraintStep],
+                RequiresApprovalBeforeExecution = false, EstimatedCost = "low",
                 Status = applicability.Status == "ready" && !truncated ? "valid" : "blocked",
                 Applicability = applicability,
                 Error = truncated ? "maxSteps must include both required document steps." : applicability.Status == "ready" ? null : applicability.Reasons[0],
-                Warnings = profile.Warnings.Concat(truncated ? ["Required document steps were retained rather than silently truncated."] : applicability.Status == "ready" ? [] : applicability.Reasons).ToArray(),
-                FinalResponseGuidance = ["Describe indexed text coverage. Placement, Markdown reference validity, and narrative consistency are not established by document search."]
+                Warnings = profile.Warnings.Concat(truncated ? ["Required document steps were retained rather than silently truncated."] : applicability.Status == "ready" ? [] : applicability.Reasons)
+                    .Concat(includeConstraints ? [] : ["Optional repository constraint check omitted: " + (request.IncludeOptionalSteps == false ? "optional steps disabled."
+                        : constraintApplicability.Status == "ready" ? "maxSteps budget." : string.Join(" ", constraintApplicability.Reasons))]).ToArray(),
+                FinalResponseGuidance = ["Describe searchable text and per-rule constraint coverage separately. Incomplete references and unverified fragments cannot establish clean validation; narrative consistency is outside these checks."]
             };
         }
         var evaluated = plan.Steps.Select(step => step with { Applicability = ContextWorkflowToolPolicy.Evaluate(step.Tool,
@@ -65,7 +73,7 @@ public static partial class ContextWorkflowProfilePolicy
     private static IReadOnlyDictionary<string, string> DocumentHints(string tool, ContextWorkflowPlanRequest request, DocumentQueryScope scope)
     {
         var hints = new Dictionary<string, string> { ["projectContext"] = request.ProjectContext ?? "supply explicit project" };
-        if (tool == "get_project_profile")
+        if (tool is "get_project_profile" or "find_repository_constraint_violations")
         {
             if (scope.TargetPath is not null) hints["targetPath"] = scope.TargetPath;
         }

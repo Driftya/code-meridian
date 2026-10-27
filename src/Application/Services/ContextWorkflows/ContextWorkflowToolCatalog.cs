@@ -8,6 +8,7 @@ public static class ContextWorkflowToolCatalog
         Tool("query_codebase", "QueryAndExploration", "Natural-language structural search.", worksFromVagueGoal: true),
         Tool("get_architectural_overview", "QueryAndExploration", "High-level project structure map.", worksFromVagueGoal: true),
         Tool("search_documentation", "QueryAndExploration", "Search indexed docs, ADRs, README files, and comments.", worksFromVagueGoal: true),
+        Tool("find_repository_constraint_violations", "GraphAnalytics", "Evaluate configured placement and Markdown references with independent per-rule coverage.", worksFromVagueGoal: true),
         Tool("find_tool_dependency_impact", "QueryAndExploration", "Show which CodeMeridian tools, reports, evaluators, docs, and test suites depend on a tool or shared contract.", worksFromVagueGoal: true),
         Tool("rebuild_keyword_graph", "QueryAndExploration", "Rebuild derived keyword nodes and relationships.", readOnly: false, mutatesGraph: true),
         Tool("classify_keywords", "QueryAndExploration", "Classify derived keywords for better lexical matching.", readOnly: false, mutatesGraph: true),

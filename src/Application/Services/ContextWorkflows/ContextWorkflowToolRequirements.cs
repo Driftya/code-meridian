@@ -10,6 +10,7 @@ internal static class ContextWorkflowToolRequirements
         var capabilities = tool.Name switch
         {
             "search_documentation" => new[] { "document_search" },
+            "find_repository_constraint_violations" => ["repository_inventory", "repository_constraints"],
             "find_config_definitions" => ["configuration_definitions"],
             "find_config_usage" => ["configuration_definitions", "configuration_usage"],
             "find_test_shield" or "find_coverage_gaps" => ["callable_definitions", "callable_dependencies", "test_to_code"],
@@ -48,6 +49,7 @@ internal static class ContextWorkflowToolRequirements
         var kinds = tool.Name switch
         {
             "search_documentation" => new[] { "markdown", "text" },
+            "find_repository_constraint_violations" => ["csharp", "typescript", "javascript", "markdown", "text", "configuration", "sql", "html", "css", "scss", "powershell", "asset", "other", "typescript_declaration"],
             "find_config_definitions" => ["configuration"],
             "find_frontend_cascade_conflicts" => ["html", "css", "scss", "typescript", "javascript"],
             "find_related_knowledge" => ["csharp", "typescript", "javascript", "markdown", "text", "configuration", "sql", "html", "css", "scss"],
@@ -60,7 +62,7 @@ internal static class ContextWorkflowToolRequirements
             RequiredCapabilities = exempt ? [] : tool.RequiresEmbeddings ? capabilities.Append("semantic_embeddings").ToArray() : capabilities,
             SupportedFileKinds = exempt ? [] : kinds,
             ReadinessExempt = exempt,
-            AllowsTargetScope = tool.Name is "resolve_exact_symbol" or "search_documentation",
+            AllowsTargetScope = tool.Name is "resolve_exact_symbol" or "search_documentation" or "find_repository_constraint_violations",
             CapabilityAlternatives = tool.Name == "find_connection"
                 ? [new(CodeKinds, capabilities), new(["html", "css", "scss"], ["frontend_relationships"])] : []
         };

@@ -33,6 +33,14 @@ public static class ContextWorkflowToolPolicy
         if (profile.Status != "available") return Result(profile.Status == "stale" ? "stale" : "unknown", "Discovery is not current.");
         if (profile.Profile.DiscoveryState != "complete") return Result("unknown", "Incomplete discovery cannot establish target or language absence.");
         if (profile.Target is { Status: not "observed" }) return Result("unknown", "Confirm the target in the current accepted inventory before analysis.");
+        if (tool == "find_repository_constraint_violations")
+        {
+            var constraints = profile.RepositoryConstraints;
+            if (constraints?.Generation != profile.Generation || constraints is not { CanEvaluate: true })
+                return Result(constraints?.Status == "stale" ? "stale" : "unknown", "Current bound inventory and constraint policy evidence are required; no semantic analyzer is a prerequisite.", limitations: constraints?.Reasons);
+            return Result("ready", "Per-rule placement and reference results are available; inspect each rule's coverage before claiming clean validation.", limitations: constraints.Reasons)
+                with { Coverage = constraints.Coverage };
+        }
         var alternatives = descriptor.CapabilityAlternatives.Count == 0
             ? new[] { new ContextWorkflowCapabilityAlternative(descriptor.SupportedFileKinds, descriptor.RequiredCapabilities) }
             : descriptor.CapabilityAlternatives;

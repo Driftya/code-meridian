@@ -16,6 +16,7 @@ public sealed record RepositoryConstraintQueryResult(
     IReadOnlyList<RepositoryConstraintDiagnostic> Diagnostics)
 {
     public string ContractVersion { get; init; } = "1.0";
+    internal string? ConstraintEvidenceFingerprint { get; init; }
 
     public string ToMarkdown()
     {

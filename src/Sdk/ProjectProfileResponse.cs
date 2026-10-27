@@ -14,4 +14,5 @@ public sealed record ProjectProfileResponse(
     string ContractVersion)
 {
     public IReadOnlyList<JsonElement> AnalyzerOutcomes { get; init; } = [];
+    public JsonElement? RepositoryConstraints { get; init; }
 }

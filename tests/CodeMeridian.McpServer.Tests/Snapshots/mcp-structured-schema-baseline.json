@@ -364,9 +364,10 @@
       "target",
       "warnings",
       "contractVersion",
-      "analyzerOutcomes"
+      "analyzerOutcomes",
+      "repositoryConstraints"
     ],
-    "sha256": "e5106f576db360210d45950060d156fbcba76bc4bf645f1adfccf66923582741"
+    "sha256": "f9515942937279d4be1a488e4b01b4e2bfa2763c7157e8c88d1474fef7ef1a04"
   },
   {
     "name": "list_client_extension_examples",

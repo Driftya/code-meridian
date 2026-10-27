@@ -24,7 +24,8 @@ public sealed class Neo4jRepositoryConstraintSnapshotTests
             var first = await repository.BeginAsync(project);
             var hash = "sha256:" + new string('a', 64);
             var policy = new RepositoryConstraintPolicy("1.0", [new("documents", ["**/*.md"])],
-                [new("location", "documents", ["docs/**"], [], new string('a', 200), "error", [])], []);
+                [new("location", "documents", ["docs/**"], [], new string('a', 200), "error", [])],
+                [new("links", "documents", [], true, ["link"], "Resolve local links.", "warning", [])]);
             var snapshot = new ProjectProfileSnapshot(first,
                 new(project, DateTimeOffset.UtcNow, "complete", 2,
                     [new("configuration", 1, ["policy.json"]), new("markdown", 1, ["wrong.md"])], [], 0, [], [], 0)
@@ -33,7 +34,8 @@ public sealed class Neo4jRepositoryConstraintSnapshotTests
             {
                 ConstraintEvidence = new("policy.json", hash, true, policy, ["excluded"]),
                 MarkdownEvidence = new(hash, hash, "complete",
-                    [new(project, $"{project}::doc::wrong.md", "wrong.md", first, hash, hash, "complete", [], [])])
+                    [new(project, $"{project}::doc::wrong.md", "wrong.md", first, hash, hash, "complete",
+                        [new("link", new(0, 15, 1, 1), new(4, 10, 1, 5), "missing.md", "missing.md", "local", "missing.md", null)], [])])
             };
             await repository.PublishAsync(snapshot);
             await repository.PublishAsync(snapshot);
@@ -43,6 +45,10 @@ public sealed class Neo4jRepositoryConstraintSnapshotTests
             stored.MarkdownEvidence.Should().BeEquivalentTo(snapshot.MarkdownEvidence);
             stored.Files.Should().BeEquivalentTo(snapshot.Files);
             stored.Generation.Should().Be(first);
+            var evaluation = RepositoryConstraintEvaluator.Evaluate(new(stored.Generation, stored.Profile with { EvidenceSource = "local_discovery" }, stored.Files)
+                { ConstraintEvidence = stored.Evidence, MarkdownEvidence = stored.MarkdownEvidence });
+            evaluation.Status.Should().Be("evaluated");
+            evaluation.Rules.SelectMany(rule => rule.Findings).Select(finding => finding.Status).Should().Equal("misplaced", "missing");
             (await restarted.GetRepositoryConstraintsAsync(project + ".other")).Should().BeNull();
             await FluentActions.Awaiting(() => repository.PublishAsync(snapshot with
             {

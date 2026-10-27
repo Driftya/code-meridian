@@ -1,6 +1,6 @@
-# Repository Constraint Contracts And Placement
+# Repository Constraints And Markdown References
 
-The Core contracts, placement evaluator, Markdown parser/evaluator, public placement query, and generation-bound reference publication implement C01-C07 of the [capability checklist](plans/2026-10-19-project-capability-completion-checklist.md). Public reference evaluation, capability activation, CLI constraint-policy evidence production, and architecture report composition remain open. Placement does not establish semantic analyzer readiness.
+The Core contracts, structural Markdown parser, public per-rule evaluator, CLI evidence publication, profile summaries, document workflows, and architecture report composition implement C01-C09/B05 of the [capability checklist](plans/2026-10-19-project-capability-completion-checklist.md). Placement and reference results have independent coverage and do not establish semantic analyzer readiness. Live isolated-database and packaged cross-platform acceptance remain separate release gates.
 
 ## Configuration
 
@@ -48,7 +48,7 @@ Keep `architecture.path` in `meridian.json` and the existing namespace `name`, `
 }
 ```
 
-The reference rule is validated configuration only. The placement evaluator returns `unsupported` for an applicable reference rule; it cannot certify link resolution from file inventory.
+The public query evaluates reference rules from published structural Markdown facts. The lower-level inventory-only placement evaluator still returns `unsupported` for applicable reference rules; inventory alone cannot certify link resolution.
 
 Groups select paths matching any pattern, intersected with optional observed `fileKinds`. An omitted/empty `fileKinds` selects all kinds. Group IDs and rule IDs are case-sensitive; rule IDs must be unique across both families. A file can belong to several groups, and every matching rule is evaluated.
 
@@ -56,7 +56,7 @@ Patterns are repository-relative globs. `*` matches within a segment, `?` matche
 
 Placement applies an explicit exception first, then denies, then allowed locations. The first matching exception records its reason as an `excepted` finding. Deny wins when both allow and deny match. Empty/omitted `allowedPaths` allows any location unless denied; empty/omitted `deniedPaths` denies nothing. A placement rule must specify at least one allow or deny pattern. Exceptions default to empty and require a reason.
 
-Reference rules select `link` and/or `image` occurrences from a source group. They must require local resolution, restrict allowed target groups, or both. Empty/omitted `allowedTargetGroups` imposes no target-group restriction. The standalone Markdown evaluator implements resolution and exceptions; public reference-evidence integration remains open.
+Reference rules select `link` and/or `image` occurrences from a source group. They must require local resolution, restrict allowed target groups, or both. Empty/omitted `allowedTargetGroups` imposes no target-group restriction. Reference evaluation implements resolution and explicit source exceptions.
 
 `ArchitectureRuleSetConfiguration.Parse` rejects unknown properties/custom validators, duplicate JSON properties, unknown versions/groups, duplicate IDs, malformed namespace dependencies, invalid patterns, empty policies, and unsupported severities. Severities are `info`, `warning`, and `error`. Namespace policies retain their existing fields and fallback dependency reason, and must declare layers and dependencies. JSON properties retain case-insensitive compatibility. Collections are non-null after parsing; optional rule lists default to empty.
 
@@ -103,9 +103,21 @@ Replace the illustrative empty policy with a validated, nonempty `repositoryCons
 
 Lossless policy/case/exclusion evidence is stored in the same atomic generation write as inventory. Its contents participate in the publication retry fingerprint. A later profile without evidence removes the previous generation's policy; no last-good policy is silently inherited. Existing payload bytes/retry fingerprints remain compatible when the optional object is absent. This avoids the legacy configuration graph's 80-character previews entirely.
 
-Current CLI `profile` and indexing commands do **not** produce this optional evidence yet. Their inventories remain readable; the new query returns `incomplete` / `missing_constraint_evidence` until a producer supplies it. There is no host-based case inference, default placement policy, or fallback to preview configuration. CLI production and capability/report integration remain rollout work under C08/B05/C09. This transport contract does not authorize new semantic capabilities.
+The unified indexing command now produces this evidence from the configured architecture file's snapshot-verified bytes. The conventional `.meridian/architecture.json`, or an explicitly configured path under an excluded directory, receives a narrow inventory exception; other excluded entries remain excluded. Missing custom paths and invalid policies stop before initial profile publication or analyzer execution. Absent conventional policies and namespace-only policies do not invent repository rules. This evidence is independent of configuration-graph indexing; `--skip-docs` omits structural facts and leaves applicable reference rules incomplete.
 
-The query reads at most 100,000 inventory files plus one overflow sentinel, confined to project and published generation. It validates the snapshot and re-reads generation/source/configuration identity after evaluation. A pending or changed generation returns `stale` with no findings. Missing inventory/evidence returns `incomplete`; malformed evidence returns `invalid`. Applicable reference rules return `unsupported` because public structural reference evidence is not yet published. No local files or remote links are read by the query.
+On Windows the producer queries actual case-sensitivity flags for every traversed directory. It publishes a single case value only when those observations agree. Unavailable flags, mixed directory semantics, and currently unaudited non-Windows filesystems omit constraint evidence with an explicit CLI explanation; the query remains incomplete. No host default or temporary repository probe file is used. Known excluded paths are captured by the same discovery. Case flags and exclusions are rechecked with source verification throughout a bound index pass; changes invalidate the generation and prevent successful cache advancement. Standalone `profile --publish` remains discovery-only and clears optional structural/policy evidence.
+
+The query reads at most 100,000 inventory files plus one overflow sentinel, confined to project and published generation. It validates both evidence envelopes and re-reads generation/source/configuration identity after evaluation. A pending or changed generation returns `stale` with no findings. Missing inventory/policy returns `incomplete`; malformed evidence returns `invalid`. Applicable reference rules require facts for every matching selected source; absent facts, parse failures, unsupported syntax, excluded targets, and unverified fragments cannot yield complete coverage. No local files or remote links are read by the query.
+
+## Rule Composition And Routing
+
+`RepositoryConstraintEvaluator` combines placement and Markdown-reference outcomes. It validates the published envelope once, shares the inventory index across reference evaluations, aggregates accurate per-rule file/finding totals, and applies one global sample budget. Exact-file evaluation requires structural facts only for matching sources in that selection; unrelated incomplete documents do not block the target. Project evaluation requires facts for every matching source. Zero-reference documents provide legitimate evaluated results. A complete selected inventory with no matching source yields `not_applicable`; an unavailable source never becomes an all-clear result.
+
+`get_project_profile` exposes an additive nullable `repositoryConstraints` summary with generation, status, coverage, rule families, reasons, an evidence fingerprint, and whether evaluation can run. This describes per-rule evaluation availability rather than a semantic analyzer capability. Before using a no-change cache shortcut, the CLI verifies the complete accepted source fingerprint and compares freshly verified policy/case/exclusion evidence with the summary's fingerprint. Policy, asset, disabled-language inventory, and exclusion changes therefore refresh publication even without an indexable-file change. Ordinary changed-file selections retain incremental behavior; this does not implement last-good semantic evidence reuse. Direct constraint queries enforce their own policy/source/generation checks regardless of planning. Constraint read failure leaves independent profile evidence available, with the constraint summary explicitly failed. Old clients can ignore the new field; old profiles without bound evidence remain incomplete.
+
+Document review plans retain profile and search as required steps and add `find_repository_constraint_violations` as an optional exact-file check when current bound evidence is available and the step budget allows it. `includeOptionalSteps=false` omits it. Unavailable or budget-excluded checks appear in `omittedSteps` with an explanation. Search and constraint completeness are independent; neither grants callable/namespace readiness. Inventory constraints can evaluate PowerShell/SQL/assets without their semantic indexers. PowerShell callable analysis remains unsupported.
+
+`find_architecture_violations` composes the namespace section and the repository-rule section independently. Document-only inventories report namespace analysis as inapplicable while evaluating placement/references. Mixed projects retain unavailable namespace evidence alongside usable repository findings. The report discards both sections if generation/source/configuration changes during composition. Namespace-only rules and explicit legacy service construction retain their existing behavior. Other semantic architecture reports keep their existing requirements; this does not invent namespace, projection, test, or architecture-history evidence.
 
 ## Markdown Parser Compatibility Decision
 
@@ -136,7 +148,7 @@ Relative destinations resolve against the source directory. A single leading sla
 
 Resolution distinguishes `resolved`, `missing` (complete discovery only), `excluded`, `unobserved` (incomplete discovery), `external`, `fragment_only`, `unsupported`, and `outside_repository`. Every matching source rule runs; target groups can overlap and any explicitly allowed group may match. Source-path exceptions retain their stated reason, and reference-kind filters restrict each rule. Missing required targets, forbidden target groups, and repository escapes are findings from executed evaluation. Unsupported/excluded/unobserved targets and unverified fragments prevent complete validation for affected rules. A missing optional target cannot prove allowed group membership. Rule outcomes retain bounded occurrence findings and accurate totals; a successful parse with zero references is legitimate evaluated evidence.
 
-This evaluates only reference rules for the supplied file. Placement remains in `RepositoryPlacementEvaluator`; public reference query transport, capability readiness, and report composition are separate checklist work.
+This lower-level evaluator covers one file's reference rules. The project evaluator composes these outcomes with placement for the public query and reports as described above.
 
 ## Generation-Bound Markdown Publication
 
@@ -152,4 +164,4 @@ Source checks bracket initial publication and the index pass. Detected source ch
 
 Structural `fileId` is the existing `project::doc::source/path.md` identity. Search chunks retain the same project/source and use that base ID or its `::partN` suffix. Changing chunk count does not change the file-level structural identity or create callable symbols. Searchable chunk publication failures cannot replace parser diagnostics or authorize structural coverage.
 
-This delivery persists evidence without enabling new public reference validation or generic capabilities. C08/B05 must compose rule outcomes and enforce their readiness/freshness requirements; isolated live database acceptance remains E02.
+The public evaluator, profile summaries, and document/report routing consume this evidence with the same freshness boundary. Generic callable capabilities remain unchanged; isolated live database acceptance remains E02.

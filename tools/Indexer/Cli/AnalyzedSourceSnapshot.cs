@@ -12,6 +12,8 @@ internal sealed class AnalyzedSourceSnapshot
     private readonly Dictionary<string, string> _hashes;
     private readonly HashSet<string> _readDocuments = new(StringComparer.Ordinal);
     private bool _invalid;
+    private IReadOnlyList<string>? _constraintExclusions;
+    private bool? _constraintCaseSensitive;
 
     private AnalyzedSourceSnapshot(DirectoryInfo root, IReadOnlyList<ProjectInventoryFile> files,
         Dictionary<string, string> hashes)
@@ -27,6 +29,12 @@ internal sealed class AnalyzedSourceSnapshot
     }
 
     public string Fingerprint { get; }
+    public string FileFingerprint(string path) => "sha256:" + _hashes[path].ToLowerInvariant();
+    public void BindConstraintInventory(RepositoryFileInventory inventory, bool caseSensitive)
+    {
+        _constraintExclusions = inventory.ExcludedPaths;
+        _constraintCaseSensitive = caseSensitive;
+    }
     public bool AllDocumentsRead => _files.Where(file => file.Kind is "markdown" or "text")
         .All(file => _readDocuments.Contains(file.Path));
 
@@ -50,8 +58,12 @@ internal sealed class AnalyzedSourceSnapshot
         if (_invalid) return false;
         try
         {
-            var inventory = new RepositoryInventoryDiscovery().Discover(_root, cancellationToken);
+            var inventory = new RepositoryInventoryDiscovery().Discover(_root, cancellationToken,
+                _files.Where(file => IndexingExclusionPolicy.IsIgnoredRelativePath(file.Path)).Select(file => file.Path).ToArray());
             if (!inventory.IsComplete || !inventory.Files.SequenceEqual(_hashes.Keys.Order(StringComparer.Ordinal), StringComparer.Ordinal))
+                return Invalidate();
+            if (_constraintExclusions is not null && (!inventory.ExcludedPaths.SequenceEqual(_constraintExclusions, StringComparer.Ordinal)
+                || DirectoryCaseSensitivity.Read(_root, inventory.Directories, cancellationToken) != _constraintCaseSensitive))
                 return Invalidate();
             foreach (var file in _files)
             {

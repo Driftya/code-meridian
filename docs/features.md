@@ -385,9 +385,9 @@ Find architecture violations in CodeMeridian.
 
 ### `find_repository_constraint_violations`
 
-Evaluates explicit file-placement rules using a generation-bound uploaded inventory and lossless policy, including document-only projects. Returns per-rule applicability, coverage, reasons, severity, exceptions, and bounded path findings. Accepts a required `projectContext`, optional exact `targetPath`, and `findingLimit` (1–1,000 across all rules).
+Evaluates explicit file-placement and Markdown-reference rules using generation-bound uploaded inventory, lossless policy, and structural parser facts, including document-only projects. Returns per-rule applicability, coverage, reasons, severity, exceptions, and bounded source locations. Accepts a required `projectContext`, optional exact `targetPath`, and `findingLimit` (1–1,000 across all rules).
 
-Missing policy/case/exclusion evidence and stale inventories cannot produce clean validation. Applicable Markdown-reference rules remain unsupported until structural publication is integrated. Existing CLI profiles do not yet publish the optional constraint evidence; see [publication contract and query usage](repository-constraints.md#public-query-and-publication-contract).
+Missing policy/case/exclusion/parser evidence, stale inventories, incomplete parsing, and unverified fragments cannot produce clean validation. Unified indexing publishes verified policy and structural facts; filesystem case evidence currently requires uniform observed Windows directory flags. Profile summaries, optional document-review steps, and the architecture-violation report expose independent rule coverage. See [publication contract and query usage](repository-constraints.md#public-query-and-publication-contract).
 
 ### `find_smell_paths`
 

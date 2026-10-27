@@ -15,6 +15,7 @@ public sealed record ProjectProfileResult(
 {
     public string ContractVersion { get; init; } = "1.0";
     public IReadOnlyList<ProjectAnalyzerOutcome> AnalyzerOutcomes { get; init; } = [];
+    public RepositoryConstraints.RepositoryConstraintCapabilitySummary? RepositoryConstraints { get; init; }
 
     public string ToMarkdown()
     {
@@ -50,6 +51,11 @@ public sealed record ProjectProfileResult(
         }
         foreach (var outcome in AnalyzerOutcomes)
             text.AppendLine($"- {outcome.Analyzer} scope `{outcome.Scope}`: state={outcome.State}, coverage={outcome.Coverage}, mode={outcome.Mode}, source={outcome.SourceFingerprint ?? "unknown"}");
+        if (RepositoryConstraints is { } constraints)
+        {
+            text.AppendLine($"- Repository constraints: status={constraints.Status}, coverage={constraints.Coverage}; families={string.Join(", ", constraints.RuleFamilies)}");
+            foreach (var reason in constraints.Reasons) text.AppendLine($"  {reason}");
+        }
         foreach (var warning in Warnings) text.AppendLine($"- {warning}");
         return text.ToString();
     }

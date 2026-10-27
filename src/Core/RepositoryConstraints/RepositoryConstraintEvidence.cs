@@ -1,4 +1,7 @@
 using System.Text.Json.Serialization;
+using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using CodeMeridian.Core.Projects;
 
 namespace CodeMeridian.Core.RepositoryConstraints;
@@ -13,6 +16,9 @@ public sealed record RepositoryConstraintEvidence(
     IReadOnlyList<string> ExcludedPaths)
 {
     public string ContractVersion { get; init; } = "1.0";
+
+    [JsonIgnore]
+    public string Fingerprint => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(this))));
 
     public string? Validate(ProjectProfileSnapshot snapshot)
     {

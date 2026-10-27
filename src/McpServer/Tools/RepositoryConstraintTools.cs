@@ -11,7 +11,7 @@ public sealed class RepositoryConstraintTools(RepositoryConstraintQueryService s
     [McpServerTool(Name = "find_repository_constraint_violations", Title = "Find Repository Constraint Violations",
         ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true,
         OutputSchemaType = typeof(RepositoryConstraintQueryResult))]
-    [Description("Evaluate explicit repository placement rules against a complete published inventory and generation-bound policy. Returns per-rule applicability, coverage, reasons, exceptions, and bounded evidence locations. Missing/stale evidence is incomplete, never clean. Applicable Markdown-reference rules remain unsupported until structural evidence publication is integrated. Requires no callable, namespace, or embedding evidence and never reads the local filesystem.")]
+    [Description("Evaluate explicit placement and Markdown-reference rules using published inventory, generation-bound policy and structural parser facts. Returns per-rule applicability, coverage, reasons, exceptions, and globally bounded source locations. Missing/stale evidence, parser failures and unverified fragments cannot produce clean validation. Requires no callable, namespace, document-search or embedding evidence and never reads or executes local source files.")]
     public async Task<CallToolResult> FindAsync(
         [Description("Required project context whose uploaded inventory and policy should be evaluated.")] string projectContext,
         [Description("Optional repository-relative exact file path; directories/subtrees are not selected.")] string? targetPath = null,

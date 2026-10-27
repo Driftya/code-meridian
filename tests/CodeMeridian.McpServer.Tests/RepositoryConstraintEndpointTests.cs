@@ -107,6 +107,51 @@ public sealed class RepositoryConstraintEndpointTests
         await repository.Received(1).PublishAsync(Arg.Any<ProjectProfileSnapshot>(), Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData(false, "evaluated", "complete")]
+    [InlineData(true, "incomplete", "partial")]
+    public async Task ApiSdkMcpAndProfileSummaryPreserveReferenceCoverageAndSourceLocations(bool incomplete, string status, string coverage)
+    {
+        var repository = Repository();
+        var stored = (await repository.GetRepositoryConstraintsAsync("Docs"))!;
+        var hash = "sha256:" + new string('a', 64);
+        var document = new MarkdownReferenceDocument("Docs", "Docs::doc::wrong.md", "wrong.md", 4, hash, hash,
+            incomplete ? "incomplete" : "complete",
+            [new("link", new(0, 15, 2, 3), new(4, 10, 2, 7), "missing.md", "missing.md", "local", "missing.md", null)],
+            incomplete ? [new("wrong.md", "unsupported_html", "Raw HTML reference semantics are unavailable.")] : []);
+        stored = stored with
+        {
+            Evidence = stored.Evidence! with { Policy = stored.Evidence.Policy with
+            {
+                ReferenceRules = [new("links", "documents", [], true, ["link"], "Resolve local links.", "warning", [])]
+            } },
+            MarkdownEvidence = new(hash, hash, incomplete ? "incomplete" : "complete", [document])
+        };
+        repository.GetRepositoryConstraintsAsync("Docs", Arg.Any<CancellationToken>()).Returns(stored);
+        await using var factory = new GraphQlWebApplicationFactory().WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IProjectProfileRepository>();
+            services.AddSingleton(repository);
+        }));
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Authorization = new("Bearer", GraphQlWebApplicationFactory.ApiKey);
+        var sdk = new CodeMeridianClient(http);
+        var result = await sdk.FindRepositoryConstraintViolationsAsync("Docs");
+        result.Status.Should().Be(status);
+        result.Coverage.Should().Be(coverage);
+        var reference = result.Evaluation!.Rules.Single(rule => rule.Family == "markdown_reference");
+        reference.Findings.Should().ContainSingle().Which.Status.Should().Be("missing");
+        reference.Findings[0].Line.Should().Be(2);
+        reference.Findings[0].Column.Should().Be(3);
+        (await sdk.GetProjectProfileAsync("Docs")).RepositoryConstraints!.Value.GetProperty("coverage").GetString().Should().Be(coverage);
+        await using var client = await McpTestClient.CreateAsync(http);
+        var tool = (await client.ListToolsAsync()).Single(tool => tool.Name == "find_repository_constraint_violations");
+        var mcp = await client.CallToolAsync(tool.Name, new Dictionary<string, object?> { ["projectContext"] = "Docs" });
+        JsonSchema.FromText(tool.ProtocolTool.OutputSchema!.Value.GetRawText()).Evaluate(mcp.StructuredContent!.Value).IsValid.Should().BeTrue();
+        mcp.StructuredContent.Value.GetProperty("status").GetString().Should().Be(status);
+        mcp.Content.OfType<TextContentBlock>().Single().Text.Should().Contain("wrong.md:2:3").And.Contain("links");
+    }
+
     private static IProjectProfileRepository Repository()
     {
         var hash = "sha256:" + new string('a', 64);

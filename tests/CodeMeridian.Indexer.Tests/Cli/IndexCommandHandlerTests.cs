@@ -540,7 +540,9 @@ public sealed class IndexCommandHandlerTests
                 {
                     status = "available", project = "CodeMeridian", generation = 3, latestGeneration = 3,
                     profile = new { observedAt, configurationFingerprint = ProjectAnalysisFingerprints.Configuration(settings),
-                        sourceFingerprint = "sha256:" + new string('a', 64),
+                        sourceFingerprint = AnalyzedSourceSnapshot.Capture(settings.RootPath,
+                            new LocalProjectProfileBuilder(new RepositoryInventoryDiscovery()).BuildSnapshot(settings, 3).Files,
+                            cancellationToken).Fingerprint,
                         analyzers = LocalProjectProfileBuilder.BuildAnalyzers(settings).Select(analyzer =>
                             NodeWorkerIdentity.IsWorker(analyzer.Id) ? analyzer with { Fingerprint = WorkerFingerprint } : analyzer) }, contractVersion = "1.0"
                 })

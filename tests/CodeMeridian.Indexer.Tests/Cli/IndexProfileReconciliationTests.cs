@@ -216,7 +216,7 @@ public sealed class IndexProfileReconciliationTests : IDisposable
                     profile = new { observedAt = observedAt ?? _observedAt,
                         configurationFingerprint = metadataChange == "legacy" ? null : metadataChange == "configuration"
                             ? "sha256:" + new string('b', 64) : ProjectAnalysisFingerprints.Configuration(Settings()),
-                        sourceFingerprint = metadataChange == "source" ? null : "sha256:" + new string('a', 64),
+                        sourceFingerprint = metadataChange == "source" ? null : SourceFingerprint(),
                         analyzers = PublishedAnalyzers(metadataChange) }, contractVersion = "1.0"
                 }) };
             if (request.RequestUri.AbsolutePath.EndsWith("/outcomes"))
@@ -240,6 +240,12 @@ public sealed class IndexProfileReconciliationTests : IDisposable
             "missing" => null,
             _ => analyzer.Fingerprint
         } }).ToArray();
+
+    private string SourceFingerprint()
+    {
+        var snapshot = new LocalProjectProfileBuilder(new RepositoryInventoryDiscovery()).BuildSnapshot(Settings(), 3);
+        return AnalyzedSourceSnapshot.Capture(_root, snapshot.Files, CancellationToken.None).Fingerprint;
+    }
 
     private IndexCommandHandler Handler(IndexProfileRunReporter reporter) => new(Options.Create(Settings()),
         new ProjectDiscoveryService(), new IndexerStoragePathService(), new DiagnosticsCommand(new ProjectDiscoveryService()),

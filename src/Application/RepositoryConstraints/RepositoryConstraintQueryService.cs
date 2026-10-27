@@ -27,22 +27,11 @@ public sealed class RepositoryConstraintQueryService(IProjectProfileRepository r
         if (stored.Evidence is not { } evidence)
             return Unavailable("incomplete", "missing_constraint_evidence", "This inventory has no bound constraint policy, filesystem case semantics, or exclusion evidence. No policy or host defaults were inferred.");
         var snapshot = new ProjectProfileSnapshot(stored.Generation, stored.Profile with { EvidenceSource = "local_discovery" }, stored.Files)
-            { ConstraintEvidence = evidence };
+            { ConstraintEvidence = evidence, MarkdownEvidence = stored.MarkdownEvidence };
         if (snapshot.Validate() is { } error)
             return Unavailable("invalid", "invalid_constraint_evidence", error);
 
-        var evaluation = RepositoryPlacementEvaluator.Evaluate(evidence.Policy,
-            new(stored.Generation, stored.Profile.DiscoveryState, evidence.CaseSensitive!.Value, stored.Files, evidence.ExcludedPaths)
-                { Project = projectContext }, targetPath, findingLimit, cancellationToken);
-        // The public limit bounds the entire response, while preserving per-rule totals.
-        var remaining = findingLimit;
-        var rules = evaluation.Rules.Select(rule =>
-        {
-            var findings = rule.Findings.Take(remaining).ToArray();
-            remaining -= findings.Length;
-            return rule with { Findings = findings, FindingsTruncated = rule.FindingCount > findings.Length };
-        }).ToArray();
-        evaluation = evaluation with { Rules = rules };
+        var evaluation = RepositoryConstraintEvaluator.Evaluate(snapshot, targetPath, findingLimit, cancellationToken);
 
         var current = await repository.GetAsync(projectContext, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
@@ -52,6 +41,7 @@ public sealed class RepositoryConstraintQueryService(IProjectProfileRepository r
             || current.Profile.ConfigurationFingerprint != stored.Profile.ConfigurationFingerprint)
             return Unavailable("stale", "generation_changed", "Evidence changed during evaluation; findings were discarded. Retry after publication completes.", current?.LatestGeneration);
         return new(projectContext, targetPath, stored.Generation, stored.LatestGeneration,
-            evaluation.Status, evaluation.Coverage, evidence.PolicyPath, evidence.PolicyFingerprint, evaluation, []);
+            evaluation.Status, evaluation.Coverage, evidence.PolicyPath, evidence.PolicyFingerprint, evaluation, [])
+            { ConstraintEvidenceFingerprint = evidence.Fingerprint };
     }
 }

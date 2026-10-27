@@ -60,6 +60,18 @@ public static class MarkdownReferenceEvaluator
             }
         }
         catch (ArgumentException exception) { return Failure("incomplete", "invalid_reference_inventory", exception.Message); }
+        return EvaluateValidated(policy, inventory, document, files, excluded, findingLimit, cancellationToken);
+
+        bool IsExcluded(string path) => Excluded(path, excluded);
+    }
+
+    // The project evaluator validates the complete envelope once and shares the inventory index.
+    internal static MarkdownReferenceEvaluation EvaluateValidated(RepositoryConstraintPolicy policy,
+        RepositoryConstraintInventory inventory, MarkdownReferenceDocument document,
+        IReadOnlyDictionary<string, ProjectInventoryFile> files, HashSet<string> excluded,
+        int findingLimit, CancellationToken cancellationToken)
+    {
+        var sourcePath = document.SourcePath;
         if (!files.TryGetValue(sourcePath, out var source))
             return new(new(inventory.Generation, "incomplete", "unknown", IsExcluded(sourcePath) ? "excluded"
                 : inventory.DiscoveryState == "complete" ? "missing" : "unobserved", [],
@@ -145,15 +157,17 @@ public static class MarkdownReferenceEvaluator
         return new(new(inventory.Generation, incomplete ? "incomplete" : "evaluated", incomplete ? "partial" : "complete",
             "observed", outcomes, document.Diagnostics), resolutions);
 
-        bool IsExcluded(string path)
+        bool IsExcluded(string path) => Excluded(path, excluded);
+    }
+
+    private static bool Excluded(string path, HashSet<string> excluded)
+    {
+        while (true)
         {
-            while (true)
-            {
-                if (excluded.Contains(path)) return true;
-                var separator = path.LastIndexOf('/');
-                if (separator < 0) return false;
-                path = path[..separator];
-            }
+            if (excluded.Contains(path)) return true;
+            var separator = path.LastIndexOf('/');
+            if (separator < 0) return false;
+            path = path[..separator];
         }
     }
 

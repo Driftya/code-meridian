@@ -1,9 +1,14 @@
 using CodeMeridian.Core.Projects;
+using CodeMeridian.Application.RepositoryConstraints;
 
 namespace CodeMeridian.Application.Projects;
 
-public sealed class ProjectProfileService(IProjectProfileRepository repository)
+public sealed class ProjectProfileService(IProjectProfileRepository repository, RepositoryConstraintQueryService? constraints = null)
 {
+    public async Task<RepositoryConstraintQueryResult?> FindRepositoryConstraintsAsync(string projectContext, string? targetPath = null,
+        CancellationToken cancellationToken = default)
+        => constraints is null ? null : await constraints.FindAsync(projectContext, targetPath, cancellationToken: cancellationToken);
+
     public async Task<ProjectProfileResult> GetAsync(
         string projectContext, string? targetPath = null, CancellationToken cancellationToken = default)
     {
@@ -16,13 +21,27 @@ public sealed class ProjectProfileService(IProjectProfileRepository repository)
             return new ProjectProfileResult("unknown", projectContext, null, null, null, null,
                 targetPath is null ? null : new ProjectProfileTarget(targetPath, "unknown", null), []);
         var stale = stored.LatestGeneration > stored.Generation;
+        RepositoryConstraintCapabilitySummary? constraintSummary = null;
+        if (!stale && constraints is not null)
+        {
+            try
+            {
+                var constraintResult = await FindRepositoryConstraintsAsync(projectContext, targetPath, cancellationToken);
+                constraintSummary = RepositoryConstraintCapabilitySummary.From(constraintResult!, stored.Generation);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                constraintSummary = new(false, "failed", "unknown", stored.Generation, [], ["Repository constraint evidence could not be read."]);
+            }
+        }
         return new ProjectProfileResult(stale ? "stale" : "available", projectContext, stored.Generation,
             stored.LatestGeneration, stored.PublishedAt, stored.Profile,
             targetPath is null ? null : new ProjectProfileTarget(targetPath,
                 stored.Target is not null ? "observed" : stale ? "unknown" : "absent", stored.Target?.Kind),
             stale ? ["A newer discovery generation was reserved but has not been published. The previous complete inventory is retained."] : [])
         {
-            AnalyzerOutcomes = stored.AnalyzerOutcomes
+            AnalyzerOutcomes = stored.AnalyzerOutcomes,
+            RepositoryConstraints = constraintSummary
         };
     }
 }

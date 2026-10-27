@@ -6,4 +6,6 @@ public sealed record RepositoryFileInventory(
     int WarningCount)
 {
     public bool IsComplete => WarningCount == 0;
+    public IReadOnlyList<string> ExcludedPaths { get; init; } = [];
+    public IReadOnlyList<string> Directories { get; init; } = [];
 }

@@ -57,7 +57,7 @@ public sealed class RepositoryConstraintQueryTests
     }
 
     [Fact]
-    public async Task ApplicableReferenceRulesRemainUnsupported()
+    public async Task ApplicableReferenceRulesWithoutFactsRemainIncomplete()
     {
         var stored = Snapshot();
         stored = stored with { Evidence = stored.Evidence! with { Policy = stored.Evidence.Policy with
@@ -65,9 +65,72 @@ public sealed class RepositoryConstraintQueryTests
             ReferenceRules = [new("references", "documents", [], true, ["link"], "Resolve local links.", "error", [])]
         } } };
         var result = await Create(stored).Service.FindAsync("Docs");
-        result.Status.Should().Be("unsupported");
-        result.Coverage.Should().Be("unknown");
-        result.Evaluation!.Rules.Last().Status.Should().Be("unsupported");
+        result.Status.Should().Be("incomplete");
+        result.Coverage.Should().Be("partial");
+        result.Evaluation!.Rules.Last().Status.Should().Be("incomplete");
+    }
+
+    [Fact]
+    public async Task PublishedReferencesComposeAcrossFilesAndRetainTotalsUnderOneGlobalBudget()
+    {
+        var stored = WithReferences();
+        var result = await Create(stored).Service.FindAsync("Docs", findingLimit: 1);
+        result.Status.Should().Be("evaluated");
+        result.Evaluation!.Rules.Last().EvaluatedFiles.Should().Be(2);
+        result.Evaluation.Rules.Last().FindingCount.Should().Be(2);
+        result.Evaluation.Rules.Last().FindingsTruncated.Should().BeTrue();
+        result.Evaluation.Rules.SelectMany(rule => rule.Findings).Should().ContainSingle();
+    }
+
+    [Theory]
+    [InlineData("a.md", "evaluated", 1)]
+    [InlineData("b.md", "incomplete", 0)]
+    [InlineData("policy.json", "evaluated", 0)]
+    public async Task ReferenceCompletenessUsesSelectedSourceRatherThanUnrelatedParserFailures(string target, string status, int evaluated)
+    {
+        var stored = WithReferences();
+        stored = stored with { MarkdownEvidence = stored.MarkdownEvidence! with
+        {
+            Status = "incomplete", Documents = [stored.MarkdownEvidence.Documents[0]]
+        } };
+        var result = await Create(stored).Service.FindAsync("Docs", target);
+        result.Status.Should().Be(status);
+        result.Evaluation!.Rules.Last().EvaluatedFiles.Should().Be(evaluated);
+    }
+
+    [Theory]
+    [InlineData("parser")]
+    [InlineData("generation")]
+    [InlineData("source")]
+    public async Task CorruptStructuralBindingsCannotProduceFindings(string change)
+    {
+        var stored = WithReferences();
+        var evidence = stored.MarkdownEvidence!;
+        stored = stored with { MarkdownEvidence = change switch
+        {
+            "parser" => evidence with { ParserFingerprint = Hash('b') },
+            "generation" => evidence with { Documents = [evidence.Documents[0] with { Generation = 8 }] },
+            _ => evidence with { SourceFingerprint = Hash('b') }
+        } };
+        var result = await Create(stored).Service.FindAsync("Docs");
+        result.Status.Should().Be("invalid");
+        result.Evaluation.Should().BeNull();
+    }
+
+    private static StoredRepositoryConstraintSnapshot WithReferences()
+    {
+        var stored = Snapshot();
+        var documents = new[] { "a.md", "b.md" }.Select(path =>
+            new MarkdownReferenceDocument("Docs", $"Docs::doc::{path}", path, 7, Hash('a'), Hash('c'), "complete",
+                [new("link", new(0, 15, 1, 1), new(4, 10, 1, 5), "missing.md", "missing.md", "local", "missing.md", null)], [])).ToArray();
+        return stored with
+        {
+            Evidence = stored.Evidence! with { Policy = stored.Evidence.Policy with
+            {
+                ReferenceRules = [new("references", "documents", [], true, ["link"], "Resolve local links.", "error", [])]
+            } },
+            MarkdownEvidence = new(Hash('a'), Hash('c'), "complete", documents)
+        };
     }
 
     [Theory]

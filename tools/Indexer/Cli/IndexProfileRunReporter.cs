@@ -12,19 +12,31 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
     internal Func<string, CancellationToken, Task<ProjectAnalyzerFingerprint?>> WorkerFingerprintReader { get; init; } = NodeWorkerIdentity.ReadAsync;
 
     public async Task<bool> IsCacheCurrentAsync(ResolvedIndexerSettings settings, IncrementalIndexCache cache,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool verifyInventory = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!cache.HasPublicationFor(settings.CodeMeridianUrl)) return false;
         using var http = HttpClientFactory(settings.CodeMeridianUrl, settings.ApiKey);
         var profile = await new CodeMeridianClient(http).GetProjectProfileAsync(settings.Project, cancellationToken: cancellationToken);
-        return profile.ContractVersion == "1.0" && profile.Project == settings.Project && profile.Status == "available"
+        var matches = profile.ContractVersion == "1.0" && profile.Project == settings.Project && profile.Status == "available"
             && profile.Generation == profile.LatestGeneration
             && profile.Profile is { ValueKind: System.Text.Json.JsonValueKind.Object } details
             && details.TryGetProperty("observedAt", out var observation)
             && observation.ValueKind == System.Text.Json.JsonValueKind.String && observation.TryGetDateTimeOffset(out var observedAt)
             && cache.MatchesPublication(settings.CodeMeridianUrl, profile.Generation, observedAt)
             && await AnalysisMetadataMatchesAsync(details, settings, cancellationToken);
+        if (!matches || !verifyInventory) return matches;
+        // A no-change selection must also reconcile policy, assets, disabled languages and exclusions.
+        var snapshot = builder.BuildSnapshot(settings, profile.Generation!.Value, out var inventory, cancellationToken);
+        if (!inventory.IsComplete) return false;
+        var source = AnalyzedSourceSnapshot.Capture(settings.RootPath, snapshot.Files, cancellationToken);
+        if (source.Fingerprint != profile.Profile!.Value.GetProperty("sourceFingerprint").GetString()) return false;
+        snapshot = snapshot with { Profile = snapshot.Profile with { SourceFingerprint = source.Fingerprint } };
+        var evidence = await ConstraintEvidenceBuilder.BuildAsync(settings, snapshot, inventory, source, cancellationToken);
+        var published = profile.RepositoryConstraints is { ValueKind: JsonValueKind.Object } constraints
+            && constraints.TryGetProperty("evidenceFingerprint", out var fingerprint) && fingerprint.ValueKind == JsonValueKind.String
+            ? fingerprint.GetString() : null;
+        return evidence?.Fingerprint == published && source.IsCurrent(cancellationToken);
     }
 
     private async Task<bool> AnalysisMetadataMatchesAsync(JsonElement profile, ResolvedIndexerSettings settings, CancellationToken cancellationToken)
@@ -64,7 +76,7 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
             using var http = HttpClientFactory(settings.CodeMeridianUrl, settings.ApiKey);
             var client = new CodeMeridianClient(http);
             var generation = await client.BeginProjectProfileAsync(settings.Project, cancellationToken);
-            var snapshot = builder.BuildSnapshot(settings, generation, cancellationToken);
+            var snapshot = builder.BuildSnapshot(settings, generation, out var inventory, cancellationToken);
             if (snapshot.Profile.DiscoveryState != "complete")
             {
                 Console.Error.WriteLine("Discovery is partial; indexing was not started and the previous complete profile was retained.");
@@ -79,6 +91,7 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
             }
             var source = AnalyzedSourceSnapshot.Capture(settings.RootPath, snapshot.Files, cancellationToken);
             snapshot = snapshot with { Profile = snapshot.Profile with { Analyzers = analyzers, SourceFingerprint = source.Fingerprint } };
+            snapshot = snapshot with { ConstraintEvidence = await ConstraintEvidenceBuilder.BuildAsync(settings, snapshot, inventory, source, cancellationToken) };
             if (settings.IncludeDocs)
                 snapshot = snapshot with { MarkdownEvidence = await MarkdownEvidenceBuilder.BuildAsync(snapshot, settings.RootPath, source, cancellationToken) };
             if (!source.IsCurrent(cancellationToken)) return 2;
