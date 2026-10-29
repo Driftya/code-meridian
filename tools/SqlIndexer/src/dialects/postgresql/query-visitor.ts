@@ -6,6 +6,10 @@ import { foreignKey, pgName, type PgRecord } from './declarations.js';
 const queryTags = new Set(['SelectStmt', 'InsertStmt', 'UpdateStmt', 'DeleteStmt']);
 
 export function extractReferences(stmt: PgRecord, facts: SqlFileFacts): void {
+  walk(stmt, location => {
+    if (location.tag === 'FuncCall' || location.tag === 'RangeFunction')
+      facts.diagnostics.push('Function-call object dependencies are not analyzed.');
+  });
   const [tag, node] = Object.entries(stmt)[0] as [string, PgRecord];
   if (tag === 'ViewStmt') {
     query(node.query, new Set(), facts, facts.declarations.find(d => d.kind === 'DatabaseView' && d.offset === (node.view.location ?? 0)));

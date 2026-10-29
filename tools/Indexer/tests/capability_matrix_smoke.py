@@ -37,7 +37,7 @@ cases = [
         {"documents": "complete", "powershell": "complete"}, 0),
     ("sql-disabled", {"schema.sql": "CREATE TABLE things (id integer);"}, {}, [], {}, 0),
     ("sql-enabled", {"schema.sql": "CREATE TABLE things (id integer);"},
-        {"sql": {"enabled": True, "defaultDialect": "postgresql", "databaseScope": "fixture"}}, [], {"sql": "unknown"}, 0),
+        {"sql": {"enabled": True, "defaultDialect": "postgresql", "databaseScope": "fixture"}}, [], {"sql": "complete"}, 0),
     ("mixed-roots", {"api/Main.cs": "class Main {}", "web/index.ts": "export function run() {}",
         "web/tsconfig.json": '{"include":["*.ts"]}', "docs/chapter.md": "# Chapter",
         "web/index.html": '<div class="card"></div>', "web/style.css": ".card { color: red; }"},
@@ -87,7 +87,7 @@ with tempfile.TemporaryDirectory(prefix="meridian-matrix-å ") as directory:
                 assert not any(path.startswith("node_modules/") for path in inventory)
                 for outcome in fixture.outcomes:
                     assert outcome["sourceFingerprint"] == fixture.snapshot["profile"]["sourceFingerprint"]
-                assert not any(outcome["coverage"] == "complete" for outcome in terminal if outcome["analyzer"] not in ("documents", "powershell"))
+                assert not any(outcome["coverage"] == "complete" for outcome in terminal if outcome["analyzer"] not in ("documents", "powershell", "sql"))
                 for outcome in terminal:
                     if outcome["analyzer"] == "powershell" and outcome["coverage"] == "complete":
                         assert next(item for item in fixture.snapshot["profile"]["analyzers"] if item["id"] == "powershell")["supportedCapabilities"] == ["powershell_definitions"]

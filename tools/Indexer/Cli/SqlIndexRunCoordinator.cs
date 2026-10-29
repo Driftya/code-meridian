@@ -33,7 +33,7 @@ internal static class SqlIndexRunCoordinator
     }
 
     public static async Task<int> RunAsync(ResolvedIndexerSettings settings, DirectoryInfo cacheDirectory, bool force,
-        CancellationToken cancellationToken = default, ProjectAnalyzerFingerprint? fingerprint = null)
+        CancellationToken cancellationToken = default, ProjectAnalyzerFingerprint? fingerprint = null, IndexProfileRun? report = null)
     {
         var worker = ResolveWorkerRoot() ?? throw new InvalidOperationException("SQL worker assets are missing from this CLI package.");
         // A tsx in another workspace does not establish that SQL parser assets exist.
@@ -68,6 +68,13 @@ internal static class SqlIndexRunCoordinator
         foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
         if (!string.IsNullOrWhiteSpace(settings.ApiKey)) process.StartInfo.Environment["CODEMERIDIAN_API_KEY"] = settings.ApiKey;
         process.StartInfo.Environment[NodeWorkerIdentity.ExpectedFingerprintVariable] = NodeWorkerIdentity.Expected(fingerprint);
+        using var audit = report is null || fingerprint is null ? null : new ProducerReportFile("sql", settings.Project, ".", fingerprint);
+        if (audit is not null) foreach (var item in audit.Environment) process.StartInfo.Environment[item.Key] = item.Value;
+        if (report is not null)
+        {
+            process.StartInfo.Environment["CODEMERIDIAN_PRODUCER_GENERATION"] = report.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            process.StartInfo.Environment["CODEMERIDIAN_PRODUCER_SOURCE"] = report.SourceFingerprint;
+        }
         using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         ConsoleCancelEventHandler cancelHandler = (_, args) => { args.Cancel = true; linkedCancellation.Cancel(); };
         Console.CancelKeyPress += cancelHandler;
@@ -75,6 +82,7 @@ internal static class SqlIndexRunCoordinator
         try { await process.WaitForExitAsync(linkedCancellation.Token); }
         catch (OperationCanceledException) { if (!process.HasExited) process.Kill(entireProcessTree: true); throw; }
         finally { Console.CancelKeyPress -= cancelHandler; }
+        if (audit is not null && (process.ExitCode is 0 or 2 || audit.Exists)) report!.AcceptProducerReport(await audit.ReadAsync(cancellationToken));
         return process.ExitCode;
     }
 }

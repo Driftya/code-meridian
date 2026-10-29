@@ -7,4 +7,6 @@ public sealed record SqlFileGraph
     public IReadOnlyList<string> Diagnostics { get; init; } = [];
     public IReadOnlyList<CodeNode> Nodes { get; init; } = [];
     public IReadOnlyList<CodeEdge> Edges { get; init; } = [];
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceFingerprint { get; init; }
 }

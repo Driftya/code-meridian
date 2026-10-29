@@ -88,7 +88,7 @@ describe('HtmlCssIndexerApplication', () => {
     ]));
   });
 
-  it('continues when a bulk edge ingest request fails and reports edge errors', async () => {
+  it('fails when a bulk edge ingest request fails and reports edge errors', async () => {
     const rootPath = fs.mkdtempSync(path.join(os.tmpdir(), 'codemeridian-html-css-app-'));
     createdRoots.push(rootPath);
     fs.mkdirSync(path.join(rootPath, 'src'), { recursive: true });
@@ -135,7 +135,7 @@ describe('HtmlCssIndexerApplication', () => {
 
     const exitCode = await app.run(options);
 
-    expect(exitCode).toBe(0);
+    expect(exitCode).toBe(1);
     expect(warnings.some(message => message.includes('warn: edge'))).toBe(true);
   });
 });

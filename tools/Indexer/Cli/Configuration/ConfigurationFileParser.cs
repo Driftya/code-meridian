@@ -11,10 +11,14 @@ internal static class ConfigurationFileParser
         string rootPath,
         out IReadOnlyList<ConfigurationEntryRecord> entries,
         out string? error)
+        => TryParseContent(file, rootPath, File.ReadAllText(file.FullName), out entries, out error);
+
+    public static bool TryParseContent(FileInfo file, string rootPath, string content,
+        out IReadOnlyList<ConfigurationEntryRecord> entries, out string? error)
     {
         try
         {
-            entries = Parse(file, rootPath);
+            entries = ParseContent(file, rootPath, content);
             error = null;
             return true;
         }
@@ -30,23 +34,34 @@ internal static class ConfigurationFileParser
             error = ex.Message;
             return false;
         }
+        catch (FormatException ex)
+        {
+            entries = [];
+            error = ex.Message;
+            return false;
+        }
     }
 
     public static IReadOnlyList<ConfigurationEntryRecord> Parse(FileInfo file, string rootPath)
+        => ParseContent(file, rootPath, File.ReadAllText(file.FullName));
+
+    private static IReadOnlyList<ConfigurationEntryRecord> ParseContent(FileInfo file, string rootPath, string content)
     {
+        if (content.Length > 4 * 1024 * 1024) throw new FormatException("Configuration exceeds its parser budget.");
         var relativePath = Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/');
         return file.Extension.ToLowerInvariant() switch
         {
-            ".json" => ParseJson(file, relativePath),
-            ".yml" or ".yaml" => ParseYaml(file, relativePath),
-            _ when file.Name.Equals(".env", StringComparison.OrdinalIgnoreCase) => ParseEnv(file, relativePath),
-            _ => []
+            ".json" => ParseJson(content, relativePath),
+            ".yml" or ".yaml" => ParseYaml(content, relativePath),
+            _ when file.Name.Equals(".env", StringComparison.OrdinalIgnoreCase)
+                || file.Name.StartsWith(".env.", StringComparison.OrdinalIgnoreCase) => ParseEnv(content, relativePath),
+            _ => throw new FormatException("Configuration format is not audited for definition extraction.")
         };
     }
 
-    private static IReadOnlyList<ConfigurationEntryRecord> ParseJson(FileInfo file, string relativePath)
+    private static IReadOnlyList<ConfigurationEntryRecord> ParseJson(string content, string relativePath)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(file.FullName));
+        using var document = JsonDocument.Parse(content, new JsonDocumentOptions { AllowDuplicateProperties = false });
         var results = new List<ConfigurationEntryRecord>();
         WalkJson(document.RootElement, [], relativePath, "json", results);
         return results;
@@ -79,20 +94,24 @@ internal static class ConfigurationFileParser
         }
     }
 
-    private static IReadOnlyList<ConfigurationEntryRecord> ParseEnv(FileInfo file, string relativePath)
+    private static IReadOnlyList<ConfigurationEntryRecord> ParseEnv(string content, string relativePath)
     {
         var results = new List<ConfigurationEntryRecord>();
-        foreach (var line in File.ReadLines(file.FullName))
+        foreach (var line in content.Split('\n'))
         {
             var trimmed = line.Trim();
             if (trimmed.Length == 0 || trimmed.StartsWith('#'))
                 continue;
 
+            if (trimmed.StartsWith("export ", StringComparison.Ordinal)) trimmed = trimmed[7..].TrimStart();
             var separator = trimmed.IndexOf('=');
             if (separator <= 0)
-                continue;
+                throw new FormatException("Environment configuration contains an unsupported statement.");
 
             var key = trimmed[..separator].Trim();
+            if (key.Length == 0 || !(char.IsAsciiLetter(key[0]) || key[0] == '_')
+                || key.Any(character => !(char.IsAsciiLetterOrDigit(character) || character == '_')))
+                throw new FormatException("Environment configuration contains an unsupported key.");
             var value = trimmed[(separator + 1)..].Trim();
             AddEntry(results, relativePath, "env", ".env", key, value, "string");
         }
@@ -100,9 +119,9 @@ internal static class ConfigurationFileParser
         return results;
     }
 
-    private static IReadOnlyList<ConfigurationEntryRecord> ParseYaml(FileInfo file, string relativePath)
+    private static IReadOnlyList<ConfigurationEntryRecord> ParseYaml(string content, string relativePath)
     {
-        using var reader = file.OpenText();
+        using var reader = new StringReader(content);
         var stream = new YamlStream();
         stream.Load(reader);
 
@@ -119,6 +138,7 @@ internal static class ConfigurationFileParser
         string relativePath,
         List<ConfigurationEntryRecord> results)
     {
+        if (path.Count > 64) throw new FormatException("YAML nesting or aliases exceed the audited depth.");
         if (IsEnvironmentSection(path) && node is YamlMappingNode mapping)
         {
             foreach (var child in mapping.Children)
@@ -190,6 +210,7 @@ internal static class ConfigurationFileParser
         string? rawValue,
         string valueType)
     {
+        if (results.Count >= 10000) throw new FormatException("Configuration entries exceed the audited budget.");
         if (string.IsNullOrWhiteSpace(rawKey))
             return;
 

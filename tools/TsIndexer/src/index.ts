@@ -1,6 +1,6 @@
 import { parseCommandLine } from './cli/program.js';
 import { TypeScriptIndexerApplication } from './application/type-script-indexer-application.js';
-import { describeWorker, verifyWorkerIdentity } from '../../IndexerShared/dist/index.js';
+import { describeWorker, verifyWorkerIdentity, ProducerReport } from '../../IndexerShared/dist/index.js';
 import { workerIdentity } from './worker-identity.js';
 
 try {
@@ -9,9 +9,11 @@ try {
     verifyWorkerIdentity(identity);
     const options = await parseCommandLine(process.argv);
     const application = new TypeScriptIndexerApplication();
-    const exitCode = await application.run(options);
+    const report = new ProducerReport('typescript', options.projectName, options.rootPath, identity.fingerprint);
+    const exitCode = await application.run(options, report);
     process.exitCode = exitCode;
     verifyWorkerIdentity(workerIdentity(), JSON.stringify(identity.fingerprint));
+    report.write();
   }
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);

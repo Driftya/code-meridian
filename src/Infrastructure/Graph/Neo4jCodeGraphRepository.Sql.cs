@@ -28,6 +28,14 @@ public sealed partial class Neo4jCodeGraphRepository : ISqlGraphRepository
         await session.ExecuteWriteAsync(async tx =>
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var binding = await ValidateSqlBindingAsync(tx, snapshot, cancellationToken);
+            if (binding.Replay) return;
+            var collisions = await (await tx.RunAsync("""
+                UNWIND $ids AS id MATCH (n:CodeNode {id: id})
+                WHERE n.sqlProject IS NULL OR n.sqlProject <> $project RETURN count(n) AS count
+                """, new { project = snapshot.ProjectContext, ids = snapshot.Files.SelectMany(file => file.Nodes).Select(node => node.Id).Distinct().ToArray() })).SingleAsync();
+            if (collisions["count"].As<long>() != 0)
+                throw new CodeMeridian.Core.Projects.ProjectProfileConflictException("SQL identities collide with facts owned by another producer.");
             // Acquire a project-local write lock before replacing the complete file inventory.
             await RunSqlAsync(tx, """
                 MERGE (state:SqlIndexState {projectContext: $project})
@@ -103,6 +111,11 @@ public sealed partial class Neo4jCodeGraphRepository : ISqlGraphRepository
                 DELETE n
                 """, new { project = snapshot.ProjectContext });
             cancellationToken.ThrowIfCancellationRequested();
+            if (binding.Fingerprint is not null)
+                await RunSqlAsync(tx, """
+                    MATCH (s:ProjectProfileState {project: $project})
+                    SET s.sqlGeneration = $generation, s.sqlFingerprint = $fingerprint
+                    """, new { project = snapshot.ProjectContext, generation = snapshot.Generation, fingerprint = binding.Fingerprint });
         });
     }
 

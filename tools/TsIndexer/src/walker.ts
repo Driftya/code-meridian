@@ -19,6 +19,7 @@ export interface WalkResult {
   relationshipHealth: TypeScriptRelationshipHealth;
   usedFullResolutionCatalog: boolean;
   resolutionCatalog: ResolutionCatalogEvidence;
+  fileOutcomes: { file: string; status: 'complete' | 'partial' | 'failed'; diagnostics: string[] }[];
 }
 
 export interface ResolutionCatalogEvidence {
@@ -37,6 +38,7 @@ export function walkTypeScript(
   databaseTracingOptions?: DatabaseTracingOptions,
   loadFullResolutionCatalog = false,
   workspaceRootPath = rootPath,
+  readSource?: (file: string) => string,
 ): WalkResult {
   const nodes: CodeNodeDto[] = [];
   const edges: CodeEdgeDto[] = [];
@@ -79,10 +81,19 @@ export function walkTypeScript(
     tsProject.addSourceFilesAtPaths([...new Set(files.map(normalizeFilePath))]);
   }
 
+  if (readSource) for (const file of files)
+    tsProject.createSourceFile(normalizeFilePath(file), readSource(file), { overwrite: true });
   const sourceFiles = tsProject.getSourceFiles();
   const emittedFilePaths = new Set(files.map(file => normalizeFilePath(file).toLowerCase()));
   const emittedSourceFiles = sourceFiles.filter(sourceFile =>
     emittedFilePaths.has(normalizeFilePath(sourceFile.getFilePath()).toLowerCase()));
+  const fileOutcomes: WalkResult['fileOutcomes'] = readSource ? files.map(file => {
+    const source = emittedSourceFiles.find(item => normalizeFilePath(item.getFilePath()) === normalizeFilePath(file));
+    if (!source) return { file, status: 'failed', diagnostics: ['selected_source_not_loaded'] };
+    const diagnostics = source.getPreEmitDiagnostics();
+    return { file, status: diagnostics.length ? 'partial' : 'complete',
+      diagnostics: diagnostics.slice(0, 8).map(item => 'typescript_diagnostic_' + item.getCode()) };
+  }) : [];
 
   for (const sourceFile of sourceFiles) {
     collectNodes(sourceFile, rootPath, projectName, catalogNodes, catalogKnownIds, resolveFileRole);
@@ -148,6 +159,7 @@ export function walkTypeScript(
   return {
     nodes,
     edges,
+    fileOutcomes,
     relationshipHealth: {
       schemaVersion: 2,
       calls: callOutcomes.build(),

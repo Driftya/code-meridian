@@ -12,6 +12,8 @@ class CapabilityHttpFixture:
         self.requests = []
         self.errors = []
         self.fail_documents = False
+        self.fail_nodes = False
+        self.fail_edges = False
         self.on_document = None
         fixture = self
 
@@ -75,6 +77,15 @@ class CapabilityHttpFixture:
                         assert data["generation"] == fixture.generation
                         assert data["sourceFingerprint"] == fixture.snapshot["profile"]["sourceFingerprint"]
                         self.reply({})
+                    elif method == "POST" and path == "/api/v1/knowledge/sql":
+                        assert data["generation"] == fixture.generation
+                        assert data["sourceFingerprint"] == fixture.snapshot["profile"]["sourceFingerprint"]
+                        assert data["fingerprint"] == next(item for item in fixture.snapshot["profile"]["analyzers"] if item["id"] == "sql")["fingerprint"]
+                        self.reply({})
+                    elif method == "POST" and path in ("/api/v1/knowledge/nodes", "/api/v1/knowledge/nodes/bulk") and fixture.fail_nodes:
+                        self.reply({}, 503)
+                    elif method == "POST" and path in ("/api/v1/knowledge/nodes/edges", "/api/v1/knowledge/nodes/edges/bulk") and fixture.fail_edges:
+                        self.reply({}, 503)
                     elif method == "POST" and path in (
                         "/api/v1/knowledge/nodes", "/api/v1/knowledge/nodes/bulk",
                         "/api/v1/knowledge/nodes/edges", "/api/v1/knowledge/nodes/edges/bulk",

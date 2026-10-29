@@ -8,6 +8,21 @@ namespace CodeMeridian.Indexer.Cli.Commands;
 
 internal static class ConstraintEvidenceBuilder
 {
+    public static async Task<ProjectProfileSnapshot> DescribeArchitectureAsync(ResolvedIndexerSettings settings,
+        ProjectProfileSnapshot snapshot, AnalyzedSourceSnapshot source, CancellationToken cancellationToken)
+    {
+        var path = ProjectProfilePath.Normalize(settings.ArchitecturePath ?? CodeMeridianConfigFileStore.DefaultArchitecturePath);
+        var description = "No architecture policy was observed; namespace rule coverage is not established by discovery.";
+        if (snapshot.Files.Any(file => file.Path == path))
+        {
+            var content = await source.ReadStructuralSourceAsync(new(Path.Combine(settings.RootPath.FullName, path)), cancellationToken);
+            var policy = ArchitectureRuleSetConfiguration.Parse(content);
+            description = $"Configured architecture '{path}': namespace layers={policy.Layers.Count}; placement rules={policy.RepositoryConstraints?.PlacementRules.Count ?? 0}; reference rules={policy.RepositoryConstraints?.ReferenceRules.Count ?? 0}. Configuration is not proof of rule evaluation.";
+        }
+        return snapshot with { Profile = snapshot.Profile with { Analyzers = snapshot.Profile.Analyzers.Select(analyzer =>
+            analyzer.Id == "configuration" ? analyzer with { Limitations = analyzer.Limitations.Append(description).ToArray() } : analyzer).ToArray() } };
+    }
+
     public static async Task<RepositoryConstraintEvidence?> BuildAsync(ResolvedIndexerSettings settings,
         ProjectProfileSnapshot snapshot, RepositoryFileInventory inventory, AnalyzedSourceSnapshot source,
         CancellationToken cancellationToken)

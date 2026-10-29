@@ -8,6 +8,7 @@ export type FrontendConceptKind =
 export interface FrontendWalkResult {
   nodes: import('../../IndexerShared/dist/types.js').CodeNodeDto[];
   edges: import('../../IndexerShared/dist/types.js').CodeEdgeDto[];
+  failedFiles: string[];
 }
 
 export interface FrontendWalkProgress {

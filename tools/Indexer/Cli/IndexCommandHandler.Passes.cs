@@ -35,8 +35,11 @@ internal sealed partial class IndexCommandHandler
         if (SqlIndexRunCoordinator.IsEnabled(_settings))
         {
             // Full reconciliation must also bypass the SQL worker's separate fingerprint cache.
-            exitCode = await RunAnalyzer("sql", ["."], () => SqlIndexRunCoordinator.RunAsync(_settings, context.CacheDirectory,
-                clear || !_settings.Incremental || changedFiles is null, fingerprint: report?.Fingerprint("sql")));
+            exitCode = report is null ? await SqlIndexRunCoordinator.RunAsync(_settings, context.CacheDirectory,
+                clear || !_settings.Incremental || changedFiles is null) : await report.RunAnalyzerAsync("sql", ["."],
+                () => SqlIndexRunCoordinator.RunAsync(_settings, context.CacheDirectory,
+                    clear || !_settings.Incremental || changedFiles is null, cancellationToken, report.Fingerprint("sql"), report), fullSelection: true,
+                cancellationToken: cancellationToken);
             if (exitCode != 0) return exitCode;
             // SQL publication owns its deletions, including edges between shared objects.
             deletedFiles = deletedFiles.Where(path => !path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -55,7 +58,7 @@ internal sealed partial class IndexCommandHandler
 
         if (context.HasTypeScript)
         {
-            exitCode = await RunAnalyzer("typescript", Scopes(context.TypeScriptRoots), () => RunTypeScriptIndexerAsync(context, changedFiles, deletedFiles, report?.Fingerprint("typescript")));
+            exitCode = await RunAnalyzer("typescript", Scopes(context.TypeScriptRoots), () => RunTypeScriptIndexerAsync(context, changedFiles, deletedFiles, report?.Fingerprint("typescript"), report));
             if (exitCode != 0)
                 return exitCode;
 
@@ -64,7 +67,7 @@ internal sealed partial class IndexCommandHandler
 
         if (context.HasHtmlCss)
         {
-            exitCode = await RunAnalyzer("frontend", Scopes(context.HtmlCssRoots), () => RunHtmlCssIndexerAsync(context, changedFiles, deletedFiles, report?.Fingerprint("frontend")));
+            exitCode = await RunAnalyzer("frontend", Scopes(context.HtmlCssRoots), () => RunHtmlCssIndexerAsync(context, changedFiles, deletedFiles, report?.Fingerprint("frontend"), report));
             if (exitCode != 0)
                 return exitCode;
 
@@ -82,7 +85,7 @@ internal sealed partial class IndexCommandHandler
 
         if (context.HasConfiguration)
         {
-            exitCode = await RunAnalyzer("configuration", ["."], () => RunConfigurationIndexerAsync(clear, changedFiles, deletedFiles));
+            exitCode = await RunAnalyzer("configuration", ["."], () => RunConfigurationIndexerAsync(clear, changedFiles, deletedFiles, report));
             if (exitCode != 0)
                 return exitCode;
         }

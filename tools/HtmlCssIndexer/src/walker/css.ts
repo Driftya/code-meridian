@@ -23,9 +23,10 @@ export function collectStyleArtifacts(
   edges: CodeEdgeDto[],
   knownIds: Set<string>,
   resolveFileRole?: (relativePath: string) => string | undefined,
+  sourceText?: string,
 ): void {
   const relativePath = toRelativePath(rootPath, filePath);
-  const content = fs.readFileSync(filePath, 'utf8');
+  const content = sourceText ?? fs.readFileSync(filePath, 'utf8');
   const fileId = fileNodeId(projectName, relativePath);
 
   addNode(nodes, knownIds, {

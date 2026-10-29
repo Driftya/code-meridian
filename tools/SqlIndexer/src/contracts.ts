@@ -67,10 +67,14 @@ export interface SqlFileGraph {
   diagnostics: string[];
   nodes: CodeNodeDto[];
   edges: CodeEdgeDto[];
+  sourceFingerprint?: string;
 }
 
 export interface SqlGraphSnapshot {
   contractVersion: '1';
   projectContext: string;
   files: SqlFileGraph[];
+  generation?: number;
+  sourceFingerprint?: string;
+  fingerprint?: { implementation: string; parser: string };
 }

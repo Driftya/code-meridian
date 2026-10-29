@@ -13,6 +13,27 @@ namespace CodeMeridian.McpServer.Tests;
 public sealed class SqlApiEndpointTests
 {
     [Fact]
+    public async Task BoundSqlConflictsAreForwardedAsConflictWithoutLosingBinding()
+    {
+        var hash = "sha256:" + new string('a', 64);
+        var repository = Substitute.For<ISqlGraphRepository>();
+        repository.PublishSqlGraphAsync(Arg.Any<SqlGraphSnapshot>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new CodeMeridian.Core.Projects.ProjectProfileConflictException("stale SQL")));
+        await using var factory = new GraphQlWebApplicationFactory().WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        { services.RemoveAll<ISqlGraphRepository>(); services.AddSingleton(repository); }));
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", GraphQlWebApplicationFactory.ApiKey);
+
+        var response = await client.PostAsJsonAsync("/api/v1/knowledge/sql", new
+        { contractVersion = "1", projectContext = "Fixture", generation = 3, sourceFingerprint = hash,
+            fingerprint = new { implementation = hash, parser = hash }, files = Array.Empty<object>() });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        await repository.Received(1).PublishSqlGraphAsync(Arg.Is<SqlGraphSnapshot>(snapshot => snapshot.Generation == 3
+            && snapshot.SourceFingerprint == hash && snapshot.Fingerprint!.Implementation == hash), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task SqlEndpoint_RequiresAuthenticationValidatesAndPublishesStringEnumWorkerPayload()
     {
         var repository = Substitute.For<ISqlGraphRepository>();

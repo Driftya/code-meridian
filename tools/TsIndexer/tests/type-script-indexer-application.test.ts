@@ -296,7 +296,7 @@ describe('TypeScriptIndexerApplication', () => {
 
     const exitCode = await app.run(options);
 
-    expect(exitCode).toBe(0);
+    expect(exitCode).toBe(2);
 
     const nodeBodies = readBodies(requests, '/api/v1/knowledge/nodes/bulk');
     const edgeBodies = readBodies(requests, '/api/v1/knowledge/nodes/edges/bulk');
@@ -499,7 +499,7 @@ describe('TypeScriptIndexerApplication', () => {
     await expect(app.run(options)).rejects.toThrow();
   });
 
-  it('continues when a bulk node ingest request fails and reports node errors', async () => {
+  it('fails when a bulk node ingest request fails and reports node errors', async () => {
     project.writeFile('tsconfig.json', '{"compilerOptions":{"target":"ES2022","module":"ESNext"}}');
     project.writeFile('src/config/AppConfig.ts', 'export const value = process.env.API_KEY ?? "";\n');
 
@@ -536,7 +536,7 @@ describe('TypeScriptIndexerApplication', () => {
 
     const exitCode = await app.run(options);
 
-    expect(exitCode).toBe(0);
+    expect(exitCode).toBe(1);
     expect(warnings.some(message => message.includes('warn: node'))).toBe(true);
   });
 });

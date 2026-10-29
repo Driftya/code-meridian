@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { CodeMeridianClient, loadEnvironmentForInvocation, describeWorker, verifyWorkerIdentity } from '../../IndexerShared/dist/index.js';
+import { CodeMeridianClient, loadEnvironmentForInvocation, describeWorker, verifyWorkerIdentity, ProducerReport } from '../../IndexerShared/dist/index.js';
 import { SqlIndexerApplication } from './application.js';
 import { SqlDialectRegistry } from './dialect-registry.js';
 import { PostgreSqlDialectAnalyzer } from './dialects/postgresql/analyzer.js';
@@ -26,10 +26,12 @@ try {
     const client = new CodeMeridianClient(values.url, process.env.CODEMERIDIAN_API_KEY);
     const application = new SqlIndexerApplication(new SqlDialectRegistry([new PostgreSqlDialectAnalyzer()]),
       (snapshot, signal) => client.publishSqlGraph(snapshot, signal));
+    const report = new ProducerReport('sql', values.project, root, identity.fingerprint);
     process.exitCode = await application.run({ root, project: values.project, serverUrl: values.url,
       batchFile: values['batch-file'], settings: JSON.parse(fs.readFileSync(values['settings-file'], 'utf8')) as SqlSettings,
-      cacheFile: values['cache-file'], force: values.force, workerFingerprint: identity.fingerprint }, controller.signal);
+      cacheFile: values['cache-file'], force: values.force, workerFingerprint: identity.fingerprint }, controller.signal, report);
     verifyWorkerIdentity(await workerIdentity(), JSON.stringify(identity.fingerprint));
+    report.write();
   }
 } catch (error) {
   console.error(`SQL indexing failed: ${error instanceof Error ? error.message : String(error)}`);

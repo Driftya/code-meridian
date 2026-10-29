@@ -4,3 +4,4 @@ export * from './load-environment.js';
 export * from './options.js';
 export * from './types.js';
 export * from './worker-identity.js';
+export * from './producer-report.js';

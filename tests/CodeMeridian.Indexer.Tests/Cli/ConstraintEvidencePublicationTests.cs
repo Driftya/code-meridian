@@ -78,11 +78,15 @@ public sealed class ConstraintEvidencePublicationTests : IDisposable
         var reporter = Reporter(snapshot => published = snapshot);
         (await reporter.RunAsync(Settings(), _ => Task.FromResult(0))).Should().Be(0);
         published!.ConstraintEvidence.Should().BeNull();
+        published.Profile.Analyzers.Single(analyzer => analyzer.Id == "configuration").Limitations
+            .Should().Contain(value => value.Contains("No architecture policy was observed"));
         Write(".meridian/architecture.json", """
             {"layers":[{"id":"core","namespaceContainsAny":["Core"]}],"forbiddenDependencies":[{"from":"core","to":"core"}]}
             """);
         (await reporter.RunAsync(Settings(), _ => Task.FromResult(0))).Should().Be(0);
         published!.ConstraintEvidence.Should().BeNull();
+        published.Profile.Analyzers.Single(analyzer => analyzer.Id == "configuration").Limitations
+            .Should().Contain(value => value.Contains("namespace layers=1") && value.Contains("not proof of rule evaluation"));
     }
 
     [Fact]

@@ -8,6 +8,7 @@ internal static class SqlApiEndpoints
 {
     private static readonly JsonSerializerOptions WorkerJson = new(JsonSerializerDefaults.Web)
     {
+        AllowDuplicateProperties = false,
         Converters = { new JsonStringEnumConverter() }
     };
 
@@ -21,7 +22,8 @@ internal static class SqlApiEndpoints
             catch (JsonException) { return Results.BadRequest("Invalid SQL graph JSON payload."); }
             if (snapshot is null) return Results.BadRequest("SQL graph snapshot is required.");
             if (snapshot.Validate() is { } error) return Results.BadRequest(error);
-            await repository.PublishSqlGraphAsync(snapshot, ct);
+            try { await repository.PublishSqlGraphAsync(snapshot, ct); }
+            catch (CodeMeridian.Core.Projects.ProjectProfileConflictException exception) { return Results.Conflict(exception.Message); }
             return Results.Ok();
         });
     }

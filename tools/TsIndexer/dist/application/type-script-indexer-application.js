@@ -5,12 +5,11 @@ import { walkTypeScript } from '../walker.js';
 import { analyzeTypeScriptBoundaries } from '../analysis/type-script-boundaries.js';
 const INGEST_CONCURRENCY = 8;
 export class TypeScriptIndexerApplication {
-    async run(options) {
+    async run(options, report) {
         const client = new CodeMeridianClient(options.serverUrl, options.apiKey);
-        await this.runIndexPass(options, client);
-        return 0;
+        return await this.runIndexPass(options, client, report);
     }
-    async runIndexPass(options, client) {
+    async runIndexPass(options, client, report) {
         const workspaceRootPath = options.workspaceRootPath ?? options.rootPath;
         console.log(`Indexing TypeScript/JavaScript batch in ${workspaceRootPath}...`);
         const boundaries = analyzeTypeScriptBoundaries(workspaceRootPath);
@@ -18,8 +17,13 @@ export class TypeScriptIndexerApplication {
             console.log(`  Detected ${boundaries.length} TypeScript project boundary/boundaries`);
         }
         const batch = readIndexerBatchFile(options.rootPath, options.batchFilePath);
+        report?.capture(batch.files);
         console.log(`  Batch size: ${batch.files.length} file(s)`);
-        const { nodes, edges, relationshipHealth, usedFullResolutionCatalog, resolutionCatalog } = walkTypeScript(options.rootPath, options.projectName, batch.files, relativePath => batch.fileRoles.get(relativePath), undefined, true, workspaceRootPath);
+        const { nodes, edges, relationshipHealth, usedFullResolutionCatalog, resolutionCatalog, fileOutcomes } = walkTypeScript(options.rootPath, options.projectName, batch.files, relativePath => batch.fileRoles.get(relativePath), undefined, true, workspaceRootPath, report?.read);
+        if (report)
+            for (const file of fileOutcomes)
+                for (const diagnostic of file.diagnostics)
+                    report.mark(file.file, file.status, diagnostic);
         console.log(`  Found ${nodes.length} nodes, ${edges.length} edges`);
         console.log(`  Resolution catalog: ${resolutionCatalog.completeness}, `
             + `${resolutionCatalog.sourceFileCount} source file(s), `
@@ -45,6 +49,8 @@ export class TypeScriptIndexerApplication {
             },
         });
         console.log(`  Ingested ${nodeResult.successCount} nodes${nodeResult.errorCount > 0 ? ` (${nodeResult.errorCount} errors)` : ''}`);
+        if (nodeResult.errorCount > 0 || nodeResult.successCount !== nodes.length)
+            return 1;
         const edgeResult = await client.ingestEdges(edges, {
             concurrency: INGEST_CONCURRENCY,
             onError: (edge, error, errorCount) => {
@@ -53,8 +59,22 @@ export class TypeScriptIndexerApplication {
             },
         });
         console.log(`  Ingested ${edgeResult.successCount} edges${edgeResult.errorCount > 0 ? ` (${edgeResult.errorCount} errors)` : ''}`);
+        if (edgeResult.errorCount > 0 || edgeResult.successCount !== edges.length)
+            return 1;
         await persistIndexRun(client, options, batch.files.length, nodeResult.successCount, edgeResult.successCount, edges, relationshipHealth, resolutionCatalog.reason === undefined && (!options.isIncremental || usedFullResolutionCatalog), resolutionCatalog);
+        const partial = fileOutcomes.some(file => file.status !== 'complete') || !!resolutionCatalog.reason
+            || relationshipHealth.calls.unresolvedLocal + relationshipHealth.calls.indeterminate
+                + relationshipHealth.typeReferences.unresolvedLocal + relationshipHealth.typeReferences.indeterminate > 0;
+        if (report) {
+            report.published = true;
+            report.capabilities.callable_definitions = partial ? 'partial' : 'unknown';
+            report.capabilities.callable_dependencies = partial ? 'partial' : 'unknown';
+            report.limitations.push(`Resolution catalog: ${resolutionCatalog.completeness}; selected ${batch.files.length}; loaded ${fileOutcomes.length}.`, 'Callable representation, imported catalog source binding and owned replacement remain unaudited; clean execution does not grant callable readiness.');
+            if (partial)
+                report.limitations.push('Compiler, root-loading or unresolved/indeterminate relationship evidence is incomplete.');
+        }
         console.log(`\nDone. '${options.projectName}' indexed into CodeMeridian at ${options.serverUrl}`);
+        return partial ? 2 : 0;
     }
 }
 async function persistIndexRun(client, options, scannedFileCount, ingestedNodeCount, ingestedEdgeCount, edges, health, usedFullResolutionCatalog, resolutionCatalog) {

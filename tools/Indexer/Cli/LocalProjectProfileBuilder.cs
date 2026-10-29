@@ -67,7 +67,12 @@ internal sealed class LocalProjectProfileBuilder(RepositoryInventoryDiscovery di
                 if (string.IsNullOrEmpty(path)) path = ".";
                 roots.Add(new ProjectAnalysisRoot(kind, path, manifest));
             }
-            if (manifests.Length == 0 && observed.Any(file => sourceKinds.Contains(file.Kind, StringComparer.Ordinal)))
+            if (observed.Any(file => sourceKinds.Contains(file.Kind, StringComparer.Ordinal)
+                && !manifests.Any(manifest =>
+                {
+                    var directory = Path.GetDirectoryName(manifest)?.Replace('\\', '/');
+                    return string.IsNullOrEmpty(directory) || file.Path.StartsWith(directory + "/", StringComparison.Ordinal);
+                })))
                 roots.Add(new ProjectAnalysisRoot(kind, ".", null));
         }
     }

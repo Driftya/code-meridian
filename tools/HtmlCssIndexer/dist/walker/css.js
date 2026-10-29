@@ -12,9 +12,9 @@ const PSEUDO_ELEMENT_SELECTOR = /::[\w-]+(?:\([^)]*\))?/g;
 const PSEUDO_CLASS_SELECTOR = /:(?!:)[\w-]+(?:\([^)]*\))?/g;
 const WHERE_PSEUDO_SELECTOR = /:where\([^)]*\)/g;
 const ELEMENT_SELECTOR = /(^|[\s>+~,(])([a-zA-Z][\w-]*)/g;
-export function collectStyleArtifacts(rootPath, projectName, filePath, nodes, edges, knownIds, resolveFileRole) {
+export function collectStyleArtifacts(rootPath, projectName, filePath, nodes, edges, knownIds, resolveFileRole, sourceText) {
     const relativePath = toRelativePath(rootPath, filePath);
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = sourceText ?? fs.readFileSync(filePath, 'utf8');
     const fileId = fileNodeId(projectName, relativePath);
     addNode(nodes, knownIds, {
         id: fileId,

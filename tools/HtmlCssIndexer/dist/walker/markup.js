@@ -5,16 +5,16 @@ import { addNode, fileNodeId, frontendConceptId, hashText, lineCountFromContent,
 const HTML_CLASS_ATTR = /\bclass\s*=\s*"([^"]+)"/gi;
 const HTML_ID_ATTR = /\bid\s*=\s*"([^"]+)"/gi;
 const HTML_STYLESHEET_LINK = /<link\b[^>]*rel\s*=\s*"stylesheet"[^>]*href\s*=\s*"([^"]+)"/gi;
-export function collectHtmlArtifacts(rootPath, projectName, filePath, nodes, edges, knownIds, resolveFileRole) {
+export function collectHtmlArtifacts(rootPath, projectName, filePath, nodes, edges, knownIds, resolveFileRole, sourceText) {
     const relativePath = toRelativePath(rootPath, filePath);
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = sourceText ?? fs.readFileSync(filePath, 'utf8');
     const fileId = addFrontendFileNode(rootPath, projectName, relativePath, content, nodes, knownIds, resolveFileRole, 'MarkupFile');
     collectHtmlClassAndIdUsage(content, relativePath, fileId, projectName, nodes, edges, knownIds);
     collectHtmlStylesheetLinks(rootPath, filePath, relativePath, fileId, projectName, nodes, edges, knownIds, resolveFileRole, content);
 }
-export function collectTsxArtifacts(rootPath, projectName, filePath, nodes, edges, knownIds, resolveFileRole) {
+export function collectTsxArtifacts(rootPath, projectName, filePath, nodes, edges, knownIds, resolveFileRole, sourceText) {
     const relativePath = toRelativePath(rootPath, filePath);
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = sourceText ?? fs.readFileSync(filePath, 'utf8');
     const fileId = addFrontendFileNode(rootPath, projectName, relativePath, content, nodes, knownIds, resolveFileRole, 'ComponentFile');
     const project = new Project({
         useInMemoryFileSystem: true,

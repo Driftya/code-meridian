@@ -318,7 +318,7 @@ internal sealed partial class IndexCommandHandler(
         IndexExecutionContext context,
         IReadOnlyCollection<string>? changedFiles,
         IReadOnlyCollection<string> deletedFiles,
-        ProjectAnalyzerFingerprint? fingerprint)
+        ProjectAnalyzerFingerprint? fingerprint, IndexProfileRun? report = null)
     {
         if (changedFiles is not null || deletedFiles.Count > 0)
         {
@@ -349,9 +349,14 @@ internal sealed partial class IndexCommandHandler(
 
         var fileRoleClassifier = IndexedFileRoleClassifierFactory.Create(_settings.FileRoles);
 
-        foreach (var typeScriptRoot in context.TypeScriptRoots)
+        var selections = ProducerScopePlanner.Select(_settings.RootPath, context.TypeScriptRoots,
+            report?.ProducerPaths("typescript") ?? context.TypeScriptRoots.SelectMany(root => SelectTypeScriptFilesForRoot(null, root))
+                .Select(path => Path.GetRelativePath(_settings.RootPath.FullName, path).Replace('\\', '/')).Distinct(StringComparer.Ordinal).ToArray());
+        foreach (var selection in selections)
         {
-            var files = SelectTypeScriptFilesForRoot(changedFiles, typeScriptRoot).ToArray();
+            var typeScriptRoot = selection.Directory;
+            var files = selection.Paths.Where(path => changedFiles is null || changedFiles.Contains(path, StringComparer.Ordinal))
+                .Select(path => Path.Combine(_settings.RootPath.FullName, path)).ToArray();
             if (files.Length == 0)
                 continue;
 
@@ -367,11 +372,15 @@ internal sealed partial class IndexCommandHandler(
                 batchFile,
                 changedFiles is not null);
 
+            using var audit = report is null || fingerprint is null ? null : new ProducerReportFile("typescript", _settings.Project, selection.Scope, fingerprint);
+            var environment = WorkerEnvironment(fingerprint).ToDictionary(item => item.Key, item => item.Value);
+            if (audit is not null) foreach (var item in audit.Environment) environment[item.Key] = item.Value;
             exitCode = await TypeScriptIndexerProcessRunner.RunAsync(
                 tsxCommand,
                 tsArgs,
                 tsIndexerRoot,
-                WorkerEnvironment(fingerprint));
+                environment);
+            if (audit is not null && exitCode is 0 or 2) report!.AcceptProducerReport(await audit.ReadAsync(CancellationToken.None));
             if (exitCode != 0)
                 return exitCode;
         }
@@ -383,7 +392,7 @@ internal sealed partial class IndexCommandHandler(
         IndexExecutionContext context,
         IReadOnlyCollection<string>? changedFiles,
         IReadOnlyCollection<string> deletedFiles,
-        ProjectAnalyzerFingerprint? fingerprint)
+        ProjectAnalyzerFingerprint? fingerprint, IndexProfileRun? report = null)
     {
         if (changedFiles is not null || deletedFiles.Count > 0)
         {
@@ -414,21 +423,30 @@ internal sealed partial class IndexCommandHandler(
 
         var fileRoleClassifier = IndexedFileRoleClassifierFactory.Create(_settings.FileRoles);
 
-        foreach (var htmlCssRoot in context.HtmlCssRoots)
+        var selections = ProducerScopePlanner.Select(_settings.RootPath, context.HtmlCssRoots,
+            report?.ProducerPaths("frontend") ?? context.HtmlCssRoots.SelectMany(root => SelectHtmlCssFilesForRoot(null, root))
+                .Select(path => Path.GetRelativePath(_settings.RootPath.FullName, path).Replace('\\', '/')).Distinct(StringComparer.Ordinal).ToArray());
+        foreach (var selection in selections)
         {
-            var files = SelectHtmlCssFilesForRoot(changedFiles, htmlCssRoot).ToArray();
+            var htmlCssRoot = selection.Directory;
+            var files = selection.Paths.Where(path => changedFiles is null || changedFiles.Contains(path, StringComparer.Ordinal))
+                .Select(path => Path.Combine(_settings.RootPath.FullName, path)).ToArray();
             if (files.Length == 0)
                 continue;
 
             var batchFile = WriteHtmlCssBatchFile(context.CacheDirectory, htmlCssRoot, files, fileRoleClassifier);
-            var args = HtmlCssIndexerCommandBuilder.BuildHtmlCssIndexerArgs(htmlCssIndexerRoot, htmlCssRoot, _settings.Project);
+            var args = HtmlCssIndexerCommandBuilder.BuildHtmlCssIndexerArgs(htmlCssIndexerRoot, _settings.RootPath, _settings.Project);
             HtmlCssIndexerCommandBuilder.AddHtmlCssIndexerOptions(args, _settings.CodeMeridianUrl, batchFile);
 
+            using var audit = report is null || fingerprint is null ? null : new ProducerReportFile("frontend", _settings.Project, selection.Scope, fingerprint);
+            var environment = WorkerEnvironment(fingerprint).ToDictionary(item => item.Key, item => item.Value);
+            if (audit is not null) foreach (var item in audit.Environment) environment[item.Key] = item.Value;
             exitCode = await HtmlCssIndexerProcessRunner.RunAsync(
                 tsxCommand,
                 args,
                 htmlCssIndexerRoot,
-                WorkerEnvironment(fingerprint));
+                environment);
+            if (audit is not null && exitCode is 0 or 2) report!.AcceptProducerReport(await audit.ReadAsync(CancellationToken.None));
             if (exitCode != 0)
                 return exitCode;
         }
@@ -486,7 +504,8 @@ internal sealed partial class IndexCommandHandler(
         foreach (var relativePath in relativePaths)
         {
             var fullPath = Path.GetFullPath(relativePath.Replace('/', Path.DirectorySeparatorChar), _settings.RootPath.FullName);
-            if (!fullPath.StartsWith(targetRoot.FullName, StringComparison.OrdinalIgnoreCase))
+            var relativeToRoot = Path.GetRelativePath(targetRoot.FullName, fullPath).Replace('\\', '/');
+            if (relativeToRoot == ".." || relativeToRoot.StartsWith("../", StringComparison.Ordinal) || Path.IsPathRooted(relativeToRoot))
                 continue;
 
             var file = new FileInfo(fullPath);
@@ -535,8 +554,7 @@ internal sealed partial class IndexCommandHandler(
             .Select(fullPath =>
             {
                 var relativeToSolutionRoot = Path.GetRelativePath(_settings.RootPath.FullName, fullPath).Replace('\\', '/');
-                var relativeToLanguageRoot = Path.GetRelativePath(languageRoot.FullName, fullPath).Replace('\\', '/');
-                return new TypeScriptBatchEntry(relativeToLanguageRoot, fileRoleClassifier.Classify(relativeToSolutionRoot).ToString());
+                return new TypeScriptBatchEntry(relativeToSolutionRoot, fileRoleClassifier.Classify(relativeToSolutionRoot).ToString());
             })
             .ToArray();
 
@@ -657,7 +675,7 @@ internal sealed partial class IndexCommandHandler(
     private async Task<int> RunConfigurationIndexerAsync(
         bool clear,
         IReadOnlyCollection<string>? changedFiles,
-        IReadOnlyCollection<string> deletedFiles)
+        IReadOnlyCollection<string> deletedFiles, IndexProfileRun? report = null)
     {
         var indexer = new ConfigurationIndexer();
         return await indexer.RunAsync(
@@ -670,7 +688,7 @@ internal sealed partial class IndexCommandHandler(
             _settings.ArchitecturePath,
             clearExistingConfiguration: clear || !_settings.Incremental,
             changedFiles: clear || !_settings.Incremental ? null : changedFiles,
-            deletedFiles: clear || !_settings.Incremental ? [] : deletedFiles);
+            deletedFiles: clear || !_settings.Incremental ? [] : deletedFiles, profileRun: report);
     }
 
     private ServiceCollection BuildLoggingServices()

@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using CodeMeridian.Core.Projects;
+
 namespace CodeMeridian.Core.CodeGraph;
 
 /// <summary>A complete SQL file inventory; failed files retain their last successful graph.</summary>
@@ -6,12 +9,22 @@ public sealed record SqlGraphSnapshot
     public string ContractVersion { get; init; } = "1";
     public required string ProjectContext { get; init; }
     public IReadOnlyList<SqlFileGraph> Files { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? Generation { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceFingerprint { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProjectAnalyzerFingerprint? Fingerprint { get; init; }
 
     public string? Validate()
     {
         if (ContractVersion != "1" || string.IsNullOrWhiteSpace(ProjectContext) || ProjectContext.Length > 256
             || Files is null || Files.Count > 10_000)
             return "Invalid SQL snapshot version, project, or file inventory.";
+        if ((Generation is not null || SourceFingerprint is not null || Fingerprint is not null)
+            && (Generation is null or <= 0 || !ProjectAnalyzerFingerprint.ValidHash(SourceFingerprint)
+                || Fingerprint is null || Fingerprint.Validate() is not null))
+            return "SQL publication binding must include current generation, source and worker identities.";
         var owners = new Dictionary<string, string?>(StringComparer.Ordinal);
         var prefix = ProjectContext + "::Sql::";
         if (Files.Select(f => f?.Path).Distinct(StringComparer.Ordinal).Count() != Files.Count)
@@ -27,6 +40,8 @@ public sealed record SqlGraphSnapshot
                 || file.Status == "failed" && (file.Edges.Count > 0 || file.Nodes.Any(n => n?.Type != CodeNodeType.File))
                 || file.Diagnostics.Count > 100 || file.Diagnostics.Any(d => d is null || d.Length > 2048))
                 return "Invalid SQL file outcome.";
+            if (Generation is not null && !ProjectAnalyzerFingerprint.ValidHash(file.SourceFingerprint))
+                return "Bound SQL files require actual source-read fingerprints.";
             foreach (var node in file.Nodes)
             {
                 if (node is null || string.IsNullOrWhiteSpace(node.Id) || !node.Id.StartsWith(prefix, StringComparison.Ordinal) || node.Id.Length > 2048

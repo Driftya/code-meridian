@@ -91,6 +91,7 @@ internal sealed class IndexProfileRunReporter(LocalProjectProfileBuilder builder
             }
             var source = AnalyzedSourceSnapshot.Capture(settings.RootPath, snapshot.Files, cancellationToken);
             snapshot = snapshot with { Profile = snapshot.Profile with { Analyzers = analyzers, SourceFingerprint = source.Fingerprint } };
+            snapshot = await ConstraintEvidenceBuilder.DescribeArchitectureAsync(settings, snapshot, source, cancellationToken);
             snapshot = snapshot with { ConstraintEvidence = await ConstraintEvidenceBuilder.BuildAsync(settings, snapshot, inventory, source, cancellationToken) };
             if (settings.IncludeDocs)
                 snapshot = snapshot with { MarkdownEvidence = await MarkdownEvidenceBuilder.BuildAsync(snapshot, settings.RootPath, source, cancellationToken) };

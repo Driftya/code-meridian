@@ -27,10 +27,10 @@ internal sealed class ConfigurationIndexer
         IReadOnlyCollection<string>? changedFiles = null,
         IReadOnlyCollection<string>? deletedFiles = null,
         CancellationToken cancellationToken = default,
-        HttpMessageHandler? messageHandler = null)
+        HttpMessageHandler? messageHandler = null, Commands.IndexProfileRun? profileRun = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!ValidateArchitecturePolicy(rootPath, architecturePath)) return 2;
+        if (profileRun is null && !ValidateArchitecturePolicy(rootPath, architecturePath)) return 2;
 
         using var httpClient = messageHandler is null
             ? new HttpClient()
@@ -53,11 +53,12 @@ internal sealed class ConfigurationIndexer
             await new Commands.ProjectFileDeletionService(codeMeridianUrl, apiKey, project, rootPath).DeleteAsync(staleFiles);
         }
 
-        var files = rootPath
+        var files = (profileRun is null ? rootPath
             .EnumerateFiles("*.*", SearchOption.AllDirectories)
             .Where(file => !Commands.IndexExecutionPlanBuilder.IsIgnoredPath(rootPath, file))
             .Where(file => ConfigurationFilePatternMatcher.IsConfigurationFile(file, configurationFilePatterns))
             .Where(file => ShouldIndexConfigurationFile(rootPath, file, architecturePath))
+            : profileRun.ProducerPaths("configuration").Select(path => new FileInfo(Path.Combine(rootPath.FullName, path))))
             .Where(file => changedFiles is null || changedFiles.Contains(Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/'), StringComparer.OrdinalIgnoreCase))
             .OrderBy(ConfigurationFilePatternMatcher.GetOrder)
             .ThenBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
@@ -70,16 +71,25 @@ internal sealed class ConfigurationIndexer
         var nodeRequests = new List<CodeNodeIngestRequest>();
         var edgeRequests = new List<CodeEdgeIngestRequest>();
         var processedFiles = 0;
+        var outcomes = new List<Commands.ProducerFileOutcome>();
+        var partial = false;
         foreach (var file in files)
         {
             var relativePath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
-            if (!ConfigurationFileParser.TryParse(file, rootPath.FullName, out var entries, out var error))
+            cancellationToken.ThrowIfCancellationRequested();
+            var content = profileRun is null ? await File.ReadAllTextAsync(file.FullName, cancellationToken)
+                : await profileRun.ReadStructuralSourceAsync(file, cancellationToken);
+            var valid = ConfigurationFileParser.TryParseContent(file, rootPath.FullName, content, out var entries, out var error);
+            outcomes.Add(new(relativePath, profileRun?.SourceFileFingerprint(relativePath), valid ? "complete" : "partial",
+                valid ? [] : ["configuration_parse_or_format_incomplete"]));
+            if (!valid)
             {
                 Console.WriteLine($"  warn: skipped config file '{relativePath}' because it is not valid {file.Extension.TrimStart('.')} content: {error}");
+                partial = true;
                 continue;
             }
 
-            BuildFileRequests(nodeRequests, edgeRequests, project, file, rootPath, entries, seenCanonicalKeys, fileRoleClassifier);
+            BuildFileRequests(nodeRequests, edgeRequests, project, file, rootPath, entries, seenCanonicalKeys, fileRoleClassifier, content);
             processedFiles++;
             LogFileProgress(processedFiles, files.Length, relativePath);
         }
@@ -87,8 +97,13 @@ internal sealed class ConfigurationIndexer
         Console.WriteLine($"  Found {nodeRequests.Count} nodes, {edgeRequests.Count} edges");
         await BatchIngestNodesAsync(client, nodeRequests, cancellationToken);
         await BatchIngestEdgesAsync(client, edgeRequests, cancellationToken);
+        profileRun?.AcceptProducerReport(new("1", "managed", "configuration", project, ".", profileRun.Fingerprint("configuration")!, true,
+            outcomes, new Dictionary<string, string> { ["configuration_definitions"] = partial ? "partial" : "unknown",
+                ["configuration_usage"] = "unsupported", ["architecture_rules"] = "unsupported" },
+            ["Configuration definitions do not authorize code/config usage or namespace architecture evaluation.",
+             "Generation-owned definition replacement is unaudited; coverage remains unknown even after a clear."]));
 
-        return 0;
+        return partial ? 2 : 0;
     }
 
     private static bool ValidateArchitecturePolicy(DirectoryInfo rootPath, string? architecturePath)
@@ -117,7 +132,7 @@ internal sealed class ConfigurationIndexer
         DirectoryInfo rootPath,
         IReadOnlyList<ConfigurationEntryRecord> entries,
         HashSet<string> seenCanonicalKeys,
-        IIndexedFileRoleClassifier fileRoleClassifier)
+        IIndexedFileRoleClassifier fileRoleClassifier, string content)
     {
         var relativePath = Path.GetRelativePath(rootPath.FullName, file.FullName).Replace('\\', '/');
         var fileId = $"{project}::ConfigurationFile::{relativePath}";
@@ -128,7 +143,7 @@ internal sealed class ConfigurationIndexer
             file.Name,
             "ConfigurationFile",
             FilePath: relativePath,
-            SourceHash: Hash(File.ReadAllText(file.FullName)),
+            SourceHash: Hash(content),
             FileRole: fileRole,
             ProjectContext: project,
             Properties: new Dictionary<string, string>(StringComparer.Ordinal)

@@ -58,13 +58,14 @@ describe('SQL publication and cache', () => {
     expect(await app.run(options)).toBe(1);
   });
 
-  it('publishes deletion inventories, caches partial coverage and rejects unknown dialects', async () => {
+  it('publishes deletion inventories, retains cache on partial coverage and rejects unknown dialects', async () => {
     const options = fixture(); const { app, publish } = application();
     fs.writeFileSync(path.join(options.root, 'b.sql'), 'SELECT * FROM unknown;');
-    await app.run(options); await app.run(options); expect(publish).toHaveBeenCalledTimes(1);
+    expect(await app.run(options)).toBe(2); expect(await app.run(options)).toBe(2); expect(publish).toHaveBeenCalledTimes(2);
+    expect(fs.existsSync(options.cacheFile)).toBe(false);
     fs.writeFileSync(options.batchFile, '[]'); await app.run(options);
-    expect(publish.mock.calls[1][0].files).toEqual([]);
+    expect(publish.mock.calls[2][0].files).toEqual([]);
     await expect(app.run({ ...options, settings: { ...options.settings, defaultDialect: 'mysql' } })).rejects.toThrow('Unsupported');
-    expect(publish).toHaveBeenCalledTimes(2);
+    expect(publish).toHaveBeenCalledTimes(3);
   });
 });

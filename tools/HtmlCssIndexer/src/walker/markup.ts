@@ -16,9 +16,10 @@ export function collectHtmlArtifacts(
   edges: CodeEdgeDto[],
   knownIds: Set<string>,
   resolveFileRole?: (relativePath: string) => string | undefined,
+  sourceText?: string,
 ): void {
   const relativePath = toRelativePath(rootPath, filePath);
-  const content = fs.readFileSync(filePath, 'utf8');
+  const content = sourceText ?? fs.readFileSync(filePath, 'utf8');
   const fileId = addFrontendFileNode(rootPath, projectName, relativePath, content, nodes, knownIds, resolveFileRole, 'MarkupFile');
 
   collectHtmlClassAndIdUsage(content, relativePath, fileId, projectName, nodes, edges, knownIds);
@@ -33,9 +34,10 @@ export function collectTsxArtifacts(
   edges: CodeEdgeDto[],
   knownIds: Set<string>,
   resolveFileRole?: (relativePath: string) => string | undefined,
+  sourceText?: string,
 ): void {
   const relativePath = toRelativePath(rootPath, filePath);
-  const content = fs.readFileSync(filePath, 'utf8');
+  const content = sourceText ?? fs.readFileSync(filePath, 'utf8');
   const fileId = addFrontendFileNode(rootPath, projectName, relativePath, content, nodes, knownIds, resolveFileRole, 'ComponentFile');
 
   const project = new Project({
