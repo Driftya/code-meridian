@@ -267,6 +267,12 @@ public partial class CodebaseQueryService
             }
         }
 
+        var powerShellLookup = projectProfiles is not null && Path.GetExtension(filePath)?.ToLowerInvariant() is ".ps1" or ".psm1" or ".psd1";
+        if (powerShellLookup)
+        {
+            var path = CodeMeridian.Core.Projects.ProjectProfilePath.Normalize(filePath!);
+            nodes = await FilterPowerShellDefinitionsAsync(nodes, projectContext!, path, cancellationToken);
+        }
         var matches = nodes
             .DistinctBy(node => node.Id)
             .Where(node => MatchesFileHint(node, filePath) || string.IsNullOrWhiteSpace(filePath))
@@ -281,7 +287,9 @@ public partial class CodebaseQueryService
         {
             var scope = projectContext is null ? string.Empty : $" in `{projectContext}`";
             var fileHint = string.IsNullOrWhiteSpace(filePath) ? string.Empty : $" and file `{filePath}`";
-            return $"No exact symbol candidates found for `{symbol}`{fileHint}{scope}. Try `find_implementation_surface`, check graph freshness, or re-index with `codemeridian index . --project <ProjectName> --clear`.";
+            return $"No exact symbol candidates found for `{symbol}`{fileHint}{scope}. " + (powerShellLookup
+                ? "Check the explicit source path, spelling and current definition publication. PowerShell dependency/context queries remain unsupported."
+                : "Try `find_implementation_surface`, check graph freshness, or re-index with `codemeridian index . --project <ProjectName> --clear`.");
         }
 
         var exact = matches.Count(match => match.TargetConfidence == "exact");
@@ -308,7 +316,9 @@ public partial class CodebaseQueryService
         }
 
         sb.AppendLine();
-        sb.AppendLine("Use exact canonical node IDs with `get_context_for_editing`, `find_impact`, and `build_minimal_context`.");
+        sb.AppendLine(powerShellLookup
+            ? "PowerShell definition lookup only: these IDs do not authorize editing context, impact, connections or snippets."
+            : "Use exact canonical node IDs with `get_context_for_editing`, `find_impact`, and `build_minimal_context`.");
 
         return sb.ToString();
     }

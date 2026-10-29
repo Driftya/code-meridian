@@ -51,6 +51,7 @@ internal static class ContextWorkflowToolRequirements
             "search_documentation" => new[] { "markdown", "text" },
             "find_repository_constraint_violations" => ["csharp", "typescript", "javascript", "markdown", "text", "configuration", "sql", "html", "css", "scss", "powershell", "asset", "other", "typescript_declaration"],
             "find_config_definitions" => ["configuration"],
+            "resolve_exact_symbol" => [.. CodeKinds, "powershell"],
             "find_frontend_cascade_conflicts" => ["html", "css", "scss", "typescript", "javascript"],
             "find_related_knowledge" => ["csharp", "typescript", "javascript", "markdown", "text", "configuration", "sql", "html", "css", "scss"],
             _ => CodeKinds
@@ -64,7 +65,9 @@ internal static class ContextWorkflowToolRequirements
             ReadinessExempt = exempt,
             AllowsTargetScope = tool.Name is "resolve_exact_symbol" or "search_documentation" or "find_repository_constraint_violations",
             CapabilityAlternatives = tool.Name == "find_connection"
-                ? [new(CodeKinds, capabilities), new(["html", "css", "scss"], ["frontend_relationships"])] : []
+                ? [new(CodeKinds, capabilities), new(["html", "css", "scss"], ["frontend_relationships"])]
+                : tool.Name == "resolve_exact_symbol"
+                    ? [new(CodeKinds, capabilities), new(["powershell"], ["powershell_definitions"])] : []
         };
     }
 }

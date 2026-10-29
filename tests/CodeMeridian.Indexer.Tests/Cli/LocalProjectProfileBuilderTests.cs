@@ -53,7 +53,7 @@ public sealed class LocalProjectProfileBuilderTests : IDisposable
         profile.FileKinds.Select(kind => kind.Kind).Should().Equal("markdown", "powershell");
         profile.Analyzers.Single(analyzer => analyzer.Id == "powershell").Supported.Should().BeTrue();
         profile.Analyzers.Single(analyzer => analyzer.Id == "powershell").ConfigurationState.Should().Be("disabled");
-        profile.Analyzers.Single(analyzer => analyzer.Id == "powershell").SupportedCapabilities.Should().BeEmpty();
+        profile.Analyzers.Single(analyzer => analyzer.Id == "powershell").SupportedCapabilities.Should().Equal("powershell_definitions");
         profile.AnalysisRoots.Should().NotContain(root => root.Kind == "csharp" || root.Kind == "typescript");
     }
 

@@ -11,15 +11,94 @@ using FluentAssertions;
 using NSubstitute;
 using CodeMeridian.Tooling.Watching;
 using Microsoft.Extensions.Logging.Abstractions;
+using CodeMeridian.Application.Projects;
+using CodeMeridian.Application.Services;
+using CodeMeridian.Core.Knowledge;
+using Microsoft.Extensions.Options;
 
 namespace CodeMeridian.Indexer.Tests.Cli;
 
-public sealed class PowerShellPublicationTests : IDisposable
+public sealed partial class PowerShellPublicationTests : IDisposable
 {
     private readonly DirectoryInfo root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "powershell CLI å " + Guid.NewGuid().ToString("N")));
     private readonly List<PowerShellGraphSnapshot> graphs = [];
     private readonly List<ProjectAnalyzerOutcomeSnapshot> outcomes = [];
     private int generation;
+    private ProjectProfileSnapshot? profile;
+
+    [Theory]
+    [InlineData("context")]
+    [InlineData("impact")]
+    [InlineData("connection")]
+    [InlineData("snippet")]
+    public async Task NativePublishedFactsDoNotAuthorizeUnauditedGenericQueries(string query)
+    {
+        Write("main.ps1", "function Work {}; Work");
+        (await Run()).Should().Be(0);
+        var method = graphs.Single().Files.Single().Nodes.Single(node => node.Name == "Work");
+        method.SourceSnippet.Should().Be("function Work {}");
+        var profiles = Substitute.For<IProjectProfileRepository>();
+        var workerProfile = profile!.Profile;
+        // Even a complete unrelated C# producer must not authorize PowerShell's Method nodes.
+        workerProfile = workerProfile with { FileCount = workerProfile.FileCount + 1,
+            FileKinds = [.. workerProfile.FileKinds, new("csharp", 1, ["Other.cs"])],
+            Analyzers = workerProfile.Analyzers.Select(analyzer => analyzer.Id == "csharp" ? analyzer with { ConfigurationState = "enabled" } : analyzer).ToArray() };
+        profiles.GetAsync("Fixture", Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new StoredProjectProfile(
+            generation, generation, DateTimeOffset.UtcNow, workerProfile, new("main.ps1", "powershell"))
+            { AnalyzerOutcomes = [.. outcomes.Last().Outcomes, new("csharp", ".", "succeeded", "complete", "full", DateTimeOffset.UtcNow, "fixture/1", [])
+                { SourceFingerprint = workerProfile.SourceFingerprint, Fingerprint = workerProfile.Analyzers.Single(analyzer => analyzer.Id == "csharp").Fingerprint }] });
+        var graph = Substitute.For<ICodeGraphRepository>();
+        graph.GetContextForEditingAsync(method.Id, Arg.Any<CancellationToken>()).Returns(new EditingContext(method, [], [], []));
+        var service = new CodebaseQueryService(graph, Substitute.For<IVectorRepository>(), new NoOpEmbeddingProvider(),
+            Options.Create(new CodebaseAnalysisOptions()), Options.Create(new CodebaseIndexingOptions()),
+            new DefaultAnalysisProfilePolicy(), Substitute.For<IProjectAnalysisOptionsResolver>(), new ProjectProfileService(profiles));
+
+        var result = query switch
+        {
+            "context" => await service.GetContextForEditingAsync(method.Id),
+            "impact" => await service.FindImpactAsync(method.Id),
+            "connection" => await service.FindConnectionAsync(method.Id, method.Id),
+            _ => (await service.BuildMinimalContextResultAsync(method.Id, includeSourceSnippets: true)).ToMarkdown(ContextDetailLevel.Compact)
+        };
+
+        result.Should().Contain("unsupported").And.NotContain("function Work {}");
+        await graph.DidNotReceiveWithAnyArgs().QueryNodesAsync(default!, default);
+        await graph.DidNotReceiveWithAnyArgs().FindImpactAsync(default!, default, default);
+        await graph.DidNotReceiveWithAnyArgs().FindConnectionAsync(default!, default!, default);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NativeFactsCannotLeakThroughVerifiedCallableNeighbours(bool minimalContext)
+    {
+        Write("main.ps1", "function Work {}; Work");
+        (await Run()).Should().Be(0);
+        var method = graphs.Single().Files.Single().Nodes.Single(node => node.Name == "Work");
+        var target = method with { Id = "Fixture::Method::Caller", Name = "Caller", FilePath = "Caller.cs", SourceSnippet = null };
+        var profiles = Substitute.For<IProjectProfileRepository>();
+        var workerProfile = profile!.Profile with { FileCount = 2,
+            FileKinds = [.. profile.Profile.FileKinds, new("csharp", 1, ["Caller.cs"])],
+            Analyzers = profile.Profile.Analyzers.Select(analyzer => analyzer.Id == "csharp" ? analyzer with { ConfigurationState = "enabled" } : analyzer).ToArray() };
+        profiles.GetAsync("Fixture", Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(call => new StoredProjectProfile(
+            generation, generation, DateTimeOffset.UtcNow, workerProfile,
+            call.ArgAt<string>(1) == "main.ps1" ? new("main.ps1", "powershell") : new("Caller.cs", "csharp"))
+            { AnalyzerOutcomes = [.. outcomes.Last().Outcomes, new("csharp", ".", "succeeded", "complete", "full", DateTimeOffset.UtcNow, "fixture/1", [])
+                { SourceFingerprint = workerProfile.SourceFingerprint, Fingerprint = workerProfile.Analyzers.Single(analyzer => analyzer.Id == "csharp").Fingerprint }] });
+        var graph = Substitute.For<ICodeGraphRepository>();
+        graph.GetContextForEditingAsync(target.Id, Arg.Any<CancellationToken>()).Returns(new EditingContext(target, [method], [], []));
+        graph.GetContextForEditingAsync(method.Id, Arg.Any<CancellationToken>()).Returns(new EditingContext(method, [], [], []));
+        graph.FindImpactAsync(target.Id, Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns([(method, 1)]);
+        var service = new CodebaseQueryService(graph, Substitute.For<IVectorRepository>(), new NoOpEmbeddingProvider(),
+            Options.Create(new CodebaseAnalysisOptions()), Options.Create(new CodebaseIndexingOptions()),
+            new DefaultAnalysisProfilePolicy(), Substitute.For<IProjectAnalysisOptionsResolver>(), new ProjectProfileService(profiles));
+
+        var result = minimalContext
+            ? (await service.BuildMinimalContextResultAsync(target.Id, includeTests: false, includeSourceSnippets: true)).ToMarkdown(ContextDetailLevel.Full)
+            : await service.FindImpactAsync(target.Id);
+
+        result.Should().Contain("status: unknown").And.NotContain("function Work {}");
+    }
 
     [Fact]
     public async Task RealIsolatedWorkerRebindsUnchangedConsumersAndReconcilesDeletionsWithoutExecution()
@@ -37,7 +116,9 @@ public sealed class PowerShellPublicationTests : IDisposable
         (await Run()).Should().Be(2);
         graphs.Last().Files.Should().ContainSingle().Which.Path.Should().Be("main.ps1");
         File.Exists(Path.Combine(root.FullName, "executed")).Should().BeFalse();
-        outcomes.SelectMany(report => report.Outcomes).Should().OnlyContain(outcome => outcome.Coverage != "complete" && outcome.Mode == "full");
+        outcomes.SelectMany(report => report.Outcomes).Should().OnlyContain(outcome => outcome.Mode == "full");
+        outcomes.First().Outcomes.Single().Coverage.Should().Be("unknown", "running is not coverage");
+        outcomes[1].Outcomes.Single().Coverage.Should().Be("complete", "only PowerShell definition coverage is advertised");
         outcomes.Last().Outcomes.Single().Coverage.Should().Be("partial");
         graphs.Should().OnlyContain(graph => graph.Validate() == null && graph.Generation > 0);
     }
@@ -91,7 +172,7 @@ public sealed class PowerShellPublicationTests : IDisposable
         PowerShellIndexRunCoordinator.IsEnabled(settings).Should().Be(expected);
         var analyzer = LocalProjectProfileBuilder.BuildAnalyzers(settings).Single(item => item.Id == "powershell");
         analyzer.ConfigurationState.Should().Be(expected ? "enabled" : "disabled");
-        analyzer.SupportedCapabilities.Should().BeEmpty();
+        analyzer.SupportedCapabilities.Should().Equal("powershell_definitions");
     }
 
     [Fact]
@@ -149,6 +230,7 @@ public sealed class PowerShellPublicationTests : IDisposable
         {
             var path = request.RequestUri!.AbsolutePath;
             if (path.EndsWith("/begin")) generation++;
+            if (path == "/api/v1/project-profiles/") profile = await request.Content!.ReadFromJsonAsync<ProjectProfileSnapshot>();
             if (path.EndsWith("/outcomes")) outcomes.Add((await request.Content!.ReadFromJsonAsync<ProjectAnalyzerOutcomeSnapshot>())!);
             if (path.EndsWith("/powershell"))
             {

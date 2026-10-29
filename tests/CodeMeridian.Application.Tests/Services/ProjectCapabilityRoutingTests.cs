@@ -59,7 +59,7 @@ public sealed class ProjectCapabilityRoutingTests
     }
 
     [Fact]
-    public void RequiredDocumentStepsCannotBeSilentlyTruncatedAndScriptsRemainUnsupported()
+    public void RequiredDocumentStepsCannotBeSilentlyTruncatedAndScriptWorkflowsRemainBlocked()
     {
         var planner = new ContextWorkflowPlanner();
         var result = planner.Plan(new("Edit", "chapter.md", "Docs", MaxSteps: 1), Profile("markdown"));
@@ -67,7 +67,9 @@ public sealed class ProjectCapabilityRoutingTests
         result.Steps.Should().HaveCount(2);
         result.Error.Should().Contain("maxSteps");
         planner.Plan(new("Edit", "Publish.ps1", "Docs"), Profile("powershell"))
-            .Applicability!.Status.Should().Be("unsupported");
+            .Status.Should().Be("blocked");
+        ContextWorkflowToolPolicy.Evaluate("get_context_for_editing", Profile("powershell"))
+            .Status.Should().Be("unsupported");
     }
 
     [Fact]

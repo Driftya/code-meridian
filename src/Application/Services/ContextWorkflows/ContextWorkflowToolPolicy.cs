@@ -44,7 +44,10 @@ public static class ContextWorkflowToolPolicy
         var alternatives = descriptor.CapabilityAlternatives.Count == 0
             ? new[] { new ContextWorkflowCapabilityAlternative(descriptor.SupportedFileKinds, descriptor.RequiredCapabilities) }
             : descriptor.CapabilityAlternatives;
-        if (profile.Target?.Kind == "powershell") return Result("unsupported", "PowerShell facts can be published by the opt-in offline worker; generic semantic query conformance remains unaudited.");
+        if (profile.Target?.Kind == "powershell" && tool != "resolve_exact_symbol")
+            return Result("unsupported", "Only explicit-file PowerShell exact definition lookup is audited; this semantic query remains unsupported.");
+        if (tool == "resolve_exact_symbol" && profile.Target is null && profile.Profile.FileKinds.Any(kind => kind.Kind == "powershell" && kind.Count > 0))
+            return Result("unknown", "Supply an explicit observed file path for exact lookup in a project containing PowerShell; project-wide PowerShell lookup is unaudited.");
         if (profile.Target?.Kind is { } targetKind && !alternatives.Any(item => item.FileKinds.Contains(targetKind)))
             return Result("not_applicable", "This tool's audited node and relationship semantics do not apply to the observed target kind.");
         var kinds = descriptor.AllowsTargetScope && profile.Target?.Kind is { } kind ? [kind]
@@ -69,6 +72,8 @@ public static class ContextWorkflowToolPolicy
             if (analyzer is null) return Result("unknown", $"Analyzer support is unknown for {id}.");
             if (!analyzer.Supported) return Result("unsupported", $"Analyzer {id} is unsupported.");
             if (analyzer.ConfigurationState != "enabled") return Result("disabled", $"Analyzer {id} is disabled.");
+            if (capabilities.Contains("powershell_definitions") && analyzer.Fingerprint is null)
+                return Result("unknown", "PowerShell exact lookup requires a known executing worker identity.");
             var missing = capabilities.Where(capability => !analyzer.SupportedCapabilities.Contains(capability)).ToArray();
             if (missing.Length > 0) return Result("unknown", $"Analyzer {id} has not published support for: {string.Join(", ", missing)}.", limitations: analyzer.Limitations);
             var outcomes = profile.AnalyzerOutcomes.Where(item => item.Analyzer == id).ToArray();

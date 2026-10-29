@@ -196,8 +196,14 @@
     <None Include="../PowerShellIndexer/supports.md" Link="tools/PowerShellIndexer/supports.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="RequirePowerShellWorkersForPackage" BeforeTargets="GenerateNuspec">
-    <Error Condition="!Exists('$(PowerShellWorkerArtifactsRoot)/win-x64/CodeMeridian.PowerShellIndexer.exe') Or !Exists('$(PowerShellWorkerArtifactsRoot)/linux-x64/CodeMeridian.PowerShellIndexer')"
-           Text="Publish the isolated self-contained win-x64 and linux-x64 PowerShell workers under PowerShellWorkerArtifactsRoot before packing the CLI. See tools/PowerShellIndexer/supports.md." />
+    <ItemGroup>
+      <_RequiredPowerShellWorker Include="$(PowerShellWorkerArtifactsRoot)/win-x64/CodeMeridian.PowerShellIndexer.exe;$(PowerShellWorkerArtifactsRoot)/linux-x64/CodeMeridian.PowerShellIndexer" />
+      <_PowerShellWorkerRid Include="win-x64;linux-x64" />
+      <_RequiredPowerShellWorker Include="@(_PowerShellWorkerRid->'$(PowerShellWorkerArtifactsRoot)/%(Identity)/CodeMeridian.PowerShellIndexer.dll');@(_PowerShellWorkerRid->'$(PowerShellWorkerArtifactsRoot)/%(Identity)/CodeMeridian.PowerShellIndexer.deps.json');@(_PowerShellWorkerRid->'$(PowerShellWorkerArtifactsRoot)/%(Identity)/CodeMeridian.PowerShellIndexer.runtimeconfig.json');@(_PowerShellWorkerRid->'$(PowerShellWorkerArtifactsRoot)/%(Identity)/System.Management.Automation.dll');@(_PowerShellWorkerRid->'$(PowerShellWorkerArtifactsRoot)/%(Identity)/System.Private.CoreLib.dll')" />
+      <_RequiredPowerShellWorker Include="$(PowerShellWorkerArtifactsRoot)/win-x64/hostfxr.dll;$(PowerShellWorkerArtifactsRoot)/win-x64/hostpolicy.dll;$(PowerShellWorkerArtifactsRoot)/win-x64/coreclr.dll;$(PowerShellWorkerArtifactsRoot)/linux-x64/libhostfxr.so;$(PowerShellWorkerArtifactsRoot)/linux-x64/libhostpolicy.so;$(PowerShellWorkerArtifactsRoot)/linux-x64/libcoreclr.so" />
+    </ItemGroup>
+    <Error Condition="!Exists('%(_RequiredPowerShellWorker.Identity)')"
+           Text="Incomplete self-contained PowerShell worker: %(_RequiredPowerShellWorker.Identity). Publish both RID workers under PowerShellWorkerArtifactsRoot before packing. See tools/PowerShellIndexer/supports.md." />
   </Target>
 
 </Project>

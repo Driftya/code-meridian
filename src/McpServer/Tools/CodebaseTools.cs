@@ -218,7 +218,8 @@ public sealed partial class CodebaseTools(ICodebaseQueryService queryService)
     [McpServerTool(Name = "resolve_exact_symbol", Title = "Resolve Exact Symbol", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(
         "Resolve a method, class, interface, or file hint to canonical CodeMeridian node IDs. " +
-        "Use this when query_codebase or find_implementation_surface found a likely file but you need the exact node ID before editing.")]
+        "Use this when query_codebase or find_implementation_surface found a likely file but you need the exact node ID before editing. " +
+        "PowerShell supports definition lookup only with an explicit observed filePath and complete published powershell_definitions evidence; this does not authorize context, impact, connections or snippets.")]
     public Task<string> ResolveExactSymbolAsync(
         [Description("Symbol name or partial name, e.g. 'BuildMinimalContextAsync' or 'CodebaseQueryService'.")]
         string symbol,

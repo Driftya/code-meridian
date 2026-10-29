@@ -90,6 +90,13 @@ public sealed partial class CodebaseQueryService
         {
             return Block(before with { Status = "failed", Coverage = "unknown", Reasons = ["Analysis execution failed; no successful result is available."], Limitations = [ex.GetType().Name] });
         }
+        if (result is ConnectionAnalysisResult path)
+        {
+            var boundary = await ValidateConnectionBoundaryAsync(path, before, cancellationToken);
+            if (boundary is not null) return Block(boundary);
+        }
+        var callableBoundary = await ValidateCallableResultBoundaryAsync(result, before, cancellationToken);
+        if (callableBoundary is not null) return Block(callableBoundary);
         var after = await RevalidateToolAsync(tool, before, target, cancellationToken);
         if (after.Status != "ready") return Block(after);
         if (secondary is not null)

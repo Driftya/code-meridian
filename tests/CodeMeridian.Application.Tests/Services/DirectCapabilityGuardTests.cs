@@ -64,7 +64,8 @@ public sealed class DirectCapabilityGuardTests
         graph.FindImpactAsync(Target, 5, Arg.Any<CancellationToken>()).Returns(_ =>
         {
             profiles.GetAsync("Fixture", Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(stored with { Generation = 2, LatestGeneration = 2 });
-            return Task.FromResult<IReadOnlyList<(CodeNode, int)>>([(new CodeNode { Id = "caller", Name = "Caller", Type = CodeNodeType.Method }, 1)]);
+            return Task.FromResult<IReadOnlyList<(CodeNode, int)>>([(new CodeNode
+                { Id = Target, Name = "A", Type = CodeNodeType.Class, FilePath = "src/A.cs", ProjectContext = "Fixture" }, 1)]);
         });
 
         var result = await Service().FindImpactResultAsync(Target);

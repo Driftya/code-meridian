@@ -104,9 +104,26 @@ try:
         graph = state["graphs"][-1]
         assert {file["path"] for file in graph["files"]} == {"helper.ps1", "main.ps1"}
         assert any(edge["type"] == 1 for file in graph["files"] for edge in file["edges"]), "No Calls edge"
-        assert all(outcome["coverage"] == "unknown" for outcome in state["outcomes"])
+        assert state["outcomes"][-1]["coverage"] == "complete"
+        assert next(item for item in state["profile"]["analyzers"] if item["id"] == "powershell")["supportedCapabilities"] == ["powershell_definitions"]
         cached = list((root / ".meridian" / "cache").glob("indexer-files-*.json"))
         assert len(cached) == 1
+        # Each invocation is a fresh installed process reading the persisted cache.
+        generation = state["generation"]
+        output = run()
+        assert state["generation"] > generation, "PowerShell no-change pass must still rebind"
+        assert "cache has no matching current server profile" not in output, "Verified cache identity was rejected"
+        generation = state["generation"]
+        # Old profiles remain readable, but cannot authorize last-good cache reuse.
+        del state["profile"]["sourceFingerprint"]
+        output = run()
+        assert state["generation"] > generation, "Legacy source-unbound profile reused cache"
+        assert "cache has no matching current server profile" in output, "Legacy profile passed cache reconciliation"
+        generation = state["generation"]
+        next(item for item in state["profile"]["analyzers"] if item["id"] == "powershell")["fingerprint"] = None
+        output = run()
+        assert state["generation"] > generation, "Unknown producer identity reused cache"
+        assert "cache has no matching current server profile" in output, "Missing producer passed cache reconciliation"
         (root / "helper.ps1").write_text("function Renamed {};", encoding="utf-8")
         run()
         assert not any(edge["type"] == 1 for file in state["graphs"][-1]["files"] for edge in file["edges"])

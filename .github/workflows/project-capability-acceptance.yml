@@ -1,0 +1,60 @@
+name: Isolated project capability persistence
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-neo4j:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      neo4j:
+        image: neo4j:5.26.0-community
+        env:
+          NEO4J_AUTH: neo4j/capability-fixture-password
+          NEO4J_server_memory_heap_initial__size: 256m
+          NEO4J_server_memory_heap_max__size: 512m
+          NEO4J_server_memory_pagecache_size: 256m
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p capability-fixture-password 'RETURN 1'"
+          --health-interval 10s --health-timeout 10s --health-retries 12
+    env:
+      NEO4J__URI: bolt://localhost:7687
+      NEO4J__USERNAME: neo4j
+      NEO4J__PASSWORD: capability-fixture-password
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Run publication, ownership, recovery, and scoped query fixtures together
+        run: >-
+          dotnet test tests/CodeMeridian.Infrastructure.Integration.Tests -c Release
+          --filter 'FullyQualifiedName~Neo4jProjectProfileRepositoryTests|FullyQualifiedName~Neo4jProjectAnalyzerOutcomeTests|FullyQualifiedName~Neo4jRepositoryConstraintSnapshotTests|FullyQualifiedName~Neo4jPowerShellPublicationTests|FullyQualifiedName~ScopedFullTextFiltersBeforeLimitAndKeepsExactFileChunks'
+          --logger trx --results-directory .artifacts/capability-acceptance
+      - name: Stage isolated workers and install the complete client
+        run: |
+          dotnet restore tools/PowerShellIndexer --locked-mode
+          dotnet publish tools/PowerShellIndexer -c Release -r win-x64 --self-contained true --no-restore -o .artifacts/powershell-workers/win-x64
+          dotnet publish tools/PowerShellIndexer -c Release -r linux-x64 --self-contained true --no-restore -o .artifacts/powershell-workers/linux-x64
+          dotnet pack tools/Indexer -c Release -o .artifacts/packages /p:Version=0.0.0-capability-acceptance
+          dotnet tool install CodeMeridian.Indexer --version 0.0.0-capability-acceptance --tool-path .artifacts/tool --add-source .artifacts/packages
+          dotnet build src/McpServer -c Release
+      - name: Exercise fresh server, installed SDK client, authenticated REST and MCP
+        run: >-
+          python tools/Indexer/tests/fresh_process_client_smoke.py
+          src/McpServer/bin/Release/net10.0/CodeMeridian.McpServer.dll
+          .artifacts/tool/codemeridian bolt://localhost:7687
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: isolated-capability-persistence
+          path: .artifacts/capability-acceptance/*.trx

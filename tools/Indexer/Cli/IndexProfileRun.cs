@@ -8,6 +8,7 @@ internal sealed class IndexProfileRun(CodeMeridianClient client, ProjectProfileS
 {
     private static readonly string ReporterVersion = "cli/" + typeof(IndexProfileRun).Assembly.GetName().Version;
     private readonly List<ProjectAnalyzerOutcome> _terminal = [];
+    private bool powerShellDefinitionsPublished;
 
     public Task<string> ReadSourceAsync(FileInfo file, CancellationToken cancellationToken) => source.ReadSourceAsync(file, cancellationToken);
 
@@ -24,6 +25,7 @@ internal sealed class IndexProfileRun(CodeMeridianClient client, ProjectProfileS
                 throw new InvalidDataException("PowerShell worker read different bytes than the captured source inventory.");
         if (!source.IsCurrent(cancellationToken)) throw new InvalidDataException("Sources changed before PowerShell publication.");
         await client.PublishPowerShellGraphAsync(graph, cancellationToken);
+        powerShellDefinitionsPublished = graph.Files.All(file => file.Status == "complete");
     }
     public ProjectAnalyzerFingerprint? Fingerprint(string analyzer) => snapshot.Profile.Analyzers.Single(item => item.Id == analyzer).Fingerprint;
 
@@ -72,13 +74,15 @@ internal sealed class IndexProfileRun(CodeMeridianClient client, ProjectProfileS
         var state = exitCode == 0 ? worker?.Coverage == "partial" ? "partial" : "succeeded"
             : (analyzer is "documents" or "csharp" or "powershell") && exitCode == 2 ? "partial" : "failed";
         // Verified source reads alone do not audit C# project membership or callable semantics.
-        var sourceVerified = analyzer == "documents" && source.AllDocumentsRead;
+        var sourceVerified = analyzer == "documents" && source.AllDocumentsRead
+            || analyzer == "powershell" && powerShellDefinitionsPublished;
         if (exitCode == 0 && analyzer == "documents" && fullSelection && verifiedCoverage && !sourceVerified)
         {
             Record("partial", "partial", ["Not every document in the captured inventory was read with verified source bytes."]);
             return 2;
         }
-        var coverage = state == "succeeded" && fullSelection && verifiedCoverage && sourceVerified ? "complete"
+        var coverage = state == "succeeded" && fullSelection && sourceVerified
+            && (verifiedCoverage || analyzer == "powershell") ? "complete"
             : state == "partial" ? "partial" : "unknown";
         Record(state, coverage, coverage == "complete" ? [] : worker?.Limitations.ToArray() ??
             ["Process completion does not establish complete target coverage. Delta selection and unaudited worker outcomes remain insufficient for readiness."]);

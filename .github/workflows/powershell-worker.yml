@@ -27,6 +27,13 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install and build Node worker test dependencies
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
       - name: Restore pinned parser graph
         run: dotnet restore tools/PowerShellIndexer --locked-mode
       - name: Test offline facts and non-execution
@@ -43,5 +50,11 @@ jobs:
         run: |
           dotnet pack tools/Indexer -c Release -o .artifacts/packages /p:Version=0.0.0-powershell-smoke
           dotnet tool install CodeMeridian.Indexer --version 0.0.0-powershell-smoke --tool-path .artifacts/tool --add-source .artifacts/packages
+      - name: Refuse missing worker parser and runtime files
+        run: python tools/Indexer/tests/worker_package_gate.py
       - name: Exercise installed CLI publication and cache without PowerShell on PATH
         run: python tools/PowerShellIndexer/tests/packaged_cli_smoke.py .artifacts/tool/${{ runner.os == 'Windows' && 'codemeridian.exe' || 'codemeridian' }}
+      - name: Verify discovery, worker outcomes, routing, and empty query behavior
+        run: dotnet test tests/CodeMeridian.Indexer.Tests -c Release --filter FullyQualifiedName~ProjectCapabilityMatrixTests
+      - name: Run synthetic repository matrix through the built CLI and real workers
+        run: python tools/Indexer/tests/capability_matrix_smoke.py tools/Indexer/bin/Release/net10.0/CodeMeridian.Indexer.dll

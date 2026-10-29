@@ -109,8 +109,8 @@ internal sealed class LocalProjectProfileBuilder(RepositoryInventoryDiscovery di
             ["Configuration usage requires separately indexed code evidence."]),
         Analyzer("sql", settings.Sql?.Enabled == true && !settings.SkipSql, ["sql_object_dependencies"],
             ["SQL indexing is opt-in; supported dialect semantics must be checked separately."]),
-        Analyzer("powershell", PowerShellIndexRunCoordinator.IsEnabled(settings), [],
-            ["Offline syntax and conservative bindings are published by an isolated worker. Generic callable, class, namespace, data-flow and Pester query coverage remains unaudited."])
+        Analyzer("powershell", PowerShellIndexRunCoordinator.IsEnabled(settings), ["powershell_definitions"],
+            ["Only explicit-file exact definition lookup is audited. Callable dependencies, context/snippets, classes, namespaces, data flow and Pester queries remain unsupported."])
     ];
 
     private static ProjectAnalyzerProfile Analyzer(string id, bool enabled, string[] capabilities, string[] limitations) =>
