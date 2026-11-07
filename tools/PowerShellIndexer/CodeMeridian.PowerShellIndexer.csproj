@@ -11,6 +11,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Core/CodeMeridian.Core.csproj" />
-    <PackageReference Include="System.Management.Automation" Version="[7.6.8]" />
+    <PackageReference Include="System.Management.Automation" Version="[7.6.9]" />
   </ItemGroup>
 </Project>
