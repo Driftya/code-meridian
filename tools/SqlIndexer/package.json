@@ -11,14 +11,14 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "pgsql-parser": "18.2.8",
-    "@pgsql/traverse": "18.0.0"
+    "pgsql-parser": "18.3.3",
+    "@pgsql/traverse": "18.8.4"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
-    "@vitest/coverage-v8": "5.0.3",
+    "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "5.1.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "5.0.3"
+    "vitest": "5.1.0"
   }
 }
