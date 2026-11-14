@@ -14,7 +14,7 @@ COPY . .
 WORKDIR "/src/src/McpServer"
 RUN dotnet publish "CodeMeridian.McpServer.csproj" -c Release -o /app/publish /p:Version=${VERSION} /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
 WORKDIR /app
 EXPOSE 8080
 
